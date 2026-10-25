@@ -451,6 +451,7 @@ function TableDevHarness() {
     dealer?: string;
     clear?: string;
     guest?: string;
+    crew?: string;
     connection?: string;
     bids?: string;
     out?: string;
@@ -712,6 +713,7 @@ function TableDevHarness() {
             xp={params.xp}
             playerName={params.playerName}
             guest={params.guest === 'true'}
+            crew={params.crew === 'win' || params.crew === 'loss' ? params.crew : undefined}
           />
           {params.feedback === 'owner' && (
             <TableSeatDecision

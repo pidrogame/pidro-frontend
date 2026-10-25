@@ -71,6 +71,7 @@ type Props = {
   roomFinished?: boolean;
   onHome?: () => void;
   playAgainLabel?: string;
+  guest?: boolean;
   showGuestSave?: boolean;
   onSaveGuest?: () => void;
   /** How every hand holds its cards; fixtures try the styles. */
@@ -296,6 +297,7 @@ export function GameCanvasTable({
   roomFinished = true,
   onHome,
   playAgainLabel,
+  guest,
   showGuestSave,
   onSaveGuest,
   rulesFixtureSeen,
@@ -710,6 +712,7 @@ export function GameCanvasTable({
           rematch={rematch}
           rematchPending={rematchPending}
           playAgainLabel={playAgainLabel}
+          guest={guest}
           showGuestSave={showGuestSave}
           onSaveGuest={onSaveGuest}
           onProfile={openProfile}

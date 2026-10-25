@@ -14,7 +14,7 @@ test('the save prompt after a finished game shows once that day', async ({ page,
   await page.getByTestId('home-quick-game').click();
   await page.waitForURL(/\/game\/[A-Z0-9]+/);
   const first = await playOutGame(page, started.token);
-  await expect(first.getByText('Ready for real players?')).toBeVisible();
+  await expect(first.getByTestId('guest-save')).toBeVisible();
   // Force the order that races, with the server's own answers: the new table is
   // refused while the leave from the game-over window is held back, that leave
   // lands next, and Home's own leave then finds nothing to leave.
@@ -40,5 +40,5 @@ test('the save prompt after a finished game shows once that day', async ({ page,
   const second = await playOutGame(page, started.token);
   // The result is complete once the XP shows; the prompt would have come with it.
   await expect(second.getByText(/\+\d+ XP/)).toBeVisible();
-  await expect(second.getByText('Ready for real players?')).toHaveCount(0);
+  await expect(second.getByTestId('guest-save')).toHaveCount(0);
 });

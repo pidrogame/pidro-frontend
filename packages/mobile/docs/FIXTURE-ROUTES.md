@@ -71,8 +71,8 @@ PID-277 uses `/table-dev?fixture=bot-crew&locale=en|sv`: Marcel is thinking,
 and all three drawn bots open their short card through their avatar or nameplate.
 It applies the server's seat lifecycle shape: bots have a persona but no account ID.
 `table-bot-card-{marcel,antti,jocke}-{en,sv}` checks the copy, Close/reopen,
-44pt targets and no scrolling. `table-bot-card-game-over-{en,sv}` checks that
-the rematch row opens the same card, and Close leaves Play again and Home reachable.
+44pt targets and no scrolling. Game over against the crew shows no rematch row
+(bots always agree, PID-292), so the card opens only at the table.
 Cards stay closed until tapped. `table-bot-thinking[-antti|-jocke]-{en,sv}`
 checks each voice's visible nameplate line and that reloading keeps it.
 `botTurn=north|east|west&botHand=1|2|3|4` tries every line of the crew.
@@ -191,6 +191,22 @@ home. Run `node scripts/verify-game-over.mjs` for
 phone/tablet, simulated insets, outcome, voting, and reduced-motion checks.
 These browser checks do not certify native safe-area measurement.
 
+PID-292 game over, the four screens to check:
+
+| URL                                                                  | Shows                                                                                                                         |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `/table-dev?phase=game_over&guest=true&crew=win`                     | A guest beat the bot crew: Marcel's JA36 game, 62–36 in 7 hands with Jocke, all 14 in hand 5. Winning trick, Every hand ›, Play real people |
+| `/table-dev?phase=game_over&guest=true&crew=loss`                    | The same game lost (36–62): best hand, Every hand ›, Play real people                                                          |
+| `/table-dev?phase=game_over&xp=earned&rematch=one`                   | An account won with people: race chart with Every hand › in its header, streak and XP chips, the rematch row                  |
+| `/table-dev?phase=game_over&result=loss&xp=earned&rematch=waiting`   | An account lost with people and is waiting on a rematch                                                                        |
+
+`crew=win|loss` seats Jocke (partner), Marcel and Antti as permanent bots. With
+three bots there is no rematch row; a guest sees no race chart; no game over shows
+the rule set. `table-game-over`, `table-game-over-guest-win`,
+`table-game-over-guest-loss` and `table-game-over-people-loss` check that, that
+the top-level blocks never overlap, and that nothing leaves the screen, at
+390×844, 375×667, 844×390, 667×375, 834×1194 and 1194×834.
+
 The table's header is one row: the score plaque left, the menu right
 (`TABLE_HEADER` in `TableChrome.tsx`). Portrait reserves it above the north seat;
 landscape seats North inside it. Notices and the Reconnecting… banner share one
@@ -201,7 +217,7 @@ seat or its cards.
 
 Score checks (PID-275): `fixture=scores` rejoins the real store/controller with nine
 completed hands; tap the score plaque for the server ledger, newest first.
-`fixture=scores-game-over` shows the labelled race chart and its **Every hand** link.
+`fixture=scores-game-over` shows the race chart, "How it went · 10 hands", with **Every hand ›** in its header.
 `fixture=all-14|all-14-theirs` shows either team's six point cards and **All 14!**.
 Add `hand=own` to either sweep for the combined all-14 + Continue gate; the
 `scores-{en,sv}-all-14(-theirs)-own` cases also check that tapping the dimmed table continues
@@ -633,7 +649,7 @@ with an authenticated fixture.
 | `/table-dev?fixture=louisiana`                                 | Playing table badge; Table settings → Table rules                |
 | `/table-dev?fixture=louisiana-bidding`                         | Server minimum bid 7; badge clear of the bid grid                |
 | `/table-dev?fixture=louisiana-explainer`                       | First-encounter rules explainer, four facts, feedback and Got it |
-| `/table-dev?fixture=louisiana-game-over`                       | Game-over rules badge                                            |
+| `/table-dev?fixture=louisiana-game-over`                       | Game over shows no rules badge (PID-292)                         |
 | `/table-dev?fixture=louisiana-waiting`                         | Waiting rules badge and Table rules action                       |
 | `/table-dev?fixture=louisiana-waiting-explainer`               | Waiting first-encounter explainer; dismiss and reopen            |
 
@@ -649,8 +665,8 @@ Grammar cases: `new-table-setup`, `new-table-louisiana`,
 `table-finnish`, `table-louisiana`, `table-louisiana-bidding`, `table-louisiana-explainer`, `table-louisiana-game-over`,
 `table-louisiana-waiting`, `table-louisiana-waiting-explainer`.
 New-table cases use the four sizes documented above; other rule cases run at
-390×844, 844×390 and 667×375. Ostrobothnian playing, waiting and
-game-over cases also check badges; playing/waiting reopen the rules from the menu
+390×844, 844×390 and 667×375. Ostrobothnian playing and waiting
+cases also check badges; playing/waiting reopen the rules from the menu
 and capture an additional `-rules-reopened.png` screenshot.
 
 PID-273's `words-en-*` and `words-sv-*` grammar cases reuse these fixtures for the

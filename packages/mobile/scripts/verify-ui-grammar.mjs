@@ -56,6 +56,12 @@ const ageGateFixture = JSON.stringify({
   version: 0,
 });
 
+// iPad portrait and landscape for game over, on CI's existing tablet shards.
+const GAME_OVER_TABLETS = {
+  'tablet-portrait': { width: 834, height: 1194 },
+  'tablet-landscape': { width: 1194, height: 834 },
+};
+
 const allCases = [
   ...['en', 'sv'].flatMap((locale) => [
     {
@@ -256,16 +262,6 @@ const allCases = [
       botVoice: true,
       locale,
     })),
-    {
-      name: `table-bot-card-game-over-${locale}`,
-      path: `/table-dev?fixture=bot-crew&phase=game_over&locale=${locale}`,
-      testId: 'bot-profile-modal',
-      open: locale === 'sv' ? 'Visa profilen för Marcel' : 'View Marcel’s profile',
-      botCard: 'Marcel',
-      botGameOver: true,
-      botVoice: true,
-      locale,
-    },
     ...[
       { name: '', seat: 'west', en: 'Let’s see…', sv: 'Ska vi se…' },
       { name: '-antti', seat: 'north', en: 'One moment…', sv: 'Ett ögonblick…' },
@@ -451,11 +447,13 @@ const allCases = [
           ? 'game-over-window'
           : 'seat-north',
     ruleSet: fixture.startsWith('louisiana') ? 'louisiana' : 'finnish',
+    // Game over shows no rule set (PID-292).
     rulesBadge: fixture.includes('waiting')
       ? 'waiting-rule-set'
       : fixture.endsWith('game-over')
-        ? 'game-over-rule-set'
+        ? undefined
         : 'table-rule-set',
+    gameOver: fixture.endsWith('game-over') ? {} : undefined,
     rulesExplainer: fixture.endsWith('explainer'),
   })),
   { name: 'age', path: '/age?fixture=unanswered', testId: 'age-screen' },
@@ -1001,6 +999,7 @@ const allCases = [
     name: 'table-game-over',
     path: '/table-dev?phase=game_over&xp=earned&rematch=one',
     testId: 'game-over-window',
+    viewports: GAME_OVER_TABLETS,
     gameOver: {
       headline: 'You and Nora win',
       title: 'Nora wants a rematch',
@@ -1030,10 +1029,45 @@ const allCases = [
       absent: ['play-again', 'rematch-status', 'streak-chip', 'xp-chip', 'best-hand'],
     },
   },
+  // PID-292: a guest against the bot crew (Marcel's game in JA36) and an
+  // account with people. Bots always agree, so their game shows no rematch row.
   {
-    name: 'table-game-over-guest',
-    path: '/table-dev?phase=game_over&guest=true',
+    name: 'table-game-over-guest-win',
+    path: '/table-dev?phase=game_over&guest=true&crew=win',
     testId: 'game-over-window',
+    viewports: GAME_OVER_TABLETS,
+    gameOver: {
+      headline: 'You and Jocke win',
+      eyebrow: 'The winning trick',
+      plaque: 'All 14 in hand 5',
+      parts: ['game-over-trick', 'every-hand', 'guest-save'],
+      absent: ['rematch-status', 'how-it-went', 'streak-chip', 'xp-chip'],
+    },
+  },
+  {
+    name: 'table-game-over-guest-loss',
+    path: '/table-dev?phase=game_over&guest=true&crew=loss',
+    testId: 'game-over-window',
+    viewports: GAME_OVER_TABLETS,
+    gameOver: {
+      headline: 'Marcel and Antti win',
+      parts: ['best-hand', 'every-hand', 'guest-save'],
+      absent: ['rematch-status', 'how-it-went', 'victory-rays'],
+    },
+  },
+  {
+    name: 'table-game-over-people-loss',
+    path: '/table-dev?phase=game_over&result=loss&xp=earned&rematch=waiting',
+    testId: 'game-over-window',
+    viewports: GAME_OVER_TABLETS,
+    gameOver: {
+      headline: 'Eli and Wynn win',
+      title: null,
+      detail: "You're in. Waiting for Nora, Eli and Wynn",
+      waiting: true,
+      parts: ['best-hand', 'how-it-went', 'xp-chip'],
+      absent: ['guest-save'],
+    },
   },
   {
     name: 'table-game-over-rematch-waiting',
@@ -1154,7 +1188,7 @@ async function assertLocalization(page, testCase, viewport) {
     const target = page.getByTestId(testCase.testId);
     if (testCase.words === 'header') {
       assert.equal(await target.getAttribute('aria-label'), label);
-    } else if (testCase.words !== 'bots') {
+    } else if (!['bots', 'loss'].includes(testCase.words)) {
       await target.getByText(label, { exact: true }).first().waitFor();
     }
     if (['pills', 'bots'].includes(testCase.words)) {
@@ -1357,8 +1391,11 @@ async function assertGameOver(page, testCase, viewport) {
   if (spec.headline) {
     await overlay.getByRole('heading', { name: spec.headline, exact: true }).waitFor();
   }
+  if (spec.eyebrow) await overlay.getByText(spec.eyebrow, { exact: true }).waitFor();
+  if (spec.plaque) await overlay.getByText(spec.plaque, { exact: true }).waitFor();
   for (const id of spec.parts ?? []) await page.getByTestId(id).waitFor();
-  for (const id of spec.absent ?? []) {
+  // Game over never shows the rule set (PID-292).
+  for (const id of ['game-over-rule-set', ...(spec.absent ?? [])]) {
     assert.equal(await page.getByTestId(id).count(), 0, `${testCase.name}: ${id} should be absent`);
   }
   if (spec.detail !== undefined) {
@@ -1372,13 +1409,20 @@ async function assertGameOver(page, testCase, viewport) {
   if (spec.waiting) {
     assert.equal(await page.getByTestId('play-again').getAttribute('aria-label'), 'Waiting…');
   }
+  // The top-level blocks, top to bottom. The link sits inside the chart when
+  // there is one, so it only counts on its own.
+  const inChart = (await page.getByTestId('how-it-went').count()) > 0;
   const blocks = [];
   for (const id of [
-    'game-over-rule-set',
+    'game-over-trick',
+    'game-over-headline',
+    'game-over-score',
     'best-hand',
     'how-it-went',
+    ...(inChart ? [] : ['every-hand']),
     'streak-chip',
     'xp-chip',
+    'guest-save',
     'rematch-status',
     'play-again',
     'game-over-home',
@@ -1930,7 +1974,6 @@ async function assertRulePresentation(page, testCase) {
     testCase.rulesBadge ??
     {
       'table-waiting': 'waiting-rule-set',
-      'table-game-over': 'game-over-rule-set',
     }[testCase.name];
   if (badge && !testCase.rulesExplainer) {
     await page.getByTestId(badge).waitFor();
@@ -3526,15 +3569,8 @@ async function assertBotVoice(page, testCase, viewport) {
       .getByRole('button', { name: testCase.locale === 'sv' ? 'Stäng' : 'Close', exact: true })
       .click();
     await card.waitFor({ state: 'detached' });
-    const scope = testCase.botGameOver ? page.getByTestId('game-over-overlay') : page;
-    const entry = scope.getByRole('button', { name: testCase.open });
-    if (testCase.botGameOver) {
-      await page.getByTestId('play-again').click({ trial: true });
-      await page.getByTestId('game-over-home').click({ trial: true });
-      await entry.click();
-    } else {
-      await entry.getByText(testCase.botCard, { exact: true }).click();
-    }
+    const entry = page.getByRole('button', { name: testCase.open });
+    await entry.getByText(testCase.botCard, { exact: true }).click();
     await copy.waitFor();
     await card.getByRole('button').click();
     await card.waitFor({ state: 'detached' });
@@ -4758,8 +4794,7 @@ async function main() {
                 'no bot card opens until its profile is tapped'
               );
             const scope =
-              (testCase.playerProfile && testCase.path.includes('game_over')) ||
-              testCase.botGameOver
+              testCase.playerProfile && testCase.path.includes('game_over')
                 ? page.getByTestId('game-over-overlay')
                 : page;
             await scope.getByRole('button', { name: testCase.open, exact: true }).click();
@@ -4844,10 +4879,10 @@ async function main() {
               await page.getByTestId('race-chart').getByText('62–29', { exact: true }).waitFor();
               assert.match(await page.getByTestId('race-chart').textContent(), /62–29/);
               await page
-                .getByText(sv ? '● Ledde härifrån · giv 9' : '● Led from here · hand 9', {
-                  exact: true,
-                })
+                .getByTestId('how-it-went')
+                .getByText(sv ? 'Så gick det · 10 giv' : 'How it went · 10 hands', { exact: true })
                 .waitFor();
+              assert.equal(await page.getByText(/Led from here|Ledde härifrån/).count(), 0);
             }
           }
           if (testCase.name.endsWith('friends-guest')) {

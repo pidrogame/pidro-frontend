@@ -53,6 +53,7 @@ type SkiaTableProps = {
   roomFinished?: boolean;
   onHome?: () => void;
   playAgainLabel?: string;
+  guest?: boolean;
   showGuestSave?: boolean;
   onSaveGuest?: () => void;
   topDock?: number;
@@ -766,6 +767,7 @@ export default function GameScreen() {
           roomFinished={readiness ? readiness.status === 'finished' : true}
           onHome={() => handleLeaveGame('/home')}
           playAgainLabel={origin === 'single-player' ? t('game.play_again') : undefined}
+          guest={Boolean(currentUser?.guest)}
           showGuestSave={showGuestSave && Boolean(currentUser?.guest)}
           onSaveGuest={() => setAccountSheetOpen(true)}
           topDock={invitation ? invitationHeight : 0}

@@ -1,6 +1,8 @@
 import { test, expect } from '../fixtures';
 
-test('catalogue metadata arriving after a snapshot updates rematch identity', async ({ page }) => {
+test('catalogue metadata arriving after a snapshot updates the bot at the table', async ({
+  page,
+}) => {
   let release!: () => void;
   const ready = new Promise<void>((resolve) => {
     release = resolve;
@@ -20,16 +22,10 @@ test('catalogue metadata arriving after a snapshot updates rematch identity', as
       },
     });
   });
-  await page.goto('/table-dev?fixture=bot-crew&phase=game_over');
-  const result = page.getByTestId('game-over-window');
-  await expect(
-    result.getByRole('button', { name: 'View Antti’s profile', exact: true })
-  ).toBeVisible();
+  // Game over against bots shows no rematch row (PID-292), so the seat says who it is.
+  await page.goto('/table-dev?fixture=bot-crew');
+  await expect(page.getByRole('button', { name: /^View Antti’s profile/ })).toBeVisible();
   release();
-  await expect(
-    result.getByRole('button', { name: 'View Catalogue Antti’s profile', exact: true })
-  ).toBeVisible();
-  await expect(
-    result.getByRole('button', { name: 'View Antti’s profile', exact: true })
-  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^View Catalogue Antti’s profile/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^View Antti’s profile/ })).toHaveCount(0);
 });
