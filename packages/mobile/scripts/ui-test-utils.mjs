@@ -60,6 +60,29 @@ const backgroundCases = [
   'game-loading',
 ];
 
+const classicClaimCases = [
+  'classic-method',
+  'classic-login',
+  'classic-preview',
+  'classic-fresh',
+  'classic-guest',
+  'classic-password',
+  'classic-password-guest',
+  'classic-rename',
+  'classic-rename-fresh',
+  'classic-conflict',
+  'classic-conflict-fresh',
+  'classic-forgot',
+  'classic-code',
+  'classic-code-invalid',
+  ...['method', 'login', 'preview', 'password', 'rename', 'already-claimed'].map(
+    (fixture) => `locale-sv-classic-${fixture}`
+  ),
+  ...['en', 'sv'].flatMap((locale) =>
+    ['details', 'rename-details', 'taken'].map((fixture) => `classic-${fixture}-${locale}`)
+  ),
+];
+
 export const UI_VIEWPORTS = [
   {
     name: 'iphone-insets-portrait',
@@ -83,22 +106,17 @@ export const UI_VIEWPORTS = [
     height: 667,
     cases: [
       ...backgroundCases,
-      'classic-forgot',
-      'classic-code',
-      'classic-code-invalid',
+      ...classicClaimCases,
       'table-play-right',
       'table-play-left',
       'table-play-middle',
       ...['north', 'east', 'south', 'west', 'reduced'].map((winner) => `table-motion-${winner}`),
-      'classic-login',
       'friends-all',
       'friends-classic',
       'friends-link-profile',
       'friends-empty',
       'friends-recent',
       'friends-results',
-      'classic-login-guest',
-      'locale-sv-classic-login',
       'update-notice',
       'update-notice-friends-guest',
       ...appUpdateCases,
@@ -182,6 +200,7 @@ export const UI_VIEWPORTS = [
     width: 768,
     height: 1024,
     cases: [
+      ...classicClaimCases,
       'table-play-right',
       'table-play-left',
       'table-play-middle',

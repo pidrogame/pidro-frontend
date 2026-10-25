@@ -12,10 +12,10 @@ export class ClaimClassicScreen extends Screen {
   }
 
   get found() {
-    return this.text('Classic account found');
+    return this.text('Is this you?');
   }
 
-  /** A figure on the preview or the profile, e.g. "Games played". */
+  /** A figure on the preview, e.g. "games". */
   stat(label: string) {
     return this.root.getByLabel(`${label}: `);
   }
@@ -26,20 +26,25 @@ export class ClaimClassicScreen extends Screen {
   }
 
   async verify(login: string, password: string) {
-    await this.text('How did you use Classic?').waitFor();
-    if (!(await this.field('Classic username or email').isVisible())) {
-      await this.button('Classic username & password').click();
+    await this.root.waitFor();
+    if (!(await this.field('Username or email').isVisible())) {
+      await this.button('Username and password').click();
     }
-    await this.field('Classic username or email').fill(login);
-    await this.field('Classic password').fill(password);
+    await this.field('Username or email').fill(login);
+    await this.field('Password').fill(password);
     const answered = this.page.waitForResponse((response) =>
       response.url().includes('/api/v1/classic/verify')
     );
     this.offered = answered.then(async (response) =>
       response.ok() ? ((await response.json()).data.classic.new_account ?? null) : null
     );
-    await this.button('Verify Classic account').click();
+    await this.button('Find my account').click();
     return answered;
+  }
+
+  /** Explicitly accepts the preview, opening details or claiming directly. */
+  async confirmIdentity() {
+    await this.button("Yes, that's me").click();
   }
 
   /** What the last verify offered from Classic; null from a server that offers nothing. */
@@ -57,7 +62,7 @@ export class ClaimClassicScreen extends Screen {
       await this.field('Username').fill(account.username);
     }
     if (await this.field('Email').isVisible()) await this.field('Email').fill(account.email);
-    await this.field('New Pidro password').fill(account.password);
+    await this.field('New password').fill(account.password);
     return {
       username: offered?.username ?? account.username,
       email: offered?.email ?? account.email,
@@ -67,7 +72,7 @@ export class ClaimClassicScreen extends Screen {
   /** The "create your account" form a claim with nobody signed in asks for. */
   async createAccountAndClaim(account: { username: string; email: string; password: string }) {
     const login = await this.fillLogin(account);
-    await this.button('Create account and claim').click();
+    await this.button('Save and play').click();
     return login;
   }
 }

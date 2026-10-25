@@ -69,13 +69,13 @@ test('a dropped connection on each form is readable, leaves no spinner and keeps
     await drop('classic/verify');
     await page.goto('/claim-classic');
     const screen = new ClaimClassicScreen(page);
-    await screen.text('How did you use Classic?').waitFor();
-    await screen.button('Classic username & password').click();
-    await screen.field('Classic username or email').fill(player.classicLogin);
-    await screen.field('Classic password').fill(player.classicPassword);
-    await screen.button('Verify Classic account').click();
-    await expectRecoverable(screen, screen.button('Verify Classic account'), [
-      [screen.field('Classic username or email'), player.classicLogin],
+    await screen.text('How did you sign in to Classic?').waitFor();
+    await screen.button('Username and password').click();
+    await screen.field('Username or email').fill(player.classicLogin);
+    await screen.field('Password').fill(player.classicPassword);
+    await screen.button('Find my account').click();
+    await expectRecoverable(screen, screen.button('Find my account'), [
+      [screen.field('Username or email'), player.classicLogin],
     ]);
     await page.unroute('**/api/v1/classic/verify');
   });

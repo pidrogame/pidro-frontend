@@ -26,7 +26,7 @@ for (const { name, start } of starts) {
       'Classic or the sign-in provider is temporarily unavailable. Try again.'
     );
     await expect(claim.found).toBeHidden();
-    await expect(claim.button('Verify Classic account')).toBeEnabled();
+    await expect(claim.button('Find my account')).toBeEnabled();
 
     // Still this player in the app and on the server.
     const session = await sessionOf(page);

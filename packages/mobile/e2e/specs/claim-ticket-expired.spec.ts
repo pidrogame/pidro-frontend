@@ -12,6 +12,7 @@ test('an expired claim says to verify again @second-run', async ({ page, player 
   const { expires_at } = (await verified.json()).data;
   await untilAfter(Date.parse(expires_at) + 1_000);
 
+  await claim.confirmIdentity();
   await claim.createAccountAndClaim({
     username: player.name,
     email: player.email,

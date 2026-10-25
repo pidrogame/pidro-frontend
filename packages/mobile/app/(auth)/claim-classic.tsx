@@ -1,6 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Keyboard, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useFocusEffect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
+import { Keyboard, StyleSheet, View } from 'react-native';
+import {
+  useFocusEffect,
+  useIsFocused,
+  useLocalSearchParams,
+  useRouter,
+  type Href,
+} from 'expo-router';
 import {
   classicApi,
   facebookCredentialRequest,
@@ -9,14 +15,19 @@ import {
 } from '@/api/classic';
 import * as authApi from '@/api/auth';
 import { AuthProviderButtons } from '@/components/auth/AuthProviderButtons';
-import { BevelButton } from '@/components/ui/BevelButton';
+import {
+  AuthFlowButton,
+  AuthFlowNotice,
+  AuthFlowScreen,
+  AuthFlowWindow,
+  useAuthFlow,
+} from '@/components/auth/AuthFlow';
 import { Input } from '@/components/ui/Input';
 import { PidroText } from '@/components/ui/PidroText';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
-import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
-import { PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
+import { PidroSpacing } from '@/design/tokens';
+import { useFlowBack, useHardwareBack } from '@/hooks/useFlowBack';
 import { getInstallId } from '@/features/invites/installId';
 import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
 import { takePendingClassicClaim } from '@/features/auth/classicFound';
@@ -24,6 +35,7 @@ import { take } from '@/features/auth/pendingClassicVerification';
 import {
   claimAccount,
   claimForm,
+  claimNeedsDetails,
   refusedLogin,
   type LoginField,
 } from '@/features/auth/classicClaimForm';
@@ -47,17 +59,27 @@ const DEAD_TICKET_CODES = new Set([
 ]);
 
 type Field = 'login' | 'classicPassword' | 'username' | 'email' | 'password' | 'displayName';
-type Fixture = 'method' | 'preview' | 'login' | 'rename' | 'already-claimed';
+type Fixture =
+  | 'method'
+  | 'preview'
+  | 'login'
+  | 'password'
+  | 'rename'
+  | 'already-claimed'
+  | 'details'
+  | 'rename-details'
+  | 'taken';
 
 const FIXTURE_PREVIEW: ClassicVerification = {
   ticket: 'fixture-ticket',
   expires_at: '2099-01-01T00:00:00Z',
   classic: {
-    name: 'CardShark',
+    name: 'ThunderThor88',
     games_played: 1284,
     level: 42,
     member_since: '2012-04-03T00:00:00Z',
     name_allowed: true,
+    new_account: { username: 'ThunderThor88', email: 'sonja.lindqvist@example.com' },
   },
   already_claimed: null,
 };
@@ -82,21 +104,22 @@ export default function ClaimClassicScreen() {
     from?: string;
   }>();
   const fixture = (__DEV__ ? fixtureParam : undefined) as Fixture | undefined;
-  const { width, height } = useWindowDimensions();
-  const compactLandscape = width > height && height < PidroLayout.compactHeight;
+  const { layout, metrics, inputStyle } = useAuthFlow();
+  const goBack = useFlowBack();
+  const focused = useIsFocused();
   const user = useAuthStore((state) => state.user);
   const setSession = useAuthStore((state) => state.setSession);
   const [providerHandoff] = useState(takePendingClassicClaim);
   const fixtureVerification = useMemo(() => {
-    if (!fixture || fixture === 'method') return null;
+    if (!fixture || fixture === 'method' || fixture === 'login') return null;
     return {
       ...FIXTURE_PREVIEW,
       classic: {
         ...FIXTURE_PREVIEW.classic,
-        ...(fixture === 'rename' ? { name: 'Old Name', name_allowed: false } : {}),
-        ...(fixture === 'login'
-          ? { new_account: { username: 'cardshark', email: 'sonja.lindqvist@example.com' } }
+        ...(fixture === 'rename' || fixture === 'rename-details'
+          ? { name: 'Old Name', name_allowed: false }
           : {}),
+        ...(fixture === 'details' || fixture === 'rename-details' ? { new_account: null } : {}),
       },
       ...(fixture === 'already-claimed'
         ? { already_claimed: { sign_in_method: 'password' as const } }
@@ -104,10 +127,15 @@ export default function ClaimClassicScreen() {
     };
   }, [fixture]);
   const [method, setMethod] = useState<ClassicClaimMethod | null>(
-    providerHandoff?.method ?? (fixtureVerification ? 'password' : null)
+    providerHandoff?.method ?? (fixtureVerification || fixture === 'login' ? 'password' : null)
   );
   const [verification, setVerification] = useState<ClassicVerification | null>(
     providerHandoff?.verification ?? fixtureVerification
+  );
+  const [step, setStep] = useState<'check' | 'details'>(
+    fixture && ['password', 'rename', 'details', 'rename-details', 'taken'].includes(fixture)
+      ? 'details'
+      : 'check'
   );
   const [login, setLogin] = useState('');
   const [classicPassword, setClassicPassword] = useState('');
@@ -115,7 +143,9 @@ export default function ClaimClassicScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [fields, setFields] = useState<Partial<Record<Field, string>>>({});
+  const [fields, setFields] = useState<Partial<Record<Field, string>>>(
+    fixture === 'taken' ? { username: 'auth.name_taken', email: 'auth.email_taken' } : {}
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<TranslationKey | null>(null);
   const [requestFailure, setRequestFailure] = useState<{
@@ -124,7 +154,9 @@ export default function ClaimClassicScreen() {
   } | null>(null);
   const [errorProvider, setErrorProvider] = useState('');
   const [canSignIn, setCanSignIn] = useState(false);
-  const [refused, setRefused] = useState<LoginField[]>([]);
+  const [refused, setRefused] = useState<LoginField[]>(
+    fixture === 'taken' ? ['username', 'email'] : []
+  );
   const alreadyClaimed = verification?.already_claimed ?? null;
   // A guest's password claim sets the email and password the account is recovered with.
   const guestCredentials = Boolean(user?.guest) && method === 'password';
@@ -144,7 +176,13 @@ export default function ClaimClassicScreen() {
     (result: ClassicVerification, nextMethod: ClassicClaimMethod) => {
       setMethod(nextMethod);
       setVerification(result);
+      setStep('check');
       setDisplayName(result.classic.name_allowed ? (result.classic.name ?? '') : '');
+      setUsername('');
+      setEmail('');
+      setPassword('');
+      setFields({});
+      setCanSignIn(false);
       setRefused([]);
       setError(null);
       setRequestFailure(null);
@@ -165,6 +203,7 @@ export default function ClaimClassicScreen() {
   const reportRequestError = useCallback(
     (requestError: unknown, fallback: TranslationKey, provider?: 'apple' | 'facebook') => {
       const info = apiErrorInfo(requestError);
+      if (fallback === 'auth.classic_claim_failed') setStep('details');
       setError(null);
       setRequestFailure(null);
       setErrorProvider(provider === 'apple' ? 'Apple' : 'Facebook');
@@ -185,6 +224,7 @@ export default function ClaimClassicScreen() {
         setError('auth.provider_unavailable');
       } else if (DEAD_TICKET_CODES.has(info.code ?? '')) {
         setVerification(null);
+        setStep('check');
         setError('auth.verification_invalid');
       } else if (provider && info.code === 'INVALID_CREDENTIALS') {
         setError('auth.classic_provider_missing');
@@ -202,6 +242,7 @@ export default function ClaimClassicScreen() {
   );
 
   const verifyPassword = useCallback(async () => {
+    if (busy || fixture) return;
     const nextFields: Partial<Record<Field, string>> = {};
     if (!login.trim()) nextFields.login = 'auth.enter_classic_identifier';
     if (!classicPassword) nextFields.classicPassword = 'auth.enter_classic_password';
@@ -225,10 +266,11 @@ export default function ClaimClassicScreen() {
     } finally {
       setBusy(false);
     }
-  }, [classicPassword, finishVerification, login, reportRequestError, user]);
+  }, [busy, classicPassword, finishVerification, fixture, login, reportRequestError, user]);
 
   const verifyProvider = useCallback(
     async (provider: 'apple' | 'facebook') => {
+      if (busy || fixture) return;
       setBusy(true);
       setError(null);
       setRequestFailure(null);
@@ -257,11 +299,11 @@ export default function ClaimClassicScreen() {
         setBusy(false);
       }
     },
-    [finishVerification, reportRequestError, user]
+    [busy, finishVerification, fixture, reportRequestError, user]
   );
 
   const confirmClaim = useCallback(async () => {
-    if (!verification || !method || fixture) return;
+    if (!verification || !method || fixture || busy || verification.already_claimed) return;
     const nextFields: Partial<Record<Field, string>> = {};
     if (form.asks.username && username.trim().length < 3) nextFields.username = 'auth.username_min';
     if (form.asks.email && !email.trim()) nextFields.email = 'auth.enter_an_email';
@@ -270,7 +312,10 @@ export default function ClaimClassicScreen() {
       nextFields.displayName = 'auth.public_name_min';
     }
     setFields(nextFields);
-    if (Object.keys(nextFields).length) return;
+    if (Object.keys(nextFields).length) {
+      setStep('details');
+      return;
+    }
     Keyboard.dismiss();
     setBusy(true);
     setError(null);
@@ -315,6 +360,7 @@ export default function ClaimClassicScreen() {
             useAuthStore.getState().setPreserveSessionOnUnauthorized(preserve),
         });
         if (!saved.ok) {
+          setStep('details');
           if (refusal && !saved.error.uncertain) {
             reportRequestError(refusal, 'auth.classic_claim_failed');
           } else {
@@ -351,6 +397,7 @@ export default function ClaimClassicScreen() {
       setBusy(false);
     }
   }, [
+    busy,
     displayName,
     email,
     fixture,
@@ -368,166 +415,293 @@ export default function ClaimClassicScreen() {
   ]);
 
   const resetVerification = () => {
+    if (busy) return;
     setVerification(null);
+    setMethod(null);
+    setStep('check');
+    setFields({});
+    setRefused([]);
+    setClassicPassword('');
+    setUsername('');
+    setEmail('');
+    setPassword('');
+    setDisplayName('');
     setError(null);
     setRequestFailure(null);
     setCanSignIn(false);
   };
 
+  const onBack = () => {
+    if (busy) return;
+    if (verification && step === 'details') {
+      setStep('check');
+      setError(null);
+      setRequestFailure(null);
+    } else if (verification || method) resetVerification();
+    else goBack();
+  };
+  useHardwareBack(focused, onBack);
+
+  const details = verification && !alreadyClaimed && step === 'details';
+  const fieldCount =
+    Object.values(form.asks).filter(Boolean).length +
+    (verification && !verification.classic.name_allowed ? 1 : 0);
+  const pairedFields = fieldCount >= 3;
+  const title = !verification
+    ? method === 'password'
+      ? 'auth.claim_login_title'
+      : 'auth.claim_method'
+    : !details
+      ? 'auth.classic_found'
+      : !verification.classic.name_allowed
+        ? 'auth.pick_name'
+        : form.asks.password
+          ? 'auth.new_pidro_password'
+          : claimNeedsDetails(form, true)
+            ? 'auth.create_your_account'
+            : 'auth.classic_found';
+  const notice = requestFailure
+    ? localizedError(requestFailure.error, requestFailure.fallback)
+    : error
+      ? t(error, { provider: errorProvider })
+      : null;
+
   return (
-    <ScreenShell scroll compact testID="claim-classic-screen">
-      <View style={styles.page}>
-        <ScreenHeader
-          title={t('auth.claim')}
-          subtitle={t('auth.claim_intro')}
-          onBack={() => router.back()}
-        />
-
-        {error || requestFailure ? (
-          <Surface variant="subtle" style={styles.error} accessibilityRole="alert">
-            <PidroText role="metadata" tone="danger" align="center">
-              {requestFailure
-                ? localizedError(requestFailure.error, requestFailure.fallback)
-                : error
-                  ? t(error, { provider: errorProvider })
-                  : null}
-            </PidroText>
-            {canSignIn ? (
-              <BevelButton
-                label={t('auth.sign_in_that')}
-                material="glass"
-                size="sm"
-                fullWidth
-                onPress={() => router.replace('/(auth)/login')}
-              />
-            ) : null}
-          </Surface>
+    <AuthFlowScreen
+      testID="claim-classic-screen"
+      headerTitle={t('auth.classic')}
+      onBack={onBack}
+      title={t(title)}
+      body={
+        details
+          ? !verification.classic.name_allowed
+            ? t('auth.classic_rename')
+            : form.asks.password
+              ? t('auth.claim_password_body')
+              : undefined
+          : undefined
+      }
+      note={
+        details && form.kept.username && verification.classic.name_allowed
+          ? t('auth.claim_name_stays', { name: form.kept.username })
+          : undefined
+      }
+      aside={
+        !verification ? (
+          <TextLink
+            label={t(method === 'password' ? 'auth.claim_other_method' : 'auth.claim_help')}
+            size={metrics.link}
+            style={styles.centerLink}
+            disabled={busy}
+            onPress={
+              method === 'password' ? resetVerification : () => router.push('/(auth)/classic-help')
+            }
+          />
+        ) : !details ? (
+          <TextLink
+            label={t('auth.claim_no')}
+            size={metrics.link}
+            style={styles.centerLink}
+            disabled={busy}
+            onPress={resetVerification}
+          />
+        ) : undefined
+      }>
+      <AuthFlowWindow
+        testID="classic-claim-window"
+        style={details && pairedFields && layout === 'landscape' && styles.denseWindow}>
+        {notice ? (
+          <AuthFlowNotice
+            action={
+              !verification && canSignIn ? (
+                <TextLink
+                  label={t('auth.sign_in_that')}
+                  size={metrics.link}
+                  onPress={() => router.replace('/(auth)/login')}
+                />
+              ) : undefined
+            }>
+            {notice}
+          </AuthFlowNotice>
         ) : null}
-
         {!verification ? (
-          <Surface variant="window" padded style={styles.panel}>
-            <View style={styles.heading}>
-              <PidroText role="title" tone="gold" align="center">
-                {t('auth.claim_method')}
-              </PidroText>
-              <PidroText role="body" tone="soft" align="center">
-                {t('auth.claim_verify_note')}
-              </PidroText>
-            </View>
-
-            {fixture && Platform.OS === 'web' ? (
-              <View style={styles.providerFixtures}>
-                <BevelButton
-                  label={t('auth.apple')}
-                  material="glass"
-                  size="md"
-                  fullWidth
-                  onPress={() => undefined}
-                />
-                <BevelButton
-                  label={t('auth.facebook')}
-                  material="glass"
-                  size="md"
-                  fullWidth
-                  onPress={() => undefined}
-                />
-              </View>
-            ) : (
+          method === 'password' ? (
+            <>
+              <Input
+                label={t('auth.claim_identifier')}
+                value={login}
+                style={inputStyle}
+                error={fields.login ? t(fields.login as TranslationKey) : undefined}
+                editable={!busy}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onChangeText={(value) => {
+                  setLogin(value);
+                  clearField('login');
+                }}
+              />
+              <Input
+                label={t('auth.password')}
+                value={classicPassword}
+                style={inputStyle}
+                error={
+                  fields.classicPassword ? t(fields.classicPassword as TranslationKey) : undefined
+                }
+                editable={!busy}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
+                revealPassword
+                returnKeyType="go"
+                onSubmitEditing={() => void verifyPassword()}
+                onChangeText={(value) => {
+                  setClassicPassword(value);
+                  clearField('classicPassword');
+                }}
+              />
+              <TextLink
+                label={t('auth.forgot_title')}
+                size={metrics.link}
+                style={styles.forgot}
+                disabled={busy}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(auth)/classic-forgot',
+                    params: { login: login.trim(), returnTo: 'claim' },
+                  })
+                }
+              />
+              <AuthFlowButton
+                testID="classic-forward"
+                label={t('auth.classic_verify')}
+                loading={busy}
+                onPress={() => void verifyPassword()}
+              />
+            </>
+          ) : (
+            <>
               <AuthProviderButtons
                 showEmail={false}
+                availability={fixture ? { apple: true, facebook: true } : undefined}
                 onApple={() => void verifyProvider('apple')}
                 onFacebook={() => void verifyProvider('facebook')}
               />
-            )}
-
-            <View style={styles.divider}>
-              <View style={styles.rule} />
-              <PidroText role="metadata" tone="muted">
-                {t('auth.or')}
-              </PidroText>
-              <View style={styles.rule} />
-            </View>
-
-            {method === 'password' ? (
-              <View style={[styles.form, compactLandscape && styles.formLandscape]}>
-                <Input
-                  containerClassName={compactLandscape ? 'w-[48%] flex-grow' : undefined}
-                  label={t('auth.classic_identifier')}
-                  value={login}
-                  error={fields.login ? t(fields.login as TranslationKey) : undefined}
-                  editable={!busy}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onChangeText={(value) => {
-                    setLogin(value);
-                    clearField('login');
-                  }}
-                />
-                <Input
-                  containerClassName={compactLandscape ? 'w-[48%] flex-grow' : undefined}
-                  label={t('auth.classic_password')}
-                  value={classicPassword}
-                  error={
-                    fields.classicPassword ? t(fields.classicPassword as TranslationKey) : undefined
-                  }
-                  editable={!busy}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  secureTextEntry
-                  revealPassword
-                  returnKeyType="go"
-                  onSubmitEditing={() => void verifyPassword()}
-                  onChangeText={(value) => {
-                    setClassicPassword(value);
-                    clearField('classicPassword');
-                  }}
-                />
-                <TextLink
-                  label={t('auth.classic_forgot')}
-                  size={14}
-                  style={styles.forgot}
-                  disabled={busy}
-                  onPress={() =>
-                    router.push({
-                      pathname: '/(auth)/classic-forgot',
-                      params: { login: login.trim(), returnTo: 'claim' },
-                    })
-                  }
-                />
-                <BevelButton
-                  label={t('auth.classic_verify')}
-                  material="wood"
-                  size="md"
-                  fullWidth
-                  loading={busy}
-                  onPress={() => void verifyPassword()}
-                />
-              </View>
-            ) : (
-              <BevelButton
+              <AuthFlowButton
                 label={t('auth.classic_credentials')}
                 material="glass"
-                size="md"
-                fullWidth
                 disabled={busy}
                 onPress={() => setMethod('password')}
               />
-            )}
-          </Surface>
-        ) : (
-          <Surface variant="window" padded style={styles.panel}>
-            <View style={styles.heading}>
-              <PidroText role="title" tone="gold" align="center">
-                {t('auth.classic_found')}
-              </PidroText>
-              {alreadyClaimed ? null : (
-                <PidroText role="body" tone="soft" align="center">
-                  {t('auth.classic_check')}
-                </PidroText>
-              )}
+            </>
+          )
+        ) : details ? (
+          <>
+            <View
+              style={[
+                {
+                  columnGap: metrics.windowGap,
+                  rowGap: pairedFields ? PidroSpacing.xs : metrics.windowGap,
+                },
+                pairedFields && styles.fieldGrid,
+              ]}>
+              {!verification.classic.name_allowed ? (
+                <View style={pairedFields && styles.halfField}>
+                  <Input
+                    label={t('auth.new_public_name')}
+                    value={displayName}
+                    style={inputStyle}
+                    error={fields.displayName ? t(fields.displayName as TranslationKey) : undefined}
+                    maxLength={20}
+                    editable={!busy}
+                    onChangeText={(value) => {
+                      setDisplayName(value);
+                      clearField('displayName');
+                    }}
+                  />
+                </View>
+              ) : null}
+              {form.asks.username ? (
+                <View style={pairedFields && styles.halfField}>
+                  <Input
+                    label={t('auth.username')}
+                    value={username}
+                    style={inputStyle}
+                    error={fields.username ? t(fields.username as TranslationKey) : undefined}
+                    maxLength={20}
+                    editable={!busy}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onChangeText={(value) => {
+                      setUsername(value);
+                      clearField('username');
+                    }}
+                  />
+                </View>
+              ) : null}
+              {form.asks.email ? (
+                <View style={pairedFields && styles.halfField}>
+                  <Input
+                    label={t('auth.email')}
+                    value={email}
+                    style={inputStyle}
+                    error={fields.email ? t(fields.email as TranslationKey) : undefined}
+                    editable={!busy}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    onChangeText={(value) => {
+                      setEmail(value);
+                      clearField('email');
+                    }}
+                  />
+                </View>
+              ) : null}
+              {form.asks.password ? (
+                <View
+                  style={[
+                    styles.passwordField,
+                    pairedFields && (fieldCount === 3 ? styles.fullField : styles.halfField),
+                  ]}>
+                  <Input
+                    label={t('auth.new_pidro_password')}
+                    value={password}
+                    style={inputStyle}
+                    error={
+                      fields.password
+                        ? t(fields.password as TranslationKey, { count: 8 })
+                        : undefined
+                    }
+                    editable={!busy}
+                    secureTextEntry
+                    revealPassword
+                    onChangeText={(value) => {
+                      setPassword(value);
+                      clearField('password');
+                    }}
+                  />
+                  <PidroText role="metadata" tone="muted" style={metrics.note}>
+                    {t('auth.claim_password_hint')}
+                  </PidroText>
+                </View>
+              ) : null}
             </View>
-
-            <Surface variant="plaque" padded style={styles.preview}>
+            {guestCredentials ? (
+              <PidroText role="metadata" tone="muted" style={metrics.note}>
+                {t('auth.guest_games')}
+              </PidroText>
+            ) : null}
+            <AuthFlowButton
+              testID="classic-forward"
+              label={t(canSignIn ? 'auth.sign_in_that' : 'auth.claim_save')}
+              loading={busy}
+              onPress={
+                canSignIn ? () => router.replace('/(auth)/login') : () => void confirmClaim()
+              }
+            />
+          </>
+        ) : (
+          <>
+            <Surface variant="subtle" padded style={styles.preview}>
               {verification.classic.name_allowed && verification.classic.name ? (
                 <PidroText role="title" align="center">
                   {verification.classic.name}
@@ -539,7 +713,7 @@ export default function ClaimClassicScreen() {
               )}
               <View style={styles.stats}>
                 <Stat
-                  label={t('auth.games_played')}
+                  label={t('auth.claim_games')}
                   value={formatNumber(verification.classic.games_played)}
                 />
                 <Stat
@@ -554,170 +728,40 @@ export default function ClaimClassicScreen() {
                 ) : null}
               </View>
             </Surface>
-
             {alreadyClaimed ? (
-              <View style={styles.form}>
-                <PidroText role="body" tone="soft" align="center">
+              <>
+                <PidroText role="body" tone="soft" align="center" style={metrics.body}>
                   {t('auth.classic_linked')}
                 </PidroText>
+                {!user && alreadyClaimed.sign_in_method ? (
+                  <PidroText role="metadata" tone="muted" align="center" style={metrics.note}>
+                    {t(SIGNED_IN_WITH[alreadyClaimed.sign_in_method])}
+                  </PidroText>
+                ) : null}
                 {!user ? (
-                  <>
-                    {alreadyClaimed.sign_in_method ? (
-                      <PidroText role="metadata" tone="muted" align="center">
-                        {t(SIGNED_IN_WITH[alreadyClaimed.sign_in_method])}
-                      </PidroText>
-                    ) : null}
-                    <BevelButton
-                      label={t('auth.sign_in_that')}
-                      material="wood"
-                      size="md"
-                      fullWidth
-                      onPress={() => router.replace('/(auth)/login')}
-                    />
-                  </>
-                ) : null}
-                <BevelButton
-                  label={t('auth.back')}
-                  material="glass"
-                  size="sm"
-                  fullWidth
-                  onPress={resetVerification}
-                />
-              </View>
-            ) : null}
-
-            {!alreadyClaimed && !verification.classic.name_allowed ? (
-              <View style={styles.form}>
-                <PidroText role="body" tone="soft">
-                  {t('auth.classic_rename')}
-                </PidroText>
-                <Input
-                  label={t('auth.new_public_name')}
-                  value={displayName}
-                  error={fields.displayName ? t(fields.displayName as TranslationKey) : undefined}
-                  maxLength={20}
-                  editable={!busy}
-                  onChangeText={(value) => {
-                    setDisplayName(value);
-                    clearField('displayName');
-                  }}
-                />
-              </View>
-            ) : null}
-
-            {!alreadyClaimed && (!user || guestCredentials) ? (
-              <View style={styles.form}>
-                {!user || form.fromClassic ? (
-                  <PidroText role="label">
-                    {t(form.fromClassic ? 'auth.your_pidro_login' : 'auth.create_your_account')}
-                  </PidroText>
-                ) : null}
-                {form.kept.username || form.kept.email ? (
-                  <Surface variant="subtle" padded style={styles.login}>
-                    {form.kept.username ? (
-                      <Kept label={t('auth.username')} value={form.kept.username} />
-                    ) : null}
-                    {form.kept.email ? (
-                      <Kept label={t('auth.email')} value={form.kept.email} />
-                    ) : null}
-                  </Surface>
-                ) : null}
-                {form.asks.username ? (
-                  <Input
-                    label={t('auth.username')}
-                    value={username}
-                    error={fields.username ? t(fields.username as TranslationKey) : undefined}
-                    maxLength={20}
-                    editable={!busy}
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    onChangeText={(value) => {
-                      setUsername(value);
-                      clearField('username');
-                    }}
+                  <AuthFlowButton
+                    testID="classic-forward"
+                    label={t('auth.sign_in_that')}
+                    onPress={() => router.replace('/(auth)/login')}
                   />
                 ) : null}
-                {form.asks.email ? (
-                  <Input
-                    label={t('auth.email')}
-                    value={email}
-                    error={fields.email ? t(fields.email as TranslationKey) : undefined}
-                    editable={!busy}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    onChangeText={(value) => {
-                      setEmail(value);
-                      clearField('email');
-                    }}
-                  />
-                ) : null}
-                {form.fromClassic ? (
-                  <PidroText role="body" tone="soft">
-                    {t('auth.classic_new_password')}
-                  </PidroText>
-                ) : null}
-                {form.asks.password ? (
-                  <Input
-                    label={t('auth.new_pidro_password')}
-                    value={password}
-                    error={
-                      fields.password
-                        ? t(fields.password as TranslationKey, { count: 8 })
-                        : undefined
-                    }
-                    editable={!busy}
-                    secureTextEntry
-                    revealPassword
-                    onChangeText={(value) => {
-                      setPassword(value);
-                      clearField('password');
-                    }}
-                  />
-                ) : null}
-                {guestCredentials ? (
-                  <PidroText role="metadata" tone="muted">
-                    {t('auth.guest_games')}
-                  </PidroText>
-                ) : null}
-              </View>
-            ) : null}
-
-            {!alreadyClaimed && !canSignIn ? (
-              <View style={styles.actions}>
-                <BevelButton
-                  label={t('auth.back')}
-                  material="glass"
-                  size="sm"
-                  fullWidth
-                  disabled={busy}
-                  onPress={resetVerification}
-                />
-                <BevelButton
-                  label={t(user ? 'auth.claim_this' : 'auth.create_claim')}
-                  material="wood"
-                  size="md"
-                  fullWidth
-                  loading={busy}
-                  onPress={() => void confirmClaim()}
-                />
-              </View>
-            ) : null}
-          </Surface>
+              </>
+            ) : (
+              <AuthFlowButton
+                testID="classic-forward"
+                label={t('auth.claim_yes')}
+                loading={busy}
+                onPress={() => {
+                  if (claimNeedsDetails(form, verification.classic.name_allowed))
+                    setStep('details');
+                  else void confirmClaim();
+                }}
+              />
+            )}
+          </>
         )}
-      </View>
-    </ScreenShell>
-  );
-}
-
-function Kept({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.kept} accessible accessibilityLabel={`${label}: ${value}`}>
-      <PidroText role="metadata" tone="muted">
-        {label}
-      </PidroText>
-      <PidroText role="body">{value}</PidroText>
-    </View>
+      </AuthFlowWindow>
+    </AuthFlowScreen>
   );
 }
 
@@ -735,50 +779,34 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: PidroSpacing.md,
+  denseWindow: {
+    paddingVertical: PidroSpacing.xs,
+    gap: PidroSpacing.xs,
   },
-  panel: {
-    width: '100%',
-    gap: PidroSpacing.md,
-  },
-  heading: {
-    gap: PidroSpacing.xxs,
-  },
-  form: {
-    gap: PidroSpacing.md,
-  },
-  formLandscape: {
+  fieldGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'flex-end',
+    alignItems: 'flex-start',
   },
-  // Full width so it breaks onto its own line beside the landscape fields.
+  halfField: {
+    flexBasis: '45%',
+    flexGrow: 1,
+    minWidth: 0,
+  },
+  fullField: {
+    width: '100%',
+  },
+  passwordField: {
+    gap: PidroSpacing.xxs,
+  },
+  centerLink: {
+    alignSelf: 'center',
+  },
   forgot: {
     width: '100%',
     alignItems: 'flex-end',
     paddingHorizontal: 2,
     marginVertical: -PidroSpacing.xs,
-  },
-  providerFixtures: {
-    gap: PidroSpacing.sm,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: PidroSpacing.sm,
-  },
-  rule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: PidroColors.border,
-  },
-  error: {
-    gap: PidroSpacing.sm,
-    borderColor: PidroColors.dangerBorder,
-    padding: PidroSpacing.sm,
   },
   preview: {
     gap: PidroSpacing.md,
@@ -792,15 +820,6 @@ const styles = StyleSheet.create({
     minWidth: 0,
     flex: 1,
     justifyContent: 'center',
-    gap: PidroSpacing.xxs,
-  },
-  actions: {
-    gap: PidroSpacing.sm,
-  },
-  login: {
-    gap: PidroSpacing.sm,
-  },
-  kept: {
     gap: PidroSpacing.xxs,
   },
 });

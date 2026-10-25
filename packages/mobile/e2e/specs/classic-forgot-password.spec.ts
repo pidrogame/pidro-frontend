@@ -24,8 +24,11 @@ test('a Classic player recovers by emailed code from sign in and claims their ac
   const claim = new ClaimClassicScreen(page);
   await expect(claim.found).toBeVisible();
   await expect(claim.text(player.classicLogin)).toBeVisible();
-  await expect(claim.kept('Username', player.classicLogin)).toBeVisible();
-  await expect(claim.kept('Email', `${player.classicLogin}@classic.example`)).toBeVisible();
+  await expect(claim.root.locator('input')).toHaveCount(0);
+  await claim.confirmIdentity();
+  await expect(claim.text(`Your name stays ${player.classicLogin}.`)).toBeVisible();
+  await expect(claim.kept('Email', `${player.classicLogin}@classic.example`)).toHaveCount(0);
+  await expect(claim.field('Email')).toHaveCount(0);
   await claim.createAccountAndClaim({
     username: player.name,
     email: player.email,
@@ -55,9 +58,9 @@ test('a wrong Classic code clears and focuses the field, then a valid code retur
 }) => {
   await page.goto('/claim-classic');
   const claim = new ClaimClassicScreen(page);
-  await claim.button('Classic username & password').click();
-  await claim.field('Classic username or email').fill(player.classicLogin);
-  await claim.text('Forgot your Classic password?').click();
+  await claim.button('Username and password').click();
+  await claim.field('Username or email').fill(player.classicLogin);
+  await claim.text('Forgot your password?').click();
   const forgot = new ClassicForgotScreen(page);
   await expect(forgot.login).toHaveValue(player.classicLogin);
   await forgot.button('Email me a code').click();

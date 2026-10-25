@@ -15,6 +15,7 @@ test('an invite survives a Classic claim and ends at that table', async ({ page,
   const claim = new ClaimClassicScreen(page);
   await claim.verify(player.classicLogin, player.classicPassword);
   await expect(claim.found).toBeVisible();
+  await claim.confirmIdentity();
   await claim.createAccountAndClaim({
     username: player.name,
     email: player.email,

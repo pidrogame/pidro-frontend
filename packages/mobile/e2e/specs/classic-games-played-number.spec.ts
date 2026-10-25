@@ -17,11 +17,11 @@ for (const { kind, title, games } of accounts) {
     const claim = new ClaimClassicScreen(page);
     await claim.verify(`${kind}-${player.id}`, player.classicPassword);
     await expect(claim.found).toBeVisible();
-    await expect(claim.stat('Games played')).toHaveAttribute(
-      'aria-label',
-      `Games played: ${games}`
-    );
+    await expect(claim.stat('games')).toHaveAttribute('aria-label', `games: ${games}`);
+    await expect(claim.stat('level')).toHaveAttribute('aria-label', 'level: 42');
+    await expect(claim.stat('since')).toBeVisible();
 
+    await claim.confirmIdentity();
     await claim.createAccountAndClaim({
       username: player.name,
       email: player.email,

@@ -95,7 +95,10 @@ branches on window size for structure:
 
 One wood `AuthFlowButton` per window moves the flow forward; glass is the second
 choice; `TextLink` is the way out. `hero` is reserved for the button that
-finishes a flow (CONTINUE on Pick your name). Errors that belong to a field sit
+finishes a flow (CONTINUE on Pick your name). Classic claim and recovery always use
+the default wood size, last in the window, never `hero`. Their glass choices appear
+only on the method step, without a wood action; back, help and resend are links.
+Errors that belong to a field sit
 under it; anything else is an `AuthFlowNotice` at the top of the window.
 Preview every state from `docs/FIXTURE-ROUTES.md`.
 

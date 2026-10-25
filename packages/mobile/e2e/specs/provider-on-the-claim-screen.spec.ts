@@ -15,8 +15,12 @@ for (const shape of shapes) {
       await expect(claim.found).toBeVisible();
       await expect(claim.text(player.classicLogin)).toBeVisible();
 
+      await expect(claim.root.locator('input')).toHaveCount(0);
+      await claim.confirmIdentity();
+      await expect(claim.text('Create your Pidro account')).toBeVisible();
+      await expect(claim.field('New password')).toHaveCount(0);
       await claim.field('Username').fill(player.name);
-      await claim.button('Create account and claim').click();
+      await claim.button('Save and play').click();
       await page.waitForURL(/\/profile/);
       await expect(new ProfileScreen(page).classicChip).toBeVisible();
       const token = (await sessionOf(page))?.accessToken as string;

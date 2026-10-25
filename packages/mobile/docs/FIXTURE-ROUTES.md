@@ -433,11 +433,27 @@ and the post-game `KeepProgressPrompt`. Deliberately outside the auth guard. tes
 ## `/claim-classic?fixture=<state>` — Classic claim
 
 The real claim screen with deterministic presentation states and no backend mutation. States:
-`method`, `preview`, `login`, `rename`, and `already-claimed` (signed out it offers sign-in and names how the owner signed in; signed in it only offers Back). Use an authenticated fixture for an existing
-guest/account preview; without one, `preview` also shows the fresh-account fields. `login` is a
-password claim whose server offered the Classic username and email (`new_account`): signed out
-or as a guest they show read-only and only a new password is asked. For Swedish use
-`/ui-dev?state=claim-classic&fixture=login&locale=sv`. testID `claim-classic-screen`.
+`method` shows the three sign-in choices; `login` shows only Classic credentials;
+`preview` asks "Is this you?" with the Classic name and games/level/since;
+`password` asks for a new password, keeping ThunderThor88 and the Classic email;
+`rename` puts the replacement public name on the details step. `already-claimed`
+offers sign-in and its hint only when signed out; an existing player can go back.
+Use an authenticated guest fixture to check that guest games come along.
+"Yes, that's me" opens details only when the claim needs something typed; otherwise
+it claims directly. Header back goes details → preview → method, or login → method.
+For Swedish use `/ui-dev?state=claim-classic&fixture=password&locale=sv`.
+testID `claim-classic-screen`; the window is `classic-claim-window`.
+
+`details` offers neither login value, `rename-details` also requires a public name,
+and `taken` shows both offered values refused with their field errors. Three or four
+inputs pair up inside the window, keeping their usual size. These fixtures also run
+in English and Swedish at all four sizes.
+
+PID-289 grammar cases cover these steps, signed-out/guest/account variants and Swedish
+at 390×844, 375×667, 844×390 and 768×1024, plus Classic forgot and code entry.
+They check no scrolling, 44px targets, no inputs on the preview, no providers on login,
+and the last-in-window wood action: 60px on phones, 54px in landscape, 64px on tablets,
+identical across steps at each size. Resend is a link outside the code window.
 
 ## Account flow — sign in, create account, Classic recovery
 

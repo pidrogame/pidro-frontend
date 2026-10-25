@@ -8,9 +8,9 @@ import { ClassicHelpScreen } from '../screens/classic-help-screen';
 async function openHelp(page: Page, login: string) {
   await page.goto('/claim-classic');
   const claim = new ClaimClassicScreen(page);
-  await claim.button('Classic username & password').click();
-  await claim.field('Classic username or email').fill(login);
-  await claim.text('Forgot your Classic password?').click();
+  await claim.button('Username and password').click();
+  await claim.field('Username or email').fill(login);
+  await claim.text('Forgot your password?').click();
   const forgot = new ClassicForgotScreen(page);
   await forgot.getHelp.click();
   const help = new ClassicHelpScreen(page);

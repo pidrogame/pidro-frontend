@@ -12,7 +12,7 @@ test('every way into the Classic claim opens it in front', async ({ page, player
   const claim = new ClaimClassicScreen(page);
   const sheet = new AuthSheet(page);
   async function opensInFront() {
-    await expect(claim.text('How did you use Classic?')).toBeInViewport();
+    await expect(claim.text('How did you sign in to Classic?')).toBeInViewport();
     await expect(sheet.root).toBeHidden();
   }
 

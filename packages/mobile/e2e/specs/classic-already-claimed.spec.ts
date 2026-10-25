@@ -35,8 +35,9 @@ test('a guest is told the Classic account is already claimed, and is not offered
   await expect(
     claim.text('This Classic account is already linked to a Pidro account.')
   ).toBeVisible();
-  await expect(claim.button('Back')).toBeVisible();
+  await expect(claim.root.getByRole('link', { name: 'No, go back', exact: true })).toBeVisible();
   await expect(claim.button('Sign in to that account')).toHaveCount(0);
-  await expect(claim.button('Claim this Classic account')).toHaveCount(0);
+  await expect(claim.button("Yes, that's me")).toHaveCount(0);
+  await expect(claim.button('Save and play')).toHaveCount(0);
   expect((await sessionOf(page))?.user).toMatchObject({ id: started.user.id, guest: true });
 });

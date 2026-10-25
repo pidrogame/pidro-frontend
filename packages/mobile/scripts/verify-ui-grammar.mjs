@@ -537,23 +537,41 @@ const allCases = [
     name: 'classic-login',
     path: '/(auth)/claim-classic?fixture=login',
     testId: 'claim-classic-screen',
-    classicLogin: true,
   },
   {
-    name: 'classic-login-guest',
-    path: '/(auth)/claim-classic?fixture=login',
+    name: 'classic-password',
+    path: '/(auth)/claim-classic?fixture=password',
+    testId: 'claim-classic-screen',
+    classicPassword: true,
+  },
+  {
+    name: 'classic-password-guest',
+    path: '/(auth)/claim-classic?fixture=password',
     testId: 'claim-classic-screen',
     authenticated: true,
     authFixture: guestAuthFixture,
-    classicLogin: true,
+    classicPassword: true,
   },
-  {
-    name: 'locale-sv-classic-login',
-    path: '/ui-dev?state=claim-classic&fixture=login&locale=sv&language=sv',
+  ...['method', 'login', 'preview', 'password', 'rename', 'already-claimed'].map((fixture) => ({
+    name: `locale-sv-classic-${fixture}`,
+    path: `/ui-dev?state=claim-classic&fixture=${fixture}&locale=sv&language=sv`,
     testId: 'claim-classic-screen',
     locale: 'sv',
-    classicLogin: true,
+    classicPassword: fixture === 'password',
+  })),
+  {
+    name: 'classic-rename-fresh',
+    path: '/(auth)/claim-classic?fixture=rename',
+    testId: 'claim-classic-screen',
   },
+  ...['en', 'sv'].flatMap((locale) =>
+    ['details', 'rename-details', 'taken'].map((fixture) => ({
+      name: `classic-${fixture}-${locale}`,
+      path: `/ui-dev?state=claim-classic&fixture=${fixture}&locale=${locale}`,
+      testId: 'claim-classic-screen',
+      locale,
+    }))
+  ),
   {
     name: 'classic-forgot',
     path: '/(auth)/classic-forgot',
@@ -1464,18 +1482,83 @@ const TABLE_MESSAGES = {
   },
 };
 
-// A Classic password claim shows the login it keeps and asks only for a new password.
-async function assertClassicLogin(page, testCase) {
-  if (!testCase.classicLogin) return;
+// Each Classic step has one job, with the same default forward button.
+async function assertClassicLogin(page, testCase, viewport) {
+  if (!testCase.path.includes('claim-classic') && !testCase.path.includes('classic-forgot')) return;
   const sv = testCase.locale === 'sv';
-  const screen = page.getByTestId('claim-classic-screen').last();
-  await screen.getByLabel(`${sv ? 'Användarnamn' : 'Username'}: cardshark`).waitFor();
-  await screen.getByLabel(`${sv ? 'E-post' : 'Email'}: sonja.lindqvist@example.com`).waitFor();
-  await screen.getByText(sv ? /^Pidro är en ny app/ : /^Pidro is a new app/).waitFor();
-  assert.equal(await screen.locator('input').count(), 1, `${testCase.name}: one input`);
-  await screen
-    .getByLabel(sv ? 'Nytt Pidro-lösenord' : 'New Pidro password', { exact: true })
-    .waitFor();
+  const screen = page
+    .getByTestId(
+      testCase.path.includes('claim-classic') ? 'claim-classic-screen' : 'classic-forgot-screen'
+    )
+    .last();
+  const overflow = await screen.evaluate((root) =>
+    [root, ...root.querySelectorAll('*')]
+      .filter(
+        (el) =>
+          ['auto', 'scroll'].includes(getComputedStyle(el).overflowY) &&
+          el.scrollHeight > el.clientHeight + 2
+      )
+      .map((el) => el.scrollHeight - el.clientHeight)
+  );
+  assert.deepEqual(overflow, [], `${testCase.name}: no scrolling`);
+  await assertMinimumTouchTargets(page, testCase.name, viewport, { checkInputs: true });
+  const forward = screen.getByTestId('classic-forward');
+  assert.ok((await forward.count()) <= 1, `${testCase.name}: at most one wood action`);
+  if (await forward.count()) {
+    const box = await forward.boundingBox();
+    const tablet = Math.min(viewport.width, viewport.height) >= 700;
+    const landscape = viewport.width > viewport.height && viewport.height < 500;
+    assert.equal(
+      box.height,
+      tablet ? 64 : landscape ? 54 : 60,
+      `${testCase.name}: default CTA height`
+    );
+    assertInsideViewport(`${testCase.name}: forward`, box, viewport);
+    const type = await forward
+      .locator('[dir="auto"]')
+      .last()
+      .evaluate((el) => getComputedStyle(el).fontSize);
+    assert.equal(
+      type,
+      `${tablet ? 27 : landscape ? 24 : 25}px`,
+      `${testCase.name}: default CTA type`
+    );
+    assert.equal(
+      await forward.evaluate((el) => el.parentElement.lastElementChild === el),
+      true,
+      `${testCase.name}: forward is last in its window`
+    );
+    console.log(
+      `  Classic CTA ${testCase.name} ${viewport.width}×${viewport.height}: ${box.height}px / ${type}`
+    );
+  }
+  if (testCase.classicPassword) {
+    await screen
+      .getByText(sv ? 'Ditt namn förblir ThunderThor88.' : 'Your name stays ThunderThor88.', {
+        exact: true,
+      })
+      .waitFor();
+    assert.equal(await screen.locator('input').count(), 1, `${testCase.name}: one input`);
+    await screen.getByLabel(sv ? 'Nytt lösenord' : 'New password', { exact: true }).waitFor();
+    assert.equal(await screen.getByText('sonja.lindqvist@example.com', { exact: true }).count(), 0);
+  }
+  if (testCase.path.includes('fixture=preview')) {
+    assert.equal(await screen.locator('input').count(), 0, 'identity check has no inputs');
+  }
+  if (testCase.path.includes('fixture=login')) {
+    assert.equal(await screen.locator('input').count(), 2, 'Classic sign-in has two inputs');
+    assert.equal(await screen.getByRole('button', { name: /Apple|Facebook/ }).count(), 0);
+  }
+  if (/fixture=(details|taken|rename-details)/.test(testCase.path)) {
+    assert.equal(
+      await screen.locator('input').count(),
+      testCase.path.includes('rename-details') ? 4 : 3,
+      'every missing/refused value remains editable'
+    );
+  }
+  if (testCase.name === 'classic-code') {
+    await screen.getByRole('link', { name: 'Send again', exact: true }).waitFor();
+  }
 }
 
 async function assertTableMessageReadable(page, name, viewport) {
@@ -4869,7 +4952,7 @@ async function main() {
           await assertTableInvitation(page, testCase, caseViewport);
           await assertUpdateNotice(page, testCase.name, caseViewport);
           await assertTableMessageReadable(page, testCase.name, caseViewport);
-          await assertClassicLogin(page, testCase);
+          await assertClassicLogin(page, testCase, viewport);
           await assertDeleteAccountConfirmation(page, testCase.name, screenshotDir);
           await assertAuthSheetKeepsTyping(page, testCase.name);
           await assertSwitchInteractions(page, testCase.name, screenshotDir);

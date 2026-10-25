@@ -20,17 +20,19 @@ test('a guest claims their Classic account with an email and password and keeps 
   await expect(claim.found).toBeVisible();
   await expect(claim.text('Create your Pidro account')).toBeHidden();
   await expect(claim.field('Username')).toBeHidden();
+  await expect(claim.root.locator('input')).toHaveCount(0);
+  await claim.confirmIdentity();
 
-  await claim.button('Claim this Classic account').click();
-  // A server that offers the Classic email shows it instead of asking.
+  await claim.button('Save and play').click();
+  // A server that offers the Classic email keeps it without asking.
   const offered = await claim.newAccount();
   if (!offered?.email) await expect(claim.text('Enter an email address.')).toBeVisible();
   await claim.fillLogin({ email: player.email, password: 'short' });
-  await claim.button('Claim this Classic account').click();
+  await claim.button('Save and play').click();
   await expect(claim.text('Use 8 characters or more.')).toBeVisible();
 
   const { email } = await claim.fillLogin({ email: player.email, password: player.password });
-  await claim.button('Claim this Classic account').click();
+  await claim.button('Save and play').click();
   await page.waitForURL(/\/profile/);
   await expect(new ProfileScreen(page).classicChip).toBeVisible();
   const session = await sessionOf(page);
@@ -53,7 +55,7 @@ test('a guest claims their Classic account with an email and password and keeps 
   await page.goto('/claim-classic');
   await claim.verify(`${player.classicLogin}b`, player.classicPassword);
   await expect(claim.found).toBeVisible();
-  await claim.button('Claim this Classic account').click();
+  await claim.confirmIdentity();
   await expect(claim.alert).toBeVisible();
   await expect(claim.alert).toContainText('already has a different Classic profile');
 });

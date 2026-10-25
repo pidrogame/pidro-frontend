@@ -48,6 +48,11 @@ export function claimForm({
   };
 }
 
+/** Confirmation can claim immediately only when there is nothing left to type. */
+export function claimNeedsDetails(form: ClaimForm, nameAllowed: boolean): boolean {
+  return !nameAllowed || form.asks.username || form.asks.email || form.asks.password;
+}
+
 /** The `account` a claim sends: only what the player typed. */
 export function claimAccount(
   form: ClaimForm,

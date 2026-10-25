@@ -231,28 +231,30 @@ export default function ClassicForgotScreen() {
             onSubmitEditing={() => void verify(code)}
           />
           <AuthFlowButton
+            testID="classic-forward"
             label={t('auth.continue')}
             disabled={!isSignInCode(code)}
             loading={busy}
             onPress={() => void verify(code)}
           />
-          <AuthFlowButton
-            label={t('auth.resend')}
-            material="glass"
-            disabled={busy}
-            onPress={send}
-          />
-          {resent ? (
-            <PidroText
-              role="metadata"
-              tone="cyan"
-              align="center"
-              accessibilityLiveRegion="polite"
-              style={metrics.note}>
-              {t('auth.resent')}
-            </PidroText>
-          ) : null}
         </AuthFlowWindow>
+        <TextLink
+          label={t('auth.resend')}
+          size={metrics.link}
+          style={styles.centerLink}
+          disabled={busy}
+          onPress={send}
+        />
+        {resent ? (
+          <PidroText
+            role="metadata"
+            tone="cyan"
+            align="center"
+            accessibilityLiveRegion="polite"
+            style={metrics.note}>
+            {t('auth.resent')}
+          </PidroText>
+        ) : null}
       </AuthFlowScreen>
     );
   }
@@ -291,7 +293,12 @@ export default function ClassicForgotScreen() {
           submitBehavior="blurAndSubmit"
           onSubmitEditing={send}
         />
-        <AuthFlowButton label={t('auth.email_code')} loading={busy} onPress={send} />
+        <AuthFlowButton
+          testID="classic-forward"
+          label={t('auth.email_code')}
+          loading={busy}
+          onPress={send}
+        />
       </AuthFlowWindow>
       <TextLink
         label={t('auth.forgot_help')}

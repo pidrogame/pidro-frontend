@@ -11,5 +11,5 @@ test('a name reserved for a Classic player offers the claim', async ({ page, pla
 
   await create.page.getByRole('button', { name: /^Played Classic as ReservedRita\?/ }).click();
   const claim = new ClaimClassicScreen(page);
-  await expect(claim.text('How did you use Classic?')).toBeVisible();
+  await expect(claim.text('How did you sign in to Classic?')).toBeVisible();
 });

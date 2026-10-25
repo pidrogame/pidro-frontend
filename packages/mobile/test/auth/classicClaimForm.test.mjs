@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { claimAccount, claimForm, refusedLogin } from '../../src/features/auth/classicClaimForm';
+import {
+  claimAccount,
+  claimForm,
+  claimNeedsDetails,
+  refusedLogin,
+} from '../../src/features/auth/classicClaimForm';
 
 const typed = {
   username: ' typedname ',
@@ -11,6 +16,19 @@ const offered = { username: 'tiger', email: 'sonja@example.com' };
 const sent = (form, nameAllowed = true) => claimAccount(form, typed, nameAllowed);
 
 describe('what a Classic claim asks for and sends', () => {
+  it('only skips details when every required value is already known', () => {
+    for (const method of ['password', 'apple', 'facebook']) {
+      for (const user of [null, { guest: true }, { guest: false }]) {
+        for (const refused of [[], ['username'], ['email']]) {
+          const form = claimForm({ method, user, newAccount: offered, refused });
+          const expected = !user || (user.guest && method === 'password');
+          expect(claimNeedsDetails(form, true)).toBe(expected);
+          expect(claimNeedsDetails(form, false)).toBe(true);
+        }
+      }
+    }
+  });
+
   it('signed out with both offered: shows the Classic login and asks only for a password', () => {
     const form = claimForm({ method: 'password', user: null, newAccount: offered });
     expect(form).toEqual({

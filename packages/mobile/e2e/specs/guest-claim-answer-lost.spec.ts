@@ -24,8 +24,9 @@ test('when a guest’s claim was saved but the answer was lost, they are recover
   const claim = new ClaimClassicScreen(page);
   await claim.verify(player.classicLogin, player.classicPassword);
   await claim.found.waitFor();
+  await claim.confirmIdentity();
   const { email } = await claim.fillLogin({ email: player.email, password: player.password });
-  await claim.button('Claim this Classic account').click();
+  await claim.button('Save and play').click();
 
   await page.waitForURL(/\/profile/);
   await expect(new ProfileScreen(page).classicChip).toBeVisible();
