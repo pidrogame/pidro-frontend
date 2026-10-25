@@ -77,7 +77,6 @@ export const en = {
   "auth.reset_invalid": "This reset link is missing or no longer valid.",
   "auth.new_link": "Send a new link",
   "auth.classic": "Pidro Classic",
-  "auth.classic_identifier": "Classic username or email",
   "auth.enter_classic_identifier": "Enter your Classic username or email.",
   "auth.classic_not_found":
     "We can’t find a Classic account with that name or email.",
@@ -90,7 +89,7 @@ export const en = {
     "We email a six-digit code to the address on your Classic account.",
   "auth.email_code": "Email me a code",
   "auth.sign_in_code": "Six-digit code",
-  "auth.code_instructions": "Type the six-digit code from the mail",
+  "auth.code_instructions": "Type the six-digit code from the mail.",
   "auth.code_sent_to": "We sent a code to %{email}",
   "auth.classic_code_invalid": "That code didn't work. Ask for a new one.",
   "auth.link_sent_to": "We sent a sign-in link to %{email}",
@@ -320,7 +319,6 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
     "Återställningslänken saknas eller är inte längre giltig.",
   "auth.new_link": "Hämta en ny länk",
   "auth.classic": "Pidro Classic",
-  "auth.classic_identifier": "Användarnamn eller e-post i Classic",
   "auth.enter_classic_identifier":
     "Ange ditt användarnamn eller din e-postadress i Classic.",
   "auth.classic_not_found":
@@ -334,7 +332,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
     "Vi mejlar en sexsiffrig kod till adressen på ditt Classic-konto.",
   "auth.email_code": "Mejla mig en kod",
   "auth.sign_in_code": "Sexsiffrig kod",
-  "auth.code_instructions": "Skriv den sexsiffriga koden från mejlet",
+  "auth.code_instructions": "Skriv den sexsiffriga koden från mejlet.",
   "auth.code_sent_to": "Vi skickade en kod till %{email}",
   "auth.classic_code_invalid": "Koden fungerade inte. Be om en ny.",
   "auth.link_sent_to": "Vi skickade en inloggningslänk till %{email}",

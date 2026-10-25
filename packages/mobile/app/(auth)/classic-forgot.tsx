@@ -273,7 +273,7 @@ export default function ClassicForgotScreen() {
         {problem ? <AuthFlowNotice>{t(PROBLEMS[problem])}</AuthFlowNotice> : null}
         <Input
           ref={inputRef}
-          label={t('auth.classic_identifier')}
+          label={t('auth.claim_identifier')}
           value={login}
           onChangeText={(next) => {
             setLogin(next);

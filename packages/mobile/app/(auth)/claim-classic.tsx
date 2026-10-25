@@ -771,7 +771,7 @@ function Stat({ label, value }: { label: string; value: string }) {
       <PidroText role="title" tone="gold" align="center" numberOfLines={1}>
         {value}
       </PidroText>
-      <PidroText role="metadata" tone="muted" align="center">
+      <PidroText role="body" tone="soft" align="center">
         {label}
       </PidroText>
     </View>

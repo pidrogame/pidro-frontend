@@ -7,7 +7,7 @@ export class ClassicForgotScreen extends Screen {
   }
 
   get login() {
-    return this.field('Classic username or email');
+    return this.field('Username or email');
   }
 
   get getHelp() {
