@@ -347,6 +347,9 @@ export async function getStableBox(locator, page) {
   return null;
 }
 
+// Layout lands on fractional pixels far down a long page (43.9998 for a 44pt button).
+const MIN_TARGET = 44 - 0.01;
+
 export async function assertMinimumTouchTargets(
   page,
   screenName,
@@ -376,7 +379,7 @@ export async function assertMinimumTouchTargets(
       })
     );
     for (const [index, { box, label }] of controls.entries()) {
-      if (box.width >= 44 && box.height >= 44) continue;
+      if (box.width >= MIN_TARGET && box.height >= MIN_TARGET) continue;
       throw new Error(
         `${screenName} has a sub-44pt ${role} in ${viewport.name}: ${label || index} ${JSON.stringify(box)}`
       );
@@ -389,7 +392,7 @@ export async function assertMinimumTouchTargets(
   for (let index = 0; index < inputs.length; index += 1) {
     if (!(await inputs[index].isVisible())) continue;
     const box = await inputs[index].boundingBox();
-    if (box && box.height < 44) {
+    if (box && box.height < MIN_TARGET) {
       throw new Error(
         `${screenName} has a sub-44pt input in ${viewport.name}: ${JSON.stringify(box)}`
       );
