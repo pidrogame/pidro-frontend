@@ -225,6 +225,9 @@ count so the grammar can check rapid taps, failure/retry and the acknowledgement
 static rays and no confetti; omit `__pidroStill` to see the burst and six-second
 Quick timeout. Quick timing remains server-bound; this fixture does not simulate
 the server's next-hand timers. Browser checks cannot verify native haptic delivery.
+`/table-dev?deal=hand&end=game-over` completes an all-14 hand through the real
+store/controller. `verify-game-over.mjs` checks that only game-over celebrates,
+with no hidden hand-result panel, both with and without reduced motion.
 `scores=history` also seeds nine hands in the mock table.
 `safeArea=island-left` / `island-right` simulate landscape side cutouts.
 Run `MOBILE_BASE_URL=http://localhost:8081 node scripts/verify-table-chrome.mjs` for

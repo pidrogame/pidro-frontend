@@ -501,7 +501,10 @@ function TableDevHarness() {
         <FixtureInsets preset={params.safeArea}>
           <HandEndPreview
             result={
-              params.end === 'we-made' || params.end === 'we-missed' || params.end === 'they-missed'
+              params.end === 'we-made' ||
+              params.end === 'we-missed' ||
+              params.end === 'they-missed' ||
+              params.end === 'game-over'
                 ? params.end
                 : 'they-made'
             }
@@ -1459,13 +1462,14 @@ function DrawCountPreview({ held, youDeal }: { held: HeldStyle; youDeal: boolean
   );
 }
 
-type HandEnd = 'they-made' | 'we-made' | 'we-missed' | 'they-missed';
+type HandEnd = 'they-made' | 'we-made' | 'we-missed' | 'they-missed' | 'game-over';
 /** `deal=hand`: who bid what, and what each side took, 14 points in all. */
 const HAND_ENDS: Record<HandEnd, { bidder: Position; bid: number; ns: number }> = {
   'they-made': { bidder: 'east', bid: 6, ns: 8 },
   'we-made': { bidder: 'north', bid: 8, ns: 8 },
   'we-missed': { bidder: 'south', bid: 10, ns: 8 },
   'they-missed': { bidder: 'west', bid: 9, ns: 8 },
+  'game-over': { bidder: 'north', bid: 10, ns: 14 },
 };
 
 /**
@@ -1501,13 +1505,13 @@ function HandEndPreview({ result }: { result: HandEnd }) {
       north_south: biddingTeam === 'north_south' && !made ? -end.bid : captured.north_south,
       east_west: biddingTeam === 'east_west' && !made ? -end.bid : captured.east_west,
     };
-    const before = { north_south: 30, east_west: 21 };
+    const before = { north_south: result === 'game-over' ? 48 : 30, east_west: 21 };
     const heart = (rank: number): Card => ({ rank, suit: 'hearts' });
     const scored = (card: Card, points: number, position: Position) => ({
       card,
       points,
-      position,
-      team: team(position),
+      position: result === 'game-over' ? 'north' : position,
+      team: result === 'game-over' ? 'north_south' : team(position),
     });
     const lastHand = {
       hand_number: 5,
@@ -1581,6 +1585,21 @@ function HandEndPreview({ result }: { result: HandEnd }) {
             west: { hand: 9 },
             south: { hand: DRAW_DEALT },
           },
+          ...(result === 'game-over'
+            ? {
+                phase: 'complete',
+                winner: 'north_south',
+                trump: 'hearts',
+                hand_number: 5,
+                current_player: null,
+                players: {
+                  north: { hand: 0 },
+                  east: { hand: 0 },
+                  west: { hand: 0 },
+                  south: { hand: [] },
+                },
+              }
+            : {}),
         },
       ],
     ];
@@ -1604,7 +1623,7 @@ function HandEndPreview({ result }: { result: HandEnd }) {
       ) : (
         <Loading />
       )}
-      <HandResultTuner onReplay={() => setRun((n) => n + 1)} />
+      {result !== 'game-over' ? <HandResultTuner onReplay={() => setRun((n) => n + 1)} /> : null}
     </View>
   );
 }

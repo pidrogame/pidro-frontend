@@ -555,7 +555,7 @@ export function GameCanvasTable({
       ) : null}
 
       <TableChromeBars reserves={reserves} />
-      {handResult.result ? (
+      {!isGameOver && handResult.result ? (
         <HandResultPanel
           key={handResult.result.hand.hand_number}
           result={handResult.result}

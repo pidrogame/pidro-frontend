@@ -129,6 +129,23 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  for (const reducedMotion of ['no-preference', 'reduce']) {
+    await page.emulateMedia({ reducedMotion });
+    await page.goto(`${baseUrl}/table-dev?deal=hand&end=game-over`);
+    await page.getByTestId('game-over-window').waitFor();
+    assert.equal(await page.getByTestId('result-score-first').textContent(), '62');
+    assert.equal(
+      await page.getByTestId('hand-result').count(),
+      0,
+      'final hand has no hidden celebration'
+    );
+    assert.equal(
+      await page.getByTestId('victory-rays').count(),
+      reducedMotion === 'reduce' ? 0 : 1
+    );
+    checks++;
+  }
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const size of sizes) {
     await page.setViewportSize({ width: size.width, height: size.height });
     const inset = size.safeArea ? { safeArea: size.safeArea } : {};
