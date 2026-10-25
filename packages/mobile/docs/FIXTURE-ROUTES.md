@@ -165,7 +165,8 @@ UI_SHOT_DIR=/tmp/pidro-locales node scripts/verify-ui-grammar.mjs
 ### Recipes
 
 PID-268: `/table-dev?phase=playing&hand=own` holds the result without a timer;
-Continue releases this local fixture (it does not send a channel intent).
+a tap on the table, panel or **Tap to continue** releases this local fixture
+(it does not send a channel intent). `hand=own-missed` shows a missed bid.
 `menu=pace&solo=true` opens Pace for a bot table; omit `solo` for the human-table
 Quick note. Add `locale=sv` for Swedish. Grammar cases `table-hand-own(-sv)`,
 `table-pace-solo-en|sv`, `table-pace-human-en|sv` and `settings-pace-en|sv` cover
@@ -203,11 +204,27 @@ completed hands; tap the score plaque for the server ledger, newest first.
 `fixture=scores-game-over` shows the labelled race chart and its **Every hand** link.
 `fixture=all-14|all-14-theirs` shows either team's six point cards and **All 14!**.
 Add `hand=own` to either sweep for the combined all-14 + Continue gate; the
-`scores-{en,sv}-all-14(-theirs)-own` cases also check that only Continue dismisses it
+`scores-{en,sv}-all-14(-theirs)-own` cases also check that tapping the dimmed table continues
 and that the entire panel clears synthetic Android 24/48 insets (`safeArea=android`).
 Add `locale=sv` for Swedish. The `scores-{en,sv}-{table,game-over,chart,all-14,all-14-theirs}`
 grammar cases check every page of the ledger and the result at 390×844, 375×667,
 844×390 and 768×1024. Older/Newer pages keep the panel bounded without screen scrolling.
+PID-291 uses JA36 hand 5 for both sweep fixtures: Jocke bid 10 in hearts,
+14–0, A♥ 2♥ 10♥ J♥ 5♦ 5♥. The opposing fixture swaps the teams; running totals
+are illustrative. Only our sweep gets rays, one confetti burst and a larger stamp.
+`viewer=spectator` on the sweep keeps the headline but removes the celebration.
+The five result states are `hand=own`, `hand=own-missed`, `fixture=all-14&hand=own`,
+`fixture=all-14`, and `fixture=all-14-theirs` on `/table-dev?phase=playing`.
+Grammar cases `table-hand-own(-sv)`, `table-hand-own-missed-{en,sv}` and the
+`scores-{en,sv}-all-14(-theirs)(-own)` cases cover all four sizes above, no wood
+button, a labelled cyan link only at own pace, and continuation from the scrim.
+`hand=own&reply=continue` (`table-hand-own-retry`) rejects the first attempt,
+then acknowledges the retry before a delayed state update. It displays an attempt
+count so the grammar can check rapid taps, failure/retry and the acknowledgement gap.
+`table-hand-sweep-spectator` is the no-celebration control. Still captures show
+static rays and no confetti; omit `__pidroStill` to see the burst and six-second
+Quick timeout. Quick timing remains server-bound; this fixture does not simulate
+the server's next-hand timers. Browser checks cannot verify native haptic delivery.
 `scores=history` also seeds nine hands in the mock table.
 `safeArea=island-left` / `island-right` simulate landscape side cutouts.
 Run `MOBILE_BASE_URL=http://localhost:8081 node scripts/verify-table-chrome.mjs` for

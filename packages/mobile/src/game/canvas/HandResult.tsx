@@ -6,7 +6,7 @@
  * header shows what each team's score moved by, and the next hand's bidding
  * waits. The server says what every card was worth and who kept it.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
@@ -18,12 +18,14 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { VictoryConfetti, VictoryRays } from '@/components/game/VictoryConfetti';
 import { gradientBg } from '@/components/ui/Bevel';
-import { BevelButton } from '@/components/ui/BevelButton';
+import { TextLink } from '@/components/ui/TextLink';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
 import { PidroText } from '@/components/ui/PidroText';
 import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@/design/tokens';
 import {
+  celebratesAll14,
   handResultView,
   type HandResultTray,
   type HandResultView,
@@ -34,6 +36,7 @@ import type { Position } from '@/types/lobby';
 import { getCardImage } from '@/utils/cardImages';
 import { SUIT_SYMBOLS } from '@/utils/cards';
 import { isStillCapture } from '@/utils/stillCapture';
+import { playOurPidroHaptic } from '@/game/useGameHaptics';
 import { formatNumber, useTranslation } from '@/i18n';
 import { TABLE_HEADER, headerTop } from './TableChrome';
 import { computeLayout } from './layout';
@@ -135,7 +138,7 @@ export function HandResultPanel({
   result: HandResultState;
   seats: TableModel['seats'];
   onClose: () => void;
-  onContinue?: () => Promise<void> | void;
+  onContinue?: () => Promise<boolean> | boolean;
   topReserve?: number;
   bottomReserve?: number;
 }) {
@@ -149,7 +152,34 @@ export function HandResultPanel({
   );
   const { view, closeMs, waiting } = result;
   const [pending, setPending] = useState(false);
+  const continuing = useRef(false);
   const still = reduceMotion || isStillCapture();
+  const celebrate = celebratesAll14(result.hand, viewerOf(seats));
+  useEffect(() => {
+    if (!celebrate || isStillCapture()) return;
+    const timer = setTimeout(playOurPidroHaptic, still ? 0 : STAMP_DELAY_MS + 420);
+    return () => clearTimeout(timer);
+  }, [celebrate, still]);
+
+  const continueHand = () =>
+    actionTap('continue_hand', async () => {
+      if (!onContinue || continuing.current) {
+        pushAttempt('continue_hand').record('blocked', 'pending');
+        return;
+      }
+      continuing.current = true;
+      setPending(true);
+      let accepted = false;
+      try {
+        accepted = await onContinue();
+      } finally {
+        // An acknowledgement can precede the state broadcast that removes us.
+        if (!accepted) {
+          continuing.current = false;
+          setPending(false);
+        }
+      }
+    });
 
   const name = (position: Position) =>
     Object.values(seats).find((seat) => seat?.absolutePosition === position)?.username ??
@@ -182,9 +212,9 @@ export function HandResultPanel({
   const tablet = L.profile.startsWith('tablet');
   const scale = tablet ? 1.25 : 1;
   const landscape = width > height;
-  const sideContinue = waiting && view.all14 !== null && landscape;
+  const compact = landscape && waiting;
   const room = (width - insets.left - insets.right) / scale - PidroSpacing.md * 2;
-  const panelWidth = Math.min(room, landscape ? (sideContinue ? 720 : 560) : 358);
+  const panelWidth = Math.min(room, landscape ? 560 : 358);
   // Cards shrink before a tray wraps: six in one tray still fit a small phone.
   const trayFixed = 3 + 28 + 52 + PidroSpacing.sm;
   const gaps = (n: number) => Math.max(0, n - 1) * PidroSpacing.xs;
@@ -224,7 +254,7 @@ export function HandResultPanel({
     const sweep = view.all14 === tray.team;
     // Overlap buys larger faces without taking more horizontal room. The fan
     // stays fully posed with Reduce Motion; only the existing fly-in animates.
-    const faceW = sweep ? Math.min(52, cardW * 1.2) : cardW;
+    const faceW = compact ? Math.min(30, cardW) : sweep ? Math.min(52, cardW * 1.2) : cardW;
     return (
       <View
         key={tray.team}
@@ -277,18 +307,28 @@ export function HandResultPanel({
     );
   });
 
-  const ResultScrim = waiting ? View : Pressable;
+  const press = waiting ? (onContinue ? continueHand : undefined) : onClose;
   return (
-    <Animated.View style={[StyleSheet.absoluteFill, styles.root, fade]}>
-      <ResultScrim
-        testID="hand-result"
-        accessibilityRole={waiting ? undefined : 'button'}
-        accessible={!waiting}
-        focusable={!waiting}
+    <Animated.View
+      testID="hand-result"
+      style={[StyleSheet.absoluteFill, styles.root, styles.scrim, fade]}>
+      {celebrate ? (
+        <VictoryRays
+          center={{ x: width / 2, y: top + panelHeight / 2 }}
+          size={Math.max(width, height) * 1.1}
+          still={still}
+        />
+      ) : null}
+      <Pressable
+        testID="hand-result-backdrop"
+        accessibilityRole="button"
+        accessible={!waiting || !!onContinue}
+        focusable={!waiting || !!onContinue}
+        accessibilityState={{ disabled: pending }}
         accessibilityLiveRegion="polite"
         accessibilityLabel={
           waiting
-            ? undefined
+            ? t('game.tap_to_continue')
             : t('game.result_accessibility', {
                 headline: [view.all14 ? headline : null, t(spoken, { team: bidders }), pidroLine]
                   .filter(Boolean)
@@ -301,96 +341,90 @@ export function HandResultPanel({
                 them: formatNumber(them.points),
               })
         }
-        onPress={waiting ? undefined : onClose}
-        style={[StyleSheet.absoluteFill, styles.scrim]}>
-        <View
-          testID="hand-result-panel"
-          onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}
-          style={[
-            styles.panel,
-            {
-              top,
-              width: panelWidth,
-              left: (width - panelWidth) / 2,
-              transform: [{ scale }],
-            },
-          ]}>
-          <View style={[styles.heading, sideContinue ? { marginRight: 240 } : null]}>
-            <PidroText role="metadata" style={styles.eyebrow} numberOfLines={1}>
-              {t('game.log_bid', { who: name(view.bidder), amount: view.bid }).toLocaleUpperCase()}
-              {view.trump ? (
-                <PidroText
-                  role="metadata"
-                  style={[
-                    styles.eyebrow,
-                    { color: RED.has(view.trump) ? PidroColors.suitRedOnFelt : PidroColors.text },
-                  ]}>
-                  {` ${SUIT_SYMBOLS[view.trump]}`}
-                </PidroText>
-              ) : null}
-            </PidroText>
-            <Headline
-              text={headline}
-              loud={view.loud}
-              landscape={landscape}
-              still={still}
-              delay={view.outcome === 'we-missed' ? 0 : 600}
-            />
-            <PidroText role="label" align="center" style={styles.bidLine}>
-              {bidLine}
-            </PidroText>
-            {pidroLine ? (
-              <Rise delay={1100} still={still}>
-                <PidroText role="metadata" align="center" style={styles.pidroLine}>
-                  {pidroLine}
-                </PidroText>
-              </Rise>
+        onPress={press}
+        style={StyleSheet.absoluteFill}
+      />
+      <Pressable
+        testID="hand-result-panel"
+        accessible={false}
+        focusable={false}
+        onPress={press}
+        onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)}
+        style={[
+          styles.panel,
+          compact && { gap: 4 },
+          {
+            top,
+            width: panelWidth,
+            left: (width - panelWidth) / 2,
+            transform: [{ scale }],
+          },
+        ]}>
+        <View style={styles.heading}>
+          <PidroText role="metadata" style={styles.eyebrow} numberOfLines={1}>
+            {t('game.log_bid', { who: name(view.bidder), amount: view.bid }).toLocaleUpperCase()}
+            {view.trump ? (
+              <PidroText
+                role="metadata"
+                style={[
+                  styles.eyebrow,
+                  { color: RED.has(view.trump) ? PidroColors.suitRedOnFelt : PidroColors.text },
+                ]}>
+                {` ${SUIT_SYMBOLS[view.trump]}`}
+              </PidroText>
             ) : null}
-          </View>
-          <View style={landscape ? styles.traysRow : styles.traysColumn}>{trays}</View>
-          {waiting && onContinue ? (
-            <View
-              style={sideContinue ? { position: 'absolute', top: 0, right: 0, width: 220 } : null}>
-              <BevelButton
-                testID="hand-continue"
-                material="wood"
-                size="lg"
-                fullWidth
-                label={t('game.continue_hand')}
-                loading={pending}
-                onPress={() =>
-                  actionTap('continue_hand', async () => {
-                    if (pending) {
-                      pushAttempt('continue_hand').record('blocked', 'pending');
-                      return;
-                    }
-                    setPending(true);
-                    try {
-                      await onContinue();
-                    } finally {
-                      setPending(false);
-                    }
-                  })
-                }
-              />
-            </View>
+          </PidroText>
+          <Headline
+            text={headline}
+            loud={view.loud}
+            celebrate={celebrate}
+            color={
+              view.all14
+                ? TONES[view.trays.find((tray) => tray.team === view.all14)!.side].figure
+                : undefined
+            }
+            landscape={landscape}
+            compact={compact}
+            still={still}
+            delay={view.outcome === 'we-missed' ? 0 : 600}
+          />
+          <PidroText role="label" align="center" style={styles.bidLine}>
+            {bidLine}
+          </PidroText>
+          {pidroLine ? (
+            <Rise delay={1100} still={still}>
+              <PidroText role="metadata" align="center" style={styles.pidroLine}>
+                {pidroLine}
+              </PidroText>
+            </Rise>
           ) : null}
         </View>
-        {!waiting ? (
-          <View
-            testID="hand-result-timer"
-            pointerEvents="none"
-            style={[
-              styles.track,
-              landscape
-                ? { left: (width - panelWidth) / 2, right: (width - panelWidth) / 2 }
-                : { left: insets.left + PidroSpacing.md, right: insets.right + PidroSpacing.md },
-              { bottom: insets.bottom + (landscape ? 18 : 30) },
-            ]}>
-            <Animated.View style={[styles.bar, bar]} />
-          </View>
+        <View style={landscape ? styles.traysRow : styles.traysColumn}>{trays}</View>
+        {waiting && onContinue ? (
+          <TextLink
+            testID="hand-continue"
+            accessibilityRole="button"
+            label={t('game.tap_to_continue')}
+            disabled={pending}
+            onPress={continueHand}
+          />
         ) : null}
-      </ResultScrim>
+      </Pressable>
+      {!waiting ? (
+        <View
+          testID="hand-result-timer"
+          pointerEvents="none"
+          style={[
+            styles.track,
+            landscape
+              ? { left: (width - panelWidth) / 2, right: (width - panelWidth) / 2 }
+              : { left: insets.left + PidroSpacing.md, right: insets.right + PidroSpacing.md },
+            { bottom: insets.bottom + (landscape ? 18 : 30) },
+          ]}>
+          <Animated.View style={[styles.bar, bar]} />
+        </View>
+      ) : null}
+      {celebrate && !still ? <VictoryConfetti /> : null}
     </Animated.View>
   );
 }
@@ -399,13 +433,19 @@ export function HandResultPanel({
 function Headline({
   text,
   loud,
+  celebrate,
+  color,
   landscape,
+  compact,
   still,
   delay,
 }: {
   text: string;
   loud: boolean;
+  celebrate: boolean;
+  color?: string;
   landscape: boolean;
+  compact: boolean;
   still: boolean;
   delay: number;
 }) {
@@ -433,9 +473,16 @@ function Headline({
   return (
     <Animated.View style={still ? null : style}>
       <PidroText
+        testID="hand-result-headline"
         role="display"
         align="center"
-        style={[styles.loudHeadline, landscape ? styles.loudLandscape : null]}>
+        style={[
+          styles.loudHeadline,
+          landscape ? styles.loudLandscape : null,
+          celebrate ? (landscape ? styles.sweepLandscape : styles.sweepHeadline) : null,
+          compact ? (celebrate ? styles.loudLandscape : styles.compactHeadline) : null,
+          color ? { color } : null,
+        ]}>
         {text}
       </PidroText>
     </Animated.View>
@@ -541,6 +588,9 @@ const styles = StyleSheet.create({
     ...PidroBevel.labelShadow,
   },
   loudLandscape: { fontSize: 44, lineHeight: 57 },
+  sweepHeadline: { fontSize: 60, lineHeight: 78 },
+  sweepLandscape: { fontSize: 52, lineHeight: 68 },
+  compactHeadline: { fontSize: 38, lineHeight: 49 },
   quietHeadline: {
     fontFamily: PidroFonts.display,
     fontWeight: '400',

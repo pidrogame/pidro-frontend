@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { all14Team, handResultView, waitsForContinue } from '../../src/features/game/handResult.ts';
+import {
+  all14Team,
+  celebratesAll14,
+  handResultView,
+  waitsForContinue,
+} from '../../src/features/game/handResult.ts';
 
 it('waits only for the server own-pace Continue gate, including old and partial payloads', () => {
   expect(waitsForContinue({ pace: 'own', awaiting_continue: true })).toBe(true);
@@ -80,6 +85,8 @@ describe('the end-of-hand panel', () => {
         };
         expect(all14Team(hand)).toBe(team);
         for (const viewer of ['north', 'east', 'south', 'west', null]) {
+          const ourSeats = team === 'north_south' ? ['north', 'south'] : ['east', 'west'];
+          expect(celebratesAll14(hand, viewer)).toBe(ourSeats.includes(viewer));
           const view = handResultView(hand, viewer, 'ROOM');
           expect(view).toMatchObject({
             all14: team,
@@ -116,6 +123,9 @@ describe('the end-of-hand panel', () => {
           delta: { north_south: 14, east_west: -14 },
         };
         expect(all14Team(hand)).toBeNull();
+        for (const viewer of ['north', 'east', 'south', 'west', null]) {
+          expect(celebratesAll14(hand, viewer)).toBe(false);
+        }
         const view = handResultView(hand, 'east', 'ROOM');
         expect(view.headline.key).not.toBe('game.all_14');
         expect(view.headline.n).toBe(14 - hand.captured.east_west);

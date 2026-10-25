@@ -98,14 +98,22 @@ const RAY_COUNT = 24;
 
 /**
  * Gold rays turning slowly behind a spotlight, centred on `center`. A lap is
- * 60 s; reduced motion shows neither, a still capture holds them.
+ * 60 s; reduced motion hides them unless `still` is requested. Captures hold them.
  */
-export function VictoryRays({ center, size }: { center: { x: number; y: number }; size: number }) {
+export function VictoryRays({
+  center,
+  size,
+  still = false,
+}: {
+  center: { x: number; y: number };
+  size: number;
+  still?: boolean;
+}) {
   const reducedMotion = useReducedMotion();
   const [spin] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
-    if (reducedMotion || isStillCapture()) return;
+    if (still || reducedMotion || isStillCapture()) return;
     const loop = Animated.loop(
       Animated.timing(spin, {
         toValue: 1,
@@ -116,9 +124,9 @@ export function VictoryRays({ center, size }: { center: { x: number; y: number }
     );
     loop.start();
     return () => loop.stop();
-  }, [reducedMotion, spin]);
+  }, [still, reducedMotion, spin]);
 
-  if (reducedMotion) return null;
+  if (reducedMotion && !still) return null;
   const r = size / 2;
   const wedge = (index: number) => {
     const from = ((index * 360) / RAY_COUNT) * (Math.PI / 180);

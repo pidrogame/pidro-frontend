@@ -557,6 +557,7 @@ export function GameCanvasTable({
       <TableChromeBars reserves={reserves} />
       {handResult.result ? (
         <HandResultPanel
+          key={handResult.result.hand.hand_number}
           result={handResult.result}
           seats={model.seats}
           onClose={handResult.close}
@@ -566,8 +567,10 @@ export function GameCanvasTable({
               : async () => {
                   try {
                     await pushGameAction('continue_hand', {});
+                    return true;
                   } catch (error) {
                     controller.showActionError('Continue', error);
+                    return false;
                   }
                 }
           }

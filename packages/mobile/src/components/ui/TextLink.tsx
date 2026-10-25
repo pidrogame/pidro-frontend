@@ -10,6 +10,7 @@ export interface TextLinkProps {
   size?: 14 | 15 | 16;
   disabled?: boolean;
   accessibilityLabel?: string;
+  accessibilityRole?: 'link' | 'button';
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
@@ -24,12 +25,13 @@ export function TextLink({
   size = 15,
   disabled = false,
   accessibilityLabel,
+  accessibilityRole = 'link',
   style,
   testID,
 }: TextLinkProps) {
   return (
     <PressableFX
-      accessibilityRole="link"
+      accessibilityRole={accessibilityRole}
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled }}
       disabled={disabled}

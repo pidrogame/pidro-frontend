@@ -770,6 +770,24 @@ const allCases = [
     testId: 'hand-continue',
     ownPace: true,
   },
+  {
+    name: 'table-hand-own-retry',
+    path: '/table-dev?phase=playing&hand=own&reply=continue',
+    testId: 'hand-continue',
+    ownPace: true,
+  },
+  ...['en', 'sv'].map((locale) => ({
+    name: `table-hand-own-missed-${locale}`,
+    path: `/table-dev?phase=playing&hand=own-missed&locale=${locale}`,
+    testId: 'hand-continue',
+    ownPace: true,
+  })),
+  {
+    name: 'table-hand-sweep-spectator',
+    path: '/table-dev?fixture=all-14&viewer=spectator',
+    testId: 'hand-result',
+    ownPace: true,
+  },
   { name: 'table-hand-set', path: '/table-dev?phase=playing&hand=set', testId: 'hand-result' },
   {
     name: 'table-hand-they-set',
@@ -1562,9 +1580,65 @@ async function assertClassicLogin(page, testCase, viewport) {
 }
 
 async function assertTableMessageReadable(page, name, viewport) {
+  if (await page.getByTestId('hand-result').count()) {
+    const panel = page.getByTestId('hand-result-panel');
+    assert.equal(
+      await panel.getByRole('button').locator('[style*="linear-gradient"]').count(),
+      0,
+      'no wood button in result panel'
+    );
+    const waiting = name.includes('own');
+    const sv = name.includes('-sv');
+    const link = page.getByTestId('hand-continue');
+    assert.equal(await link.count(), waiting ? 1 : 0, 'tap line only at own pace');
+    if (waiting) {
+      assert.equal(await link.getAttribute('role'), 'button');
+      assert.equal(await link.innerText(), sv ? 'Tryck för att fortsätta' : 'Tap to continue');
+      assert.equal(await page.getByTestId('hand-result-backdrop').getAttribute('role'), 'button');
+    }
+    const ours = name.includes('all-14') && !name.includes('theirs');
+    assert.equal(await page.getByTestId('victory-rays').count(), ours ? 1 : 0);
+    assert.equal(
+      await page.getByTestId('victory-confetti').count(),
+      0,
+      'still capture has no flight'
+    );
+  }
+  if (name === 'table-hand-own-retry') {
+    const line = page.getByTestId('hand-continue');
+    const attempts = page.getByTestId('continue-attempts');
+    const panel = await page.getByTestId('hand-result-panel').boundingBox();
+    await line.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await attempts.innerText(), '1', 'Enter activates the quiet action');
+    await page.mouse.click(10, viewport.height / 2);
+    await page.mouse.click(panel.x + 20, panel.y + 30);
+    await page.waitForFunction(
+      () =>
+        document.querySelector('[data-testid="hand-continue"]')?.getAttribute('aria-disabled') !==
+        'true'
+    );
+    assert.equal(
+      await attempts.innerText(),
+      '1',
+      'pending taps issue one request; failure unlocks'
+    );
+    await line.click();
+    // The fixture acknowledges at 350ms and broadcasts 800ms after that.
+    await page.waitForTimeout(600);
+    assert.ok(await page.getByTestId('hand-result-panel').isVisible(), 'wait for server state');
+    assert.ok(await line.isDisabled(), 'acknowledgement does not unlock Continue');
+    await page.mouse.click(10, viewport.height / 2);
+    await page.mouse.click(panel.x + 20, panel.y + 30);
+    assert.equal(await attempts.innerText(), '2', 'success stays locked until the state broadcast');
+    await page.getByTestId('hand-result').waitFor({ state: 'detached' });
+    assert.equal(await attempts.innerText(), '2');
+    return;
+  }
   if (
     name === 'table-hand-own' ||
     name === 'table-hand-own-sv' ||
+    name.startsWith('table-hand-own-missed-') ||
     (name.startsWith('scores-') && name.endsWith('-own'))
   ) {
     const button = page.getByTestId('hand-continue');
@@ -1584,8 +1658,6 @@ async function assertTableMessageReadable(page, name, viewport) {
     }
     assert.equal(await page.getByTestId('hand-result-timer').count(), 0);
     await page.getByTestId('hand-result').click({ position: { x: 10, y: viewport.height / 2 } });
-    assert.ok(await button.isVisible(), 'tapping the scrim cannot dismiss an own-pace result');
-    await button.click();
     await page.getByTestId('hand-result').waitFor({ state: 'detached' });
     return;
   }

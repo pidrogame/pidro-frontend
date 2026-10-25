@@ -27,6 +27,7 @@ import { buildHandLog } from '@/game/handLog';
 import { useHandPresentationReady } from './useHandPresentationReady';
 import { getRankLabel, SUIT_SYMBOLS } from '@/utils/cards';
 import { PidroSpacing } from '@/design/tokens';
+import { PidroText } from '@/components/ui/PidroText';
 import type {
   ActiveTurnTimer,
   Card,
@@ -256,16 +257,50 @@ const FIXTURE_HANDS = {
     ],
   },
 } satisfies Record<string, ServerLastHand>;
+// JA36, hand 5: Jocke bid 10 in hearts and our team captured all six point cards.
+const JA36_HAND: ServerLastHand = {
+  hand_number: 5,
+  bidding_team: 'north_south',
+  bidder: 'north',
+  bid: 10,
+  trump: 'hearts',
+  captured: { north_south: 14, east_west: 0 },
+  made: true,
+  delta: { north_south: 14, east_west: 0 },
+  scores: { north_south: 50, east_west: 29 },
+  point_cards: [
+    scored(14, 'hearts', 1, 'north'),
+    scored(2, 'hearts', 1, 'south'),
+    scored(10, 'hearts', 1, 'north'),
+    scored(11, 'hearts', 1, 'south'),
+    scored(5, 'diamonds', 5, 'north'),
+    scored(5, 'hearts', 5, 'south'),
+  ],
+};
 const fixtureHand = (name: string | undefined) =>
   name === 'own'
     ? FIXTURE_HANDS.made
-    : name === 'all-14'
-      ? handHistory('north_south').at(-1)!
-      : name === 'all-14-theirs'
-        ? handHistory('east_west').at(-1)!
-        : name && name in FIXTURE_HANDS
-          ? FIXTURE_HANDS[name as keyof typeof FIXTURE_HANDS]
-          : null;
+    : name === 'own-missed'
+      ? FIXTURE_HANDS.set
+      : name === 'all-14'
+        ? JA36_HAND
+        : name === 'all-14-theirs'
+          ? {
+              ...JA36_HAND,
+              bidding_team: 'east_west' as const,
+              bidder: 'east' as const,
+              captured: { north_south: 0, east_west: 14 },
+              delta: { north_south: 0, east_west: 14 },
+              scores: { north_south: 36, east_west: 43 },
+              point_cards: JA36_HAND.point_cards?.map((point) => ({
+                ...point,
+                team: 'east_west' as const,
+                position: 'east' as const,
+              })),
+            }
+          : name && name in FIXTURE_HANDS
+            ? FIXTURE_HANDS[name as keyof typeof FIXTURE_HANDS]
+            : null;
 
 /** The bidding behind the seats' "Passed" / "Bid 6", in order from the dealer's left. */
 const FIXTURE_BIDS: ServerBid[] = [
@@ -365,6 +400,7 @@ export default function GameCanvasDev({
     transition,
     menu,
     solo,
+    viewer,
   } = useLocalSearchParams<{
     scores?: string;
     dealer?: string;
@@ -382,8 +418,10 @@ export default function GameCanvasDev({
     transition?: string;
     menu?: string;
     solo?: string;
+    viewer?: string;
   }>();
   const handFixture = fixture?.startsWith('all-14') ? fixture : handParam;
+  const ownPace = handParam === 'own' || handParam === 'own-missed';
   const motionFixture = fixture === 'play-motion';
   const transitionMs =
     transition === '0' ? 0 : transition === '80' ? 80 : transition === '3000' ? 3000 : 1500;
@@ -408,6 +446,7 @@ export default function GameCanvasDev({
 
   const [lastHand, setLastHand] = useState<ServerLastHand | null>(null);
   const [continued, setContinued] = useState(false);
+  const [continueAttempts, setContinueAttempts] = useState(0);
   useEffect(() => {
     const fixture = fixtureHand(handFixture);
     if (!fixture) return;
@@ -532,6 +571,15 @@ export default function GameCanvasDev({
   const players = useMemo(
     () =>
       basePlayers(turn)
+        .map((player) => ({
+          ...player,
+          isYou: viewer === 'spectator' ? false : player.isYou,
+          username:
+            fixture?.startsWith('all-14') &&
+            player.absolutePosition === (fixture === 'all-14-theirs' ? 'east' : 'north')
+              ? 'Jocke'
+              : player.username,
+        }))
         .map((player) =>
           names === 'long'
             ? { ...player, username: LONG_NAMES[player.absolutePosition] }
@@ -569,7 +617,7 @@ export default function GameCanvasDev({
                 }
         ),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- locale invalidates synthetic seat names
-    [turn, lifecycle, names, locale, bots]
+    [turn, lifecycle, names, locale, bots, fixture, viewer]
   );
   const canPlay = turn === 'south' && hand.length > 0 && !trick.some((p) => p.player === 'south');
 
@@ -617,12 +665,12 @@ export default function GameCanvasDev({
   const playCard = motionFixture ? presentation.playCard : onPlayCard;
   const isHandReady = useHandPresentationReady(model.yourHand, textures);
   // Own pace keeps the completed hand's number until Continue deals again.
-  const handNumber = fixtureHand(handFixture) && (handParam !== 'own' || continued) ? 5 : 4;
+  const handNumber = (lastHand?.hand_number ?? 4) + (lastHand && (!ownPace || continued) ? 1 : 0);
   const handResult = useHandResult(
     lastHand,
     viewerOf(model.seats),
     'TABLE-DEV',
-    handParam === 'own' && !!lastHand && !continued
+    ownPace && !!lastHand && !continued
   );
   const handLog = useMemo(
     () =>
@@ -725,13 +773,34 @@ export default function GameCanvasDev({
       <TableChromeBars reserves={reserves} />
       {handResult.result ? (
         <HandResultPanel
+          key={handResult.result.hand.hand_number}
           result={handResult.result}
           seats={model.seats}
           onClose={handResult.close}
-          onContinue={() => setContinued(true)}
+          onContinue={
+            viewer === 'spectator'
+              ? undefined
+              : async () => {
+                  if (reply === 'continue') {
+                    setContinueAttempts((n) => n + 1);
+                    await new Promise((resolve) => after(350, () => resolve(undefined)));
+                    if (continueAttempts === 0) return false;
+                    // Acknowledge before broadcasting the next state.
+                    after(800, () => setContinued(true));
+                    return true;
+                  }
+                  setContinued(true);
+                  return true;
+                }
+          }
           topReserve={topReserve}
           bottomReserve={bottomReserve}
         />
+      ) : null}
+      {reply === 'continue' ? (
+        <PidroText testID="continue-attempts" style={{ position: 'absolute', bottom: 0 }}>
+          {continueAttempts}
+        </PidroText>
       ) : null}
       {phase !== 'game_over' && (
         <>

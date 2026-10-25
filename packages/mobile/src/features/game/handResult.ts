@@ -74,6 +74,10 @@ export function all14Team(hand: ServerLastHand): TeamKey | null {
   return null;
 }
 
+export function celebratesAll14(hand: ServerLastHand, viewer: Position | null): boolean {
+  return viewer !== null && all14Team(hand) === teamOf(viewer);
+}
+
 export function handResultView(
   hand: ServerLastHand,
   viewer: Position | null,
