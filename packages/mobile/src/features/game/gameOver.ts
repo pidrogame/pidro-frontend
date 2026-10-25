@@ -147,6 +147,11 @@ export function rematchLines(
   };
 }
 
+/** Everyone else at the table is a bot: they always agree, so there is no vote to show. */
+export function othersAreBots(others: readonly RematchOther[]): boolean {
+  return others.length > 0 && others.every((other) => other.bot);
+}
+
 /** "3 in a row with Nora" from two wins together; one win is no streak yet. */
 export function streakChip(
   partner: { display_name: string; wins_in_a_row: number } | null | undefined

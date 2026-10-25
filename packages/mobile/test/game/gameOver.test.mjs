@@ -5,6 +5,7 @@ import {
   lastTrickReveal,
   raceLine,
   raceLabels,
+  othersAreBots,
   rematchLines,
   streakChip,
   xpChip,
@@ -204,6 +205,13 @@ describe('the rematch row', () => {
       title: 'Nora wants a rematch',
       detail: 'Waiting for you',
     });
+  });
+
+  it('is not shown when everyone else is a bot, only when a person sits with you', () => {
+    expect(othersAreBots(others([], ['Nora', 'Kalle', 'Mikko']))).toBe(true);
+    expect(othersAreBots(others([], ['Kalle', 'Mikko']))).toBe(false);
+    expect(othersAreBots(others([]))).toBe(false);
+    expect(othersAreBots([])).toBe(false);
   });
 });
 
