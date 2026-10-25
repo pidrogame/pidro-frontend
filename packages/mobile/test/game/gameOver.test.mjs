@@ -4,7 +4,6 @@ import {
   bestHandLine,
   lastTrickReveal,
   raceLine,
-  raceLabels,
   othersAreBots,
   rematchLines,
   streakChip,
@@ -55,16 +54,15 @@ describe('your best hand', () => {
         point(2, 'spades', 'east_west'),
       ],
     });
-    expect(bestHandLine(both, 'north_south', 'Mikko')).toBe(
-      'Mikko bid 11 ♠, and you took both Pidros'
-    );
+    expect(bestHandLine(both, 'north_south', 'Mikko')).toBe('Hand 7. You took both Pidros.');
     const split = hand(7, 6, 6, {
       bid: 8,
       trump: 'hearts',
       point_cards: [point(5, 'hearts', 'north_south'), point(5, 'diamonds', 'east_west')],
     });
-    expect(bestHandLine(split, 'north_south', 'You')).toBe('You bid 8 ♥');
-    expect(bestHandLine(split, 'east_west', 'You')).toBe('You bid 8 ♥');
+    expect(bestHandLine(split, 'north_south', 'You')).toBe('Hand 7. You bid 8 ♥.');
+    expect(bestHandLine(split, 'east_west', 'Eli')).toBe('Hand 7. Eli bid 8 ♥.');
+    expect(bestHandLine({ ...split, trump: null }, 'east_west', 'Eli')).toBe('Hand 7. Eli bid 8.');
   });
 });
 
@@ -139,24 +137,6 @@ describe('how it went', () => {
   });
 });
 
-describe('race labels', () => {
-  it('keeps both ends and gives lead changes priority over regular intervals', () => {
-    const us = [0, 8, 12, 16, 18, 22, 28, 36, 48, 56, 64];
-    const them = [0, 6, 10, 14, 24, 26, 27, 29, 30, 31, 32];
-    expect(raceLabels(us, them, 6)).toEqual([0, 4, 6, 10]);
-    expect(raceLabels(them, us, 6)).toEqual([0, 4, 6, 10]);
-    expect(raceLabels(us, them, 3)).toEqual([0, 10]);
-  });
-
-  it('labels every few hands without a lead change, including negative totals', () => {
-    const us = [0, -6, -2, 4, 7, 10, 16, 22, 28, 34];
-    const them = [0, 8, 12, 18, 24, 28, 32, 38, 43, 47];
-    expect(raceLabels(us, them, 5)).toEqual([0, 3, 6, 9]);
-    expect(raceLabels([0], [0], 5)).toEqual([]);
-    expect(raceLabels([0, 14], [0, -14], 5)).toEqual([0, 1]);
-  });
-});
-
 describe('the rematch row', () => {
   const others = (agreed, bots = []) =>
     ['Nora', 'Kalle', 'Mikko'].map((name) => ({
@@ -184,22 +164,25 @@ describe('the rematch row', () => {
     });
   });
 
-  it('after you agreed, says you are in and who is left', () => {
+  it('after you agreed, says you are in and who is left, whoever asked first', () => {
     expect(rematchLines(others([]), true)).toEqual({
-      title: null,
-      detail: "You're in. Waiting for Nora, Kalle and Mikko",
+      title: "You're in",
+      detail: 'Waiting for Nora, Kalle and Mikko',
     });
     expect(rematchLines(others(['Nora']), true)).toEqual({
-      title: 'Nora wants a rematch',
-      detail: "You're in. Waiting for Kalle and Mikko",
+      title: "You're in",
+      detail: 'Waiting for Kalle and Mikko',
     });
-    expect(rematchLines(others(['Nora', 'Kalle', 'Mikko']), true).detail).toBe("You're in.");
+    expect(rematchLines(others(['Nora', 'Kalle', 'Mikko']), true)).toEqual({
+      title: "You're in",
+      detail: null,
+    });
   });
 
   it('counts bots as in without having them ask', () => {
     expect(rematchLines(others([], ['Kalle', 'Mikko']), true)).toEqual({
-      title: null,
-      detail: "You're in. Waiting for Nora",
+      title: "You're in",
+      detail: 'Waiting for Nora',
     });
     expect(rematchLines(others(['Nora'], ['Kalle', 'Mikko']), false)).toEqual({
       title: 'Nora wants a rematch',
@@ -227,15 +210,11 @@ describe('the chips', () => {
     expect(streakChip(null)).toBeNull();
   });
 
-  it('shows XP with how far into the level, full at the top', () => {
+  it('shows the XP the game earned', () => {
     expect(
       xpChip({ xp_earned: 126, veteran_progress: { into: 260, span: 500, max: false } })
-    ).toEqual({ xp: 126, progress: 0.52 });
-    expect(xpChip({ xp_earned: 40, veteran_progress: { into: 0, span: 0, max: true } })).toEqual({
-      xp: 40,
-      progress: 1,
-    });
-    expect(xpChip({ xp_earned: 64 })).toEqual({ xp: 64, progress: null });
+    ).toEqual({ xp: 126 });
+    expect(xpChip({ xp_earned: 64 })).toEqual({ xp: 64 });
     expect(xpChip(null)).toBeNull();
   });
 });

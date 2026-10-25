@@ -171,9 +171,9 @@ async function rematchThroughUi(page, roomCode, seen) {
 
   const status = page.getByTestId('rematch-status');
   await status.waitFor({ timeout: 15_000 });
-  const statusText = (await status.textContent())?.trim();
-  if (!statusText?.startsWith('Du är med. Väntar på ')) {
-    throw new Error(`rematch row read "${statusText}", expected "Du är med. Väntar på …"`);
+  const statusText = (await status.innerText())?.trim();
+  if (!/^Du är med\nVäntar på /.test(statusText ?? '')) {
+    throw new Error(`rematch row read "${statusText}", expected "Du är med / Väntar på …"`);
   }
   if (await playAgain.isEnabled()) {
     throw new Error('Play again stayed enabled after the guest asked for a rematch');

@@ -48,13 +48,14 @@ const vote = (agreed: Position[], you: Position, bots = false): RematchVote => {
 
 // `?rematch=` on the game-over fixture, seen from south: nobody has asked
 // (`open`), Nora has (`one`), Nora and Eli have (`two`), the other three wait
-// on you (`asked`), or you asked first (`waiting`).
+// on you (`asked`), you asked first (`waiting`), or your partner and you (`in`).
 const REMATCH_FIXTURES: Record<string, Position[]> = {
   open: [],
   one: ['north'],
   two: ['north', 'east'],
   asked: ['north', 'east', 'west'],
   waiting: ['south'],
+  in: ['north', 'south'],
 };
 
 const flip = (team: TeamKey): TeamKey => (team === 'north_south' ? 'east_west' : 'north_south');
@@ -89,6 +90,39 @@ const CREW_HANDS: typeof HANDS = [
   ['north', 8, 'spades', 12, 2, 62, 36],
 ];
 
+// `?people=win|loss`: a game with people, nine hands to 62–41. Won: you and
+// Nora against Kalle and Mikko, Nora's bid of 9 takes 11 to finish. Lost: you
+// and Mikko against Bengt and Nora; your best is hand 7, a bid of 11 that took
+// 12 and both Pidros.
+const PEOPLE_HANDS: typeof HANDS = [
+  ['east', 7, 'clubs', 4, 10, 4, 10],
+  ['west', 6, 'diamonds', 8, 6, 12, 16],
+  ['north', 8, 'spades', 11, 3, 23, 19],
+  ['south', 7, 'clubs', 5, 9, 16, 28],
+  ['east', 8, 'spades', 11, 3, 27, 20],
+  ['north', 8, 'diamonds', 11, 3, 38, 23],
+  ['east', 11, 'hearts', 2, 12, 40, 35],
+  ['south', 7, 'clubs', 11, 3, 51, 38],
+  ['north', 9, 'hearts', 11, 3, 62, 41],
+];
+
+const PEOPLE: Record<'win' | 'loss', Partial<Record<Position, string>>> = {
+  win: { north: 'Nora', east: 'Kalle', west: 'Mikko' },
+  loss: { north: 'Mikko', east: 'Bengt', west: 'Nora' },
+};
+
+// Hand 7 of the people's game: the losers' A, J and both fives.
+const PEOPLE_HAND_7: [number, Suit, TeamKey][] = [
+  [14, 'hearts', 'east_west'],
+  [5, 'hearts', 'east_west'],
+  [5, 'diamonds', 'east_west'],
+  [11, 'hearts', 'east_west'],
+  [10, 'hearts', 'north_south'],
+  [2, 'hearts', 'north_south'],
+];
+
+type Game = 'classic' | 'crew' | 'people';
+
 const sweep = (trump: Suit) =>
   [14, 11, 10, 2, 5, 5].map((rank, i) => ({
     card: {
@@ -103,9 +137,10 @@ const sweep = (trump: Suit) =>
     points: rank === 5 ? 5 : 1,
   }));
 
-export function handHistory(winner: TeamKey, crew = false): ServerHandSummary[] {
+export function handHistory(winner: TeamKey, game: Game = 'classic'): ServerHandSummary[] {
   let before = { north_south: 0, east_west: 0 };
-  return (crew ? CREW_HANDS : HANDS).map(
+  const crew = game === 'crew';
+  return (crew ? CREW_HANDS : game === 'people' ? PEOPLE_HANDS : HANDS).map(
     ([bidder, bid, trump, ns, ew, nsTotal, ewTotal], index) => {
       const swap = winner === 'east_west';
       const at = (position: Position): Position =>
@@ -133,60 +168,70 @@ export function handHistory(winner: TeamKey, crew = false): ServerHandSummary[] 
         },
         scores,
         trump,
-        point_cards: crew
-          ? index === 4
-            ? sweep(trump).map((card) => ({
-                ...card,
-                position: at('south'),
-                team: team('north_south'),
-              }))
-            : []
-          : index === 6
-            ? [
-                {
-                  card: { rank: 14, suit: 'spades' },
-                  points: 1,
-                  position: at('east'),
-                  team: team('east_west'),
-                },
-                {
-                  card: { rank: 5, suit: 'spades' },
-                  points: 5,
-                  position: at('west'),
-                  team: team('east_west'),
-                },
-                {
-                  card: { rank: 5, suit: 'clubs' },
-                  points: 5,
-                  position: at('east'),
-                  team: team('east_west'),
-                },
-                {
-                  card: { rank: 11, suit: 'spades' },
-                  points: 1,
-                  position: at('east'),
-                  team: team('east_west'),
-                },
-                {
-                  card: { rank: 2, suit: 'spades' },
-                  points: 1,
-                  position: at('north'),
-                  team: team('north_south'),
-                },
-                {
-                  card: { rank: 10, suit: 'spades' },
-                  points: 1,
-                  position: at('south'),
-                  team: team('north_south'),
-                },
-              ]
-            : index === 9
-              ? sweep('hearts').map((card) => ({
-                  ...card,
-                  position: at('south'),
-                  team: team('north_south'),
+        point_cards:
+          game === 'people'
+            ? index === 6
+              ? PEOPLE_HAND_7.map(([rank, suit, side]) => ({
+                  card: { rank, suit },
+                  points: rank === 5 ? 5 : 1,
+                  position: at(side === 'east_west' ? 'east' : 'north'),
+                  team: team(side),
                 }))
-              : [],
+              : []
+            : crew
+              ? index === 4
+                ? sweep(trump).map((card) => ({
+                    ...card,
+                    position: at('south'),
+                    team: team('north_south'),
+                  }))
+                : []
+              : index === 6
+                ? [
+                    {
+                      card: { rank: 14, suit: 'spades' },
+                      points: 1,
+                      position: at('east'),
+                      team: team('east_west'),
+                    },
+                    {
+                      card: { rank: 5, suit: 'spades' },
+                      points: 5,
+                      position: at('west'),
+                      team: team('east_west'),
+                    },
+                    {
+                      card: { rank: 5, suit: 'clubs' },
+                      points: 5,
+                      position: at('east'),
+                      team: team('east_west'),
+                    },
+                    {
+                      card: { rank: 11, suit: 'spades' },
+                      points: 1,
+                      position: at('east'),
+                      team: team('east_west'),
+                    },
+                    {
+                      card: { rank: 2, suit: 'spades' },
+                      points: 1,
+                      position: at('north'),
+                      team: team('north_south'),
+                    },
+                    {
+                      card: { rank: 10, suit: 'spades' },
+                      points: 1,
+                      position: at('south'),
+                      team: team('north_south'),
+                    },
+                  ]
+                : index === 9
+                  ? sweep('hearts').map((card) => ({
+                      ...card,
+                      position: at('south'),
+                      team: team('north_south'),
+                    }))
+                  : [],
       };
       before = scores;
       return hand;
@@ -194,26 +239,32 @@ export function handHistory(winner: TeamKey, crew = false): ServerHandSummary[] 
   );
 }
 
-function lastHand(winner: TeamKey, crew = false): ServerLastHand {
-  const final = handHistory(winner, crew).at(-1)!;
+function lastHand(winner: TeamKey, game: Game = 'classic'): ServerLastHand {
+  const final = handHistory(winner, game).at(-1)!;
   const by = final.bidder;
   const others = (['north', 'east', 'south', 'west'] as Position[]).filter((p) => p !== by);
   return {
     ...final,
-    // The crew's last trick is a lone 5♠: everyone else was out of trumps.
-    tricks: crew
-      ? [{ winner: by, cards: [{ player: by, card: { rank: 5, suit: 'spades' } }] }]
-      : [
-          {
-            winner: by,
-            cards: [
-              { player: others[0], card: { rank: 14, suit: 'hearts' } },
-              { player: others[1], card: { rank: 2, suit: 'hearts' } },
-              { player: by, card: { rank: 5, suit: 'hearts' } },
-              { player: others[2], card: { rank: 9, suit: 'clubs' } },
-            ],
-          },
-        ],
+    // The crew's and the people's last tricks are a lone five: the rest were out of trumps.
+    tricks:
+      game !== 'classic'
+        ? [
+            {
+              winner: by,
+              cards: [{ player: by, card: { rank: 5, suit: final.trump ?? 'spades' } }],
+            },
+          ]
+        : [
+            {
+              winner: by,
+              cards: [
+                { player: others[0], card: { rank: 14, suit: 'hearts' } },
+                { player: others[1], card: { rank: 2, suit: 'hearts' } },
+                { player: by, card: { rank: 5, suit: 'hearts' } },
+                { player: others[2], card: { rank: 9, suit: 'clubs' } },
+              ],
+            },
+          ],
   };
 }
 
@@ -315,6 +366,7 @@ export function DevOverlays({
   playerName,
   guest = false,
   crew,
+  people,
 }: {
   phase: string;
   isHandReady: boolean;
@@ -325,6 +377,7 @@ export function DevOverlays({
   playerName?: string;
   guest?: boolean;
   crew?: 'win' | 'loss';
+  people?: 'win' | 'loss';
 }) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -346,15 +399,21 @@ export function DevOverlays({
           : player.absolutePosition === 'north' && playerName
             ? playerName
             : player.username,
+      ...(people && PEOPLE[people][player.absolutePosition]
+        ? { username: PEOPLE[people][player.absolutePosition] }
+        : null),
       ...(crew && CREW[player.absolutePosition]
         ? { ...CREW[player.absolutePosition], playerId: null, seatStatus: 'permanent_bot' as const }
         : null),
       isYou: !spectator && player.absolutePosition === (eastViewer ? 'east' : 'south'),
     })),
   };
+  const game: Game = crew ? 'crew' : people ? 'people' : 'classic';
   const winner: TeamKey =
-    result === 'loss' || crew === 'loss' || eastViewer ? 'east_west' : 'north_south';
-  const history = handHistory(winner, !!crew);
+    result === 'loss' || crew === 'loss' || people === 'loss' || eastViewer
+      ? 'east_west'
+      : 'north_south';
+  const history = handHistory(winner, game);
   const resultState: ServerGameState = {
     ...GAME_OVER_SERVER,
     winner: result === 'tie' ? null : winner,
@@ -363,9 +422,14 @@ export function DevOverlays({
         ? { north_south: 62, east_west: 62 }
         : (history.at(-1)!.scores as ServerGameState['scores']),
     hand_history: result === 'tie' ? [] : history,
-    last_hand: result === 'tie' ? null : lastHand(winner, !!crew),
+    last_hand: result === 'tie' ? null : lastHand(winner, game),
   };
-  const won = result !== 'tie' && result !== 'loss' && result !== 'spectator' && crew !== 'loss';
+  const won =
+    result !== 'tie' &&
+    result !== 'loss' &&
+    result !== 'spectator' &&
+    crew !== 'loss' &&
+    people !== 'loss';
 
   // Seed the store so the store-driven BiddingActions shows in dev (no Phoenix).
   useEffect(() => {
@@ -433,9 +497,9 @@ export function DevOverlays({
                   veteran_progress: { into: 52, span: 100, max: false },
                   partner: {
                     user_id: 'p-north',
-                    display_name: playerName ?? 'Nora',
+                    display_name: playerName ?? (people === 'loss' ? 'Mikko' : 'Nora'),
                     games_together: 5,
-                    wins_in_a_row: won ? 3 : 0,
+                    wins_in_a_row: won && !people ? 3 : 0,
                   },
                 }
               : null

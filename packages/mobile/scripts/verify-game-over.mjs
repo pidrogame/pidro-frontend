@@ -167,7 +167,7 @@ try {
     await page.getByRole('button', { name: 'Rematch', exact: true }).click();
     await page
       .getByTestId('rematch-status')
-      .getByText("You're in. Waiting for Nora, Eli and Wynn", { exact: true })
+      .getByText('Waiting for Nora, Eli and Wynn', { exact: true })
       .waitFor();
     assert.equal(await page.getByTestId('play-again').isDisabled(), true);
     assert.equal(await page.getByTestId('play-again').getAttribute('aria-label'), 'Waiting…');
@@ -185,7 +185,9 @@ try {
     assert.equal(await page.getByTestId('result-score-first').textContent(), '29');
     assert.equal(await page.getByTestId('result-score-second').textContent(), '62');
     await page.getByTestId('best-hand').getByText('Won 12 of 14', { exact: true }).waitFor();
-    await page.getByText('+76 XP · Level 12!', { exact: true }).waitFor();
+    // A small phone's loss lets the XP chip go (PID-292).
+    if (size.name === 'small-phone') assert.equal(await page.getByText(/XP/).count(), 0);
+    else await page.getByText('+76 XP · Level 12!', { exact: true }).waitFor();
     assert.equal(await page.getByTestId('streak-chip').count(), 0, 'A loss has no streak');
     await page.getByText('Waiting for you', { exact: true }).waitFor();
     assert.equal(await page.getByTestId('play-again').isEnabled(), true);

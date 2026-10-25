@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LeagueProgress } from '@/components/home/LeagueProgress';
 import { gradientBg } from '@/components/ui/Bevel';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
@@ -102,6 +101,9 @@ function useLayout() {
     landscape,
     k,
     tier,
+    tablet,
+    // A small phone (375×667): under 700pt of room, not a notched 390×844 or a tablet.
+    short: !landscape && !tablet && room < 700,
     frame: landscape
       ? { width: Math.min(w, 740), height: h }
       : { width: Math.min(w, 400 * k), height: h },
@@ -220,7 +222,7 @@ export function GameOverOverlay({
   onProfile,
 }: GameOverOverlayProps) {
   useTranslation();
-  const { insets, landscape, k, tier, frame, rays } = useLayout();
+  const { insets, landscape, k, tier, tablet, short, frame, rays } = useLayout();
   const z = (n: number) => Math.round(n * k);
   const you = viewModel.players.find((player) => player.isYou);
   const spectator = !you;
@@ -236,7 +238,8 @@ export function GameOverOverlay({
   const lastHand = serverState.last_hand ?? null;
   const ourBest = bestHand(history, ours);
   const best = !spectator && !viewerWon ? ourBest : null;
-  const race = history.length && !guest ? raceLine(history, ours) : null;
+  // A loss opens on your best hand, so it links to every hand instead of charting them.
+  const race = history.length && !guest && !best ? raceLine(history, ours) : null;
   const streak = spectator ? null : streakChip(progressionSummary?.partner);
   const xp = spectator ? null : xpChip(progressionSummary);
   const partner = viewModel.players.find(
@@ -278,26 +281,37 @@ export function GameOverOverlay({
   // Bots always agree: a row of three ticks says nothing.
   const showRematch = !spectator && !othersAreBots(others);
   // The last trick's card is decoration: it shows when there is room for it,
-  // and on a short screen only when nothing else competes for its column.
-  const lean = !streak && !xp && (landscape || (!race && !showRematch));
+  // and on a short screen only when nothing else competes for its column. In
+  // landscape the win has the left column to itself.
+  const lean = landscape || (!streak && !xp && !race && !showRematch);
   const reveal =
-    viewerWon && (tier === 0 || (tier === 1 && lean)) ? lastTrickReveal(lastHand) : null;
+    viewerWon && (tier === 0 || (tier === 1 && (lean || tablet)))
+      ? lastTrickReveal(lastHand)
+      : null;
+  // A small phone's loss keeps the result, the best hand and the way on.
+  const compactLoss = !viewerWon && !tied && short;
   // One hand count on screen: the chart's header owns it when there is one.
   const eyebrow = reveal
     ? t('game.winning_trick')
-    : hands && !race
+    : hands && !race && !compactLoss
       ? t('game.over_hands', { count: hands })
       : null;
 
   // Sizes for this tier, at the tablet's 1.15×.
-  const heroWidth = z(landscape ? (tier === 1 ? 76 : 62) : tier === 0 ? 112 : 88);
-  const big = z(landscape ? (tier === 1 ? 64 : 52) : tier === 0 ? 104 : tier === 1 ? 78 : 60);
+  // The card and the score give way (0.8×) when the chart, chips and rematch row share the screen.
+  const heroWidth = z(
+    (landscape ? (tier === 1 ? 76 : 62) : tier === 0 ? 112 : 88) * (lean || landscape ? 1 : 0.8)
+  );
+  const big = z(
+    (landscape ? (tier === 1 ? 64 : 52) : tier === 0 ? 104 : tier === 1 ? 78 : 60) *
+      (lean || landscape ? 1 : 0.8)
+  );
   const small = z(landscape ? 30 : tier === 0 ? 46 : tier === 1 ? 38 : 32);
   const quietScore = z(landscape ? 40 : tier === 0 ? 52 : tier === 1 ? 44 : 38);
   const headlineSize = z(
     viewerWon ? (landscape || tier > 0 ? 30 : 36) : landscape || tier > 0 ? 24 : 28
   );
-  const chartHeight = z(tier === 0 ? 94 : tier === 2 ? 64 : 78);
+  const chartHeight = z(tier === 0 ? 70 : tier === 2 ? 54 : 62);
   const gap = z(tier === 0 ? PidroSpacing.lg : tier === 1 ? PidroSpacing.md : PidroSpacing.sm);
 
   const eyebrowText = (text: string, color: string) => (
@@ -335,8 +349,9 @@ export function GameOverOverlay({
     </View>
   ) : null;
 
+  // The plaque captions the card; without the card it would read before the result.
   const plaque =
-    viewerWon && lastHand ? (
+    reveal && lastHand ? (
       <Animated.View style={[styles.plaque, rise(beat.plaque), reveal && { marginTop: -z(14) }]}>
         <Icon name="star" size={z(15)} color={PidroBevel.textGold} />
         <PidroText role="label" style={[styles.plaqueText, { fontSize: z(15), lineHeight: z(20) }]}>
@@ -440,24 +455,23 @@ export function GameOverOverlay({
       <Surface
         testID="best-hand"
         variant="window"
-        style={[
-          styles.best,
-          { padding: z(tier === 0 ? 16 : tier === 1 ? 12 : 8), gap: z(tier === 0 ? 12 : 8) },
-        ]}>
-        <View style={styles.between}>
-          {eyebrowText(t('game.best_hand'), PidroBevel.textGold)}
-          <PidroText role="metadata" tone="soft" style={{ fontSize: z(13), lineHeight: z(17) }}>
-            {t('game.hand_number', { number: best.hand_number })}
-          </PidroText>
-        </View>
+        style={[styles.best, { padding: z(tier === 0 ? 16 : tier === 1 ? 12 : 8) }]}>
         <View style={[styles.bestBody, { gap: z(14) }]}>
           {tier < 2 && pointCardsTaken(best, ours).length ? (
             <BestHandFan
               cards={pointCardsTaken(best, ours)}
-              width={z(landscape ? 40 : tier === 1 ? 48 : 58)}
+              width={z(landscape ? 40 : tier === 0 ? 58 : 46)}
             />
           ) : null}
           <View style={styles.bestText}>
+            <PidroText
+              role="metadata"
+              style={[
+                styles.eyebrow,
+                { color: PidroBevel.textGold, fontSize: z(14), lineHeight: z(19) },
+              ]}>
+              {t('game.best_hand')}
+            </PidroText>
             <PidroText
               style={[
                 styles.bestTitle,
@@ -470,18 +484,18 @@ export function GameOverOverlay({
                     total: serverState.config?.max_bid ?? 14,
                   })}
             </PidroText>
-            {tier < 2 ? (
-              <PidroText role="body" style={{ fontSize: z(14), lineHeight: z(20) }}>
-                {bestHandLine(
-                  best,
-                  ours,
-                  displayName(
-                    viewModel.players.find((player) => player.absolutePosition === best.bidder) ??
-                      you!
-                  )
-                )}
-              </PidroText>
-            ) : null}
+            <PidroText
+              role="body"
+              style={{ color: PidroColors.textSoft, fontSize: z(15), lineHeight: z(20) }}>
+              {bestHandLine(
+                best,
+                ours,
+                displayName(
+                  viewModel.players.find((player) => player.absolutePosition === best.bidder) ??
+                    you!
+                )
+              )}
+            </PidroText>
           </View>
         </View>
       </Surface>
@@ -563,11 +577,12 @@ export function GameOverOverlay({
       </Animated.View>
     ) : null;
 
+  // Never more than one row: the streak chip gives way in width, not to a second row.
   const chips =
-    streak || xp ? (
+    (streak || xp) && !compactLoss ? (
       <Animated.View style={[styles.chips, rise(beat.chips)]}>
         {streak ? (
-          <View testID="streak-chip" style={chipStyle}>
+          <View testID="streak-chip" style={[chipStyle, styles.shrink]}>
             <PlayerAvatar
               size={z(22)}
               uri={partner?.avatar_url}
@@ -589,15 +604,6 @@ export function GameOverOverlay({
                 ? t('game.level', { level: progressionSummary.veteran_level })
                 : ''}
             </PidroText>
-            {xp.progress != null && !progressionSummary?.leveled_up ? (
-              <LeagueProgress
-                progress={xp.progress}
-                label={`${Math.round(xp.progress * 100)}%`}
-                width={z(46)}
-                height={z(8)}
-                showLabel={false}
-              />
-            ) : null}
           </View>
         ) : null}
       </Animated.View>
@@ -606,7 +612,20 @@ export function GameOverOverlay({
   const footer = (
     <Animated.View style={[styles.footer, { gap: z(10) }, { opacity: beat.footer }]}>
       {showRematch ? (
-        <RematchRow others={others} youAgreed={youAgreed} onProfile={onProfile} scale={k} />
+        <RematchRow
+          others={others}
+          you={
+            you && {
+              name: displayName(you),
+              bot: false,
+              agreed: true,
+              avatarUrl: you.avatar_url,
+            }
+          }
+          youAgreed={youAgreed}
+          onProfile={onProfile}
+          scale={k}
+        />
       ) : null}
       <View style={[styles.actions, { gap: z(10) }]}>
         {!spectator ? (
@@ -673,10 +692,10 @@ export function GameOverOverlay({
               <View style={[styles.side, { gap }]}>
                 {revealBlock}
                 {bestHandCard}
-                {chips}
               </View>
               <View style={[styles.side, styles.sideRight, { gap }]}>
                 {chart}
+                {chips}
                 {guestRow}
                 {footer}
               </View>
@@ -753,12 +772,6 @@ const styles = StyleSheet.create({
   theirsAfterWin: { color: PidroColors.textSoft },
   theirsWon: { color: PidroGameOver.theirsScore },
   best: { borderColor: PidroGameOver.bestEdge },
-  between: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    gap: PidroSpacing.xs,
-  },
   bestBody: { flexDirection: 'row', alignItems: 'center' },
   bestText: { flex: 1, minWidth: 0, gap: 4 },
   bestTitle: { fontFamily: PidroFonts.display, fontWeight: '400', color: PidroBevel.textGold },
@@ -780,7 +793,7 @@ const styles = StyleSheet.create({
   },
   chips: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexWrap: 'nowrap',
     justifyContent: 'center',
     gap: PidroSpacing.xs,
   },
@@ -793,7 +806,7 @@ const styles = StyleSheet.create({
     borderColor: PidroGameOver.chipEdge,
     backgroundColor: PidroGameOver.chipFace,
   },
-  shrink: { flexShrink: 1 },
+  shrink: { flexShrink: 1, minWidth: 0 },
   xp: { color: PidroBevel.textGold, fontWeight: '900' },
   guestRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: PidroSpacing.xs },
   guestText: { flex: 1, minWidth: 0, gap: 2 },

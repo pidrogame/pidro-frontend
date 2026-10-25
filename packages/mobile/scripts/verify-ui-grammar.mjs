@@ -1015,8 +1015,9 @@ const allCases = [
       headline: 'Eli and Wynn win',
       title: 'Nora and Eli want a rematch',
       detail: 'Waiting for Wynn',
-      parts: ['best-hand', 'how-it-went', 'xp-chip'],
-      absent: ['streak-chip', 'victory-rays'],
+      parts: ['best-hand', 'every-hand', 'xp-chip'],
+      absent: ['how-it-went', 'streak-chip', 'victory-rays'],
+      smallPhone: { absent: ['xp-chip'], noText: 'Game over · 10 hands' },
     },
   },
   {
@@ -1055,25 +1056,61 @@ const allCases = [
       absent: ['rematch-status', 'how-it-went', 'victory-rays'],
     },
   },
+  // Games with people (PID-292): the rematch row stays, a loss links to every
+  // hand under its best hand, and a small phone's loss drops the eyebrow and XP.
   {
-    name: 'table-game-over-people-loss',
-    path: '/table-dev?phase=game_over&result=loss&xp=earned&rematch=waiting',
+    name: 'table-game-over-online-win',
+    path: '/table-dev?phase=game_over&people=win&xp=earned&rematch=one',
     testId: 'game-over-window',
     viewports: GAME_OVER_TABLETS,
     gameOver: {
-      headline: 'Eli and Wynn win',
-      title: null,
-      detail: "You're in. Waiting for Nora, Eli and Wynn",
+      headline: 'You and Nora win',
+      title: 'Nora wants a rematch',
+      detail: 'Waiting for Kalle and Mikko',
+      plaque: 'Bid 9 · won 11',
+      parts: ['how-it-went', 'xp-chip', 'game-over-trick'],
+      // A small phone keeps the chart and the rematch row; the card and its plaque give way.
+      smallPhone: { absent: ['game-over-trick'], noText: 'Bid 9 · won 11' },
+      absent: ['streak-chip', 'best-hand', 'guest-save'],
+    },
+  },
+  {
+    name: 'table-game-over-online-loss-in',
+    path: '/table-dev?phase=game_over&people=loss&xp=earned&rematch=in',
+    testId: 'game-over-window',
+    viewports: GAME_OVER_TABLETS,
+    gameOver: {
+      headline: 'Bengt and Nora win',
+      eyebrow: 'Game over · 9 hands',
+      title: "You're in",
+      detail: 'Waiting for Bengt and Nora',
       waiting: true,
-      parts: ['best-hand', 'how-it-went', 'xp-chip'],
-      absent: ['guest-save'],
+      seats: 4,
+      parts: ['best-hand', 'every-hand', 'xp-chip'],
+      absent: ['how-it-went', 'victory-rays', 'guest-save'],
+      smallPhone: { absent: ['xp-chip'], noText: 'Game over · 9 hands' },
+    },
+  },
+  {
+    name: 'table-game-over-online-loss',
+    path: '/table-dev?phase=game_over&people=loss&xp=earned&rematch=one',
+    testId: 'game-over-window',
+    viewports: GAME_OVER_TABLETS,
+    gameOver: {
+      headline: 'Bengt and Nora win',
+      title: 'Mikko wants a rematch',
+      detail: 'Waiting for Bengt and Nora',
+      seats: 3,
+      parts: ['best-hand', 'every-hand', 'xp-chip'],
+      absent: ['how-it-went', 'victory-rays'],
+      smallPhone: { absent: ['xp-chip'], noText: 'Game over · 9 hands' },
     },
   },
   {
     name: 'table-game-over-rematch-waiting',
     path: '/table-dev?phase=game_over&rematch=waiting',
     testId: 'rematch-status',
-    gameOver: { title: null, detail: "You're in. Waiting for Nora, Eli and Wynn", waiting: true },
+    gameOver: { title: "You're in", detail: 'Waiting for Nora, Eli and Wynn', waiting: true },
   },
   {
     name: 'table-game-over-rematch-asked',
@@ -1391,11 +1428,29 @@ async function assertGameOver(page, testCase, viewport) {
   if (spec.headline) {
     await overlay.getByRole('heading', { name: spec.headline, exact: true }).waitFor();
   }
-  if (spec.eyebrow) await overlay.getByText(spec.eyebrow, { exact: true }).waitFor();
-  if (spec.plaque) await overlay.getByText(spec.plaque, { exact: true }).waitFor();
-  for (const id of spec.parts ?? []) await page.getByTestId(id).waitFor();
+  const small = viewport.name === 'small-portrait' && spec.smallPhone;
+  if (spec.eyebrow && !small?.noText) {
+    await overlay.getByText(spec.eyebrow, { exact: true }).waitFor();
+  }
+  if (small?.noText) {
+    assert.equal(await overlay.getByText(small.noText, { exact: true }).count(), 0);
+  }
+  if (spec.seats) {
+    // Once you have said yes, you join the row: four avatars, not three.
+    assert.equal(
+      await page.getByTestId('rematch-seat').count(),
+      spec.seats,
+      `${testCase.name}: seats`
+    );
+  }
+  if (spec.plaque && small?.noText !== spec.plaque) {
+    await overlay.getByText(spec.plaque, { exact: true }).waitFor();
+  }
+  for (const id of spec.parts ?? []) {
+    if (!small?.absent?.includes(id)) await page.getByTestId(id).waitFor();
+  }
   // Game over never shows the rule set (PID-292).
-  for (const id of ['game-over-rule-set', ...(spec.absent ?? [])]) {
+  for (const id of ['game-over-rule-set', ...(spec.absent ?? []), ...(small?.absent ?? [])]) {
     assert.equal(await page.getByTestId(id).count(), 0, `${testCase.name}: ${id} should be absent`);
   }
   if (spec.detail !== undefined) {
@@ -4876,8 +4931,9 @@ async function main() {
                 }
               }
             } else {
-              await page.getByTestId('race-chart').getByText('62–29', { exact: true }).waitFor();
-              assert.match(await page.getByTestId('race-chart').textContent(), /62–29/);
+              // The lines only: no axis totals, no target figure (PID-292).
+              await page.getByTestId('race-chart').locator('svg').waitFor();
+              assert.equal(await page.getByTestId('race-chart').textContent(), '');
               await page
                 .getByTestId('how-it-went')
                 .getByText(sv ? 'Så gick det · 10 giv' : 'How it went · 10 hands', { exact: true })

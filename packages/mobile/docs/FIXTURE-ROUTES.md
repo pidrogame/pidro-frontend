@@ -158,7 +158,7 @@ UI_SHOT_DIR=/tmp/pidro-locales node scripts/verify-ui-grammar.mjs
 | `count`      | `on`                                                                                      | turns on "Help me keep count": the plaque’s bid line reads "Jocke bid 6 · 2 of 6" (small phones too; a name with no room beside the bid takes a row of its own), "Last trick" sits under it, and the card winning the trick glows (mock table too) |
 | `playerName` | any string                                                                                | name in the first seat decision                                                                                                                                           |
 | `viewer`     | `east`                                                                                    | you are east instead of south                                                                                                                                             |
-| `rematch`    | `open` · `one` · `two` · `asked` · `waiting` · `missing` · `pending` (with `phase=game_over`) | the rematch row, per seat: nobody asked / Nora has / Nora and Eli have / the other three wait on you / you asked first; `missing` has no vote yet, `pending` is sending yours |
+| `rematch`    | `open` · `one` · `two` · `asked` · `waiting` · `in` · `missing` · `pending` (with `phase=game_over`) | the rematch row, per seat: nobody asked / Nora has / Nora and Eli have / the other three wait on you / you asked first; `missing` has no vote yet, `pending` is sending yours |
 | `pass`       | `disabled`                                                                                | removes the pass action from legal actions                                                                                                                                |
 | `autoplay`   | `true`                                                                                    | Skia table auto-plays (trick completion / card persistence)                                                                                                               |
 
@@ -199,11 +199,17 @@ PID-292 game over, the four screens to check:
 | `/table-dev?phase=game_over&guest=true&crew=loss`                    | The same game lost (36–62): best hand, Every hand ›, Play real people                                                          |
 | `/table-dev?phase=game_over&xp=earned&rematch=one`                   | An account won with people: race chart with Every hand › in its header, streak and XP chips, the rematch row                  |
 | `/table-dev?phase=game_over&result=loss&xp=earned&rematch=waiting`   | An account lost with people and is waiting on a rematch                                                                        |
+| `/table-dev?phase=game_over&people=win&xp=earned&rematch=one`       | Won with people (Nora, Kalle, Mikko), 62–41 in 9 hands: the trick at 0.8×, the bid plaque, the chart, one XP chip, Nora's yes  |
+| `/table-dev?phase=game_over&people=loss&xp=earned&rematch=in`       | Lost to Bengt and Nora after you said yes: best hand, Every hand ›, you first in the rematch row, Waiting…                      |
+| `/table-dev?phase=game_over&people=loss&xp=earned&rematch=one`      | The same loss before you answer; on 375×667 the eyebrow and XP chip give way                                                   |
 
+`people=win|loss` seats people, and `rematch=in` has your partner and you agreed.
+A loss shows its best hand and links to every hand instead of the chart.
 `crew=win|loss` seats Jocke (partner), Marcel and Antti as permanent bots. With
 three bots there is no rematch row; a guest sees no race chart; no game over shows
 the rule set. `table-game-over`, `table-game-over-guest-win`,
-`table-game-over-guest-loss` and `table-game-over-people-loss` check that, that
+`table-game-over-guest-loss`, `table-game-over-online-win`,
+`table-game-over-online-loss-in` and `table-game-over-online-loss` check that, that
 the top-level blocks never overlap, and that nothing leaves the screen, at
 390×844, 375×667, 844×390, 667×375, 834×1194 and 1194×834.
 

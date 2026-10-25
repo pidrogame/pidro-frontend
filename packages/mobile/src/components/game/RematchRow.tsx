@@ -18,26 +18,33 @@ export type RematchSeatView = RematchOther & {
 
 /**
  * The other three players side by side and where each stands on the rematch:
- * in full colour with a green check once they agree, greyed until then.
+ * in full colour with a green check once they agree, greyed until then. Once
+ * you say yes, you join the row first.
  */
 export function RematchRow({
   others,
+  you,
   youAgreed,
   onProfile,
   scale = 1,
 }: {
   others: RematchSeatView[];
+  /** Joins the row, first and checked, once you have said yes. */
+  you?: RematchSeatView;
   youAgreed: boolean;
   onProfile?: (playerId: string | null, persona?: BotPersona | null) => void;
   scale?: number;
 }) {
   const { title, detail } = rematchLines(others, youAgreed);
-  const size = Math.round(30 * scale);
+  const size = Math.round(34 * scale);
   const target = Math.max(PidroLayout.touchTarget, size + 8);
+  const seats = youAgreed && you ? [{ ...you, agreed: true }, ...others] : others;
+  // Four in a row would push the lines into a third; their tap areas overlap instead.
+  const tuck = seats.length > 3 ? { marginLeft: -Math.round(8 * scale) } : null;
   return (
     <View style={styles.row}>
       <View style={styles.seats}>
-        {others.map((other, index) => {
+        {seats.map((other, index) => {
           const avatar = (
             <View style={{ width: size, height: size }}>
               <PlayerAvatar
@@ -68,7 +75,8 @@ export function RematchRow({
               accessibilityRole="button"
               accessibilityLabel={label}
               onPress={() => onProfile(other.playerId ?? null, other.persona)}
-              style={[styles.seat, { width: target, height: target }]}>
+              testID="rematch-seat"
+              style={[styles.seat, { width: target, height: target }, index > 0 && tuck]}>
               {avatar}
             </PressableFX>
           ) : (
@@ -76,7 +84,8 @@ export function RematchRow({
               key={index}
               accessible
               accessibilityLabel={other.name}
-              style={[styles.seat, { width: target, height: target }]}>
+              testID="rematch-seat"
+              style={[styles.seat, { width: target, height: target }, index > 0 && tuck]}>
               {avatar}
             </View>
           );
@@ -88,16 +97,15 @@ export function RematchRow({
             <PidroText
               role="label"
               numberOfLines={2}
-              style={{ fontSize: 15 * scale, lineHeight: 20 * scale }}>
+              style={{ fontSize: 16 * scale, lineHeight: 21 * scale }}>
               {title}
             </PidroText>
           ) : null}
           {detail ? (
             <PidroText
-              role="metadata"
-              tone="soft"
+              role="body"
               numberOfLines={2}
-              style={{ fontSize: 13 * scale, lineHeight: 17 * scale }}>
+              style={{ color: PidroColors.textSoft, fontSize: 14 * scale, lineHeight: 19 * scale }}>
               {detail}
             </PidroText>
           ) : null}

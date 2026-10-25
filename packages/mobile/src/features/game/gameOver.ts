@@ -33,11 +33,12 @@ export function tookBothPidros(hand: ServerHandSummary, team: TeamKey): boolean 
   return pointCardsTaken(hand, team).filter((card) => card.rank === 5).length === 2;
 }
 
-/** "Mikko bid 11 ♠", and the Pidros when `team` took both. */
+/** "Hand 7. You took both Pidros." when `team` took both, else "Hand 7. Mikko bid 11 ♠." */
 export function bestHandLine(hand: ServerHandSummary, team: TeamKey, bidder: string): string {
-  const suit = hand.trump ? SUIT_SYMBOLS[hand.trump] : '';
-  const line = t('game.bid_suit', { bidder, bid: hand.bid, suit }).trim();
-  return tookBothPidros(hand, team) ? line + t('game.both_pidros') : line;
+  const number = hand.hand_number;
+  if (tookBothPidros(hand, team)) return t('game.best_hand_pidros', { number });
+  const suit = hand.trump ? ` ${SUIT_SYMBOLS[hand.trump]}` : '';
+  return t('game.best_hand_bid', { number, bidder, bid: hand.bid, suit });
 }
 
 /** The card that took the last trick, and two of the trick's other cards. */
@@ -77,30 +78,6 @@ export function raceLine(
   return { us: ours, them: theirs, turn: lead === 0 || turn === 0 ? null : turn + 1 };
 }
 
-/** Prefer lead changes, then every third hand; keep paired totals legible. */
-export function raceLabels(
-  us: readonly number[],
-  them: readonly number[],
-  slots: number
-): number[] {
-  const last = us.length - 1;
-  if (last < 1) return [];
-  const changes: number[] = [];
-  let leader = 0;
-  for (let i = 1; i < last; i++) {
-    const next = Math.sign(us[i] - them[i]);
-    if (next && leader && next !== leader) changes.push(i);
-    if (next) leader = next;
-  }
-  const selected = [0, last];
-  const gap = Math.max(1, last / Math.max(1, slots - 1));
-  const regular = Array.from({ length: Math.floor(last / 3) }, (_, i) => (i + 1) * 3);
-  for (const i of [...changes, ...regular]) {
-    if (selected.every((j) => Math.abs(i - j) >= gap)) selected.push(i);
-  }
-  return selected.sort((a, b) => a - b);
-}
-
 /** "Kalle", "Kalle and Mikko", "Nora, Kalle and Mikko". */
 export function nameList(names: readonly string[]): string {
   if (names.length < 2) return names[0] ?? '';
@@ -134,10 +111,8 @@ export function rematchLines(
         : t('game.want_rematch', { names: nameList(asked) });
   if (youAgreed) {
     return {
-      title,
-      detail: waiting.length
-        ? t('game.rematch_in', { names: nameList(waiting) })
-        : t('game.rematch_in_all'),
+      title: t('game.rematch_youre_in'),
+      detail: waiting.length ? t('game.waiting_for', { name: nameList(waiting) }) : null,
     };
   }
   if (!waiting.length) return { title, detail: t('game.rematch_waiting_you') };
@@ -160,23 +135,7 @@ export function streakChip(
   return { count: partner.wins_in_a_row, name: partner.display_name };
 }
 
-/** The XP chip's bar: how far into the level, 0–1; full at the top level. */
-export function xpChip(
-  summary:
-    | { xp_earned: number; veteran_progress?: { into: number; span: number; max: boolean } }
-    | null
-    | undefined
-): { xp: number; progress: number | null } | null {
-  if (!summary) return null;
-  const progress = summary.veteran_progress;
-  return {
-    xp: summary.xp_earned,
-    progress: !progress
-      ? null
-      : progress.max
-        ? 1
-        : progress.span > 0
-          ? Math.min(1, Math.max(0, progress.into / progress.span))
-          : null,
-  };
+/** The XP the game earned, for its one chip. */
+export function xpChip(summary: { xp_earned: number } | null | undefined): { xp: number } | null {
+  return summary ? { xp: summary.xp_earned } : null;
 }

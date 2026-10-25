@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { View } from 'react-native';
-import Svg, { Circle, Line, Polyline, Text as SvgText } from 'react-native-svg';
-import { PidroFonts, PidroGameOver } from '@/design/tokens';
-import { raceLabels } from '@/features/game/gameOver';
-import { formatNumber } from '@/i18n';
+import Svg, { Circle, Line, Polyline } from 'react-native-svg';
+import { PidroGameOver } from '@/design/tokens';
 
 /**
  * Both teams' totals after each hand as two lines, ours gold and theirs
  * coral, against the dashed winning line. `turn` marks the hand after which
- * the winner never stopped leading. Read-only; the caller labels it.
+ * the winner never stopped leading. Lines only; the caller labels it.
  */
 export function RaceChart({
   us,
@@ -32,12 +30,10 @@ export function RaceChart({
   const steps = Math.max(1, us.length - 1);
   const x = (index: number) => pad + ((width - pad * 2) * index) / steps;
   const y = (score: number) =>
-    8 * scale + ((height - 40 * scale) * (high - score)) / (high - low || 1);
+    8 * scale + ((height - 16 * scale) * (high - score)) / (high - low || 1);
   const line = (scores: number[]) => scores.map((score, i) => `${x(i)},${y(score)}`).join(' ');
   const last = us.length - 1;
   const oursWon = us[last] > them[last];
-  const font = 12 * scale;
-  const labels = raceLabels(us, them, Math.floor(width / (62 * scale)));
 
   return (
     <View
@@ -56,15 +52,6 @@ export function RaceChart({
             strokeDasharray="3 4"
             opacity={0.7}
           />
-          <SvgText
-            x={pad}
-            y={y(target) + font + 3}
-            fill={PidroGameOver.target}
-            fontFamily={PidroFonts.ui}
-            fontWeight="900"
-            fontSize={font}>
-            {String(target)}
-          </SvgText>
           <Polyline
             points={line(them)}
             fill="none"
@@ -92,19 +79,6 @@ export function RaceChart({
               strokeWidth={2}
             />
           ) : null}
-          {labels.map((index) => (
-            <SvgText
-              key={index}
-              x={x(index)}
-              y={height - 3 * scale}
-              fill={PidroGameOver.markerFill}
-              fontFamily={PidroFonts.ui}
-              fontWeight="800"
-              fontSize={font}
-              textAnchor={index === 0 ? 'start' : index === last ? 'end' : 'middle'}>
-              {`${formatNumber(us[index])}–${formatNumber(them[index])}`}
-            </SvgText>
-          ))}
           {last > 0 ? (
             <Circle
               cx={x(last)}
