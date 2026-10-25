@@ -247,6 +247,21 @@ const BOT_ROOM: Room = {
   ],
 };
 
+// JA36's seating, unlike the usual quick-game bot order.
+const FOLD_TRICK_ROOM: Room = {
+  ...BOT_ROOM,
+  code: 'JA36',
+  seats: BOT_ROOM.seats!.map((seat) => ({
+    ...seat,
+    player: {
+      ...seat.player!,
+      ...(seat.position === 'south'
+        ? { username: 'Marcel' }
+        : BOT_CREW[seat.position === 'north' ? 2 : seat.position === 'west' ? 1 : 0]),
+    },
+  })),
+};
+
 /** `deal=draw`: four people at the table, North bid 9 and West deals. */
 const DRAW_ROOM: Room = {
   ...BOT_ROOM,
@@ -536,7 +551,17 @@ function TableDevHarness() {
             botCrew={fixture === 'bot-crew'}
             botTurn={params.botTurn}
             botHand={Number(params.botHand) || 4}
-            fold={fixture === 'fold' ? 'count' : fixture === 'fold-legacy' ? 'legacy' : undefined}
+            fold={
+              fixture === 'fold'
+                ? 'count'
+                : fixture === 'fold-legacy'
+                  ? 'legacy'
+                  : fixture === 'fold-trick'
+                    ? 'trick'
+                    : fixture === 'fold-trick-self'
+                      ? 'trick-self'
+                      : undefined
+            }
             countHelp={params.count === 'on'}
             details={fixture === 'details'}
             bidder={params.bidder}
@@ -787,13 +812,17 @@ function RolePreview({
   botTurn?: Position;
   botHand?: number;
   invitation?: SeatInvitation | null;
-  fold?: 'count' | 'legacy';
+  fold?: 'count' | 'legacy' | 'trick' | 'trick-self';
   scoreHistory?: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
   const tableRoom =
-    bidRound || botTrick || botCrew || outPlayers || invitation || fold ? BOT_ROOM : WAITING_ROOM;
+    fold === 'trick' || fold === 'trick-self'
+      ? FOLD_TRICK_ROOM
+      : bidRound || botTrick || botCrew || outPlayers || invitation || fold
+        ? BOT_ROOM
+        : WAITING_ROOM;
   useEffect(() => {
     let active = true;
     const store = useGameStore.getState();
@@ -1074,6 +1103,8 @@ function RolePreview({
     const store = useGameStore.getState();
     const initial = store.serverState;
     if (!initial) return;
+    const midTrick = fold === 'trick' || fold === 'trick-self';
+    const foldingSeat = fold === 'trick-self' ? 'south' : 'west';
     const leftovers: Record<Position, Card[]> = {
       north: [
         { rank: 8, suit: 'clubs' },
@@ -1092,6 +1123,12 @@ function RolePreview({
         { rank: 9, suit: 'diamonds' },
       ],
     };
+    if (midTrick) {
+      leftovers[foldingSeat] = [
+        { rank: 8, suit: 'diamonds' },
+        { rank: 2, suit: 'spades' },
+      ];
+    }
     const timers: ReturnType<typeof setTimeout>[] = [];
     let hand = 4;
     const cycle = () => {
@@ -1099,32 +1136,94 @@ function RolePreview({
       let state = {
         ...initial,
         phase: 'playing',
-        hand_number: hand++,
-        current_player: 'east',
-        current_trick: [],
+        hand_number: midTrick ? 5 : hand++,
+        trump: midTrick ? 'hearts' : initial.trump,
+        current_player: midTrick ? foldingSeat : 'east',
+        current_trick: midTrick
+          ? [
+              { player: 'north', card: heart(6) },
+              ...(fold === 'trick-self' ? [{ player: 'east', card: heart(8) }] : []),
+            ]
+          : [],
+        // Hold the reported trick on the table; earlier cards were not supplied.
         tricks: [],
+        current_trick_details: midTrick
+          ? {
+              number: fold === 'trick' ? 4 : 1,
+              leader: 'north',
+              winning:
+                fold === 'trick-self'
+                  ? { position: 'east', card: heart(8) }
+                  : { position: 'north', card: heart(6) },
+            }
+          : undefined,
         players: {
           north: { hand: 3 },
           east: { hand: 4 },
-          south: { hand: leftovers.south },
-          west: { hand: 2 },
+          south: { hand: fold === 'trick-self' ? [heart(9), ...leftovers.south] : leftovers.south },
+          west: { hand: midTrick ? 3 : 2 },
         },
       } as ServerGameState;
       store.setLegalActions([]);
       store.setTurnTimer(null);
       store.setServerState(state);
-      for (const [i, position] of (['west', 'north', 'south'] as const).entries()) {
+      if (midTrick) {
+        timers.push(
+          setTimeout(() => {
+            state = {
+              ...state,
+              current_player: fold === 'trick-self' ? 'west' : null,
+              current_trick: [...state.current_trick!, { player: foldingSeat, card: heart(9) }],
+              current_trick_details: {
+                number: fold === 'trick' ? 4 : 1,
+                leader: 'north',
+                winning: { position: foldingSeat, card: heart(9) },
+              },
+              players: {
+                ...state.players,
+                [foldingSeat]: { hand: foldingSeat === 'south' ? leftovers.south : 2 },
+              },
+            };
+            store.setServerState(state);
+          }, 700)
+        );
+        // A separate, synthetic completed trick keeps the winner visible after completion.
+        if (fold === 'trick-self') {
+          timers.push(
+            setTimeout(() => {
+              state = {
+                ...state,
+                current_player: 'south',
+                current_trick: [],
+                current_trick_details: undefined,
+                tricks: [
+                  {
+                    cards: [...state.current_trick!, { player: 'west', card: heart(7) }],
+                    winner: 'south',
+                    points: 0,
+                  },
+                ],
+                players: { ...state.players, west: { hand: 2 } },
+              };
+              store.setServerState(state);
+            }, 1000)
+          );
+        }
+      }
+      const foldOrder: readonly Position[] = midTrick ? [foldingSeat] : ['west', 'north', 'south'];
+      for (const [i, position] of foldOrder.entries()) {
         timers.push(
           setTimeout(
             () => {
               state = {
                 ...state,
+                current_player: fold === 'trick-self' ? 'north' : state.current_player,
                 players: {
                   ...state.players,
                   [position]: {
                     hand: 0,
                     eliminated: true,
-                    ...(fold === 'count'
+                    ...(fold !== 'legacy'
                       ? { folded_count: leftovers[position].length }
                       : { revealed_cards: leftovers[position] }),
                   },

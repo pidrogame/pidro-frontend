@@ -880,8 +880,16 @@ const allCases = [
     name: `table-${fixture}`,
     path: `/table-dev?fixture=${fixture === 'fold-legacy' ? fixture : 'fold'}&count=on`,
     testId: 'seat-south-folded',
-    fold: true,
+    fold: { north: 3, west: 2, south: 4 },
     reducedMotion: fixture === 'fold-reduced',
+  })),
+  ...['west', 'south'].map((seat) => ({
+    name: `table-fold-trick${seat === 'south' ? '-self' : ''}`,
+    path: `/table-dev?fixture=fold-trick${seat === 'south' ? '-self' : ''}&count=on`,
+    testId: `seat-${seat}-folded`,
+    fold: { [seat]: 2 },
+    playedCount: seat === 'south' ? 4 : 2,
+    completedFold: seat === 'south',
   })),
   // PID-214: a bot seat says what it played, like anyone, also on the small
   // phones where the seats wear nameplates.
@@ -3596,6 +3604,80 @@ async function assertPlayLines(page, testCase, viewport) {
   }
 }
 
+// Folded backs stay in their seat's hand area, never on any Skia played card,
+// including the retained history. Read actual sprite transforms, not DOM proxies.
+async function assertFoldGeometry(page, testCase, viewport) {
+  const expected = testCase.playedCount ?? (testCase.countHelp ? 8 : 0);
+  await page.getByTestId(`rendered-played-card-count-${expected}`).waitFor();
+  await page.waitForTimeout(450);
+  const played = await page.evaluate(() =>
+    window.__pidroCardMotion().filter((s) => s.kind === 'played')
+  );
+  assert.equal(played.length, expected, 'The overlap check must see every played card');
+  if (testCase.playedCount) {
+    assert.ok(played.some((s) => s.key.endsWith('north-hearts_6')));
+    const seat = Object.keys(testCase.fold)[0];
+    assert.ok(
+      played.some((s) => s.key.endsWith(`${seat}-hearts_9`) && s.leading),
+      '9♥ keeps its winning glow'
+    );
+    if (testCase.completedFold) {
+      assert.equal(
+        await page.getByTestId('last-trick').getAttribute('aria-label'),
+        'Last trick, trick 1'
+      );
+      assert.match(await page.getByTestId('seat-south').getAttribute('aria-label'), /, out$/);
+    }
+  }
+  const boxes = played.map((s) => {
+    assert.equal(s.flight, 1, 'Measure landed played cards');
+    const c = Math.abs(Math.cos(s.rotation));
+    const n = Math.abs(Math.sin(s.rotation));
+    const width = (s.width * c + s.height * n) * s.renderedScale;
+    const height = (s.width * n + s.height * c) * s.renderedScale;
+    return { key: s.key, x: s.x - width / 2, y: s.y - height / 2, width, height };
+  });
+  const north = await page.getByTestId('trick-north-top').boundingBox();
+  const south = await page.getByTestId('player-hand-top').boundingBox();
+  for (const seat of Object.keys(
+    testCase.fold ?? Object.fromEntries(testCase.countHelp.folded.map((s) => [s, 0]))
+  )) {
+    const identity = await page.getByTestId(`seat-${seat}`).boundingBox();
+    for (const image of await page.getByTestId(`seat-${seat}-folded`).locator('img').all()) {
+      const b = await image.boundingBox();
+      assertInsideViewport(`${testCase.name} ${seat} folded back`, b, viewport);
+      assert.ok(
+        b.x + b.width <= identity.x ||
+          identity.x + identity.width <= b.x ||
+          b.y + b.height <= identity.y ||
+          identity.y + identity.height <= b.y,
+        `${testCase.name}: folded back overlaps ${seat}'s avatar, name or level`
+      );
+      for (const card of boxes) {
+        assert.ok(
+          b.x + b.width <= card.x ||
+            card.x + card.width <= b.x ||
+            b.y + b.height <= card.y ||
+            card.y + card.height <= b.y,
+          `${testCase.name}: ${seat} folded back overlaps played ${card.key}`
+        );
+      }
+      const inSeat =
+        seat === 'north'
+          ? b.y + b.height <= north.y
+          : seat === 'south'
+            ? b.y >= south.y
+            : seat === 'west'
+              ? b.x + b.width <= viewport.width / 4
+              : b.x >= (viewport.width * 3) / 4;
+      assert.ok(
+        inSeat,
+        `${testCase.name}: ${seat} folded back is outside its hand area: ${JSON.stringify(b)}`
+      );
+    }
+  }
+}
+
 // Count help (PID-220): the bid line reads in full and, with "Last trick",
 // keeps off every seat and North's cards. An out seat says so aloud and lays
 // its cards face down on the felt.
@@ -4643,8 +4725,8 @@ async function main() {
           }
           await assertCountHelp(page, testCase, caseViewport);
           if (testCase.fold) {
-            await page.getByTestId('rendered-hand-card-count-0').waitFor();
-            for (const [seat, count] of Object.entries({ north: 3, west: 2, south: 4 })) {
+            if (testCase.fold.south) await page.getByTestId('rendered-hand-card-count-0').waitFor();
+            for (const [seat, count] of Object.entries(testCase.fold)) {
               const pile = page.getByTestId(`seat-${seat}-folded`);
               await pile.waitFor();
               assert.equal(await pile.locator('img').count(), count);
@@ -4659,9 +4741,12 @@ async function main() {
             }
             assert.equal(await page.getByTestId('seat-east-folded').count(), 0);
             assert.equal(await page.getByTestId('seat-east-cards').locator('img').count(), 4);
-            assert.equal(await page.getByTestId('seat-north-cards').locator('img').count(), 0);
-            assert.equal(await page.getByTestId('seat-west-cards').locator('img').count(), 0);
+            for (const seat of ['north', 'west'].filter((s) => testCase.fold[s])) {
+              assert.equal(await page.getByTestId(`seat-${seat}-cards`).locator('img').count(), 0);
+            }
           }
+          if (testCase.fold || testCase.countHelp)
+            await assertFoldGeometry(page, testCase, caseViewport);
           await assertGameOver(page, testCase, caseViewport);
           await assertRulePresentation(page, testCase);
           if (testCase.name === 'home') {

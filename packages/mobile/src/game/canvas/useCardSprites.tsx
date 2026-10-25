@@ -948,7 +948,18 @@ export function useCardSprites({
                 kind: slot.kind,
                 x: sx[i].value,
                 y: sy[i].value,
+                width: cardW,
+                height: cardH,
+                rotation: srot[i].value,
                 scale: sscale[i].value,
+                renderedScale:
+                  sscale[i].value *
+                  (slot.winner
+                    ? 1 + winnerReveal.value * 0.1
+                    : slot.leading
+                      ? 1 + leadGlow.value * 0.06
+                      : 1),
+                leading: slot.leading,
                 flight: flight[i].value,
                 opacity: sop[i].value,
                 collection: collection[i].value,

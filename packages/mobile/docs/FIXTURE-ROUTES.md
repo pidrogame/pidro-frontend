@@ -245,6 +245,29 @@ back images, containment and the still-active East hand at 390×844, 375×667,
 clears with the hand, and restarts at 18 seconds. Reduced motion shows the piles
 without a flight; joining an already-cold table does not replay the fold.
 
+PID-290: `/table-dev?fixture=fold-trick&count=on` reconstructs the supplied JA36 hand 5
+geometry (not a full archive replay):
+hearts trump, trick 4: Jocke (North, your partner) leads 6♥, Antti (West)
+plays the winning 9♥ at 0.7 seconds and folds his remaining 8♦ 2♠ at 1.2 seconds.
+The fixture holds that partial trick with authoritative winning metadata and no next
+turn; surrounding hands/counts are placeholders. The report did not supply tricks
+1–3, so their cards are omitted rather than invented.
+`fixture=fold-trick-self` is a separate synthetic completion: North leads 6♥,
+East plays 8♥, you play 9♥ at 0.7 seconds, West plays 7♥ and the trick completes
+at 1 second. Your 8♦ 2♠ fold at 1.2 seconds, leaving your winning card and glow
+in the completed trick, with your seat saying Out. Both clear at 16 seconds and
+loop at 18.
+Grammar cases `table-fold-trick` and `table-fold-trick-self` run at the same four
+sizes. They compare every folded image's transformed bounds with every rendered
+played-card sprite (including retained history), and require each fold to stay in
+its seat's hand area. The same assertion runs on `fold`, `fold-legacy`,
+`fold-reduced`, `out=one` and `out=lone`. North and side folds use 82% of their
+held-back size at the existing hand origin, leaving space for the slight rotation;
+your fold keeps the compact pile size, centered where your hand was.
+In landscape North's held fan intentionally bleeds offscreen; its folded stack
+tucks just below that edge, to the left of the avatar/name/level rather than over them.
+Second-deal throws still land in the trick area and clear before play.
+
 `/table-dev?fixture=play-motion` loops right-end, left-end and middle plays through
 the production play-presentation hook and sprite pool, with a local fake server.
 Replies take 800 ms; the fourth card completes the trick and the server-selected

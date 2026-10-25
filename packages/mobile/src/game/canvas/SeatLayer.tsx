@@ -296,10 +296,15 @@ export function SeatLayer({
         const folded = seats[rel]?.foldedCount ?? 0;
         const thrown = secondDeal?.thrown[rel] ?? folded;
         if (!seats[rel] || thrown === 0) return null;
+        const foldingHand = !secondDeal && folded > 0;
         const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
         const from =
           rel === 'north'
-            ? { x: width / 2 - northShift, y: northBackTop + backH / 2 }
+            ? {
+                x: width / 2 - northShift,
+                // Landscape's held fan bleeds offscreen; tuck its fold just below that edge.
+                y: (foldingHand ? Math.max(insets.top, northBackTop) : northBackTop) + backH / 2,
+              }
             : rel === 'south'
               ? { x: L.hand.cx, y: L.hand.cy }
               : {
@@ -314,8 +319,8 @@ export function SeatLayer({
             key={`thrown-${rel}`}
             rel={rel}
             count={thrown}
-            folded={folded > 0}
-            animate={folded === 0 || folding.includes(rel)}
+            folded={foldingHand}
+            animate={!foldingHand || folding.includes(rel)}
             fromStep={
               rel === 'south'
                 ? handStep(L, thrown)
@@ -324,8 +329,15 @@ export function SeatLayer({
                   : sideStackStep(L.cardW, thrown)
             }
             from={from}
-            at={playedCardTarget(L, rel, 0, 1)}
-            cardW={L.cardW * L.trick.pileScale * 0.82}
+            // Cold hands fold where they were held; only second-deal throws cross the felt.
+            at={foldingHand ? from : playedCardTarget(L, rel, 0, 1)}
+            cardW={
+              (foldingHand && rel !== 'south'
+                ? rel === 'north'
+                  ? northBackWidth(L.cardW, compactNorth(L))
+                  : sideBackW
+                : L.cardW * L.trick.pileScale) * 0.82
+            }
           />
         );
       })}
@@ -690,9 +702,8 @@ function Pack({ count, backW, cx, cy }: { count: number; backW: number; cx: numb
 }
 
 /**
- * What a seat threw in the second deal, face down in front of it where it
- * plays its cards, spread so each card can be counted. Each card flies in
- * from the seat's hand as it is thrown.
+ * Second-deal throws spread in the trick area to be counted, then clear.
+ * Cold hands collapse into a small face-down stack in their own hand area.
  */
 function ThrownPile({
   rel,
