@@ -57,5 +57,7 @@ test('a guest claims their Classic account with an email and password and keeps 
   await expect(claim.found).toBeVisible();
   await claim.confirmIdentity();
   await expect(claim.alert).toBeVisible();
-  await expect(claim.alert).toContainText('already has a different Classic profile');
+  await expect(claim.alert).toContainText(
+    'You’ve already brought a different player’s name and games to this account.'
+  );
 });

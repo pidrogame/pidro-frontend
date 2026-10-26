@@ -129,11 +129,11 @@ try {
   assert.equal(await avatarButton.getAttribute('aria-label'), 'Your photo and ring');
   const pinOnAvatar = () => avatarButton.locator('svg').count();
   const pinned = await pinOnAvatar();
-  await button('Pidro Classic · Level 42').click();
+  await button('Old Pidro · Level 42').click();
   const sheet = page.getByTestId('badge-sheet');
-  await visible(sheet.getByText('Level 42 in Classic · 1,284 games as SofiaClassic'));
+  await visible(sheet.getByText('Old Pidro · Level 42 · 1,284 games as SofiaClassic'));
   const radio = (name) => sheet.getByRole('radio', { name: new RegExp(`^${name}\\.`) });
-  assert.equal(await radio('Pidro Classic').getAttribute('aria-checked'), 'true');
+  assert.equal(await radio('Old Pidro').getAttribute('aria-checked'), 'true');
   assert.equal(await radio('Founding Tester').isDisabled(), true);
   await assertMinimumTouchTargets(page, 'badges', { name: 'portrait' });
   await capture('profile-badges');
@@ -149,7 +149,7 @@ try {
     'the pin choice was not kept'
   );
   await avatarButton.click();
-  await radio('Pidro Classic').click();
+  await radio('Old Pidro').click();
   await sheet.getByTestId('badge-done').click();
   await sheet.waitFor({ state: 'hidden' });
 

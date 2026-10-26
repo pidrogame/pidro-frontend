@@ -97,14 +97,14 @@ describe('Friends presentation', () => {
     expect(classicFriendsMessage(lists)).toBeNull();
     expect(classicFriendsMessage({ ...lists, classic: { not_here: 0 } })).toBeNull();
     expect(classicFriendsMessage({ ...lists, classic: { not_here: 1 } })).toBe(
-      '1 of your Classic friends isn’t here yet'
+      '1 friend from your old Pidro app isn’t here yet'
     );
     expect(classicFriendsMessage({ ...lists, classic: { not_here: 7 } })).toBe(
-      '7 of your Classic friends aren’t here yet'
+      '7 friends from your old Pidro app aren’t here yet'
     );
     setLocale('sv');
     expect(classicFriendsMessage({ ...lists, classic: { not_here: 7 } })).toBe(
-      '7 av dina Classic-vänner är inte här ännu'
+      '7 vänner från din gamla Pidro-app är inte här än'
     );
   });
 

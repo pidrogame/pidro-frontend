@@ -186,7 +186,7 @@ export function avatarLabel({
     kind === 'bot' && persona ? t('social.bot') : null,
     dealer ? t('social.avatar_dealer') : null,
     level != null ? t('social.avatar_level', { number: formatNumber(level) }) : null,
-    pin ? (pin === 'classic' ? 'Pidro Classic' : t('profile.founding_tester')) : null,
+    pin ? t(pin === 'classic' ? 'profile.classic_app' : 'profile.founding_tester') : null,
     turn ? t(turn.urgent ? 'social.avatar_urgent' : 'social.avatar_turn') : null,
     statusText ?? awayText,
   ]

@@ -18,7 +18,7 @@ test('an expired claim says to verify again @second-run', async ({ page, player 
     email: player.email,
     password: player.password,
   });
-  await expect(claim.alert).toContainText('Verify your Classic account again');
+  await expect(claim.alert).toContainText('Please start again to find your Pidro account.');
   await expect(claim.found).toBeHidden();
 
   // Verifying again gets a fresh claim.

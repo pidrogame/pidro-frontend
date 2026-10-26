@@ -9,7 +9,7 @@ test('a name reserved for a Classic player offers the claim', async ({ page, pla
   await create.createAccount({ ...player, name: RESERVED_CLASSIC_NAME });
   await expect(create.text('That name is taken.')).toBeVisible();
 
-  await create.page.getByRole('button', { name: /^Played Classic as ReservedRita\?/ }).click();
+  await create.page.getByRole('button', { name: /^Played Pidro as ReservedRita\?/ }).click();
   const claim = new ClaimClassicScreen(page);
-  await expect(claim.text('How did you sign in to Classic?')).toBeVisible();
+  await expect(claim.text('How do you sign in to Pidro today?')).toBeVisible();
 });

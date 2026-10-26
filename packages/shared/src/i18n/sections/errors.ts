@@ -12,7 +12,7 @@ export const en = {
   "error.field_too_long": "Use at most %{count} characters.",
   "error.field_wrong_length": "Use exactly %{count} characters.",
   "error.classic_name_reserved":
-    "This name belongs to a Classic account. Verify ownership to use it.",
+    "This name belongs to a player in the old Pidro app. Sign in as that player to use it.",
   "error.unauthorized": "Please sign in or reconnect.",
   "error.forbidden": "You do not have permission to do this.",
   "error.not_found": "The requested item was not found.",
@@ -23,19 +23,19 @@ export const en = {
   "error.provider_unavailable":
     "This sign-in provider is temporarily unavailable.",
   "error.account_inactive":
-    "This Classic account is inactive. Please contact support.",
+    "This Pidro account is inactive. Please contact support.",
   "error.claim_binding_required":
-    "Sign in before verifying ownership of your Classic account.",
+    "Sign in before bringing your name and games over.",
   "error.already_claimed":
-    "This Classic account is already linked to another account.",
+    "You’ve already brought this account to the new Pidro. Sign in to that account.",
   "error.user_already_claimed":
-    "Your account already has a different Classic profile.",
+    "You’ve already brought a different player’s name and games to this account.",
   "error.provider_already_linked":
     "This sign-in identity is already linked to another account.",
   "error.claim_ticket_expired":
-    "Your Classic verification expired. Please verify again.",
+    "Time ran out. Please find your Pidro account again.",
   "error.invalid_claim_ticket":
-    "Your Classic verification is invalid. Please verify again.",
+    "Please start again to find your Pidro account.",
   "error.claim_ticket_binding_mismatch":
     "Please verify again from this account or installation.",
   "error.claim_state_changed": "Your account changed. Please verify again.",
@@ -160,7 +160,7 @@ export const sv: Record<keyof typeof en, string> = {
   "error.field_too_long": "Använd högst %{count} tecken.",
   "error.field_wrong_length": "Använd exakt %{count} tecken.",
   "error.classic_name_reserved":
-    "Namnet tillhör ett Classic-konto. Bekräfta att kontot är ditt för att använda det.",
+    "Namnet tillhör en spelare i gamla Pidro. Logga in som den spelaren för att använda det.",
   "error.unauthorized": "Logga in eller anslut på nytt.",
   "error.forbidden": "Du har inte behörighet att göra detta.",
   "error.not_found": "Det du söker hittades inte.",
@@ -171,18 +171,18 @@ export const sv: Record<keyof typeof en, string> = {
   "error.provider_unavailable":
     "Denna inloggningstjänst är tillfälligt otillgänglig.",
   "error.account_inactive":
-    "Detta Classic-konto är inaktivt. Kontakta supporten.",
+    "Det här Pidro-kontot är inaktivt. Kontakta supporten.",
   "error.claim_binding_required":
-    "Logga in innan du bekräftar att Classic-kontot är ditt.",
+    "Logga in innan du tar med ditt namn och dina spel.",
   "error.already_claimed":
-    "Detta Classic-konto är redan kopplat till ett annat konto.",
-  "error.user_already_claimed": "Ditt konto har redan en annan Classic-profil.",
+    "Du har redan tagit med det här kontot till nya Pidro. Logga in på det kontot.",
+  "error.user_already_claimed": "Du har redan tagit med en annan spelares namn och spel till det här kontot.",
   "error.provider_already_linked":
     "Denna inloggning är redan kopplad till ett annat konto.",
   "error.claim_ticket_expired":
-    "Din Classic-verifiering har gått ut. Verifiera igen.",
+    "Tiden tog slut. Hitta ditt Pidro-konto igen.",
   "error.invalid_claim_ticket":
-    "Din Classic-verifiering är ogiltig. Verifiera igen.",
+    "Börja om för att hitta ditt Pidro-konto.",
   "error.claim_ticket_binding_mismatch":
     "Verifiera igen från detta konto eller denna installation.",
   "error.claim_state_changed": "Ditt konto har ändrats. Verifiera igen.",

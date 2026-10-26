@@ -594,6 +594,40 @@ On a simulator these open through the dev deep-link allowlist in `app/+native-in
 (`exp://127.0.0.1:8081/--/classic-forgot?fixture=code`). A fixture is read when the
 route mounts, so switching between two fixtures of the same route needs an app restart.
 
+### PID-298 — account wording matrix
+
+The route and case identifiers above stay unchanged; player-facing copy says Pidro,
+not Classic or claim. The first plaque reads “Already play Pidro?” / “Spelar du redan
+Pidro?”, the welcome note names the old Pidro app, and the profile pill and pin say
+“Old Pidro” / “Gamla Pidro”. Direct account routes use the case's `locale` as a saved
+Settings preference; `/ui-dev` keeps its existing locale fixture behavior.
+
+Reuse the existing claim cases, welcome-note cases and photo/badge fixtures. Only
+the missing Swedish first screen/profile and recovery states are added. Run from
+`packages/mobile` against the existing Expo web service:
+
+```sh
+export UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait
+export UI_CASES=photo-profile-en,photo-empty-en,photo-profile-sv,photo-present-sv,news-welcome-en,news-welcome-sv,welcome,welcome-sv,classic-method,classic-preview,classic-guest,classic-fresh,classic-rename,classic-conflict,classic-conflict-fresh,classic-conflict-guest,classic-conflict-guest-apple,classic-login,classic-password,classic-password-guest,locale-sv-classic-method,locale-sv-classic-login,locale-sv-classic-preview,locale-sv-classic-password,locale-sv-classic-rename,locale-sv-classic-already-claimed,classic-rename-fresh,classic-details-en,classic-rename-details-en,classic-taken-en,classic-details-sv,classic-rename-details-sv,classic-taken-sv,classic-forgot,classic-code,classic-code-invalid,classic-help,classic-not-found-en,classic-unavailable-en,classic-help-sent-en,classic-forgot-sv,classic-code-sv,classic-code-invalid-sv,classic-not-found-sv,classic-unavailable-sv,classic-help-sv,classic-help-sent-sv,forgot-password,forgot-password-sv
+node scripts/verify-ui-grammar.mjs --list
+node scripts/verify-ui-grammar.mjs
+```
+
+This is exactly 196 matrix IDs: each of the 49 `UI_CASES` above prefixed with
+`portrait/` (390×844), `small-portrait/` (375×667), `landscape/` (844×390), or
+`tablet-portrait/` (768×1024). No duplicate case is needed for an already covered
+English step. `photo-empty-en` and `photo-present-sv` cover the badges as well as
+the photo controls; `photo-profile-en|sv` cover the profile pill. `forgot-password`
+and `forgot-password-sv` cover recovery from Already in Pidro and its link back to
+the old-app account flow.
+
+Account surfaces assert no scrolling and no clipped text/control boxes, including
+clipping by ancestors. The full Profile intentionally scrolls: only its pill gets
+the containment check, after scrolling it into view. Existing touch-target, claim
+CTA, already-owned-account and photo-sheet checks remain in force. These assertions
+do not waive overflow on small screens; a failing fit needs copy/layout work, not a
+larger viewport or a hidden test. Native safe-area/keyboard fit still needs a device.
+
 ## `/age?fixture=<state>` — age gate
 
 `unanswered` (no range chosen, Continue disabled), `selected` (18 or older chosen,

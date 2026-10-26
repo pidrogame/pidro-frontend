@@ -72,7 +72,7 @@ export const en = {
   "account.deleteBody":
     "This removes your player, your games and your progress.",
   "account.deleteClassicBody":
-    "This removes your player, your games and your progress. Your Classic account stays in Classic and can be claimed again later.",
+    "This removes your player, your games and your progress here. Your old Pidro app keeps your account. You can bring it over again later.",
   "account.deleteError": "Could not delete your account. Try again.",
   "update.title": "About the app",
   "update.version": "Version",
@@ -134,7 +134,7 @@ export const en = {
   "news.tell": "Tell me what you find",
   "news.tellBody":
     "Something odd, broken or confusing? Write to %{email} or use Settings → Send feedback. I read every one.",
-  "news.classic": "Classic keeps working. Nothing there changes.",
+  "news.classic": "Your old Pidro app keeps working. Nothing there changes.",
   "news.play": "Let's play",
   "settings.feedback": "Send feedback",
   "settings.feedbackHint": "Write to %{email}. Your app and device details come along.",
@@ -211,7 +211,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "account.deleteBody":
     "Det här tar bort din spelare, dina spel och dina framsteg.",
   "account.deleteClassicBody":
-    "Det här tar bort din spelare, dina spel och dina framsteg. Ditt Classic-konto finns kvar i Classic och kan hämtas igen senare.",
+    "Det här tar bort din spelare, dina spel och dina framsteg här. Ditt konto finns kvar i din gamla Pidro-app. Du kan ta med det igen senare.",
   "account.deleteError": "Det gick inte att radera ditt konto. Försök igen.",
   "update.title": "Om appen",
   "update.version": "Version",
@@ -274,7 +274,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "news.tell": "Hör av dig",
   "news.tellBody":
     "Något konstigt, trasigt eller krångligt? Skriv till %{email} eller använd Inställningar → Skicka synpunkter. Jag läser varenda en.",
-  "news.classic": "Classic fungerar som vanligt. Inget ändras där.",
+  "news.classic": "Din gamla Pidro-app fungerar som vanligt. Där ändras ingenting.",
   "news.play": "Nu spelar vi",
   "settings.feedback": "Skicka synpunkter",
   "settings.feedbackHint": "Skriv till %{email}. Uppgifter om appen och enheten följer med.",

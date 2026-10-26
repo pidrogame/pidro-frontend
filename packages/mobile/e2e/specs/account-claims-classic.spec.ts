@@ -11,7 +11,7 @@ test('a saved account claims its Classic account and keeps its player', async ({
   const account = await register(player);
   await startSignedIn(page, account);
   await page.goto('/profile');
-  await new ProfileScreen(page).button('Claim Pidro Classic').click();
+  await new ProfileScreen(page).button('Bring your name and games').click();
 
   const claim = new ClaimClassicScreen(page);
   await claim.verify(player.classicLogin, player.classicPassword);

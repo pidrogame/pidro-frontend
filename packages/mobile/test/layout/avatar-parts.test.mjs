@@ -106,9 +106,11 @@ describe('avatar label', () => {
       );
       expect(avatarLabel({ kind: 'open' })).toBe('Ledig plats');
       expect(avatarLabel({ name: 'Jussi', away: 'bot' })).toBe('Jussi, en bot spelar');
+      expect(avatarLabel({ name: 'Bengt', pin: 'classic' })).toBe('Bengt, Gamla Pidro');
       expect(avatarParts(64)).toEqual(parts);
       setLocale('en');
       expect(avatarLabel({ kind: 'open' })).toBe('Open seat');
+      expect(avatarLabel({ name: 'Bengt', pin: 'classic' })).toBe('Bengt, Old Pidro');
     } finally {
       setLocale('en');
     }

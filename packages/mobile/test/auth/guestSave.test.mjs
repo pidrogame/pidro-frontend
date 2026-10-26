@@ -169,7 +169,7 @@ describe('guest account saving', () => {
     expect(result).toMatchObject({
       ok: false,
       error: {
-        message: 'This name belongs to a Classic account. Verify ownership to use it.',
+        message: 'This name belongs to a player in the old Pidro app. Sign in as that player to use it.',
         fields: { displayName: 'That name is taken.' },
         classicNameReserved: true,
       },

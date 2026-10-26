@@ -289,7 +289,7 @@ function ProfileContent() {
                     <Icon name="spade" size={13} color={PidroBevel.textGold} />
                   </Coin>
                   <PidroText role="label">
-                    Pidro Classic
+                    {t('profile.classic_app')}
                     {classic.level != null
                       ? ` · ${t('profile.level', { number: formatNumber(classic.level) })}`
                       : ''}
@@ -503,7 +503,7 @@ function ProfileContent() {
                 {identity && !classic ? (
                   <Surface variant="panel" padded style={styles.claim}>
                     <View style={styles.claimHeading}>
-                      <PidroText role="label">Pidro Classic</PidroText>
+                      <PidroText role="label">{t('profile.classic_app')}</PidroText>
                       <PidroText role="body" tone="soft">
                         {t('profile.classic_help')}
                       </PidroText>

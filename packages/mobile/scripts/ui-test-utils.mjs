@@ -77,6 +77,15 @@ const classicClaimCases = [
   'classic-forgot',
   'classic-code',
   'classic-code-invalid',
+  'forgot-password',
+  'forgot-password-sv',
+  'classic-help',
+  'classic-help-sent-en',
+  'classic-not-found-en',
+  'classic-unavailable-en',
+  ...['forgot', 'code', 'code-invalid', 'not-found', 'unavailable', 'help', 'help-sent'].map(
+    (fixture) => `classic-${fixture}-sv`
+  ),
   ...['method', 'login', 'preview', 'password', 'rename', 'already-claimed'].map(
     (fixture) => `locale-sv-classic-${fixture}`
   ),
@@ -107,6 +116,8 @@ export const UI_VIEWPORTS = [
     width: 375,
     height: 667,
     cases: [
+      'welcome',
+      'welcome-sv',
       'news-welcome-en',
       'news-welcome-sv',
       'settings-feedback-en',
@@ -211,6 +222,8 @@ export const UI_VIEWPORTS = [
     width: 768,
     height: 1024,
     cases: [
+      'welcome',
+      'welcome-sv',
       ...classicClaimCases,
       'table-play-right',
       'table-play-left',
@@ -312,6 +325,74 @@ export function assertInsideViewport(name, box, viewport) {
       `${name} is outside ${viewport.name}: ${JSON.stringify(box)} vs ${viewport.width}x${viewport.height}`
     );
   }
+}
+
+// Account copy must fit without scrolling, including text clipped by an ancestor.
+// Pass only the pill for Profile: the surrounding profile intentionally scrolls.
+export async function assertAccountSurfaceFits(surface, name, viewport) {
+  const result = await surface.evaluate((root) => {
+    const elements = [root, ...root.querySelectorAll('*')];
+    const visible = (el) => {
+      const box = el.getBoundingClientRect();
+      return box.width && box.height && getComputedStyle(el).visibility !== 'hidden';
+    };
+    const overflow = elements.filter(visible).filter((el) => {
+      const style = getComputedStyle(el);
+      return (
+        (['auto', 'scroll'].includes(style.overflowY) && el.scrollHeight > el.clientHeight + 2) ||
+        (['auto', 'scroll'].includes(style.overflowX) && el.scrollWidth > el.clientWidth + 2)
+      );
+    });
+    const content = elements
+      .filter((el) =>
+        el.matches('[dir="auto"], [role="button"], [role="link"], [role="radio"], input, textarea')
+      )
+      .filter(visible);
+    const clipped = content.filter((el) => {
+      const box = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      if (
+        el.matches('[dir="auto"]') &&
+        el.clientWidth &&
+        ((['hidden', 'clip'].includes(style.overflowX) && el.scrollWidth > el.clientWidth + 1) ||
+          (['hidden', 'clip'].includes(style.overflowY) && el.scrollHeight > el.clientHeight + 1))
+      )
+        return true;
+      for (
+        let parent = el.parentElement;
+        parent && root.contains(parent);
+        parent = parent.parentElement
+      ) {
+        const bounds = parent.getBoundingClientRect();
+        const style = getComputedStyle(parent);
+        if (
+          (style.overflowX !== 'visible' &&
+            (box.left < bounds.left - 1 || box.right > bounds.right + 1)) ||
+          (style.overflowY !== 'visible' &&
+            (box.top < bounds.top - 1 || box.bottom > bounds.bottom + 1))
+        )
+          return true;
+      }
+      const bounds = root.getBoundingClientRect();
+      return (
+        box.left < bounds.left - 1 ||
+        box.right > bounds.right + 1 ||
+        box.top < bounds.top - 1 ||
+        box.bottom > bounds.bottom + 1
+      );
+    });
+    return {
+      overflow: overflow.map((el) => el.getAttribute('data-testid') ?? el.tagName),
+      clipped: clipped.map((el) => el.textContent || el.getAttribute('aria-label')),
+      boxes: content.map((el) => ({
+        ...el.getBoundingClientRect().toJSON(),
+        text: el.textContent,
+      })),
+    };
+  });
+  assert.deepEqual(result.overflow, [], `${name}: no scrolling in ${viewport.name}`);
+  assert.deepEqual(result.clipped, [], `${name}: no clipped copy in ${viewport.name}`);
+  for (const box of result.boxes) assertInsideViewport(`${name}: ${box.text}`, box, viewport);
 }
 
 // Expo's dev-mode error toast (e.g. a failed lobby fetch when no backend is

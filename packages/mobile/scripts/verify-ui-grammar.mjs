@@ -6,6 +6,7 @@ import { chromium } from 'playwright';
 import { TRICK_SWEEP_ENABLED } from '../src/game/canvas/animationTiming.ts';
 import { partitionCases, verifyCoverage } from './ui-shards.mjs';
 import {
+  assertAccountSurfaceFits,
   assertInsideViewport,
   assertMinimumTouchTargets,
   assertTeamLayout,
@@ -335,7 +336,7 @@ const allCases = [
   ...['en', 'sv'].flatMap((locale) =>
     (locale === 'en'
       ? ['profile', 'empty', 'present', 'uploading', 'saved', 'error', 'remove']
-      : ['present', 'error']
+      : ['profile', 'present', 'error']
     ).map((state) => ({
       name: `photo-${state}-${locale}`,
       path: `/profile?fixture=photo-${state}`,
@@ -519,6 +520,7 @@ const allCases = [
   { name: 'age-stop', path: '/age?fixture=under13', testId: 'age-stop-screen' },
   { name: 'age-stop-sv', path: '/age?fixture=under13', testId: 'age-stop-screen', locale: 'sv' },
   { name: 'welcome', path: '/welcome', testId: 'welcome-window' },
+  { name: 'welcome-sv', path: '/welcome', testId: 'welcome-window', locale: 'sv' },
   {
     name: 'welcome-guest',
     path: '/welcome',
@@ -660,8 +662,30 @@ const allCases = [
     testId: 'classic-code-window',
   },
   { name: 'classic-help', path: '/(auth)/classic-help', testId: 'classic-help-window' },
+  ...['en', 'sv'].flatMap((locale) => [
+    ...(locale === 'sv' ? ['forgot', 'code', 'code-invalid'] : [])
+      .concat(['not-found', 'unavailable'])
+      .map((fixture) => ({
+        name: `classic-${fixture}-${locale}`,
+        path: `/(auth)/classic-forgot${fixture === 'forgot' ? '' : `?fixture=${fixture}`}`,
+        testId: fixture.startsWith('code') ? 'classic-code-window' : 'classic-forgot-window',
+        locale,
+      })),
+    ...(locale === 'sv' ? ['help', 'help-sent'] : ['help-sent']).map((fixture) => ({
+      name: `classic-${fixture}-${locale}`,
+      path: `/(auth)/classic-help${fixture === 'help' ? '' : '?fixture=sent'}`,
+      testId: fixture === 'help' ? 'classic-help-window' : 'classic-help-sent',
+      locale,
+    })),
+  ]),
   { name: 'auth-sheet', path: '/auth-flow-dev', testId: 'auth-flow-dev' },
   { name: 'forgot-password', path: '/(auth)/forgot-password', testId: 'auth-window' },
+  {
+    name: 'forgot-password-sv',
+    path: '/(auth)/forgot-password',
+    testId: 'auth-window',
+    locale: 'sv',
+  },
   {
     name: 'reset-password',
     path: '/(auth)/reset-password?token=fixture-token',
@@ -1637,10 +1661,21 @@ async function assertPhotoSheet(page, testCase, viewport) {
       const box = await visibleBox(page, ornament);
       if (box) assert.ok(!boxesOverlap(badge, box), `${name}: camera overlaps pin/level`);
     }
+    const chip = page.getByTestId('profile-classic-chip');
+    await chip
+      .getByText(sv ? 'Gamla Pidro · Nivå 14' : 'Old Pidro · Level 14', { exact: true })
+      .waitFor();
+    // The profile intentionally scrolls; only this pill must contain its copy.
+    await chip.scrollIntoViewIfNeeded();
+    await assertAccountSurfaceFits(chip, name, viewport);
     return;
   }
 
   const sheet = page.getByTestId('badge-sheet');
+  if (!guest) {
+    await sheet.getByRole('radio', { name: sv ? /^Gamla Pidro\./ : /^Old Pidro\./ }).waitFor();
+    await assertAccountSurfaceFits(sheet, name, viewport);
+  }
   await sheet
     .getByText(guest ? 'Your badges' : sv ? 'Din bild och ring' : 'Your photo and ring', {
       exact: true,
@@ -1848,6 +1883,15 @@ async function assertFirstLaunchScreens(page, testCase, viewport) {
     await sheet
       .getByText(sv ? 'Välkommen till nya Pidro' : 'Welcome to the new Pidro', { exact: true })
       .waitFor();
+    await sheet
+      .getByText(
+        sv
+          ? 'Din gamla Pidro-app fungerar som vanligt. Där ändras ingenting.'
+          : 'Your old Pidro app keeps working. Nothing there changes.',
+        { exact: true }
+      )
+      .waitFor();
+    await assertAccountSurfaceFits(sheet, testCase.name, viewport);
     await sheet.getByText('marcel@pidro.online', { exact: true }).waitFor();
     const photo = sheet.getByTestId('welcome-photo');
     await photo.locator('img').evaluate((image) => image.decode());
@@ -2021,13 +2065,76 @@ const TABLE_MESSAGES = {
 
 // Each Classic step has one job, with the same default forward button.
 async function assertClassicLogin(page, testCase, viewport) {
-  if (!testCase.path.includes('claim-classic') && !testCase.path.includes('classic-forgot')) return;
+  if (testCase.path === '/welcome') {
+    const sv = testCase.locale === 'sv';
+    await page
+      .getByRole('button', {
+        name: sv
+          ? 'Spelar du redan Pidro? Ta med ditt namn och dina spel.'
+          : 'Already play Pidro? Bring your name and games.',
+        exact: true,
+      })
+      .waitFor();
+    await assertAccountSurfaceFits(page.getByTestId('welcome-screen'), testCase.name, viewport);
+    return;
+  }
+  if (testCase.path === '/(auth)/forgot-password') {
+    const screen = page.getByTestId('forgot-password-screen');
+    await screen
+      .getByRole('link', {
+        name:
+          testCase.locale === 'sv'
+            ? 'Spelar du i gamla Pidro? Hitta ditt konto'
+            : 'Use the old Pidro app? Find your account',
+        exact: true,
+      })
+      .waitFor();
+    await assertAccountSurfaceFits(screen, testCase.name, viewport);
+    return;
+  }
+  if (!/claim-classic|classic-forgot|classic-help/.test(testCase.path)) return;
   const sv = testCase.locale === 'sv';
   const screen = page
     .getByTestId(
-      testCase.path.includes('claim-classic') ? 'claim-classic-screen' : 'classic-forgot-screen'
+      testCase.path.includes('claim-classic')
+        ? 'claim-classic-screen'
+        : testCase.path.includes('classic-help')
+          ? 'classic-help-screen'
+          : 'classic-forgot-screen'
     )
     .last();
+  assert.doesNotMatch(
+    await screen.innerText(),
+    /\bClassic\b|\bclaim\b/i,
+    `${testCase.name}: player-facing words`
+  );
+  const fixture = new URL(testCase.path, baseUrl).searchParams.get('fixture');
+  const expectedCopy = testCase.path.includes('claim-classic')
+    ? {
+        method: sv ? 'Hur loggar du in i Pidro i dag?' : 'How do you sign in to Pidro today?',
+        login: sv ? 'Logga in som i gamla appen' : 'Sign in as you do in the old app',
+      }[fixture]
+    : testCase.path.includes('classic-help')
+      ? fixture === 'sent'
+        ? sv
+          ? 'Meddelandet har skickats'
+          : 'Message sent'
+        : sv
+          ? 'Vi hittar det åt dig'
+          : 'We’ll find it for you'
+      : {
+          'not-found': sv
+            ? 'Vi hittar inget konto med det namnet eller den e-postadressen i gamla Pidro.'
+            : 'We can’t find a Pidro account with that name or email in the old app.',
+          unavailable: sv
+            ? 'Vi kan inte skicka inloggningskoder just nu. Be om hjälp så hittar vi ditt konto.'
+            : 'We can’t send sign-in codes right now. Get help and we’ll find your account.',
+          'code-invalid': sv
+            ? 'Koden fungerade inte. Be om en ny.'
+            : "That code didn't work. Ask for a new one.",
+        }[fixture];
+  if (expectedCopy) await screen.getByText(expectedCopy, { exact: true }).waitFor();
+  await assertAccountSurfaceFits(screen, testCase.name, viewport);
   const overflow = await screen.evaluate((root) =>
     [root, ...root.querySelectorAll('*')]
       .filter(
@@ -2093,8 +2200,10 @@ async function assertClassicLogin(page, testCase, viewport) {
       'every missing/refused value remains editable'
     );
   }
-  if (testCase.name === 'classic-code') {
-    await screen.getByRole('link', { name: 'Send again', exact: true }).waitFor();
+  if (testCase.path.includes('fixture=code')) {
+    await screen
+      .getByRole('link', { name: sv ? 'Skicka igen' : 'Send again', exact: true })
+      .waitFor();
   }
   await assertAlreadyInPidro(screen, testCase);
 }
@@ -2716,8 +2825,8 @@ async function assertFriendsPresentation(page, name) {
     await footer
       .getByText(
         swedish
-          ? '7 av dina Classic-vänner är inte här ännu'
-          : '7 of your Classic friends aren’t here yet',
+          ? '7 vänner från din gamla Pidro-app är inte här än'
+          : '7 friends from your old Pidro app aren’t here yet',
         { exact: true }
       )
       .waitFor();
@@ -2794,7 +2903,7 @@ async function assertFriendsPresentation(page, name) {
             'Idag',
             'Igår',
             'För 2 dagar sedan',
-            '38 av dina Classic-vänner är inte här ännu',
+            '38 vänner från din gamla Pidro-app är inte här än',
           ],
           'friends-list': [
             '6 vänner · 3 online',
@@ -2847,7 +2956,7 @@ async function assertFriendsPresentation(page, name) {
             'Today',
             'Yesterday',
             '2 days ago',
-            '38 of your Classic friends aren’t here yet',
+            '38 friends from your old Pidro app aren’t here yet',
           ],
           'friends-list': [
             '6 friends · 3 online',
@@ -2966,7 +3075,7 @@ async function assertFriendsPresentation(page, name) {
           'Inte online',
           'Väntar på svar',
           'Förfrågan skickad för 2 dagar sedan',
-          '38 av dina Classic-vänner är inte här ännu',
+          '38 vänner från din gamla Pidro-app är inte här än',
         ]
       : [
           '4 friends · 3 online',
@@ -2975,7 +3084,7 @@ async function assertFriendsPresentation(page, name) {
           'Not online',
           'Waiting for an answer',
           'Request sent 2 days ago',
-          '38 of your Classic friends aren’t here yet',
+          '38 friends from your old Pidro app aren’t here yet',
         ])
       await page.getByText(text, { exact: true }).first().waitFor();
     assert.equal(
@@ -3743,7 +3852,7 @@ async function assertDeleteAccountConfirmation(page, name, screenshotDir) {
   await page.waitForURL((url) => url.pathname.endsWith('/settings'));
   await page.getByRole('button', { name: 'Delete account', exact: true }).click();
   await page.getByText('Delete your account?', { exact: true }).waitFor();
-  const classicSentence = page.getByText(/Your Classic account stays in Classic/);
+  const classicSentence = page.getByText(/Your old Pidro app keeps your account/);
   if (classic) await classicSentence.waitFor();
   else assert.equal(await classicSentence.count(), 0, 'the Classic sentence shows without Classic');
   await page.getByRole('button', { name: 'Cancel', exact: true }).waitFor();
@@ -5213,7 +5322,10 @@ async function main() {
             fixture: testCase.authFixture ?? authFixture,
             pendingInvite: testCase.pendingInvite === true,
             welcomeSeen: !testCase.welcomeUnseen,
-            photoLocale: testCase.photo ? (testCase.locale ?? 'en') : null,
+            photoLocale:
+              testCase.photo || testCase.path === '/welcome' || testCase.path.startsWith('/(auth)/')
+                ? (testCase.locale ?? 'en')
+                : null,
           }
         );
         if (testCase.pendingInvite) {
@@ -5705,6 +5817,7 @@ async function main() {
           await assertCreationPresentation(page, testCase);
           await assertPasswordKeypad(page, testCase, caseViewport);
           await assertSeatPicker(page, testCase, caseViewport);
+          await assertClassicLogin(page, testCase, caseViewport);
           await assertAuthFormInteractions(page, testCase.name, viewport);
           await assertWelcomeGuestInteractions(page, testCase.name, viewport);
           await assertWelcomeSettingsInteractions(page, testCase.name);
@@ -5713,7 +5826,6 @@ async function main() {
           await assertTableInvitation(page, testCase, caseViewport);
           await assertUpdateNotice(page, testCase.name, caseViewport);
           await assertTableMessageReadable(page, testCase.name, caseViewport);
-          await assertClassicLogin(page, testCase, viewport);
           await assertDeleteAccountConfirmation(page, testCase.name, screenshotDir);
           await assertAuthSheetKeepsTyping(page, testCase.name);
           await assertSwitchInteractions(page, testCase.name, screenshotDir);

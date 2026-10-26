@@ -69,7 +69,7 @@ test('a dropped connection on each form is readable, leaves no spinner and keeps
     await drop('classic/verify');
     await page.goto('/claim-classic');
     const screen = new ClaimClassicScreen(page);
-    await screen.text('How did you sign in to Classic?').waitFor();
+    await screen.text('How do you sign in to Pidro today?').waitFor();
     await screen.button('Username and password').click();
     await screen.field('Username or email').fill(player.classicLogin);
     await screen.field('Password').fill(player.classicPassword);

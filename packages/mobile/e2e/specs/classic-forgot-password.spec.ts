@@ -13,7 +13,7 @@ test('a Classic player recovers by emailed code from sign in and claims their ac
 }) => {
   await page.goto('/login');
   await new LoginScreen(page).forgotPassword.click();
-  await page.getByText('Played Pidro Classic? Recover that account', { exact: true }).click();
+  await page.getByText('Use the old Pidro app? Find your account', { exact: true }).click();
   const forgot = new ClassicForgotScreen(page);
   await forgot.login.fill(player.classicLogin);
   await forgot.button('Email me a code').click();

@@ -72,7 +72,9 @@ test.describe('a first launch', () => {
       )
     ).toBeVisible();
     await expect(
-      sheet(page).getByText('Classic keeps working. Nothing there changes.', { exact: true })
+      sheet(page).getByText('Your old Pidro app keeps working. Nothing there changes.', {
+        exact: true,
+      })
     ).toBeVisible();
 
     // The address opens a new mail.

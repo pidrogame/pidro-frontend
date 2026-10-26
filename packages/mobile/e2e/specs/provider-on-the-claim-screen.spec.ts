@@ -36,7 +36,7 @@ for (const shape of shapes) {
       await answerNextTap(page, await shape.answer(identity(`new-${player.id}`)));
       await claim.button(shape.button).click();
       await expect(claim.alert).toContainText(
-        `No Classic account uses that ${shape.brand} account.`
+        `No account in the old Pidro app uses that ${shape.brand} account.`
       );
       await expect(claim.found).toBeHidden();
     });

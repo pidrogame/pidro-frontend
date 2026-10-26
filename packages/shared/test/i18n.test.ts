@@ -93,6 +93,19 @@ describe("locale foundation", () => {
       ),
     ).not.toEqual([]);
   });
+
+  it("keeps internal Classic and claim terminology out of player-facing copy", () => {
+    const jargon: string[] = [];
+    for (const [locale, catalog] of Object.entries(catalogs)) {
+      for (const [key, entry] of Object.entries(catalog)) {
+        const branches = typeof entry === "string" ? { text: entry } : entry;
+        for (const [branch, text] of Object.entries(branches)) {
+          if (/classic|claim/i.test(text)) jargon.push(`${locale}:${key}:${branch}: ${text}`);
+        }
+      }
+    }
+    expect(jargon).toEqual([]);
+  });
 });
 
 describe("settings language migration and hydration", () => {

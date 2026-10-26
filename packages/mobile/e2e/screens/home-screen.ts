@@ -15,6 +15,6 @@ export class HomeScreen extends Screen {
   }
 
   get classicPlaque() {
-    return this.text(/Played Pidro Classic/i);
+    return this.text(/Already play Pidro\?/i);
   }
 }

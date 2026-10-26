@@ -28,7 +28,7 @@ test('a taken email, a taken name and a Classic name are refused on the field, a
 
   await sheet.save(player.email, player.password, RESERVED_CLASSIC_NAME);
   await expect(sheet.root.getByText('That name is taken.')).toBeVisible();
-  await expect(sheet.page.getByRole('button', { name: /^Played Classic as/ })).toBeVisible();
+  await expect(sheet.page.getByRole('button', { name: /^Played Pidro as/ })).toBeVisible();
 
   // Nothing was saved: still the same guest, here and on the server.
   const session = await sessionOf(page);

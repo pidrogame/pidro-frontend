@@ -22,9 +22,7 @@ for (const { name, start } of starts) {
     const claim = new ClaimClassicScreen(page);
     const answered = await claim.verify(`down-${player.id}`, player.classicPassword);
     expect(answered.status()).toBe(503);
-    await expect(claim.alert).toHaveText(
-      'Classic or the sign-in provider is temporarily unavailable. Try again.'
-    );
+    await expect(claim.alert).toHaveText('We can’t reach your Pidro account right now. Try again.');
     await expect(claim.found).toBeHidden();
     await expect(claim.button('Find my account')).toBeEnabled();
 

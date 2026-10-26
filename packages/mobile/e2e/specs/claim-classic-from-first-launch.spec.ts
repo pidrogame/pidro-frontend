@@ -73,21 +73,21 @@ test('a Classic preview can be rejected without creating an account @responsive'
   });
   await page.goto('/claim-classic');
   const claim = new ClaimClassicScreen(page);
-  await expect(claim.text('How did you sign in to Classic?')).toBeVisible();
+  await expect(claim.text('How do you sign in to Pidro today?')).toBeVisible();
   await expect(claim.root.locator('input')).toHaveCount(0);
   await expect(claim.text("Don't remember? Get help")).toBeVisible();
 
   await claim.button('Username and password').click();
-  await expect(claim.text('Your Classic sign-in')).toBeVisible();
+  await expect(claim.text('Sign in as you do in the old app')).toBeVisible();
   await claim.text('Used Apple or Facebook instead?').click();
-  await expect(claim.text('How did you sign in to Classic?')).toBeVisible();
+  await expect(claim.text('How do you sign in to Pidro today?')).toBeVisible();
   await expect(claim.root.locator('input')).toHaveCount(0);
 
   await claim.verify(player.classicLogin, player.classicPassword);
   await expect(claim.found).toBeVisible();
   await expect(claim.root.locator('input')).toHaveCount(0);
   await claim.text('No, go back').click();
-  await expect(claim.text('How did you sign in to Classic?')).toBeVisible();
+  await expect(claim.text('How do you sign in to Pidro today?')).toBeVisible();
   await expect(claim.found).toBeHidden();
   await expect(claim.root.locator('input')).toHaveCount(0);
   expect(claims).toBe(0);
@@ -101,6 +101,6 @@ test('a Classic preview can be rejected without creating an account @responsive'
   await expect(claim.found).toBeVisible();
   await expect(claim.root.locator('input')).toHaveCount(0);
   await claim.text('No, go back').click();
-  await expect(claim.text('How did you sign in to Classic?')).toBeVisible();
+  await expect(claim.text('How do you sign in to Pidro today?')).toBeVisible();
   expect(claims).toBe(0);
 });

@@ -228,7 +228,7 @@ export function BadgeSheet({
                   </PidroText>
                   {classic ? (
                     <PinRow
-                      title="Pidro Classic"
+                      title={t('profile.classic_app')}
                       compact={compact}
                       line={classicPinLine(classic)}
                       checked={pin === 'classic'}

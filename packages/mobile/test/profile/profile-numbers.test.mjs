@@ -39,17 +39,17 @@ describe('win rate', () => {
 describe('the Classic pin line', () => {
   it('reads like the board', () => {
     expect(classicPinLine({ level: 61, games_played: 1862, name: 'Bengt64' })).toBe(
-      `Level 61 in Classic · ${(1862).toLocaleString()} games as Bengt64`
+      `Old Pidro · Level 61 · ${(1862).toLocaleString()} games as Bengt64`
     );
   });
 
   it('keeps the name when the games are unknown, and the games when the name is private', () => {
     expect(classicPinLine({ name: 'Gertrude' })).toBe('Played as Gertrude');
-    expect(classicPinLine({ level: 3, games_played: 300 })).toBe('Level 3 in Classic · 300 games');
+    expect(classicPinLine({ level: 3, games_played: 300 })).toBe('Old Pidro · Level 3 · 300 games');
   });
 
   it('never leaves the line empty', () => {
-    expect(classicPinLine({})).toBe('Your Classic career');
+    expect(classicPinLine({})).toBe('Your games in the old Pidro app');
   });
 });
 
@@ -71,7 +71,7 @@ it('retranslates profile helpers on invocation without changing identity or prog
   const veteran = { level: 44, progress: [3320, 7000] };
   try {
     setLocale('sv');
-    expect(classicPinLine(classic)).toBe('Nivå 61 i Classic · 1 862 spel som Bengt64');
+    expect(classicPinLine(classic)).toBe('Gamla Pidro · Nivå 61 · 1 862 spel som Bengt64');
     expect(levelProgress(veteran)).toEqual({
       fraction: 3320 / 7000,
       caption: '3 680 XP till nivå 45',
@@ -84,7 +84,7 @@ it('retranslates profile helpers on invocation without changing identity or prog
     setLocale('en');
     expect(veteranTitle('Unknown future title')).toBe('Unknown future title');
     expect(levelProgress(veteran).caption).toBe('3,680 XP to Level 45');
-    expect(classicPinLine(classic)).toBe('Level 61 in Classic · 1,862 games as Bengt64');
+    expect(classicPinLine(classic)).toBe('Old Pidro · Level 61 · 1,862 games as Bengt64');
   } finally {
     setLocale('en');
   }
