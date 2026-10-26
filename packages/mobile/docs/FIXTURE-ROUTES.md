@@ -399,6 +399,61 @@ including the modal-only safe-area structure test. Captures go to
 `/tmp/pidro-create` (or `UI_SHOT_DIR`). Browser checks do not certify native safe
 areas or keyboard avoidance.
 
+## `/profile?fixture=photo-<state>` — your photo and ring (PID-297)
+
+Use a signed-in account fixture. These development-only presentation states use
+the real Profile and `BadgeSheet`; they do not open a native photo picker or upload
+an image. The component supplies the fixture photo URI, not the profile API.
+The grammar mocks the same full profile as `profile-badges` (level 7, 28 new games,
+and a Classic account with 1,862 games and level 14), so the ring and pin choices
+are exercised beside the photo controls.
+
+| URL | Shows |
+| --- | --- |
+| `/profile?fixture=photo-profile` | Profile, sheet closed; camera badge at the bottom-left inside the avatar |
+| `/profile?fixture=photo-empty` | Sheet open, no photo; **Add photo** |
+| `/profile?fixture=photo-present` | Sheet open with a photo; **Change photo**, **Remove photo** |
+| `/profile?fixture=photo-uploading` | Sheet open with labelled progress; photo action disabled |
+| `/profile?fixture=photo-saved` | Sheet open with **Photo saved** feedback |
+| `/profile?fixture=photo-error` | Sheet open with the longest photo error (cannot open), and **Try again** |
+| `/profile?fixture=photo-remove` | Sheet open with inline removal confirmation; **Remove photo** replaces the primary action, **Cancel** is a link |
+
+Signed-in avatar entry and sheet title: **Your photo and ring** / **Din bild och ring**.
+Other owned copy: **Add photo** / **Lägg till bild**, **Change photo** / **Byt bild**,
+**Photo saved** / **Bilden är sparad**, **Remove photo** / **Ta bort bilden**, and
+**Try again** / **Försök igen**. Profile is a normal route and ignores `locale=`:
+select Swedish in Settings for manual previews. The grammar seeds the persisted
+language preference for each photo case instead of changing the route's locale contract.
+
+Grammar cases: `photo-profile-en`, `photo-empty-en`, `photo-present-en`,
+`photo-uploading-en`, `photo-saved-en`, `photo-error-en`, `photo-remove-en`,
+`photo-present-sv`, and `photo-error-sv`. Controls `photo-profile-guest` and
+`photo-sheet-guest` use the existing guest auth fixture on `/profile`: no camera
+badge, and opening **Your badges** exposes no photo actions. All eleven cases
+run at 390×844, 375×667, 844×390 and 768×1024 via the explicit `photo` matrix flag.
+The existing `profile-badges` case opens the renamed signed-in avatar entry.
+
+Selectors: `profile-avatar-button`, `profile-camera-badge`, `badge-sheet`,
+`photo-preview`, `photo-feedback`, `photo-actions`, `badge-options`,
+`photo-change`, `photo-remove`, `photo-retry`, `photo-confirm`, `photo-cancel`,
+`photo-progress` (a labelled accessible progressbar), and `badge-done`.
+Signed-in sheets have exactly one wood action: `photo-change`, or `photo-confirm`
+while confirming removal. Remove and Retry are cyan links; Cancel and Done are
+links. Checks enforce 44pt controls, viewport/sheet containment, no sheet scrolling
+or clipped text, and no overlap between top-level sections. The camera stays
+bounded in the avatar's bottom-left quadrant and is measured against both
+`profile-avatar-pin` and `profile-avatar-level`. Profile itself retains its existing scrolling.
+
+These browser fixtures do not certify native picker permissions/cancellation,
+image cropping, actual upload/retry/removal, or native safe-area clearance.
+`node scripts/verify-profile.mjs` exercises the real web file chooser and multipart
+client against mocked HTTP: cancellation, unreadable/oversized images, automatic
+upload and resizing, progress, two-second saved feedback, profile/Home session
+updates, stale identity reads, failure/retry, and confirmed removal. It also checks
+upload/removal completion after browser Back unmounts the sheet, plus the existing
+bio, pin and Settings journeys. Native route removal is guarded while busy;
+browser Back can still leave, but its server result updates the matching session.
+
 ## Shell friend notices
 
 PID-276: `/home?fixture=waiting` puts three incoming requests on both the avatar

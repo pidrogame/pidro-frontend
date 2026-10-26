@@ -1,17 +1,8 @@
 import { useCallback, useState } from 'react';
-import { Keyboard, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { usePreventRemove } from 'expo-router/react-navigation';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import {
-  AVATAR_MAX_BYTES,
-  BIO_MAX_LENGTH,
-  bioError,
-  bioLength,
-  normalizeBio,
-  publicPlayerName,
-} from '@pidro/shared';
+import { BIO_MAX_LENGTH, bioError, bioLength, normalizeBio, publicPlayerName } from '@pidro/shared';
 import { profileApi, type ProfileIdentity } from '@/api/profile';
 import { localizedError, localizedFieldErrors } from '@/utils/apiErrors';
 import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
@@ -46,8 +37,6 @@ import { usePillClearance } from '@/components/shell/TabPill';
 import { friendsFixture } from '@/features/friends/fixtures';
 import { refreshFriends, useFriendsStore } from '@/stores/friends';
 
-type AvatarDraft = Blob | { uri: string; name: string; type: string };
-
 export default function ProfileScreen() {
   const userId = useAuthStore((state) => state.user?.id);
   return <ProfileContent key={userId} />;
@@ -78,10 +67,7 @@ function ProfileContent() {
   const router = useRouter();
   const navigation = useNavigation();
   const refreshIdentity = useProfileIdentity();
-  const [draft, setDraft] = useState<AvatarDraft | null>(null);
-  const [draftUri, setDraftUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [progress, setProgress] = useState<number | null>(null);
   const [error, setError] = useState<{
     cause?: unknown;
     fallback: TranslationKey;
@@ -92,13 +78,13 @@ function ProfileContent() {
     ? ((error.field ? localizedFieldErrors(error.cause)[error.field] : undefined) ??
       localizedError(error.cause, error.fallback))
     : undefined;
-  const [editor, setEditor] = useState<'photo' | 'bio' | null>(null);
-  const [feedbackFor, setFeedbackFor] = useState<'photo' | 'bio' | null>(null);
+  const [editor, setEditor] = useState<'bio' | null>(null);
   const [refreshError, setRefreshError] = useState(false);
   const [bioDraft, setBioDraft] = useState('');
   const [bioBaseline, setBioBaseline] = useState('');
   const [accountSheetOpen, setAccountSheetOpen] = useState(classicClaimed === 'guest');
-  const [badgesOpen, setBadgesOpen] = useState(false);
+  const photoFixture = __DEV__ && fixture?.startsWith('photo-') ? fixture : undefined;
+  const [badgesOpen, setBadgesOpen] = useState(!!photoFixture && photoFixture !== 'photo-profile');
   const [identity, setIdentity] = useState<ProfileIdentity | undefined>(undefined);
   const classic = identity?.classic ?? null;
   const pinChoice = useSettingsStore((state) => (user ? state.pins[user.id] : undefined));
@@ -113,14 +99,11 @@ function ProfileContent() {
     cancelLabel?: TranslationKey;
     proceed: () => void;
   } | null>(null);
-  const dirty =
-    editor === 'photo' ? !!draft : editor === 'bio' && normalizeBio(bioDraft) !== bioBaseline;
+  const dirty = editor === 'bio' && normalizeBio(bioDraft) !== bioBaseline;
 
   const closeEditor = () => {
     Keyboard.dismiss();
     setEditor(null);
-    setDraft(null);
-    setDraftUri(null);
     setError(null);
   };
 
@@ -163,126 +146,12 @@ function ProfileContent() {
     }, [refreshIdentity, user?.guest, fixture])
   );
 
-  const updateAvatarForCurrentSession = (
-    avatarUrl: string | null,
-    userId: string,
-    token: string
-  ) => {
-    const current = authStore.getState();
-    if (current.user?.id !== userId || current.accessToken !== token) return false;
-    const currentUser = current.user;
-    current.setSession({
-      accessToken: token,
-      refreshToken: current.refreshToken ?? undefined,
-      user: { ...currentUser, avatar_url: avatarUrl },
-    });
-    return true;
-  };
-
-  const chooseAvatar = async () => {
-    setBusy(true);
-    setError(null);
-    setStatus(null);
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.9,
-      });
-      if (result.canceled) {
-        return;
-      }
-      const asset = result.assets[0];
-      if (!asset) throw new Error('No photo was returned');
-      if (Platform.OS === 'web') {
-        const uploadUri =
-          asset.width > 1024 || asset.height > 1024
-            ? (
-                await ImageManipulator.manipulateAsync(
-                  asset.uri,
-                  [{ resize: asset.width >= asset.height ? { width: 1024 } : { height: 1024 } }],
-                  { compress: 0.86, format: ImageManipulator.SaveFormat.JPEG }
-                )
-              ).uri
-            : asset.uri;
-        const blob: Blob = await fetch(uploadUri).then((response) => response.blob());
-        if (blob.size > AVATAR_MAX_BYTES) {
-          setError({ fallback: 'profile.photo_large' });
-          return;
-        }
-        setDraft(blob);
-        setDraftUri(uploadUri);
-      } else {
-        const resized = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          asset.width > 1024 || asset.height > 1024
-            ? [{ resize: asset.width >= asset.height ? { width: 1024 } : { height: 1024 } }]
-            : [],
-          { compress: 0.86, format: ImageManipulator.SaveFormat.JPEG }
-        );
-        setDraft({ uri: resized.uri, name: 'avatar.jpg', type: 'image/jpeg' });
-        setDraftUri(resized.uri);
-      }
-    } catch (error) {
-      console.warn('[Profile] image picker failed', error);
-      setError({ cause: error, fallback: 'profile.photo_open_error' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveAvatar = async () => {
-    if (!draft) return;
-    const session = authStore.getState();
-    if (!session.user || !session.accessToken) return;
-    setBusy(true);
-    setProgress(0);
-    setError(null);
-    setStatus(null);
-    try {
-      const result = await profileApi.uploadAvatar(draft, setProgress);
-      if (updateAvatarForCurrentSession(result.avatar_url, session.user.id, session.accessToken)) {
-        setDraft(null);
-        setDraftUri(null);
-        setEditor(null);
-        setStatus('profile.photo_saved');
-      }
-    } catch (error) {
-      setError({ cause: error, fallback: 'profile.upload_error', field: 'avatar' });
-    } finally {
-      setBusy(false);
-      setProgress(null);
-    }
-  };
-
-  const removeAvatar = async () => {
-    const session = authStore.getState();
-    if (!session.user || !session.accessToken) return;
-    setBusy(true);
-    setError(null);
-    setStatus(null);
-    try {
-      await profileApi.removeAvatar();
-      updateAvatarForCurrentSession(null, session.user.id, session.accessToken);
-      setDraft(null);
-      setDraftUri(null);
-      setEditor(null);
-      setStatus('profile.photo_removed');
-    } catch (cause) {
-      setError({ cause, fallback: 'profile.remove_error' });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const beginEdit = (next: 'photo' | 'bio') => {
+  const beginEdit = () => {
     const open = () => {
       closeEditor();
       setBioDraft(user?.bio ?? '');
       setBioBaseline(normalizeBio(user?.bio ?? ''));
-      setEditor(next);
-      setFeedbackFor(next);
+      setEditor('bio');
       setStatus(null);
     };
     if (dirty) confirmDiscard(open);
@@ -342,22 +211,7 @@ function ProfileContent() {
         paddingRight: horizontalPadding + pillClearance.right,
       }}>
       <View className={shortWindow ? 'gap-3' : 'gap-6'}>
-        <ScreenHeader
-          title={t('profile.title')}
-          onBack={() => router.back()}
-          trailing={
-            editor !== 'photo' ? (
-              <BevelButton
-                label={t('profile.edit_photo')}
-                material="glass"
-                size="sm"
-                disabled={busy}
-                leadingIcon={<Icon name="edit" size={16} />}
-                onPress={() => beginEdit('photo')}
-              />
-            ) : null
-          }
-        />
+        <ScreenHeader title={t('profile.title')} onBack={() => router.back()} />
         <PressableFX
           testID="profile-friends-row"
           accessibilityRole="button"
@@ -392,16 +246,29 @@ function ProfileContent() {
             className={twoColumns ? 'w-[38%] gap-4' : 'w-full gap-4'}>
             <View style={styles.identity}>
               <PressableFX
+                testID="profile-avatar-button"
                 accessibilityRole="button"
-                accessibilityLabel={t('profile.badges')}
+                accessibilityLabel={t(user?.guest ? 'profile.badges' : 'profile.photo_and_ring')}
                 onPress={() => setBadgesOpen(true)}
                 style={styles.avatarButton}>
                 <PlayerAvatar
+                  testID="profile-avatar"
                   size={avatarSize}
-                  uri={draftUri ?? user?.avatar_url}
+                  uri={user?.avatar_url}
                   level={veteran?.level}
                   pin={pin}
                 />
+                {!user?.guest ? (
+                  <View
+                    testID="profile-camera-badge"
+                    style={styles.camera}
+                    pointerEvents="none"
+                    aria-hidden>
+                    <Coin material="glass" size={32} rim={2} style={styles.inlineCoin}>
+                      <Icon name="camera" size={18} />
+                    </Coin>
+                  </View>
+                ) : null}
               </PressableFX>
               <PidroText style={styles.name} align="center" numberOfLines={2}>
                 {name}
@@ -431,93 +298,6 @@ function ProfileContent() {
                 </PressableFX>
               ) : null}
             </View>
-            {editor === 'photo' ||
-            progress != null ||
-            (feedbackFor === 'photo' && (error || status)) ? (
-              <View className="gap-3">
-                {feedbackFor === 'photo' && error ? (
-                  <PidroText role="metadata" tone="danger" accessibilityRole="alert">
-                    {errorText}
-                  </PidroText>
-                ) : null}
-                {feedbackFor === 'photo' && status ? (
-                  <PidroText role="metadata" tone="cyan" accessibilityLiveRegion="polite">
-                    {t(status)}
-                  </PidroText>
-                ) : null}
-                {progress != null ? (
-                  <PidroText role="metadata" tone="cyan" align="center">
-                    {progress < 100
-                      ? t('profile.uploading', { number: formatNumber(progress) })
-                      : t('profile.processing')}
-                  </PidroText>
-                ) : null}
-                {editor === 'photo' ? (
-                  <>
-                    <PidroText role="metadata" tone="muted">
-                      {draft ? t('profile.photo_ready') : t('profile.photo_help')}
-                    </PidroText>
-                    <Button
-                      label={t(draft ? 'profile.choose_another' : 'profile.choose_photo')}
-                      variant="outline"
-                      disabled={busy}
-                      onPress={chooseAvatar}
-                    />
-                    <View className="flex-row gap-3">
-                      {draft ? (
-                        <>
-                          <View className="flex-1">
-                            <Button
-                              label={t('common.cancel')}
-                              variant="outline"
-                              disabled={busy}
-                              onPress={closeEditor}
-                            />
-                          </View>
-                          <View className="flex-1">
-                            <Button
-                              label={t('profile.save_photo')}
-                              loading={busy}
-                              disabled={busy}
-                              onPress={saveAvatar}
-                            />
-                          </View>
-                        </>
-                      ) : (
-                        <>
-                          <Button
-                            label={t('profile.done')}
-                            variant="ghost"
-                            disabled={busy}
-                            onPress={closeEditor}
-                            className="flex-1"
-                          />
-                          {user?.avatar_url ? (
-                            <Button
-                              label={t('profile.remove_photo')}
-                              variant="ghost"
-                              disabled={busy}
-                              onPress={() =>
-                                setConfirmation({
-                                  title: 'profile.remove_title',
-                                  description: 'profile.remove_help',
-                                  label: 'profile.remove_photo',
-                                  cancelLabel: 'common.cancel',
-                                  proceed: () => {
-                                    void removeAvatar();
-                                  },
-                                })
-                              }
-                              className="flex-1"
-                            />
-                          ) : null}
-                        </>
-                      )}
-                    </View>
-                  </>
-                ) : null}
-              </View>
-            ) : null}
             {twoColumns && saveProgress}
           </View>
           <View
@@ -635,7 +415,7 @@ function ProfileContent() {
                         variant="ghost"
                         size="sm"
                         disabled={busy}
-                        onPress={() => beginEdit('bio')}
+                        onPress={beginEdit}
                       />
                     ) : null}
                   </View>
@@ -697,7 +477,7 @@ function ProfileContent() {
                       {user?.bio || t('profile.bio_help')}
                     </PidroText>
                   )}
-                  {feedbackFor === 'bio' && status && (
+                  {status && (
                     <PidroText role="metadata" tone="cyan" accessibilityLiveRegion="polite">
                       {t(status)}
                     </PidroText>
@@ -780,7 +560,8 @@ function ProfileContent() {
       <BadgeSheet
         isOpen={badgesOpen}
         onClose={() => setBadgesOpen(false)}
-        uri={draftUri ?? user?.avatar_url}
+        uri={user?.avatar_url}
+        fixture={photoFixture}
         level={veteran?.level}
         classic={classic}
         pin={pin}
@@ -799,6 +580,7 @@ const styles = StyleSheet.create({
     borderRadius: PidroRadii.full,
     marginBottom: PidroSpacing.sm,
   },
+  camera: { position: 'absolute', left: 0, bottom: PidroSpacing.md },
   name: {
     fontFamily: PidroFonts.display,
     fontWeight: '400',

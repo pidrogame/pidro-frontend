@@ -61,6 +61,8 @@ export interface PlayerAvatarProps {
    * `attention` is for your own turn: the light pings once and then breathes.
    */
   turn?: { progress: number; urgent?: boolean; attention?: boolean } | null;
+  /** Upload percentage, 0–100. Dims the pending photo without table-turn signals. */
+  photoProgress?: number | null;
   away?: AvatarAway | null;
   kind?: AvatarKind;
   /** A bot with a persona wears its face, with the robot badge on top. */
@@ -98,6 +100,7 @@ export function PlayerAvatar({
   dealer = false,
   dealerSide = 'left',
   turn = null,
+  photoProgress = null,
   away = null,
   kind = 'player',
   persona = null,
@@ -154,7 +157,7 @@ export function PlayerAvatar({
               height: size,
               borderRadius: size / 2,
               padding: parts.ring,
-              opacity: away ? AWAY_OPACITY : 1,
+              opacity: away || photoProgress != null ? AWAY_OPACITY : 1,
             },
           ]}>
           <View
@@ -191,6 +194,9 @@ export function PlayerAvatar({
 
       {turn?.attention && arc ? <TurnPing size={size} arc={arc} urgent={turn.urgent} /> : null}
       {turn && arc ? <TurnArc size={size} arc={arc} turn={turn} /> : null}
+      {photoProgress != null && parts.turn ? (
+        <TurnArc size={size} arc={parts.turn} turn={{ progress: photoProgress / 100 }} />
+      ) : null}
 
       {ring === 'lifetime' && gold && parts.gem ? (
         <View
@@ -209,6 +215,7 @@ export function PlayerAvatar({
 
       {pin && seated && parts.pin ? (
         <Coin
+          testID={testID ? `${testID}-pin` : undefined}
           material={pin === 'classic' ? 'wood' : 'glass'}
           size={parts.pin.size}
           rim={parts.pin.rim}
@@ -224,6 +231,7 @@ export function PlayerAvatar({
       {chip ? (
         <View pointerEvents="none" style={[styles.levelRow, { bottom: chip.bottom }]}>
           <View
+            testID={testID ? `${testID}-level` : undefined}
             style={[
               styles.level,
               {
@@ -592,16 +600,19 @@ export function Coin({
   rim,
   style,
   children,
+  testID,
 }: {
   material: 'wood' | 'glass';
   size: number;
   rim: number;
   style: ViewStyle;
   children: ReactNode;
+  testID?: string;
 }) {
   const wood = material === 'wood';
   return (
     <View
+      testID={testID}
       pointerEvents="none"
       style={[
         styles.coin,

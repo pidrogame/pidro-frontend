@@ -329,7 +329,38 @@ const allCases = [
     path: '/profile',
     testId: 'badge-sheet',
     authenticated: true,
+    open: 'Your photo and ring',
+  },
+  // PID-297: the profile camera and every held photo-sheet state, with Classic pins.
+  ...['en', 'sv'].flatMap((locale) =>
+    (locale === 'en'
+      ? ['profile', 'empty', 'present', 'uploading', 'saved', 'error', 'remove']
+      : ['present', 'error']
+    ).map((state) => ({
+      name: `photo-${state}-${locale}`,
+      path: `/profile?fixture=photo-${state}`,
+      testId: state === 'profile' ? 'profile-screen' : 'badge-sheet',
+      authenticated: true,
+      locale,
+      photo: state,
+    }))
+  ),
+  {
+    name: 'photo-profile-guest',
+    path: '/profile',
+    testId: 'profile-screen',
+    authenticated: true,
+    authFixture: guestAuthFixture,
+    photo: 'profile',
+  },
+  {
+    name: 'photo-sheet-guest',
+    path: '/profile',
+    testId: 'badge-sheet',
+    authenticated: true,
+    authFixture: guestAuthFixture,
     open: 'Your badges',
+    photo: 'guest',
   },
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
   // PID-295: Marcel's welcome and Settings → Send feedback, in both languages.
@@ -1569,6 +1600,227 @@ async function assertGameOver(page, testCase, viewport) {
       { x: text.x, y: text.y, width: text.r - text.x, height: text.b - text.y },
       viewport
     );
+  }
+}
+
+// PID-297: photo fixtures hold their state; these checks never invoke a real picker/upload.
+async function assertPhotoSheet(page, testCase, viewport) {
+  if (!testCase.photo) return;
+  const { name, photo } = testCase;
+  const guest = testCase.authFixture === guestAuthFixture;
+  const sv = testCase.locale === 'sv';
+  const camera = page.getByTestId('profile-camera-badge');
+  if (guest) assert.equal(await camera.count(), 0, `${name}: guests have no camera badge`);
+  if (photo === 'profile') {
+    if (guest) return;
+    const avatar = await getStableBox(page.getByTestId('profile-avatar-button'), page);
+    const badge = await getStableBox(camera, page);
+    assert.ok(avatar.width >= 44 && avatar.height >= 44, `${name}: avatar is a 44pt target`);
+    assertInsideViewport(`${name} avatar`, avatar, viewport);
+    assert.ok(
+      badge.x >= avatar.x - 1 &&
+        badge.y >= avatar.y - 1 &&
+        badge.x + badge.width <= avatar.x + avatar.width + 1 &&
+        badge.y + badge.height <= avatar.y + avatar.height + 1,
+      `${name}: camera stays within avatar`
+    );
+    assert.ok(
+      badge.x + badge.width / 2 < avatar.x + avatar.width / 2 &&
+        badge.y + badge.height / 2 > avatar.y + avatar.height / 2,
+      `${name}: camera occupies the bottom-left quadrant`
+    );
+    const ornaments = page
+      .getByTestId('profile-avatar-button')
+      .locator('[data-testid*="pin"], [data-testid*="level"]');
+    assert.equal(await ornaments.count(), 2, `${name}: Classic pin and level are measured`);
+    for (const ornament of await ornaments.all()) {
+      const box = await visibleBox(page, ornament);
+      if (box) assert.ok(!boxesOverlap(badge, box), `${name}: camera overlaps pin/level`);
+    }
+    return;
+  }
+
+  const sheet = page.getByTestId('badge-sheet');
+  await sheet
+    .getByText(guest ? 'Your badges' : sv ? 'Din bild och ring' : 'Your photo and ring', {
+      exact: true,
+    })
+    .waitFor();
+  await sheet.getByTestId('badge-options').waitFor();
+  await sheet.getByTestId('badge-done').waitFor();
+  if (guest) {
+    for (const id of [
+      'photo-actions',
+      'photo-change',
+      'photo-remove',
+      'photo-retry',
+      'photo-confirm',
+      'photo-cancel',
+      'photo-progress',
+    ])
+      assert.equal(await sheet.getByTestId(id).count(), 0, `${name}: no ${id} for guests`);
+  } else {
+    await sheet.getByTestId('photo-preview').waitFor();
+    await sheet.getByTestId('photo-actions').waitFor();
+    const primaryId = photo === 'remove' ? 'photo-confirm' : 'photo-change';
+    await sheet.getByTestId(primaryId).waitFor();
+    assert.equal(
+      await sheet.getByTestId(photo === 'remove' ? 'photo-change' : 'photo-confirm').count(),
+      0,
+      `${name}: removal confirmation replaces, not adds to, the primary action`
+    );
+    if (['empty', 'present', 'saved'].includes(photo)) {
+      const label =
+        photo === 'empty'
+          ? sv
+            ? 'Lägg till bild'
+            : 'Add photo'
+          : sv
+            ? 'Byt bild'
+            : 'Change photo';
+      await sheet.getByTestId(primaryId).getByText(label, { exact: true }).waitFor();
+    }
+    if (['present', 'saved'].includes(photo)) {
+      await sheet
+        .getByTestId('photo-remove')
+        .getByText(sv ? 'Ta bort bilden' : 'Remove photo', { exact: true })
+        .waitFor();
+    }
+    if (photo === 'empty')
+      assert.equal(await sheet.getByTestId('photo-remove').count(), 0, `${name}: no empty removal`);
+    if (photo === 'saved') {
+      await sheet
+        .getByTestId('photo-feedback')
+        .getByText(sv ? 'Bilden är sparad' : 'Photo saved', { exact: true })
+        .waitFor();
+    }
+    if (photo === 'error') {
+      await sheet.getByTestId('photo-feedback').waitFor();
+      assert.ok(
+        (await sheet.getByTestId('photo-feedback').innerText()).trim(),
+        `${name}: error copy`
+      );
+      await sheet
+        .getByTestId('photo-retry')
+        .getByText(sv ? 'Försök igen' : 'Try again', { exact: true })
+        .waitFor();
+    }
+    if (photo === 'remove') {
+      await sheet
+        .getByTestId('photo-confirm')
+        .getByText(sv ? 'Ta bort bilden' : 'Remove photo', { exact: true })
+        .waitFor();
+      await sheet.getByTestId('photo-cancel').waitFor();
+    }
+    if (photo === 'uploading') {
+      const progress = sheet.getByTestId('photo-progress');
+      await progress.waitFor();
+      assert.equal(await progress.getAttribute('role'), 'progressbar');
+      assert.ok(await progress.getAttribute('aria-label'), `${name}: progress is labelled`);
+      assert.equal(await sheet.getByTestId('photo-change').getAttribute('aria-disabled'), 'true');
+    }
+    const wood = await sheet.evaluate((root) =>
+      [...root.querySelectorAll('[role="button"], [role="link"]')]
+        .filter(
+          (el) =>
+            el.getAttribute('data-material') === 'wood' ||
+            (el.firstElementChild &&
+              getComputedStyle(el.firstElementChild).backgroundColor === 'rgb(42, 21, 5)')
+        )
+        .map((el) => el.getAttribute('data-testid'))
+    );
+    assert.deepEqual(wood, [primaryId], `${name}: exactly one wood action`);
+    for (const id of ['photo-remove', 'photo-retry', 'photo-cancel', 'badge-done']) {
+      const link = sheet.getByTestId(id);
+      if (!(await link.count())) continue;
+      assert.equal(await link.getAttribute('role'), 'link', `${name}: ${id} is a link`);
+      if (id === 'photo-remove' || id === 'photo-retry') {
+        const cyan = await link.evaluate((el) =>
+          [el, ...el.querySelectorAll('[dir="auto"]')].some(
+            (text) => getComputedStyle(text).color === 'rgb(139, 234, 255)'
+          )
+        );
+        assert.ok(cyan, `${name}: ${id} uses cyan link copy`);
+      }
+    }
+  }
+
+  // Disabled controls still need a full touch-sized slot; radio rows too.
+  for (const control of await sheet
+    .locator('[role="button"], [role="link"], [role="radio"]')
+    .all()) {
+    const box = await visibleBox(page, control);
+    if (!box) continue;
+    assert.ok(
+      box.width >= 44 && box.height >= 44,
+      `${name}: 44pt target ${await control.innerText()}`
+    );
+  }
+  const layout = await sheet.evaluate((root) => {
+    const sectionSelector = [
+      '[data-testid="photo-preview"]',
+      '[data-testid="photo-feedback"]',
+      '[data-testid="photo-actions"]',
+      '[data-testid="badge-options"]',
+      '[data-testid="badge-done"]',
+      '[role="heading"]',
+    ].join(', ');
+    const box = (el) => {
+      const { x, y, width, height } = el.getBoundingClientRect();
+      return {
+        x,
+        y,
+        width,
+        height,
+        label: el.getAttribute('data-testid') ?? el.textContent.trim(),
+      };
+    };
+    const visible = (el) => {
+      const rect = el.getBoundingClientRect();
+      return rect.width && rect.height && getComputedStyle(el).visibility !== 'hidden';
+    };
+    return {
+      overflow: [root, ...root.querySelectorAll('*')]
+        .filter(visible)
+        .filter((el) => {
+          const style = getComputedStyle(el);
+          return (
+            (['auto', 'scroll'].includes(style.overflowY) &&
+              el.scrollHeight > el.clientHeight + 2) ||
+            (['auto', 'scroll'].includes(style.overflowX) && el.scrollWidth > el.clientWidth + 2) ||
+            (el.matches('[dir="auto"]') &&
+              (el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2))
+          );
+        })
+        .map((el) => el.getAttribute('data-testid') ?? el.textContent.trim()),
+      sections: [...root.querySelectorAll(sectionSelector)]
+        .filter(visible)
+        .filter((el) => !el.parentElement.closest(sectionSelector))
+        .map(box),
+      content: [
+        ...root.querySelectorAll(
+          `${sectionSelector}, [dir="auto"], [role="button"], [role="link"], [role="radio"], [role="progressbar"]`
+        ),
+      ]
+        .filter(visible)
+        .map(box),
+    };
+  });
+  assert.deepEqual(layout.overflow, [], `${name}: no clipping or scrolling in ${viewport.name}`);
+  const bounds = await getStableBox(sheet, page);
+  for (const box of layout.content) {
+    assertInsideViewport(`${name} ${box.label}`, box, viewport);
+    assert.ok(
+      box.x >= bounds.x - 1 &&
+        box.y >= bounds.y - 1 &&
+        box.x + box.width <= bounds.x + bounds.width + 1 &&
+        box.y + box.height <= bounds.y + bounds.height + 1,
+      `${name}: ${box.label} stays inside sheet`
+    );
+  }
+  for (const [index, a] of layout.sections.entries()) {
+    for (const b of layout.sections.slice(index + 1))
+      assert.ok(!boxesOverlap(a, b), `${name}: ${a.label} overlaps ${b.label}`);
   }
 }
 
@@ -3457,7 +3709,12 @@ async function assertHomeGuestInteractions(page, name) {
 async function assertAccountButtonsStayPut(page, name, answerProfile) {
   if (name === 'profile' || name === 'profile-guest') {
     const row = page.getByRole('button', { name: 'Account and sign-in', exact: true });
-    await page.getByRole('button', { name: 'Your badges', exact: true }).waitFor();
+    await page
+      .getByRole('button', {
+        name: name === 'profile-guest' ? 'Your badges' : 'Your photo and ring',
+        exact: true,
+      })
+      .waitFor();
     await page.waitForTimeout(150);
     assert.equal(await row.count(), 0, `${name}: the account row showed before the profile`);
     answerProfile();
@@ -4819,7 +5076,8 @@ async function main() {
           testCase.homeProfile ||
           testCase.details ||
           testCase.scores ||
-          testCase.botVoice
+          testCase.botVoice ||
+          testCase.photo
         )
           return ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(
             viewport.name
@@ -4918,13 +5176,19 @@ async function main() {
             : viewport;
         await page.setViewportSize({ width: caseViewport.width, height: caseViewport.height });
         await page.addInitScript(
-          ({ ageGate, authenticated, fixture, pendingInvite, welcomeSeen }) => {
+          ({ ageGate, authenticated, fixture, pendingInvite, welcomeSeen, photoLocale }) => {
             globalThis.localStorage.setItem('age-gate-storage', ageGate);
             // Marcel's welcome covers every screen until it is seen; only its own cases want it.
             if (welcomeSeen) globalThis.localStorage.setItem('news-seen:welcome', '1');
             else globalThis.localStorage.removeItem('news-seen:welcome');
             if (!globalThis.sessionStorage.getItem('ui-settings-initialized')) {
               globalThis.localStorage.removeItem('settings-storage');
+              // /profile is a real route: use its saved preference, not a locale query.
+              if (photoLocale)
+                globalThis.localStorage.setItem(
+                  'settings-storage',
+                  JSON.stringify({ state: { language: photoLocale }, version: 0 })
+                );
               globalThis.sessionStorage.setItem('ui-settings-initialized', 'true');
             }
             if (authenticated) globalThis.localStorage.setItem('auth-storage', fixture);
@@ -4949,6 +5213,7 @@ async function main() {
             fixture: testCase.authFixture ?? authFixture,
             pendingInvite: testCase.pendingInvite === true,
             welcomeSeen: !testCase.welcomeUnseen,
+            photoLocale: testCase.photo ? (testCase.locale ?? 'en') : null,
           }
         );
         if (testCase.pendingInvite) {
@@ -5039,6 +5304,7 @@ async function main() {
             'league',
           ].includes(testCase.name) ||
           testCase.homeProfile ||
+          testCase.photo ||
           testCase.name.startsWith('edge-home-') ||
           testCase.name.startsWith('edge-profile-')
         ) {
@@ -5369,6 +5635,7 @@ async function main() {
           }
           await assertFirstLaunchScreens(page, testCase, caseViewport);
           await assertFeedbackRow(page, testCase, caseViewport);
+          await assertPhotoSheet(page, testCase, caseViewport);
           await waitForScreenshotReady(page);
           if (testCase.name.startsWith('edge-') || testCase.testId === 'game-loading-screen') {
             const background = await page.evaluate(() =>

@@ -22,7 +22,11 @@ export function useProfileIdentity() {
         ...currentUser,
         username: identity.username,
         display_name: identity.display_name,
-        avatar_url: identity.avatar_url,
+        // An upload/removal completed while this older profile read was in flight.
+        avatar_url:
+          currentUser.avatar_url === before.user.avatar_url
+            ? identity.avatar_url
+            : currentUser.avatar_url,
         bio: identity.bio,
       },
     });
