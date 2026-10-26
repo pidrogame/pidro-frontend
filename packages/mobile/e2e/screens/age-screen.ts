@@ -15,6 +15,8 @@ export class AgeScreen extends Screen {
   }
 
   get chosen() {
-    return this.root.getByRole('radio', { checked: true });
+    return this.root
+      .getByRole('radiogroup', { name: 'Age range' })
+      .getByRole('radio', { checked: true });
   }
 }
