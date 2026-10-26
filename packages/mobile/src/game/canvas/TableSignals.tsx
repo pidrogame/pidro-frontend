@@ -1,6 +1,6 @@
 /**
  * What just happened at the table, in the server's words: a "+N" where a
- * trick was taken, gold when ours and coral when theirs (a trick holding a
+ * trick was taken, in the colour of the team that took it (a trick holding a
  * five is a "Pidro!"). The server decides who wins and what anything is worth;
  * this only shows it. Only what matters gets fanfare: a trick worth nothing
  * passes quietly. How a hand scored is `HandResult`.
@@ -197,19 +197,22 @@ function TrickPop({
   );
 }
 
-/** Whose points they were, in their colour: a "+N" and the chip under a "Pidro!". */
+/**
+ * Whose points they were, in their team's colour: a "+N" and the chip under a
+ * "Pidro!". Our "Pidro!" itself stays gold: that is good news, not a team.
+ */
 const POINTS_TONE = {
   ours: {
-    text: PidroColors.goldLight,
-    border: PidroColors.gold,
-    glow: PidroColors.gold,
-    edge: PidroColors.goldSoft,
+    text: PidroColors.teamUs,
+    border: PidroColors.teamUs,
+    glow: PidroColors.teamUsSoft,
+    edge: PidroColors.teamUsSoft,
   },
   theirs: {
-    text: PidroColors.theirPidro,
-    border: PidroColors.theirPidro,
-    glow: PidroColors.theirPidroSoft,
-    edge: PidroColors.theirPidroSoft,
+    text: PidroColors.teamThem,
+    border: PidroColors.teamThem,
+    glow: PidroColors.teamThemSoft,
+    edge: PidroColors.teamThemSoft,
   },
   neutral: {
     text: PidroColors.cyanText,
@@ -267,10 +270,7 @@ function Pop({
         testID={`trick-pop-${side}`}
         style={[styles.pop, { left: x - box / 2, top: y - height / 2, width: box }, motion]}>
         <View style={[styles.popChip, { borderColor: tone.edge }]}>
-          <PidroText
-            role="label"
-            tone="gold"
-            style={[styles.popText, side === 'ours' ? null : { color: tone.text }]}>
+          <PidroText role="label" style={[styles.popText, { color: tone.text }]}>
             {label}
           </PidroText>
         </View>

@@ -195,7 +195,7 @@ function TickerLine({
     opacity.value = withTiming(fading ? 0 : 1, { duration: fading ? FADE_MS : 160 });
   }, [fading, opacity, still]);
   const motion = useAnimatedStyle(() => ({ opacity: opacity.value }));
-  const tone = ours ? 'gold' : 'soft';
+  const ink = ours ? styles.ours : null;
   return (
     <Animated.View
       testID={testID}
@@ -209,8 +209,8 @@ function TickerLine({
       {who ? (
         <PidroText
           role="metadata"
-          tone={tone}
-          style={[styles.text, styles.who]}
+          tone="soft"
+          style={[styles.text, styles.who, ink]}
           numberOfLines={1}
           maxFontSizeMultiplier={MAX_FONT_SCALE}>
           {who}
@@ -218,8 +218,8 @@ function TickerLine({
       ) : null}
       <PidroText
         role="metadata"
-        tone={tone}
-        style={[styles.text, styles.what]}
+        tone="soft"
+        style={[styles.text, styles.what, ink]}
         numberOfLines={1}
         maxFontSizeMultiplier={MAX_FONT_SCALE}>
         {what}
@@ -251,7 +251,8 @@ const styles = StyleSheet.create({
   // The bid line: a name that leaves no room for the bid moves to its own row.
   // Half a single row's height, so one row still reads as a pill.
   pillWraps: { flexWrap: 'wrap', borderRadius: PidroRadii.panel },
-  pillOurs: { borderColor: PidroColors.goldSoft },
+  pillOurs: { borderColor: PidroColors.teamUsSoft },
+  ours: { color: PidroColors.teamUs },
   text: { fontWeight: '800' },
   // The name gives way first, never all the way: "We" or the start of a
   // name stays. The card, amount or points always show.

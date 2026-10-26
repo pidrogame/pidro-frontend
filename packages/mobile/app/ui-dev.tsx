@@ -302,7 +302,7 @@ const SEAT_STATES: (Omit<PlayerAvatarProps, 'size'> & { caption: string })[] = [
     name: 'Nora',
     level: 31,
     ring: 'lifetime',
-    nameTone: 'partner',
+    nameTone: 'us',
     status: 'Bid 9',
   },
   { caption: 'Passed', name: 'Kalle', level: 18, status: 'Passed', statusTone: 'quiet' },
@@ -311,7 +311,7 @@ const SEAT_STATES: (Omit<PlayerAvatarProps, 'size'> & { caption: string })[] = [
     name: 'Nora',
     level: 31,
     ring: 'lifetime',
-    nameTone: 'partner',
+    nameTone: 'us',
     turn: { progress: 0.56 },
     status: 'Choosing trump…',
     statusTone: 'now',
@@ -346,7 +346,7 @@ const SEAT_STATES: (Omit<PlayerAvatarProps, 'size'> & { caption: string })[] = [
     name: 'Nora',
     level: 31,
     ring: 'lifetime',
-    nameTone: 'partner',
+    nameTone: 'us',
     status: 'Won the trick',
   },
   {
@@ -497,7 +497,7 @@ function AvatarGallery() {
           size={56}
           level={18}
           label="left"
-          nameTone="you"
+          nameTone="us"
           name="Left"
           status="East in landscape"
         />

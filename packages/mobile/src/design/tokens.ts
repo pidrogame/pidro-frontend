@@ -55,22 +55,23 @@ export const PidroColors = {
   // Trick signals: the "on the table" chip and the shadow under a "+N" pop.
   trickChipBg: 'rgba(10, 35, 64, 0.72)',
   popShadow: 'rgba(0, 0, 0, 0.6)',
-  // Their Pidro (PID-230): coral, so the other side's five never reads as ours.
-  theirPidro: '#ffb4b9',
-  theirPidroSoft: 'rgba(255, 180, 185, 0.32)',
-  // Teams at the table: a soft light under each seat, green for you and your
-  // partner, coral for the other two, so the table reads two against two.
-  teamUsGlow: 'rgba(146, 230, 178, 0.55)',
-  teamThemGlow: 'rgba(255, 180, 185, 0.5)',
+  // The two teams, wherever a team is named (PID-294): periwinkle for you and
+  // your partner, pink for the other two. Not green: mint and pink read as one
+  // colour under deuteranopia (CIELAB 3 apart), this pair stays 32 to 46 apart
+  // under deuteranopia, protanopia and tritanopia. At the table gold means a
+  // supporter and cyan the turn light, so neither marks a team; mint means success.
+  teamUs: '#b8c6ff',
+  teamUsSoft: 'rgba(184, 198, 255, 0.32)',
+  teamThem: '#ffb4b9',
+  teamThemSoft: 'rgba(255, 180, 185, 0.32)',
+  teamThemInk: '#3a1520',
   // The end of a hand (PID-236): the table dims under one panel, each team's
-  // point cards in its own tray, gold edge ours and quiet glass theirs.
+  // point cards in its own tray, our edge in our colour and quiet glass theirs.
   handScrim: 'rgba(2, 14, 28, 0.62)',
   trayOurs: 'rgba(10, 35, 64, 0.9)',
-  trayOursEdge: 'rgba(226, 175, 69, 0.8)',
   trayTheirs: 'rgba(7, 45, 82, 0.82)',
   trayTheirsEdge: 'rgba(213, 239, 252, 0.38)',
   handAll14Glow: '0px 0px 18px rgba(255, 212, 71, 0.28)',
-  theirPidroInk: '#3a1520',
   theirScore: '#ffd9dc',
   scoreDownBg: 'rgba(255, 180, 185, 0.18)',
   scoreDownEdge: 'rgba(255, 180, 185, 0.6)',
@@ -219,10 +220,7 @@ export const PidroGameOver = {
   sheenGradient:
     'linear-gradient(100deg, rgba(255,255,255,0) 0%, rgba(255,250,220,0.85) 45%, rgba(255,215,120,0.5) 55%, rgba(255,255,255,0) 100%)',
   pidroInk: '#8F5E12',
-  ours: '#FFD447',
-  theirs: '#ffb4b9',
   theirsScore: '#ffd9dc',
-  oursLabel: '#92e6b2',
   target: '#E2AF45',
   markerFill: '#ffffff',
   markerEdge: '#0A2340',

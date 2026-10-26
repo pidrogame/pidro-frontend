@@ -1,5 +1,7 @@
 /**
  * Mounted navy-and-brass score plaque. Tap for the server's full hand history.
+ * Its labels are the key to the names at the table: US (N/S for a spectator)
+ * in our team's colour, THEM (E/W) in theirs.
  * Under it in portrait, beside it in landscape where the West seat sits below,
  * the action ticker: the latest table actions, resting on who holds the bid as
  * Classic's "Bet 6" did. Tap the ticker for the hand's log. With count help
@@ -51,13 +53,13 @@ const GLOW_IN_MS = 180;
 const GLOW_HOLD_MS = 1100;
 const GLOW_OUT_MS = 700;
 const GLOW_TINT = {
-  ours: PidroColors.goldSoft,
-  theirs: PidroColors.theirPidroSoft,
+  ours: PidroColors.teamUsSoft,
+  theirs: PidroColors.teamThemSoft,
   neutral: PidroColors.cyanSoft,
 } as const;
 const GLOW_EDGE = {
-  ours: PidroColors.gold,
-  theirs: PidroColors.theirPidro,
+  ours: PidroColors.teamUs,
+  theirs: PidroColors.teamThem,
   neutral: PidroColors.cyanBorderStrong,
 } as const;
 
@@ -107,12 +109,7 @@ function ScoreDelta({ value, side }: { value: number; side: PointsSide }) {
   if (shown == null || value === 0) return null;
   const tone = value < 0 ? 'down' : side;
   return (
-    <View
-      testID={`score-delta-${side}`}
-      style={[
-        styles.delta,
-        tone === 'ours' ? gradientBg(PidroBevel.goldRimGradient) : DELTA_TONE[tone].face,
-      ]}>
+    <View testID={`score-delta-${side}`} style={[styles.delta, DELTA_TONE[tone].face]}>
       <PidroText
         role="metadata"
         style={[styles.deltaText, { color: DELTA_TONE[tone].ink }]}
@@ -124,8 +121,8 @@ function ScoreDelta({ value, side }: { value: number; side: PointsSide }) {
 }
 
 const DELTA_TONE = {
-  ours: { face: null, ink: PidroBevel.keyline },
-  theirs: { face: { backgroundColor: PidroColors.theirPidro }, ink: PidroColors.theirPidroInk },
+  ours: { face: { backgroundColor: PidroColors.teamUs }, ink: PidroColors.ink },
+  theirs: { face: { backgroundColor: PidroColors.teamThem }, ink: PidroColors.teamThemInk },
   neutral: {
     face: {
       backgroundColor: PidroColors.trickChipBg,
@@ -244,7 +241,10 @@ export function Scoreboard({
         <View style={styles.plaqueRow}>
           <View style={styles.col}>
             {glowLight('us')}
-            <PidroText role="metadata" tone="gold" style={styles.label} maxFontSizeMultiplier={1}>
+            <PidroText
+              role="metadata"
+              style={[styles.label, { color: PidroColors.teamUs }]}
+              maxFontSizeMultiplier={1}>
               {usLabel}
             </PidroText>
             <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
@@ -255,7 +255,10 @@ export function Scoreboard({
           <View style={styles.divider} />
           <View style={styles.col}>
             {glowLight('them')}
-            <PidroText role="metadata" tone="gold" style={styles.label} maxFontSizeMultiplier={1}>
+            <PidroText
+              role="metadata"
+              style={[styles.label, { color: PidroColors.teamThem }]}
+              maxFontSizeMultiplier={1}>
               {themLabel}
             </PidroText>
             <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>

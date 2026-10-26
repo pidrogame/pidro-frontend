@@ -69,8 +69,10 @@ export function HandLogWindow({
                     key={entry.id}
                     testID={`hand-log-entry-${entry.id}`}
                     role={entry.kind === 'result' || entry.kind === 'trick' ? 'label' : 'body'}
-                    tone={entry.ours ? 'gold' : 'default'}
-                    style={entry.kind === 'result' ? styles.result : null}>
+                    style={[
+                      entry.kind === 'result' ? styles.result : null,
+                      entry.ours ? styles.ours : null,
+                    ]}>
                     {presentHandLogEntry(entry).text}
                   </PidroText>
                 ))}
@@ -94,4 +96,5 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   result: { fontWeight: '800' },
+  ours: { color: PidroColors.teamUs },
 });

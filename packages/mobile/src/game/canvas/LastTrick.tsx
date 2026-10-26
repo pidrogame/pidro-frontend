@@ -70,7 +70,7 @@ export function LastTrick({ trick, yourTurn }: { trick: LastTrickView; yourTurn:
           ))}
         </View>
         {trick.lines.map((line) => (
-          <PidroText key={line.id} role="label" tone={line.ours ? 'gold' : 'default'}>
+          <PidroText key={line.id} role="label" style={line.ours ? styles.ours : null}>
             {presentHandLogEntry(line).text}
           </PidroText>
         ))}
@@ -109,4 +109,5 @@ const styles = StyleSheet.create({
   },
   took: { borderWidth: 2, borderColor: PidroColors.gold },
   name: { alignSelf: 'stretch' },
+  ours: { color: PidroColors.teamUs },
 });

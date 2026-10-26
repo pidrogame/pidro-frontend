@@ -36,10 +36,11 @@ import { useBotProfile } from '@/features/bots';
  * A player, drawn the same way everywhere: the photo in a ring, with up to
  * five signals around it. The ring says whether they pay (glass, gold, or
  * gold with a gem for lifetime), the pin where they come from, the chip their
- * all-time level. At the table the turn light runs down as their timer, and
- * the dealer chip sits beside the name (on the avatar only when there is no
- * name). Smaller sizes drop parts, never the ring (`avatarParts`). Read-only:
- * wrap it in a pressable to make it tappable.
+ * all-time level. At the table the turn light runs down as their timer, the
+ * only light there; the name's colour says the team, and the dealer chip sits
+ * beside the name (on the avatar only when there is no name). Smaller sizes
+ * drop parts, never the ring (`avatarParts`). Read-only: wrap it in a
+ * pressable to make it tappable.
  */
 export type AvatarRing = 'glass' | 'gold' | 'lifetime';
 
@@ -75,9 +76,8 @@ export interface PlayerAvatarProps {
    */
   pulse?: string | null;
   label?: 'below' | 'right' | 'left';
-  nameTone?: 'default' | 'you' | 'partner' | 'opponent';
-  /** At the table: a soft light under the seat in its team's colour (`us`: you and your partner). */
-  team?: 'us' | 'them' | null;
+  /** At the table the name says the team: `us` is you and your partner. */
+  nameTone?: 'default' | 'us' | 'them';
   statusTone?: 'default' | 'now' | 'quiet' | 'high' | 'warning' | 'danger';
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
@@ -108,7 +108,6 @@ export function PlayerAvatar({
   pulse = null,
   label = 'below',
   nameTone = 'default',
-  team = null,
   statusTone = 'default',
   accessibilityLabel,
   style,
@@ -140,7 +139,6 @@ export function PlayerAvatar({
 
   const avatar = (
     <View style={{ width: size, height: size }}>
-      {team && seated ? <TeamLight size={size} team={team} /> : null}
       <ActedLight size={size} acted={acted} />
       {turn && arc ? (
         <TurnLight size={size} arc={arc} urgent={turn.urgent} attention={turn.attention} />
@@ -348,33 +346,9 @@ export function PlayerAvatar({
 
 const NAME_TONES = {
   default: PidroColors.text,
-  you: PidroColors.cyanText,
-  partner: PidroColors.success,
-  opponent: PidroColors.theirPidro,
+  us: PidroColors.teamUs,
+  them: PidroColors.teamThem,
 } as const;
-
-/**
- * The team's light: a soft glow that sits mostly below the ring, like light
- * on the felt under the seat. It stays behind the turn light, which is brighter.
- */
-function TeamLight({ size, team }: { size: number; team: 'us' | 'them' }) {
-  const color = team === 'us' ? PidroColors.teamUsGlow : PidroColors.teamThemGlow;
-  return (
-    <View
-      pointerEvents="none"
-      style={{
-        position: 'absolute',
-        left: size * 0.08,
-        top: size * 0.3,
-        width: size * 0.84,
-        height: size * 0.84,
-        borderRadius: size,
-        backgroundColor: color,
-        boxShadow: `0px ${Math.round(size * 0.14)}px ${Math.round(size * 0.36)}px ${Math.round(size * 0.1)}px ${color}`,
-      }}
-    />
-  );
-}
 
 const STATUS_TONES = {
   default: PidroColors.cyanText,

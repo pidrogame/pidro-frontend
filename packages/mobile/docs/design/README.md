@@ -62,7 +62,7 @@ On the boards the gold ring means a paying supporter and the gem means lifetime.
 | Classic pin face (`#91541C → #4E2509`) | The wood face: `PidroBevel.woodFaceGradient` |
 | Gold text (`#FFD447`) | `PidroBevel.textGold` |
 | Cyan status text (`#8beaff`) | `PidroColors.cyanText` |
-| Partner's name (`#92e6b2`) | `PidroColors.success` (the table's `T.green`) |
+| Partner's name (`#92e6b2`) | Replaced (PID-294): your and your partner's names are `PidroColors.teamUs`, the others' `teamThem` |
 | Turn light (`#c9f7ff`, glow `rgba(139,234,255,…)`) | New token |
 | Last seconds of a turn (`#ffb86b`) and reconnecting (`#ffb4b9`) | `PidroColors.warning` and `PidroColors.danger`, or new tokens if those read wrong on the felt |
 | Bree Serif, Nunito | `PidroFonts` |

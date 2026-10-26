@@ -688,7 +688,20 @@ const allCases = [
     path: '/table-dev?phase=waiting-host&invite=true',
     testId: 'invite-window',
   },
-  { name: 'table-playing', path: '/table-dev?phase=playing', testId: 'seat-north' },
+  // PID-294: the turn light is the only light at the table; each name, and the
+  // score's labels, are in their team's colour. A spectator sees N/S as us.
+  {
+    name: 'table-playing',
+    path: '/table-dev?phase=playing',
+    testId: 'seat-north',
+    teams: 'player',
+  },
+  {
+    name: 'table-teams-spectator',
+    path: '/table-dev?phase=playing&role=spectator',
+    testId: 'seat-north',
+    teams: 'spectator',
+  },
   ...['right', 'left', 'middle'].map((position) => ({
     name: `table-play-${position}`,
     path: `/table-dev?fixture=play-motion&autoplay=false&play=${position}${position === 'left' ? '&reply=burst' : ''}`,
@@ -744,7 +757,7 @@ const allCases = [
     verifyPlayedCardPersistence: true,
   },
   // PID-219: a trick holding a five pops "Pidro!"; a hand ends with its result.
-  // PID-230: gold "Us +6" when ours, coral "Them +5 · Wynn" when theirs; every
+  // PID-230: "Us +6" in our colour, "Them +5 · Wynn" in theirs (PID-294); every
   // "+N" (the 2 of trump's too) in its team's colour, without the winning-card
   // glow that count help adds.
   {
@@ -3838,6 +3851,52 @@ async function assertBidLines(page, testCase, viewport) {
   }
 }
 
+const TEAM_US = 'rgb(184, 198, 255)';
+const TEAM_THEM = 'rgb(255, 180, 185)';
+
+// PID-294: no seat has a light of its team's colour (the old soft glow under
+// each seat), your and your partner's names share our colour, both opponents
+// theirs, and the score's labels are the key to it.
+async function assertTeams(page, testCase) {
+  if (!testCase.teams) return;
+  const seen = {};
+  for (const position of ['north', 'east', 'south', 'west']) {
+    const seat = page.getByTestId(`seat-${position}`).first();
+    const { names, lights } = await seat.evaluate((root) => {
+      const nodes = [...root.querySelectorAll('*')];
+      const team = /(146, 230, 178|255, 180, 185|184, 198, 255)/;
+      return {
+        names: nodes
+          .filter((n) => n.childElementCount === 0 && n.textContent.trim())
+          .map((n) => getComputedStyle(n))
+          .filter((style) => style.fontWeight === '800')
+          .map((style) => style.color),
+        lights: nodes
+          .map((n) => getComputedStyle(n))
+          .filter((style) => team.test(`${style.backgroundColor} ${style.boxShadow}`)).length,
+      };
+    });
+    assert.equal(lights, 0, `${testCase.name}: seat-${position} has a team light`);
+    assert.equal(names.length, 1, `${testCase.name}: seat-${position} has one name`);
+    seen[position] = names[0];
+  }
+  // You sit south; a spectator's south is N/S too. Both fixtures watch from the
+  // south, so this pins the N/S rule for a spectator, not an east/west viewer.
+  const expected = { north: TEAM_US, south: TEAM_US, east: TEAM_THEM, west: TEAM_THEM };
+  assert.deepEqual(seen, expected, `${testCase.name}: names in their team's colour`);
+  const labels = testCase.teams === 'spectator' ? ['N/S', 'E/W'] : ['US', 'THEM'];
+  const label = (text) =>
+    page
+      .getByText(text, { exact: true })
+      .first()
+      .evaluate((n) => getComputedStyle(n).color);
+  assert.deepEqual(
+    [await label(labels[0]), await label(labels[1])],
+    [TEAM_US, TEAM_THEM],
+    `${testCase.name}: the score's labels are the key to the names`
+  );
+}
+
 async function assertTableDetails(page, testCase, viewport) {
   if (!testCase.details) return;
   const chips = page.locator('[data-testid$="-bid"]');
@@ -3849,7 +3908,7 @@ async function assertTableDetails(page, testCase, viewport) {
   assert.equal(await chips.innerText(), testCase.detailsPhase === 'declaring' ? '8' : '7');
   assert.equal(
     await chips.evaluate((chip) => getComputedStyle(chip).borderTopColor),
-    ['north', 'south'].includes(testCase.details) ? 'rgb(225, 173, 58)' : 'rgb(255, 180, 185)',
+    ['north', 'south'].includes(testCase.details) ? TEAM_US : TEAM_THEM,
     'chip uses the bidding team tone'
   );
   assertInsideViewport('bid chip', await chips.boundingBox(), viewport);
@@ -5224,6 +5283,7 @@ async function main() {
           await assertAuthSheetKeepsTyping(page, testCase.name);
           await assertSwitchInteractions(page, testCase.name, screenshotDir);
           await assertTableDetails(page, testCase, caseViewport);
+          await assertTeams(page, testCase);
           await assertRowControls(page, testCase.name, screenshotDir);
           await assertFriendComponents(page, testCase.name, screenshotDir);
           await assertRuleInteractions(page, testCase, viewport, screenshotDir);

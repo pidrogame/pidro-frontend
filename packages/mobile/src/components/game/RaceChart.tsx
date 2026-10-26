@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Line, Polyline } from 'react-native-svg';
-import { PidroGameOver } from '@/design/tokens';
+import { PidroColors, PidroGameOver } from '@/design/tokens';
 
 /**
- * Both teams' totals after each hand as two lines, ours gold and theirs
- * coral, against the dashed winning line. `turn` marks the hand after which
+ * Both teams' totals after each hand as two lines in the teams' colours,
+ * against the dashed winning line. `turn` marks the hand after which
  * the winner never stopped leading. Lines only; the caller labels it.
  */
 export function RaceChart({
@@ -55,7 +55,7 @@ export function RaceChart({
           <Polyline
             points={line(them)}
             fill="none"
-            stroke={PidroGameOver.theirs}
+            stroke={PidroColors.teamThem}
             strokeWidth={2.5 * scale}
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -64,7 +64,7 @@ export function RaceChart({
           <Polyline
             points={line(us)}
             fill="none"
-            stroke={PidroGameOver.ours}
+            stroke={PidroColors.teamUs}
             strokeWidth={3.5 * scale}
             strokeLinejoin="round"
             strokeLinecap="round"
@@ -84,7 +84,7 @@ export function RaceChart({
               cx={x(last)}
               cy={y(oursWon ? us[last] : them[last])}
               r={6 * scale}
-              fill={oursWon ? PidroGameOver.ours : PidroGameOver.theirs}
+              fill={oursWon ? PidroColors.teamUs : PidroColors.teamThem}
               stroke={PidroGameOver.markerEdge}
               strokeWidth={2}
             />

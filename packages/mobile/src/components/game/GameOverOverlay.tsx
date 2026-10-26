@@ -233,13 +233,15 @@ export function GameOverOverlay({
   const ours: TeamKey = you ? teamOf(you) : (winningTeam ?? 'north_south');
   const theirs: TeamKey = ours === 'north_south' ? 'east_west' : 'north_south';
   const viewerWon = !spectator && winningTeam === ours;
+  // Whose side is in our colour: yours, or N/S for a spectator, as at the table.
+  const usTeam: TeamKey = spectator ? 'north_south' : ours;
   const history = serverState.hand_history ?? [];
   const [historyOpen, setHistoryOpen] = useState(false);
   const lastHand = serverState.last_hand ?? null;
   const ourBest = bestHand(history, ours);
   const best = !spectator && !viewerWon ? ourBest : null;
   // A loss opens on your best hand, so it links to every hand instead of charting them.
-  const race = history.length && !guest && !best ? raceLine(history, ours) : null;
+  const race = history.length && !guest && !best ? raceLine(history, usTeam) : null;
   const streak = spectator ? null : streakChip(progressionSummary?.partner);
   const xp = spectator ? null : xpChip(progressionSummary);
   const partner = viewModel.players.find(
@@ -261,6 +263,8 @@ export function GameOverOverlay({
   const secondLabel = spectator
     ? t(theirs === 'north_south' ? 'game.ns' : 'game.ew')
     : t('game.them');
+  const teamColor = (team: TeamKey) =>
+    team === usTeam ? PidroColors.teamUs : PidroColors.teamThem;
 
   const others: RematchSeatView[] = viewModel.players
     .filter((player) => !player.isYou)
@@ -416,7 +420,7 @@ export function GameOverOverlay({
           : rise(beat.score),
       ]}>
       <View style={styles.team}>
-        {scoreLabel(firstLabel, PidroGameOver.oursLabel)}
+        {scoreLabel(firstLabel, teamColor(ours))}
         <PidroText
           testID="result-score-first"
           style={[
@@ -429,10 +433,7 @@ export function GameOverOverlay({
         </PidroText>
       </View>
       <View style={[styles.team, styles.fixed, viewerWon && { paddingBottom: z(10) }]}>
-        {scoreLabel(
-          secondLabel,
-          viewerWon || spectator ? PidroColors.cyanText : PidroGameOver.theirs
-        )}
+        {scoreLabel(secondLabel, teamColor(theirs))}
         <PidroText
           testID="result-score-second"
           style={[

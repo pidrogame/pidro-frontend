@@ -33,6 +33,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { avatarLabel, avatarParts, textFits } from '@/features/avatar';
 import { seatLine, type SeatLine } from '@/features/game/seatLine';
+import { whosePoints } from '@/features/game/points';
 import {
   AVATAR_SIZE,
   compactNorth,
@@ -60,6 +61,7 @@ import {
   TIGHT_SOUTH_SLOT,
   type RelativePosition,
 } from './layout';
+import { viewerOf } from './HandResult';
 import { TABLE_HEADER } from './TableChrome';
 import type { TableSeat } from './tableModel';
 import {
@@ -84,7 +86,8 @@ function avatarFor(
   data: TableSeat,
   dealer: boolean,
   line: SeatLine | null,
-  turn: SeatTurn | undefined
+  turn: SeatTurn | undefined,
+  team: 'us' | 'them'
 ): Omit<PlayerAvatarProps, 'size'> {
   // Only a real bot has a persona, whatever status the room gave the seat first.
   const crew = data.seatStatus !== 'vacant' ? data.bot_persona : null;
@@ -116,9 +119,8 @@ function avatarFor(
     name: kind === 'open' ? null : data.username,
     status: line?.text ?? null,
     pulse: line?.pulse ?? null,
-    nameTone: data.isYou ? 'you' : data.isTeammate ? 'partner' : 'opponent',
-    // Two against two at a glance: you and your partner in green, the others coral.
-    team: kind === 'open' ? null : data.isYou || data.isTeammate ? 'us' : 'them',
+    // Two against two at a glance: the name is in its team's colour.
+    nameTone: team,
     statusTone:
       line?.tone === 'now' && onTurn && turn?.urgent
         ? 'warning'
@@ -162,6 +164,7 @@ export function SeatLayer({
 }: Props) {
   useTranslation();
   const out = REL.map((rel) => !!seats[rel]?.out);
+  const viewer = viewerOf(seats);
   const [previousOut, setPreviousOut] = useState(out);
   const [folding, setFolding] = useState<RelativePosition[]>([]);
   if (out.some((cold, i) => cold !== previousOut[i])) {
@@ -345,9 +348,12 @@ export function SeatLayer({
         const data = seats[rel];
         if (!data) return null;
         const line = quiet ? null : seatLine(data, statusByRel?.[rel]);
+        // A spectator sees North–South as the first team.
+        const team = whosePoints(data.absolutePosition, viewer).column;
+        const teamColor = team === 'us' ? PidroColors.teamUs : PidroColors.teamThem;
         const seat = quiet
-          ? { ...avatarFor(data, false, null, undefined), level: null, pin: null, turn: null }
-          : avatarFor(data, dealerRel === rel, line, turnByRel?.[rel]);
+          ? { ...avatarFor(data, false, null, undefined, team), level: null, pin: null, turn: null }
+          : avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team);
         const identity = (
           <PlayerAvatar
             testID={`seat-${rel}`}
@@ -399,19 +405,13 @@ export function SeatLayer({
                 style={[
                   styles.bid,
                   rel === 'east' ? { right: bidInset } : { left: bidInset },
-                  {
-                    borderColor:
-                      data.isYou || data.isTeammate ? PidroColors.gold : PidroColors.theirPidro,
-                  },
+                  { borderColor: teamColor },
                 ]}>
                 <PidroText
                   role="label"
                   maxFontSizeMultiplier={1}
                   accessibilityLabel={t('game.bid', { amount: bid.amount })}
-                  style={{
-                    color:
-                      data.isYou || data.isTeammate ? PidroColors.gold : PidroColors.theirPidro,
-                  }}>
+                  style={{ color: teamColor }}>
                   {bid.amount}
                 </PidroText>
               </View>

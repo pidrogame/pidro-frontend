@@ -19,7 +19,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VictoryConfetti, VictoryRays } from '@/components/game/VictoryConfetti';
-import { gradientBg } from '@/components/ui/Bevel';
 import { TextLink } from '@/components/ui/TextLink';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
 import { PidroText } from '@/components/ui/PidroText';
@@ -106,13 +105,13 @@ export function useHandResult(
 type Tone = { label: string; figure: string; tray: string; edge: string };
 const TONES: Record<PointsSide, Tone> = {
   ours: {
-    label: PidroColors.success,
+    label: PidroColors.teamUs,
     figure: PidroBevel.textGold,
     tray: PidroColors.trayOurs,
-    edge: PidroColors.trayOursEdge,
+    edge: PidroColors.teamUs,
   },
   theirs: {
-    label: PidroColors.theirPidro,
+    label: PidroColors.teamThem,
     figure: PidroColors.theirScore,
     tray: PidroColors.trayTheirs,
     edge: PidroColors.trayTheirsEdge,
@@ -185,6 +184,13 @@ export function HandResultPanel({
     Object.values(seats).find((seat) => seat?.absolutePosition === position)?.username ??
     t(`table.position.${position}`);
   const spectator = view.outcome === 'made' || view.outcome === 'missed';
+  // A spectator's trays are N/S and E/W, in the same colours as their names.
+  const trayLabelColor = (tray: HandResultTray) =>
+    !spectator
+      ? TONES[tray.side].label
+      : tray.team === 'north_south'
+        ? PidroColors.teamUs
+        : PidroColors.teamThem;
   const teamLabel = (tray: HandResultTray) =>
     spectator
       ? t(tray.team === 'north_south' ? 'game.ns_short' : 'game.ew_short')
@@ -269,7 +275,7 @@ export function HandResultPanel({
           },
         ]}>
         <View style={styles.who}>
-          <PidroText role="metadata" style={[styles.eyebrow, { color: tone.label }]}>
+          <PidroText role="metadata" style={[styles.eyebrow, { color: trayLabelColor(tray) }]}>
             {teamLabel(tray)}
           </PidroText>
           <PidroText role="title" style={[styles.figure, { color: tone.figure }]}>
@@ -502,9 +508,9 @@ function Rise({ delay, still, children }: { delay: number; still: boolean; child
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 
-const CHIP_TONE: Record<PointsSide, { bg?: string; gradient?: string; ink: string }> = {
-  ours: { gradient: PidroBevel.goldRimGradient, ink: PidroBevel.keyline },
-  theirs: { bg: PidroColors.theirPidro, ink: PidroColors.theirPidroInk },
+const CHIP_TONE: Record<PointsSide, { bg: string; ink: string }> = {
+  ours: { bg: PidroColors.teamUs, ink: PidroColors.ink },
+  theirs: { bg: PidroColors.teamThem, ink: PidroColors.teamThemInk },
   neutral: { bg: PidroColors.trickChipBg, ink: PidroColors.text },
 };
 
@@ -554,7 +560,7 @@ function PointCard({
         style={[
           styles.chip,
           fanned ? { top: -18, right: (width - 24) / 2 } : null,
-          chip.gradient ? gradientBg(chip.gradient) : { backgroundColor: chip.bg },
+          { backgroundColor: chip.bg },
           side === 'neutral' ? { borderColor: PidroColors.cyanBorderStrong } : null,
         ]}>
         <PidroText role="metadata" style={[styles.chipText, { color: chip.ink }]}>

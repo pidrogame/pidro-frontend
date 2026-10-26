@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react';
 import { Animated, Easing, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
-import { PidroColors, PidroGameOver } from '@/design/tokens';
+import { PidroBevel, PidroColors, PidroGameOver } from '@/design/tokens';
 import { isStillCapture } from '@/utils/stillCapture';
 
-const COLORS = [PidroGameOver.ours, PidroColors.text, PidroGameOver.theirs, PidroColors.cyanText];
+const COLORS = [PidroBevel.textGold, PidroColors.text, PidroColors.teamThem, PidroColors.cyanText];
 const SUITS = ['♥', '♠', '♦', '♣'];
 // Fixed trajectories keep renders stable. One short burst of suits, never an
 // ambient loop; every fifth piece is a little card.
