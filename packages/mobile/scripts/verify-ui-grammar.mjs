@@ -484,6 +484,9 @@ const allCases = [
   })),
   { name: 'age', path: '/age?fixture=unanswered', testId: 'age-screen' },
   { name: 'age-selected', path: '/age?fixture=selected', testId: 'age-screen' },
+  { name: 'age-sv', path: '/age?fixture=unanswered', testId: 'age-screen', locale: 'sv' },
+  { name: 'age-stop', path: '/age?fixture=under13', testId: 'age-stop-screen' },
+  { name: 'age-stop-sv', path: '/age?fixture=under13', testId: 'age-stop-screen', locale: 'sv' },
   { name: 'welcome', path: '/welcome', testId: 'welcome-window' },
   {
     name: 'welcome-guest',
@@ -1569,16 +1572,41 @@ async function assertGameOver(page, testCase, viewport) {
   }
 }
 
-// PID-295: the welcome fits without scrolling, nothing in it overlaps, every
-// target is 44pt, and it has exactly one wood button: Let's play.
-async function assertWelcomeSheet(page, testCase, viewport) {
-  if (!testCase.welcome) return;
+// First launch fits without scrolling or overlaps, with 44pt targets.
+// Marcel's note keeps exactly one wood button: Let's play.
+async function assertFirstLaunchScreens(page, testCase, viewport) {
+  if (!testCase.welcome && !testCase.name.startsWith('age')) return;
   const sv = testCase.locale === 'sv';
-  const sheet = page.getByTestId('welcome-sheet');
-  await sheet
-    .getByText(sv ? 'Välkommen till nya Pidro' : 'Welcome to the new Pidro', { exact: true })
-    .waitFor();
-  await sheet.getByText('marcel@pidro.online', { exact: true }).waitFor();
+  const sheet = page.getByTestId(testCase.testId);
+  const felt = page.getByTestId('felt-background').first();
+  assert.deepEqual(
+    await felt.locator('img').first().boundingBox(),
+    await felt.boundingBox(),
+    'felt image fills its opaque root'
+  );
+  const language = sheet.getByTestId('language-switch');
+  assert.equal(await language.getByRole('radio').count(), 2);
+  assert.equal(
+    await language
+      .getByRole('radio', { name: sv ? 'Svenska' : 'English' })
+      .getAttribute('aria-checked'),
+    'true'
+  );
+  if (testCase.welcome) {
+    await sheet
+      .getByText(sv ? 'Välkommen till nya Pidro' : 'Welcome to the new Pidro', { exact: true })
+      .waitFor();
+    await sheet.getByText('marcel@pidro.online', { exact: true }).waitFor();
+    const photo = sheet.getByTestId('welcome-photo');
+    await photo.locator('img').evaluate((image) => image.decode());
+    assert.equal(await photo.locator('img').evaluate((image) => image.naturalWidth), 288);
+    assert.deepEqual(
+      await photo.boundingBox(),
+      await photo.locator('..').boundingBox(),
+      'portrait fits inside its ring'
+    );
+    assert.equal(await sheet.getByText('M', { exact: true }).count(), 0);
+  }
   const overflow = await sheet.evaluate((root) =>
     [root, ...root.querySelectorAll('*')]
       .filter(
@@ -1590,20 +1618,33 @@ async function assertWelcomeSheet(page, testCase, viewport) {
   );
   assert.deepEqual(overflow, [], `${testCase.name}: no scrolling in ${viewport.name}`);
   await assertMinimumTouchTargets(page, testCase.name, viewport);
-  const wood = await sheet.evaluate((root) =>
-    [...root.querySelectorAll('[role="button"]')]
-      .filter(
-        (button) =>
-          button.firstElementChild &&
-          getComputedStyle(button.firstElementChild).backgroundColor === 'rgb(42, 21, 5)'
-      )
-      .map((button) => button.getAttribute('aria-label') ?? button.textContent.trim())
-  );
-  assert.deepEqual(wood, [sv ? 'Nu spelar vi' : "Let's play"], `${testCase.name}: one wood button`);
+  if (testCase.welcome) {
+    const wood = await sheet.evaluate((root) =>
+      [...root.querySelectorAll('[role="button"]')]
+        .filter(
+          (button) =>
+            button.firstElementChild &&
+            getComputedStyle(button.firstElementChild).backgroundColor === 'rgb(42, 21, 5)'
+        )
+        .map((button) => button.getAttribute('aria-label') ?? button.textContent.trim())
+    );
+    assert.deepEqual(
+      wood,
+      [sv ? 'Nu spelar vi' : "Let's play"],
+      `${testCase.name}: one wood button`
+    );
+  }
   // Every line of text and every control sits on screen in its own box.
   const boxes = await sheet.evaluate((root) =>
-    [...root.querySelectorAll('[dir="auto"], [role="button"], [role="link"]')]
-      .filter((el) => !el.parentElement.closest('[dir="auto"], [role="button"]'))
+    [
+      ...root.querySelectorAll(
+        '[dir="auto"], [role="button"], [role="link"], [role="radio"], [data-testid="welcome-photo"]'
+      ),
+    ]
+      .filter(
+        (el) =>
+          !el.parentElement.closest('[dir="auto"], [role="button"], [role="radio"], [role="link"]')
+      )
       .filter((el) => !el.querySelector('[role="button"]'))
       .map((el) => {
         const { x, y, width, height } = el.getBoundingClientRect();
@@ -1612,9 +1653,8 @@ async function assertWelcomeSheet(page, testCase, viewport) {
       .filter((box) => box.width && box.height)
   );
   for (const box of boxes) assertInsideViewport(`${testCase.name} "${box.text}"`, box, viewport);
-  const blocks = boxes.filter((box) => box.role !== 'link');
-  for (const [i, a] of blocks.entries()) {
-    for (const b of blocks.slice(i + 1)) {
+  for (const [i, a] of boxes.entries()) {
+    for (const b of boxes.slice(i + 1)) {
       const overlap =
         a.x < b.x + b.width - 1 &&
         b.x < a.x + a.width - 1 &&
@@ -3429,6 +3469,8 @@ async function assertAccountButtonsStayPut(page, name, answerProfile) {
     page.getByRole('button', { name: label, exact: true })
   );
   await buttons[1].waitFor();
+  // Measure the profile response, not the first web-font layout settling.
+  await waitForScreenshotReady(page);
   const boxes = () => Promise.all(buttons.map((button) => button.boundingBox()));
   const before = await boxes();
   answerProfile();
@@ -4767,6 +4809,11 @@ async function main() {
     cases
       .filter((testCase) => {
         if (
+          (testCase.welcome || testCase.name.startsWith('age')) &&
+          ['small-portrait', 'compact-portrait', 'tablet-portrait'].includes(viewport.name)
+        )
+          return true;
+        if (
           testCase.words ||
           testCase.ownPace ||
           testCase.homeProfile ||
@@ -5058,6 +5105,19 @@ async function main() {
             throw new Error(`${testCase.path} returned ${response?.status() ?? 'no response'}`);
           }
           await suppressDevOverlays(page);
+          if (testCase.name.startsWith('age')) {
+            await page
+              .getByTestId('language-switch')
+              .getByRole('radio', {
+                name: testCase.locale === 'sv' ? 'Svenska' : 'English',
+                exact: true,
+              })
+              .click();
+            await page
+              .getByTestId('language-switch')
+              .getByRole('radio', { name: testCase.locale === 'sv' ? 'Svenska' : 'English' })
+              .blur();
+          }
           if (testCase.manualCode) {
             await page.getByTestId('invite-code-input').fill('7kq4-m2xb');
             await page.getByRole('button', { name: 'Continue', exact: true }).click();
@@ -5307,7 +5367,7 @@ async function main() {
               await page.waitForTimeout(1_200);
             }
           }
-          await assertWelcomeSheet(page, testCase, caseViewport);
+          await assertFirstLaunchScreens(page, testCase, caseViewport);
           await assertFeedbackRow(page, testCase, caseViewport);
           await waitForScreenshotReady(page);
           if (testCase.name.startsWith('edge-') || testCase.testId === 'game-loading-screen') {

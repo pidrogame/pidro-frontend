@@ -545,6 +545,15 @@ route mounts, so switching between two fixtures of the same route needs an app r
 Continue enabled), `under13` (the stop screen). testID `age-screen`, or
 `age-stop-screen` for `under13`.
 
+PID-296: Age and `/ui-dev?state=welcome&locale=en|sv` share the English/Svenska
+radio switch. On Age it writes the real Settings preference; the gallery keeps
+its language ephemeral. `age`, `age-selected`, `age-sv`, `age-stop`, `age-stop-sv`
+and `news-welcome-en|sv|home` check 390×844, 375×667, 360×640, 844×390 and 768×1024:
+no scrolling/overlap, 44pt targets, Marcel's loaded photo and one wood welcome CTA.
+`e2e/specs/settings-language.spec.ts` checks switching on both real screens,
+keyboard focus and the preference surviving reload into Settings. These browser
+checks do not reproduce the iOS native splash lifecycle.
+
 ## `/home?fixture=table-unknown`
 
 Home after Quick game was refused as "already in a room" and the lobby that would

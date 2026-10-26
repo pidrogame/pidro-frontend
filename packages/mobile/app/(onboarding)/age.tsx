@@ -6,6 +6,7 @@ import { TERMS_VERSION, type DeclaredAgeBand } from '@pidro/shared';
 import { getMe, setAge } from '@/api/auth';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
+import { LanguageSwitch } from '@/components/ui/LanguageSwitch';
 import { PidroLogo } from '@/components/ui/PidroLogo';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
@@ -64,8 +65,9 @@ export default function AgeScreen() {
   const router = useRouter();
   const { fixture: fixtureParam } = useLocalSearchParams<{ fixture?: string }>();
   const fixture = (__DEV__ ? fixtureParam : undefined) as Fixture | undefined;
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const compact = height < PidroLayout.compactHeight;
+  const landscape = width > height && compact;
   const storedBand = useAgeGateStore((state) => state.ageBand);
   const storedTermsVersion = useAgeGateStore((state) => state.termsVersion);
   const setAnswer = useAgeGateStore((state) => state.setAnswer);
@@ -169,6 +171,7 @@ export default function AgeScreen() {
   if (stopped) {
     return (
       <ScreenShell scroll testID="age-stop-screen" contentStyle={styles.screen}>
+        <LanguageSwitch />
         {!compact ? (
           <View style={styles.logoStage} pointerEvents="none">
             <PidroLogo size="compact" />
@@ -197,86 +200,102 @@ export default function AgeScreen() {
     );
   }
 
+  const terms = (
+    <View style={styles.termsLine}>
+      {t('auth.terms_agreement', { terms: '\uFFF0', privacy: '\uFFF1' })
+        .split(/(\uFFF0|\uFFF1)/)
+        .map((part, index) =>
+          part === '\uFFF0' || part === '\uFFF1' ? (
+            <HelpLink
+              key={index}
+              label={t(part === '\uFFF0' ? 'auth.terms' : 'auth.privacy')}
+              onPress={() =>
+                WebBrowser.openBrowserAsync(part === '\uFFF0' ? TERMS_URL : PRIVACY_URL)
+              }
+            />
+          ) : (
+            <PidroText key={index} role="metadata" tone="soft" style={styles.termsText}>
+              {part}
+            </PidroText>
+          )
+        )}
+    </View>
+  );
+
   return (
-    <ScreenShell scroll testID="age-screen" contentStyle={styles.screen}>
-      {!compact ? (
+    <ScreenShell
+      scroll
+      testID="age-screen"
+      contentStyle={[styles.screen, landscape && styles.screenLandscape]}>
+      <LanguageSwitch />
+      {height >= 700 ? (
         <View style={styles.logoStage} pointerEvents="none">
           <PidroLogo size="compact" />
         </View>
       ) : null}
 
-      <View style={styles.intro}>
-        <PidroText role="display" tone="gold" align="center" style={styles.title}>
-          {t('auth.age_title')}
-        </PidroText>
-        <PidroText role="body" align="center">
-          {t('auth.age_body')}
-        </PidroText>
+      <View style={[styles.body, landscape && styles.bodyLandscape]}>
+        <View style={[styles.copy, landscape && styles.half]}>
+          <View style={styles.intro}>
+            <PidroText role="display" tone="gold" align="center" style={styles.title}>
+              {t('auth.age_title')}
+            </PidroText>
+            <PidroText role="body" align="center">
+              {t('auth.age_body')}
+            </PidroText>
+          </View>
+          {landscape ? terms : null}
+        </View>
+
+        <View style={[styles.actions, landscape && styles.half]}>
+          <View
+            accessibilityRole="radiogroup"
+            accessibilityLabel={t('auth.age_range')}
+            style={styles.options}>
+            {OPTIONS.map((option) => {
+              const checked = selection === option.value;
+              return (
+                <BevelButton
+                  key={option.value}
+                  label={t(option.label)}
+                  material="glass"
+                  size="lg"
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked }}
+                  aria-checked={checked}
+                  leadingIcon={
+                    checked ? (
+                      <Icon name="check" size={20} color={PidroColors.cyanText} />
+                    ) : undefined
+                  }
+                  onPress={() => setSelection(option.value)}
+                  style={[styles.option, checked && styles.optionSelected]}
+                />
+              );
+            })}
+          </View>
+
+          {error ? (
+            <PidroText accessibilityRole="alert" role="metadata" tone="danger" align="center">
+              {t(error as TranslationKey)}
+            </PidroText>
+          ) : null}
+
+          <BevelButton
+            accessibilityLabel={t('auth.continue')}
+            material="wood"
+            size="lg"
+            weight="hero"
+            fullWidth
+            disabled={!selection}
+            loading={submitting}
+            onPress={continueWithSelection}
+            style={styles.continueButton}>
+            <PidroText style={styles.continueLabel}>{t('auth.continue')}</PidroText>
+          </BevelButton>
+        </View>
       </View>
-
-      <View
-        accessibilityRole="radiogroup"
-        accessibilityLabel={t('auth.age_range')}
-        style={styles.options}>
-        {OPTIONS.map((option) => {
-          const checked = selection === option.value;
-          return (
-            <BevelButton
-              key={option.value}
-              label={t(option.label)}
-              material="glass"
-              size="lg"
-              accessibilityRole="radio"
-              accessibilityState={{ checked }}
-              aria-checked={checked}
-              leadingIcon={
-                checked ? <Icon name="check" size={20} color={PidroColors.cyanText} /> : undefined
-              }
-              onPress={() => setSelection(option.value)}
-              style={[styles.option, checked && styles.optionSelected]}
-            />
-          );
-        })}
-      </View>
-
-      {error ? (
-        <PidroText accessibilityRole="alert" role="metadata" tone="danger" align="center">
-          {t(error as TranslationKey)}
-        </PidroText>
-      ) : null}
-
-      <BevelButton
-        accessibilityLabel={t('auth.continue')}
-        material="wood"
-        size="lg"
-        weight="hero"
-        fullWidth
-        disabled={!selection}
-        loading={submitting}
-        onPress={continueWithSelection}
-        style={styles.continueButton}>
-        <PidroText style={styles.continueLabel}>{t('auth.continue')}</PidroText>
-      </BevelButton>
-
-      <View style={styles.termsLine}>
-        {t('auth.terms_agreement', { terms: '\uFFF0', privacy: '\uFFF1' })
-          .split(/(\uFFF0|\uFFF1)/)
-          .map((part, index) =>
-            part === '\uFFF0' || part === '\uFFF1' ? (
-              <HelpLink
-                key={index}
-                label={t(part === '\uFFF0' ? 'auth.terms' : 'auth.privacy')}
-                onPress={() =>
-                  WebBrowser.openBrowserAsync(part === '\uFFF0' ? TERMS_URL : PRIVACY_URL)
-                }
-              />
-            ) : (
-              <PidroText key={index} role="metadata" tone="soft" style={styles.termsText}>
-                {part}
-              </PidroText>
-            )
-          )}
-      </View>
+      {!landscape ? terms : null}
     </ScreenShell>
   );
 }
@@ -287,6 +306,12 @@ const styles = StyleSheet.create({
     gap: PidroSpacing.sm,
     maxWidth: 390,
   },
+  screenLandscape: { maxWidth: 860 },
+  body: { width: '100%', gap: PidroSpacing.sm },
+  bodyLandscape: { flexDirection: 'row', gap: PidroSpacing.xl, flexGrow: 1, alignItems: 'center' },
+  copy: { alignItems: 'center', gap: PidroSpacing.sm },
+  actions: { alignItems: 'center', gap: PidroSpacing.sm },
+  half: { flex: 1, minWidth: 0 },
   logoStage: {
     width: '100%',
     minHeight: 150,

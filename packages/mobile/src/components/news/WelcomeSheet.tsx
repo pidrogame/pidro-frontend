@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { gradientBg } from '@/components/ui/Bevel';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { LanguageSwitch } from '@/components/ui/LanguageSwitch';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { STORAGE_KEYS } from '@/constants/config';
@@ -76,6 +78,7 @@ const LINES: { icon: IconName; color: string; title: TranslationKey; body: Trans
 
 export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
   const { t, locale } = useTranslation();
+  const [photoFailed, setPhotoFailed] = useState(false);
   const { width, height } = useWindowDimensions();
   const landscape = width > height && height < PidroLayout.compactHeight;
   const tablet = Math.min(width, height) >= 700;
@@ -91,15 +94,29 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
       AccessibilityInfo.sendAccessibilityEvent(title.current, 'focus');
   }, []);
 
-  const intro = (
-    <View style={[styles.intro, short && styles.introShort]}>
+  const header = (
+    <View style={styles.header}>
       <View style={styles.from}>
-        <View style={styles.ring}>
+        <View
+          style={styles.ring}
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants">
           <View style={styles.ringFace}>
-            <PidroText style={styles.initial}>M</PidroText>
+            {photoFailed ? (
+              <PidroText style={styles.initial}>M</PidroText>
+            ) : (
+              <Image
+                source={require('../../../assets/images/marcel.jpg')}
+                style={styles.photo}
+                resizeMode="cover"
+                accessible={false}
+                onError={() => setPhotoFailed(true)}
+                testID="welcome-photo"
+              />
+            )}
           </View>
         </View>
-        <View>
+        <View style={styles.fromCopy}>
           <PidroText role="label" style={styles.fromName}>
             {t('news.from')}
           </PidroText>
@@ -108,6 +125,12 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
           </PidroText>
         </View>
       </View>
+      <LanguageSwitch />
+    </View>
+  );
+
+  const intro = (
+    <View style={[styles.intro, short && styles.introShort]}>
       <View ref={title} nativeID="welcome-sheet-title" accessible accessibilityRole="header">
         <PidroText
           style={[
@@ -212,6 +235,7 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
             tablet && styles.columnTablet,
             short && styles.columnShort,
           ]}>
+          {header}
           {landscape ? (
             // Sideways the button stays under the note, so the three lines get the full height.
             <View style={styles.sideBySide}>
@@ -280,11 +304,14 @@ const styles = StyleSheet.create({
   content: { gap: PidroSpacing.lg },
   contentShort: { gap: PidroSpacing.sm },
   contentTablet: { flexGrow: 1, justifyContent: 'center' },
-  sideBySide: { flex: 1, flexDirection: 'row', gap: PidroSpacing.xl },
+  sideBySide: { flex: 1, flexDirection: 'row', gap: PidroSpacing.md },
   half: { flex: 1, minWidth: 0, gap: PidroSpacing.sm },
   intro: { gap: PidroSpacing.sm },
   introShort: { gap: PidroSpacing.xs },
-  from: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.sm },
+  header: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
+  from: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
+  fromCopy: { flex: 1 },
+  photo: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
   ring: {
     width: 48,
     height: 48,
@@ -296,6 +323,7 @@ const styles = StyleSheet.create({
   ringFace: {
     flex: 1,
     borderRadius: 22,
+    overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: PidroBevel.panelMid,

@@ -1,4 +1,4 @@
-import { ImageBackground, StyleSheet } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 import { ReactNode } from 'react';
 import { PidroColors } from '@/design/tokens';
 
@@ -14,25 +14,23 @@ interface BackgroundProps {
  */
 export function Background({ children }: BackgroundProps) {
   return (
-    <ImageBackground
-      source={require('../../../assets/images/bg.png')}
-      style={styles.background}
-      resizeMode="cover" // Full height, crop sides in portrait
-      imageStyle={styles.image}>
+    <View collapsable={false} style={styles.background} testID="felt-background">
+      <Image
+        source={require('../../../assets/images/bg.png')}
+        style={styles.image}
+        resizeMode="cover"
+        accessible={false}
+      />
       {children}
-    </ImageBackground>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  image: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
   background: {
     flex: 1,
-    backgroundColor: PidroColors.ink,
-    width: '100%',
-    height: '100%',
-  },
-  image: {
-    // Ensure image covers entire screen
+    backgroundColor: PidroColors.feltBottom,
     width: '100%',
     height: '100%',
   },
