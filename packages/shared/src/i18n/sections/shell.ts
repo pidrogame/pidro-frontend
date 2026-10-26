@@ -121,6 +121,28 @@ export const en = {
   "notFound.heading": "This screen does not exist",
   "notFound.body": "Return home and choose another table.",
   "notFound.home": "Go home",
+  "news.from": "From Marcel",
+  "news.posted": "Pidro · %{date}",
+  "news.welcomeTitle": "Welcome to the new Pidro",
+  "news.welcomeBody":
+    "This is a test version. You're one of the first to play it, and it's still being built.",
+  "news.today": "Here today",
+  "news.todayBody":
+    "Finnish and Louisiana rules, tables with friends, bots that fill an empty chair.",
+  "news.notYet": "Not yet",
+  "news.notYetBody": "Chat and weekly leagues. They arrive while you play, no reinstall.",
+  "news.tell": "Tell me what you find",
+  "news.tellBody":
+    "Something odd, broken or confusing? Write to %{email} or use Settings → Send feedback. I read every one.",
+  "news.classic": "Classic keeps working. Nothing there changes.",
+  "news.play": "Let's play",
+  "settings.feedback": "Send feedback",
+  "settings.feedbackHint": "Write to %{email}. Your app and device details come along.",
+  "settings.feedbackWrite": "Write",
+  "settings.feedbackNoMail":
+    "Your mail app didn't open. Copy the address and write from anywhere.",
+  "settings.feedbackCopy": "Copy address",
+  "settings.feedbackCopied": "Copied",
 } as const;
 export const sv: Record<keyof typeof en, TranslationEntry> = {
   "settings.title": "Inställningar",
@@ -238,4 +260,27 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "notFound.heading": "Den här sidan finns inte",
   "notFound.body": "Gå hem och välj ett annat bord.",
   "notFound.home": "Gå hem",
+  "news.from": "Från Marcel",
+  "news.posted": "Pidro · %{date}",
+  "news.welcomeTitle": "Välkommen till nya Pidro",
+  "news.welcomeBody":
+    "Det här är en testversion. Du är en av de första som spelar den, och den är inte färdig än.",
+  "news.today": "Redan nu",
+  "news.todayBody":
+    "Finska regler och Louisiana-regler, bord med vänner, bottar som fyller en tom plats.",
+  "news.notYet": "Inte än",
+  "news.notYetBody":
+    "Chatt och veckoligor. De kommer medan du spelar, utan att du installerar om.",
+  "news.tell": "Hör av dig",
+  "news.tellBody":
+    "Något konstigt, trasigt eller krångligt? Skriv till %{email} eller använd Inställningar → Skicka synpunkter. Jag läser varenda en.",
+  "news.classic": "Classic fungerar som vanligt. Inget ändras där.",
+  "news.play": "Nu spelar vi",
+  "settings.feedback": "Skicka synpunkter",
+  "settings.feedbackHint": "Skriv till %{email}. Uppgifter om appen och enheten följer med.",
+  "settings.feedbackWrite": "Skriv",
+  "settings.feedbackNoMail":
+    "E-postappen öppnades inte. Kopiera adressen och skriv varifrån du vill.",
+  "settings.feedbackCopy": "Kopiera adressen",
+  "settings.feedbackCopied": "Kopierad",
 };

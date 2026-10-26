@@ -50,6 +50,7 @@ test('PID-240: a friend who comes online while New table is open shows online wh
     await other.addInitScript(
       ({ age, installId }) => {
         localStorage.setItem('age-gate-storage', age);
+        localStorage.setItem('news-seen:welcome', '1');
         localStorage.setItem('install-id:v1', installId);
       },
       { age: AGE_ANSWERED, installId: friendPlayer.installId }

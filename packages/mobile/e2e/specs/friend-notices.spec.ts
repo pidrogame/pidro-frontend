@@ -49,6 +49,7 @@ test('PID-246: Home accepts a live friend request and the sender sees a four-sec
     await sender.addInitScript(
       ({ age, installId }) => {
         localStorage.setItem('age-gate-storage', age);
+        localStorage.setItem('news-seen:welcome', '1');
         localStorage.setItem('install-id:v1', installId);
       },
       { age: AGE_ANSWERED, installId: otherPlayer.installId }
@@ -174,6 +175,7 @@ test('PID-254: Not now and sitting down elsewhere open the seat again and tell t
     await invitee.addInitScript(
       ({ age, installId }) => {
         localStorage.setItem('age-gate-storage', age);
+        localStorage.setItem('news-seen:welcome', '1');
         localStorage.setItem('install-id:v1', installId);
       },
       { age: AGE_ANSWERED, installId: friendPlayer.installId }

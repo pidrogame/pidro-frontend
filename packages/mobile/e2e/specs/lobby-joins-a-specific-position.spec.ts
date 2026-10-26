@@ -30,6 +30,7 @@ test('a player joins a specific open chair from Tables with one tap @responsive'
         'age-gate-storage',
         JSON.stringify({ state: { ageBand: '18_plus', termsVersion: '1' }, version: 0 })
       );
+      localStorage.setItem('news-seen:welcome', '1');
     });
     await startSignedIn(hostPage, host);
     await hostPage.goto(`/game/${code}`);
@@ -81,6 +82,7 @@ test('a 1000+ chair explains the local lock and the server refusal @responsive',
           version: 0,
         })
       );
+      localStorage.setItem('news-seen:welcome', '1');
     });
     await startSignedIn(hostPage, host);
     await hostPage.goto('/lobby');
@@ -207,6 +209,7 @@ test('Watch shows the hand and score of a playing table', async ({
             version: 0,
           })
         );
+        localStorage.setItem('news-seen:welcome', '1');
       });
       await startSignedIn(seatPage, session);
       await seatPage.goto(`/game/${code}`);

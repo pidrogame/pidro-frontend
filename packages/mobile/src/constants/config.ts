@@ -19,6 +19,8 @@ export const STORAGE_KEYS = {
   guestCreationToken: 'guest-creation-token:v1',
   pendingInvite: 'pending-invite-storage',
   pendingFriendLink: 'pending-friend-link-storage',
+  // A news post the player has seen is `news-seen:<post id>`; the welcome is the first.
+  welcomeSeen: 'news-seen:welcome',
 } as const;
 
 export const APP_CONFIG = {

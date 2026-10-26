@@ -107,6 +107,10 @@ export const UI_VIEWPORTS = [
     width: 375,
     height: 667,
     cases: [
+      'news-welcome-en',
+      'news-welcome-sv',
+      'settings-feedback-en',
+      'settings-feedback-sv',
       ...backgroundCases,
       ...classicClaimCases,
       'table-play-right',

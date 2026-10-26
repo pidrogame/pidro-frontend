@@ -247,9 +247,13 @@ async function verifyUiLogin(browser, username) {
   try {
     await page.goto(`${mobileBaseUrl}/(auth)/login`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => localStorage.clear());
-    await page.evaluate(({ fixture }) => localStorage.setItem('age-gate-storage', fixture), {
-      fixture: ageGateFixture,
-    });
+    await page.evaluate(
+      ({ fixture }) => {
+        localStorage.setItem('age-gate-storage', fixture);
+        localStorage.setItem('news-seen:welcome', '1');
+      },
+      { fixture: ageGateFixture }
+    );
     await page.reload({ waitUntil: 'domcontentloaded' });
 
     const userField = page.getByLabel('Email or username', { exact: true });
@@ -409,6 +413,12 @@ async function stageTwoMultiplayerVideo() {
     await ageChoice.click();
     await page.getByRole('button', { name: 'Fortsätt' }).click();
     log('first-launch age gate completed with an eligible answer');
+
+    // PID-295: Marcel's welcome meets the new player before their first table.
+    await page.getByTestId('welcome-sheet').waitFor({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Nu spelar vi', exact: true }).click();
+    await page.getByTestId('welcome-sheet').waitFor({ state: 'detached' });
+    log('first-launch welcome read and closed');
 
     await page.getByTestId('welcome-quick-game').click();
     await page.getByTestId('invite-rule-set').waitFor({ timeout: 30_000 });

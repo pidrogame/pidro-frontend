@@ -332,6 +332,32 @@ const allCases = [
     open: 'Your badges',
   },
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
+  // PID-295: Marcel's welcome and Settings → Send feedback, in both languages.
+  ...['en', 'sv'].flatMap((locale) => [
+    {
+      name: `news-welcome-${locale}`,
+      path: `/ui-dev?state=welcome&locale=${locale}`,
+      testId: 'welcome-sheet',
+      locale,
+      welcome: true,
+    },
+    {
+      name: `settings-feedback-${locale}`,
+      path: `/ui-dev?state=settings&fixture=no-mail&locale=${locale}`,
+      testId: 'settings-screen',
+      locale,
+      feedback: true,
+    },
+  ]),
+  // The real thing: a signed-in player who has not seen it meets it on Home.
+  {
+    name: 'news-welcome-home',
+    path: '/home',
+    testId: 'welcome-sheet',
+    authenticated: true,
+    welcomeUnseen: true,
+    welcome: true,
+  },
   ...['en', 'sv'].flatMap((locale) => [
     {
       name: `settings-pace-${locale}`,
@@ -1541,6 +1567,81 @@ async function assertGameOver(page, testCase, viewport) {
       viewport
     );
   }
+}
+
+// PID-295: the welcome fits without scrolling, nothing in it overlaps, every
+// target is 44pt, and it has exactly one wood button: Let's play.
+async function assertWelcomeSheet(page, testCase, viewport) {
+  if (!testCase.welcome) return;
+  const sv = testCase.locale === 'sv';
+  const sheet = page.getByTestId('welcome-sheet');
+  await sheet
+    .getByText(sv ? 'Välkommen till nya Pidro' : 'Welcome to the new Pidro', { exact: true })
+    .waitFor();
+  await sheet.getByText('marcel@pidro.online', { exact: true }).waitFor();
+  const overflow = await sheet.evaluate((root) =>
+    [root, ...root.querySelectorAll('*')]
+      .filter(
+        (el) =>
+          ['auto', 'scroll'].includes(getComputedStyle(el).overflowY) &&
+          el.scrollHeight > el.clientHeight + 2
+      )
+      .map((el) => el.scrollHeight - el.clientHeight)
+  );
+  assert.deepEqual(overflow, [], `${testCase.name}: no scrolling in ${viewport.name}`);
+  await assertMinimumTouchTargets(page, testCase.name, viewport);
+  const wood = await sheet.evaluate((root) =>
+    [...root.querySelectorAll('[role="button"]')]
+      .filter(
+        (button) =>
+          button.firstElementChild &&
+          getComputedStyle(button.firstElementChild).backgroundColor === 'rgb(42, 21, 5)'
+      )
+      .map((button) => button.getAttribute('aria-label') ?? button.textContent.trim())
+  );
+  assert.deepEqual(wood, [sv ? 'Nu spelar vi' : "Let's play"], `${testCase.name}: one wood button`);
+  // Every line of text and every control sits on screen in its own box.
+  const boxes = await sheet.evaluate((root) =>
+    [...root.querySelectorAll('[dir="auto"], [role="button"], [role="link"]')]
+      .filter((el) => !el.parentElement.closest('[dir="auto"], [role="button"]'))
+      .filter((el) => !el.querySelector('[role="button"]'))
+      .map((el) => {
+        const { x, y, width, height } = el.getBoundingClientRect();
+        return { text: el.textContent.trim(), role: el.getAttribute('role'), x, y, width, height };
+      })
+      .filter((box) => box.width && box.height)
+  );
+  for (const box of boxes) assertInsideViewport(`${testCase.name} "${box.text}"`, box, viewport);
+  const blocks = boxes.filter((box) => box.role !== 'link');
+  for (const [i, a] of blocks.entries()) {
+    for (const b of blocks.slice(i + 1)) {
+      const overlap =
+        a.x < b.x + b.width - 1 &&
+        b.x < a.x + a.width - 1 &&
+        a.y < b.y + b.height - 1 &&
+        b.y < a.y + a.height - 1;
+      assert.ok(!overlap, `${testCase.name}: "${a.text}" overlaps "${b.text}" in ${viewport.name}`);
+    }
+  }
+}
+
+// PID-295: Send feedback is a row in the Settings list; when no mail app opens,
+// the address is there to copy.
+async function assertFeedbackRow(page, testCase, viewport) {
+  if (!testCase.feedback) return;
+  const sv = testCase.locale === 'sv';
+  const row = page.getByTestId('settings-feedback');
+  await row.scrollIntoViewIfNeeded();
+  await row.getByText(sv ? 'Skicka synpunkter' : 'Send feedback', { exact: true }).waitFor();
+  await row
+    .getByText(sv ? /^Skriv till marcel@pidro\.online\./ : /^Write to marcel@pidro\.online\./)
+    .waitFor();
+  for (const name of [sv ? 'Skriv' : 'Write', sv ? 'Kopiera adressen' : 'Copy address']) {
+    const box = await row.getByRole('button', { name, exact: true }).boundingBox();
+    assert.ok(box.width >= 44 && box.height >= 44, `${testCase.name}: ${name} is a 44pt target`);
+    assertInsideViewport(`${testCase.name} ${name}`, box, viewport);
+  }
+  assertInsideViewport(`${testCase.name} row`, await row.boundingBox(), viewport);
 }
 
 async function assertWoodButtonsHoldLabels(page, name, viewport) {
@@ -4770,8 +4871,11 @@ async function main() {
             : viewport;
         await page.setViewportSize({ width: caseViewport.width, height: caseViewport.height });
         await page.addInitScript(
-          ({ ageGate, authenticated, fixture, pendingInvite }) => {
+          ({ ageGate, authenticated, fixture, pendingInvite, welcomeSeen }) => {
             globalThis.localStorage.setItem('age-gate-storage', ageGate);
+            // Marcel's welcome covers every screen until it is seen; only its own cases want it.
+            if (welcomeSeen) globalThis.localStorage.setItem('news-seen:welcome', '1');
+            else globalThis.localStorage.removeItem('news-seen:welcome');
             if (!globalThis.sessionStorage.getItem('ui-settings-initialized')) {
               globalThis.localStorage.removeItem('settings-storage');
               globalThis.sessionStorage.setItem('ui-settings-initialized', 'true');
@@ -4797,6 +4901,7 @@ async function main() {
             authenticated: testCase.authenticated === true,
             fixture: testCase.authFixture ?? authFixture,
             pendingInvite: testCase.pendingInvite === true,
+            welcomeSeen: !testCase.welcomeUnseen,
           }
         );
         if (testCase.pendingInvite) {
@@ -5202,6 +5307,8 @@ async function main() {
               await page.waitForTimeout(1_200);
             }
           }
+          await assertWelcomeSheet(page, testCase, caseViewport);
+          await assertFeedbackRow(page, testCase, caseViewport);
           await waitForScreenshotReady(page);
           if (testCase.name.startsWith('edge-') || testCase.testId === 'game-loading-screen') {
             const background = await page.evaluate(() =>
@@ -5262,7 +5369,8 @@ async function main() {
             path: resolve(screenshotDir, `${testCase.name}.png`),
             fullPage: false,
           });
-          await assertHomeHeaderClear(page, testCase.path, caseViewport);
+          // The welcome covers Home on purpose until Let's play.
+          if (!testCase.welcome) await assertHomeHeaderClear(page, testCase.path, caseViewport);
           await assertHomeProfile(page, testCase, caseViewport);
           await assertLocalization(page, testCase, caseViewport);
           if (testCase.lobbyFixture !== 'locked') await assertLobbyPresentation(page, testCase);

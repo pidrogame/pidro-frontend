@@ -156,10 +156,10 @@ test('picked friends become holds only on Open; invitations arrive live, recover
     baseURL: test.info().project.use.baseURL,
   });
   const receiver = await receiverContext.newPage();
-  await receiver.addInitScript(
-    (age) => localStorage.setItem('age-gate-storage', age),
-    AGE_ANSWERED
-  );
+  await receiver.addInitScript((age) => {
+    localStorage.setItem('age-gate-storage', age);
+    localStorage.setItem('news-seen:welcome', '1');
+  }, AGE_ANSWERED);
   await startSignedIn(receiver, friend);
   let joinedLobby = false;
   await receiver.routeWebSocket('**/socket/websocket*', (socket) => {

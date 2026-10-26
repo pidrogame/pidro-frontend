@@ -412,10 +412,10 @@ test('ignoring hides a request immediately, Undo restores it, and only sender ca
   });
   try {
     const sentPage = await context.newPage();
-    await sentPage.addInitScript(
-      (age) => localStorage.setItem('age-gate-storage', age),
-      AGE_ANSWERED
-    );
+    await sentPage.addInitScript((age) => {
+      localStorage.setItem('age-gate-storage', age);
+      localStorage.setItem('news-seen:welcome', '1');
+    }, AGE_ANSWERED);
     await startSignedIn(sentPage, sender);
     await sentPage.goto('/friends');
     await expect(sentPage.getByText('Waiting for an answer', { exact: true })).toBeVisible();
@@ -471,10 +471,10 @@ test('Join seats the player at a real friend table and opens its game', async ({
   try {
     // Waiting tables need a connected host to advertise their live presence.
     const hostPage = await context.newPage();
-    await hostPage.addInitScript(
-      (age) => localStorage.setItem('age-gate-storage', age),
-      AGE_ANSWERED
-    );
+    await hostPage.addInitScript((age) => {
+      localStorage.setItem('age-gate-storage', age);
+      localStorage.setItem('news-seen:welcome', '1');
+    }, AGE_ANSWERED);
     await startSignedIn(hostPage, host);
     await hostPage.goto(`/game/${code}`);
     await expect(hostPage.getByTestId('waiting-table').last()).toBeVisible({ timeout: 30_000 });
@@ -546,10 +546,10 @@ test('Play opens New table with the friend already assigned as Partner and creat
   const context = await browser.newContext({ baseURL: test.info().project.use.baseURL });
   try {
     const friendPage = await context.newPage();
-    await friendPage.addInitScript(
-      (age) => localStorage.setItem('age-gate-storage', age),
-      AGE_ANSWERED
-    );
+    await friendPage.addInitScript((age) => {
+      localStorage.setItem('age-gate-storage', age);
+      localStorage.setItem('news-seen:welcome', '1');
+    }, AGE_ANSWERED);
     await startSignedIn(friendPage, friend);
     await friendPage.goto('/friends');
     await expect

@@ -5,6 +5,7 @@ import { NewTableGallery } from '@/components/dev/NewTableGallery';
 import { RoomCard } from '@/components/lobby/RoomCard';
 import { BOT_CREW } from '@/features/lobby/fixtures';
 import { SettingsScreen } from '@/components/settings/SettingsScreen';
+import { WelcomeSheetView } from '@/components/news/WelcomeSheet';
 import { LocaleFixture } from '@/components/dev/LocaleFixture';
 import { FixtureInsets } from '@/components/dev/FixtureInsets';
 import { FriendsGallery } from '@/components/dev/FriendsGallery';
@@ -562,6 +563,7 @@ function UiDevHarness() {
       </View>
     );
   if (state === 'claim-classic') return <ClaimClassicScreen />;
+  if (state === 'welcome') return <WelcomeSheetView onPlay={noop} />;
   if (state === 'settings')
     return (
       <FixtureInsets preset={params.safeArea}>

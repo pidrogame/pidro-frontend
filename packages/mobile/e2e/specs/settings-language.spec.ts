@@ -12,6 +12,7 @@ test('language choices apply immediately, persist and keep keyboard focus @respo
         version: 0,
       })
     );
+    localStorage.setItem('news-seen:welcome', '1');
   });
   await page.goto('/device-settings');
   const swedish = page.getByRole('radio', { name: 'Svenska', exact: true });

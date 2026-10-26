@@ -137,6 +137,7 @@ try {
         'age-gate-storage',
         JSON.stringify({ state: { ageBand: '18_plus', termsVersion: '1' }, version: 0 })
       );
+      localStorage.setItem('news-seen:welcome', '1');
       localStorage.setItem(
         'auth-storage',
         JSON.stringify({

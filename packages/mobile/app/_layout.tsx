@@ -12,6 +12,7 @@ import { canAccessProtectedRoutes } from '../src/navigation/initialRoute';
 import { useAuthStore } from '../src/stores/auth';
 import { useAgeGateStore } from '../src/stores/ageGate';
 import { Background } from '../src/components/ui/Background';
+import { WelcomeSheet } from '../src/components/news/WelcomeSheet';
 import { useLocaleBootstrap } from '../src/i18n';
 
 initSentry();
@@ -86,6 +87,7 @@ export default function RootLayout() {
               />
             </Stack.Protected>
           </Stack>
+          <WelcomeSheet />
         </Background>
       </SafeAreaProvider>
     </AnalyticsProvider>

@@ -98,10 +98,10 @@ test('a new account opens an Ostrobothnian table that another player can find wi
   const context = await browser.newContext({ baseURL: new URL(page.url()).origin });
   try {
     const visitor = await context.newPage();
-    await visitor.addInitScript(
-      (age) => localStorage.setItem('age-gate-storage', age),
-      AGE_ANSWERED
-    );
+    await visitor.addInitScript((age) => {
+      localStorage.setItem('age-gate-storage', age);
+      localStorage.setItem('news-seen:welcome', '1');
+    }, AGE_ANSWERED);
     await startSignedIn(visitor, await registerViaApi(newPlayer()));
     await visitor.goto('/lobby');
     const table = visitor.getByTestId(`lobby-table-${code}`);

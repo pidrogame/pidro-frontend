@@ -152,6 +152,7 @@ async function main() {
           version: 0,
         })
       );
+      localStorage.setItem('news-seen:welcome', '1');
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.getByLabel('Email or username', { exact: true }).fill(username);

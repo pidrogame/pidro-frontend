@@ -1,5 +1,6 @@
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useState } from 'react';
+import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams } from 'expo-router';
 import type { RuleSet } from '@pidro/shared';
 import { RuleSetSelector } from '@/components/rules/RuleSet';
@@ -15,6 +16,8 @@ import { Surface } from '@/components/ui/Surface';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { AppUpdateSection } from '@/components/settings/AppUpdateSection';
 import { PidroSpacing } from '@/design/tokens';
+import { FEEDBACK_EMAIL } from '@/features/feedback';
+import { openFeedbackMail } from '@/utils/feedbackMail';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 
@@ -110,6 +113,7 @@ export function SettingsScreen({
               {t('settings.paceHint')} {t('settings.paceSolo')}
             </PidroText>
           </Surface>
+          <FeedbackRow noMail={fixture === 'no-mail'} />
         </View>
       </Surface>
       {signedIn ? <AccountSection /> : null}
@@ -142,6 +146,42 @@ function SettingRow({
   );
 }
 
+function FeedbackRow({ noMail }: { noMail: boolean }) {
+  const { t } = useTranslation();
+  const [failed, setFailed] = useState(noMail);
+  const [copied, setCopied] = useState(false);
+  return (
+    <Surface variant="subtle" testID="settings-feedback">
+      <View style={styles.row}>
+        <View style={styles.rowCopy}>
+          <PidroText role="label">{t('settings.feedback')}</PidroText>
+          <PidroText role="metadata" tone="muted" selectable>
+            {t('settings.feedbackHint', { email: FEEDBACK_EMAIL })}
+          </PidroText>
+        </View>
+        <ActionPill
+          size="lg"
+          icon="mail"
+          label={t('settings.feedbackWrite')}
+          onPress={async () => setFailed(!(await openFeedbackMail()))}
+        />
+      </View>
+      {failed ? (
+        <View style={styles.noMail}>
+          <PidroText role="metadata" accessibilityLiveRegion="polite">
+            {t('settings.feedbackNoMail')}
+          </PidroText>
+          <ActionPill
+            size="lg"
+            label={t(copied ? 'settings.feedbackCopied' : 'settings.feedbackCopy')}
+            onPress={() => Clipboard.setStringAsync(FEEDBACK_EMAIL).then(setCopied, () => {})}
+          />
+        </View>
+      ) : null}
+    </Surface>
+  );
+}
+
 const styles = StyleSheet.create({
   shell: { gap: PidroSpacing.md },
   panel: { gap: PidroSpacing.sm, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
@@ -157,4 +197,10 @@ const styles = StyleSheet.create({
     padding: PidroSpacing.sm,
   },
   rowCopy: { minWidth: 0, flex: 1, gap: PidroSpacing.xxs },
+  noMail: {
+    gap: PidroSpacing.xs,
+    alignItems: 'flex-start',
+    paddingHorizontal: PidroSpacing.sm,
+    paddingBottom: PidroSpacing.sm,
+  },
 });
