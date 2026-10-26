@@ -350,8 +350,8 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.support_placeholder": "En gammal e-postadress, när du spelade senast",
   "auth.support_title": "Vi hittar det åt dig",
   "auth.support_intro":
-    "Berätta vad du minns. En person läser detta och svarar via e-post.",
-  "auth.support_send": "Skicka till supporten",
+    "Berätta vad du minns. Vi mejlar dig.",
+  "auth.support_send": "Skicka",
   "auth.support_enter_name": "Ange namnet du spelade med.",
   "auth.support_enter_email": "Ange en e-postadress som vi kan svara till.",
   "auth.support_failed":

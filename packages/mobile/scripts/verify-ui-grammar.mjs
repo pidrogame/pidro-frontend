@@ -2067,15 +2067,21 @@ const TABLE_MESSAGES = {
 async function assertClassicLogin(page, testCase, viewport) {
   if (testCase.path === '/welcome') {
     const sv = testCase.locale === 'sv';
-    await page
-      .getByRole('button', {
-        name: sv
-          ? 'Spelar du redan Pidro? Ta med ditt namn och dina spel.'
-          : 'Already play Pidro? Bring your name and games.',
-        exact: true,
-      })
-      .waitFor();
-    await assertAccountSurfaceFits(page.getByTestId('welcome-screen'), testCase.name, viewport);
+    const plaque = page.getByRole('button', {
+      name: sv
+        ? 'Spelar du redan Pidro? Ta med ditt namn och dina spel.'
+        : 'Already play Pidro? Bring your name and games.',
+      exact: true,
+    });
+    await plaque.waitFor();
+    const fullScreenFit =
+      !testCase.pendingInvite &&
+      ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(viewport.name);
+    await assertAccountSurfaceFits(
+      fullScreenFit ? page.getByTestId('welcome-screen') : plaque,
+      testCase.name,
+      viewport
+    );
     return;
   }
   if (testCase.path === '/(auth)/forgot-password') {

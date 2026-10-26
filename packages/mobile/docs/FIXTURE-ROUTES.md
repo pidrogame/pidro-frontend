@@ -623,7 +623,10 @@ the old-app account flow.
 
 Account surfaces assert no scrolling and no clipped text/control boxes, including
 clipping by ancestors. The full Profile intentionally scrolls: only its pill gets
-the containment check, after scrolling it into view. Existing touch-target, claim
+the containment check, after scrolling it into view. The first screen's no-scroll
+check covers the four sizes above. Its pending-invitation variant and other sizes
+keep their existing scroll behavior; the translated plaque must fit in the viewport
+without scrolling it into view. Existing touch-target, claim
 CTA, already-owned-account and photo-sheet checks remain in force. These assertions
 do not waive overflow on small screens; a failing fit needs copy/layout work, not a
 larger viewport or a hidden test. Native safe-area/keyboard fit still needs a device.
