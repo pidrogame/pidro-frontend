@@ -79,8 +79,8 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
   const { width, height } = useWindowDimensions();
   const landscape = width > height && height < PidroLayout.compactHeight;
   const tablet = Math.min(width, height) >= 700;
-  // Under 700pt tall (an SE, a small Android) the rhythm tightens so it still fits.
-  const short = !landscape && height < 700;
+  // Under 700pt tall (an SE, a small Android, any phone sideways) the rhythm tightens so it fits.
+  const short = height < 700;
 
   // Android back closes it the same way "Let's play" does.
   useHardwareBack(true, onPlay);
@@ -92,7 +92,7 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
   }, []);
 
   const intro = (
-    <View style={styles.intro}>
+    <View style={[styles.intro, short && styles.introShort]}>
       <View style={styles.from}>
         <View style={styles.ring}>
           <View style={styles.ringFace}>
@@ -126,7 +126,7 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
   );
 
   const lines = (
-    <View style={styles.lines}>
+    <View style={[styles.lines, short && styles.linesShort]}>
       {LINES.map((line) => {
         const content = (
           <>
@@ -216,13 +216,17 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
             // Sideways the button stays under the note, so the three lines get the full height.
             <View style={styles.sideBySide}>
               <View style={styles.half}>
-                <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+                <ScrollView
+                  style={styles.scroll}
+                  contentContainerStyle={[styles.content, styles.contentShort]}>
                   {intro}
                   {classic}
                 </ScrollView>
                 {button}
               </View>
-              <ScrollView style={styles.half} contentContainerStyle={styles.content}>
+              <ScrollView
+                style={styles.half}
+                contentContainerStyle={[styles.content, styles.contentShort]}>
                 {lines}
               </ScrollView>
             </View>
@@ -271,14 +275,15 @@ const styles = StyleSheet.create({
     paddingBottom: PidroSpacing.sm,
   },
   columnTablet: { maxHeight: 760, maxWidth: 520, paddingVertical: PidroSpacing.xl },
-  columnShort: { paddingTop: PidroSpacing.md },
+  columnShort: { gap: PidroSpacing.sm, paddingTop: PidroSpacing.sm },
   scroll: { flex: 1 },
   content: { gap: PidroSpacing.lg },
-  contentShort: { gap: PidroSpacing.md },
+  contentShort: { gap: PidroSpacing.sm },
   contentTablet: { flexGrow: 1, justifyContent: 'center' },
   sideBySide: { flex: 1, flexDirection: 'row', gap: PidroSpacing.xl },
   half: { flex: 1, minWidth: 0, gap: PidroSpacing.sm },
   intro: { gap: PidroSpacing.sm },
+  introShort: { gap: PidroSpacing.xs },
   from: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.sm },
   ring: {
     width: 48,
@@ -310,10 +315,11 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     color: PidroBevel.textGold,
   },
-  titleShort: { fontSize: 30, lineHeight: 38 },
+  titleShort: { fontSize: 28, lineHeight: 35 },
   titleLandscape: { fontSize: 26, lineHeight: 33 },
   titleTablet: { fontSize: 36, lineHeight: 45 },
   lines: { gap: PidroSpacing.md },
+  linesShort: { gap: PidroSpacing.sm },
   line: { flexDirection: 'row', alignItems: 'flex-start', gap: PidroSpacing.sm },
   disc: {
     width: 40,
