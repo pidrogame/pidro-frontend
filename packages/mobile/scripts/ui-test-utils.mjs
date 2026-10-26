@@ -72,6 +72,8 @@ const classicClaimCases = [
   'classic-rename-fresh',
   'classic-conflict',
   'classic-conflict-fresh',
+  'classic-conflict-guest',
+  'classic-conflict-guest-apple',
   'classic-forgot',
   'classic-code',
   'classic-code-invalid',

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Keyboard, StyleSheet, View } from 'react-native';
 import {
   useFocusEffect,
@@ -14,6 +14,7 @@ import {
   type ClassicVerification,
 } from '@/api/classic';
 import * as authApi from '@/api/auth';
+import { profileApi } from '@/api/profile';
 import { AuthProviderButtons } from '@/components/auth/AuthProviderButtons';
 import {
   AuthFlowButton,
@@ -33,6 +34,7 @@ import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
 import { takePendingClassicClaim } from '@/features/auth/classicFound';
 import { take } from '@/features/auth/pendingClassicVerification';
 import {
+  alreadyClaimedView,
   claimAccount,
   claimForm,
   claimNeedsDetails,
@@ -66,6 +68,7 @@ type Fixture =
   | 'password'
   | 'rename'
   | 'already-claimed'
+  | 'already-claimed-apple'
   | 'details'
   | 'rename-details'
   | 'taken';
@@ -83,12 +86,6 @@ const FIXTURE_PREVIEW: ClassicVerification = {
   },
   already_claimed: null,
 };
-
-const SIGNED_IN_WITH = {
-  password: 'auth.signed_password',
-  apple: 'auth.signed_apple',
-  facebook: 'auth.signed_facebook',
-} as const;
 
 function memberSince(value: string): string {
   const date = new Date(value);
@@ -123,7 +120,9 @@ export default function ClaimClassicScreen() {
       },
       ...(fixture === 'already-claimed'
         ? { already_claimed: { sign_in_method: 'password' as const } }
-        : {}),
+        : fixture === 'already-claimed-apple'
+          ? { already_claimed: { sign_in_method: 'apple' as const } }
+          : {}),
     };
   }, [fixture]);
   const [method, setMethod] = useState<ClassicClaimMethod | null>(
@@ -138,6 +137,11 @@ export default function ClaimClassicScreen() {
       : 'check'
   );
   const [login, setLogin] = useState('');
+  // The Classic login the shown verification came from; a recovery or provider has none.
+  const [verifiedLogin, setVerifiedLogin] = useState(
+    fixture === 'already-claimed' ? 'ThunderThor88' : ''
+  );
+  const [guestGames, setGuestGames] = useState(fixture === 'already-claimed' ? 12 : 0);
   const [classicPassword, setClassicPassword] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -158,6 +162,8 @@ export default function ClaimClassicScreen() {
     fixture === 'taken' ? ['username', 'email'] : []
   );
   const alreadyClaimed = verification?.already_claimed ?? null;
+  const claimed = alreadyClaimedView({ alreadyClaimed, user, guestGames, login: verifiedLogin });
+  const guestId = user?.guest ? user.id : null;
   // A guest's password claim sets the email and password the account is recovered with.
   const guestCredentials = Boolean(user?.guest) && method === 'password';
   const form = useMemo(
@@ -172,10 +178,33 @@ export default function ClaimClassicScreen() {
     setCanSignIn(false);
   }, []);
 
+  // Only a guest who played loses something by signing in, so only they are told.
+  useEffect(() => {
+    if (fixture || !alreadyClaimed || !guestId) return;
+    let active = true;
+    profileApi
+      .getIdentity()
+      .then((identity) => {
+        if (active && identity.user_id === guestId) setGuestGames(identity.games_played ?? 0);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [alreadyClaimed, fixture, guestId]);
+
+  const signIn = useCallback(
+    (email?: string) =>
+      router.replace({ pathname: '/(auth)/login', params: email ? { email } : {} }),
+    [router]
+  );
+
   const finishVerification = useCallback(
-    (result: ClassicVerification, nextMethod: ClassicClaimMethod) => {
+    (result: ClassicVerification, nextMethod: ClassicClaimMethod, verifiedAs = '') => {
       setMethod(nextMethod);
       setVerification(result);
+      setVerifiedLogin(verifiedAs);
+      setGuestGames(0);
       setStep('check');
       setDisplayName(result.classic.name_allowed ? (result.classic.name ?? '') : '');
       setUsername('');
@@ -207,9 +236,13 @@ export default function ClaimClassicScreen() {
       setError(null);
       setRequestFailure(null);
       setErrorProvider(provider === 'apple' ? 'Apple' : 'Facebook');
-      // Signing in from here would replace whoever is signed in on this phone
-      // (a guest's games included), so only offer it when nobody is.
-      setCanSignIn(!user && info.code === 'ALREADY_CLAIMED' && info.action?.type === 'sign_in');
+      // Signing in from here replaces a guest (the login screen says their games stay
+      // behind), but never a saved account.
+      setCanSignIn(
+        (!user || Boolean(user.guest)) &&
+          info.code === 'ALREADY_CLAIMED' &&
+          info.action?.type === 'sign_in'
+      );
       // An offered username or email taken since the preview becomes that one input.
       const taken = refusedLogin(form, info.code);
       if (taken === 'username') {
@@ -260,7 +293,7 @@ export default function ClaimClassicScreen() {
         password: classicPassword,
         install_id: installId,
       });
-      finishVerification(result, 'password');
+      finishVerification(result, 'password', login.trim());
     } catch (requestError) {
       reportRequestError(requestError, 'auth.classic_verify_failed');
     } finally {
@@ -417,6 +450,7 @@ export default function ClaimClassicScreen() {
   const resetVerification = () => {
     if (busy) return;
     setVerification(null);
+    setVerifiedLogin('');
     setMethod(null);
     setStep('check');
     setFields({});
@@ -451,15 +485,17 @@ export default function ClaimClassicScreen() {
     ? method === 'password'
       ? 'auth.claim_login_title'
       : 'auth.claim_method'
-    : !details
-      ? 'auth.classic_found'
-      : !verification.classic.name_allowed
-        ? 'auth.pick_name'
-        : form.asks.password
-          ? 'auth.new_pidro_password'
-          : claimNeedsDetails(form, true)
-            ? 'auth.create_your_account'
-            : 'auth.classic_found';
+    : alreadyClaimed
+      ? 'auth.already_in_pidro'
+      : !details
+        ? 'auth.classic_found'
+        : !verification.classic.name_allowed
+          ? 'auth.pick_name'
+          : form.asks.password
+            ? 'auth.new_pidro_password'
+            : claimNeedsDetails(form, true)
+              ? 'auth.create_your_account'
+              : 'auth.classic_found';
   const notice = requestFailure
     ? localizedError(requestFailure.error, requestFailure.fallback)
     : error
@@ -497,6 +533,22 @@ export default function ClaimClassicScreen() {
               method === 'password' ? resetVerification : () => router.push('/(auth)/classic-help')
             }
           />
+        ) : claimed ? (
+          <View style={layout === 'landscape' ? styles.sideLinks : styles.links}>
+            {claimed.forgot ? (
+              <TextLink
+                label={t('auth.forgot')}
+                size={metrics.link}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(auth)/forgot-password',
+                    params: claimed.login ? { identifier: claimed.login } : {},
+                  })
+                }
+              />
+            ) : null}
+            <TextLink label={t('auth.back')} size={metrics.link} onPress={resetVerification} />
+          </View>
         ) : !details ? (
           <TextLink
             label={t('auth.claim_no')}
@@ -514,11 +566,7 @@ export default function ClaimClassicScreen() {
           <AuthFlowNotice
             action={
               !verification && canSignIn ? (
-                <TextLink
-                  label={t('auth.sign_in_that')}
-                  size={metrics.link}
-                  onPress={() => router.replace('/(auth)/login')}
-                />
+                <TextLink label={t('auth.sign_in')} size={metrics.link} onPress={() => signIn()} />
               ) : undefined
             }>
             {notice}
@@ -685,18 +733,16 @@ export default function ClaimClassicScreen() {
                 </View>
               ) : null}
             </View>
-            {guestCredentials ? (
+            {guestCredentials && !canSignIn ? (
               <PidroText role="metadata" tone="muted" style={metrics.note}>
                 {t('auth.guest_games')}
               </PidroText>
             ) : null}
             <AuthFlowButton
               testID="classic-forward"
-              label={t(canSignIn ? 'auth.sign_in_that' : 'auth.claim_save')}
+              label={t(canSignIn ? 'auth.sign_in' : 'auth.claim_save')}
               loading={busy}
-              onPress={
-                canSignIn ? () => router.replace('/(auth)/login') : () => void confirmClaim()
-              }
+              onPress={canSignIn ? () => signIn() : () => void confirmClaim()}
             />
           </>
         ) : (
@@ -728,21 +774,28 @@ export default function ClaimClassicScreen() {
                 ) : null}
               </View>
             </Surface>
-            {alreadyClaimed ? (
+            {claimed ? (
               <>
-                <PidroText role="body" tone="soft" align="center" style={metrics.body}>
-                  {t('auth.classic_linked')}
-                </PidroText>
-                {!user && alreadyClaimed.sign_in_method ? (
-                  <PidroText role="metadata" tone="muted" align="center" style={metrics.note}>
-                    {t(SIGNED_IN_WITH[alreadyClaimed.sign_in_method])}
+                {claimed.hint ? (
+                  <PidroText role="body" tone="soft" align="center" style={metrics.body}>
+                    {t(claimed.hint)}
                   </PidroText>
                 ) : null}
-                {!user ? (
+                {claimed.signedInAs ? (
+                  <PidroText role="body" tone="soft" align="center" style={metrics.body}>
+                    {t('auth.signed_in_other', { name: claimed.signedInAs })}
+                  </PidroText>
+                ) : null}
+                {claimed.guestGamesLost ? (
+                  <PidroText role="metadata" tone="muted" align="center" style={metrics.note}>
+                    {t('auth.guest_games_left')}
+                  </PidroText>
+                ) : null}
+                {claimed.signIn ? (
                   <AuthFlowButton
                     testID="classic-forward"
-                    label={t('auth.sign_in_that')}
-                    onPress={() => router.replace('/(auth)/login')}
+                    label={t('auth.sign_in')}
+                    onPress={() => signIn(claimed.login)}
                   />
                 ) : null}
               </>
@@ -801,6 +854,12 @@ const styles = StyleSheet.create({
   },
   centerLink: {
     alignSelf: 'center',
+  },
+  links: {
+    alignItems: 'center',
+  },
+  sideLinks: {
+    alignItems: 'flex-start',
   },
   forgot: {
     width: '100%',

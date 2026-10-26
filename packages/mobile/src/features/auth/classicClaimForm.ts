@@ -1,4 +1,9 @@
-import type { ClassicClaimAccount, ClassicClaimMethod, ClassicNewAccount } from '@pidro/shared';
+import type {
+  ClassicAlreadyClaimed,
+  ClassicClaimAccount,
+  ClassicClaimMethod,
+  ClassicNewAccount,
+} from '@pidro/shared';
 
 export type LoginField = 'username' | 'email';
 
@@ -72,4 +77,48 @@ export function refusedLogin(form: ClaimForm, code: string | undefined): LoginFi
   if ((code === 'username' || code === 'USERNAME_TAKEN') && form.kept.username) return 'username';
   if ((code === 'email' || code === 'EMAIL_TAKEN') && form.kept.email) return 'email';
   return null;
+}
+
+export interface AlreadyClaimedView {
+  /** How the owner signs in, as one line; null when the server doesn't say. */
+  hint: 'auth.signed_password' | 'auth.signed_apple' | 'auth.signed_facebook' | null;
+  /** The wood Sign in, for whoever signing in would not throw out a saved account. */
+  signIn: boolean;
+  /** The login Sign in and Forgot password start from: the verified Classic one, for a password owner. */
+  login?: string;
+  forgot: boolean;
+  guestGamesLost: boolean;
+  /** The other saved account this phone is signed in to, which has to sign out first. */
+  signedInAs: string | null;
+}
+
+/**
+ * What the screen offers for a Classic account another Pidro account owns.
+ * Signing in replaces a guest, whose games stay behind, so a guest is told
+ * that rather than kept out. A saved account is only told to sign out.
+ */
+export function alreadyClaimedView({
+  alreadyClaimed,
+  user,
+  guestGames,
+  login,
+}: {
+  alreadyClaimed: ClassicAlreadyClaimed | null;
+  user: { guest?: boolean | null; username: string; display_name?: string | null } | null;
+  guestGames: number;
+  /** The Classic username or email the player verified with, if they typed one. */
+  login?: string;
+}): AlreadyClaimedView | null {
+  if (!alreadyClaimed) return null;
+  const method = alreadyClaimed.sign_in_method;
+  const signIn = !user || Boolean(user.guest);
+  const password = method === 'password' && signIn;
+  return {
+    hint: method ? (`auth.signed_${method}` as const) : null,
+    signIn,
+    login: password && login ? login : undefined,
+    forgot: password,
+    guestGamesLost: Boolean(user?.guest) && guestGames > 0,
+    signedInAs: user && !user.guest ? user.display_name || user.username : null,
+  };
 }

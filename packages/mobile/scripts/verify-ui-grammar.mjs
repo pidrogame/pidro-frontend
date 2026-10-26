@@ -532,6 +532,20 @@ const allCases = [
     testId: 'claim-classic-screen',
   },
   {
+    name: 'classic-conflict-guest',
+    path: '/(auth)/claim-classic?fixture=already-claimed',
+    testId: 'claim-classic-screen',
+    authenticated: true,
+    authFixture: guestAuthFixture,
+  },
+  {
+    name: 'classic-conflict-guest-apple',
+    path: '/(auth)/claim-classic?fixture=already-claimed-apple',
+    testId: 'claim-classic-screen',
+    authenticated: true,
+    authFixture: guestAuthFixture,
+  },
+  {
     name: 'classic-login',
     path: '/(auth)/claim-classic?fixture=login',
     testId: 'claim-classic-screen',
@@ -1675,6 +1689,96 @@ async function assertClassicLogin(page, testCase, viewport) {
   }
   if (testCase.name === 'classic-code') {
     await screen.getByRole('link', { name: 'Send again', exact: true }).waitFor();
+  }
+  await assertAlreadyInPidro(screen, testCase);
+}
+
+// PID-293: an owned Classic account leads to signing in, except over a saved account.
+const ALREADY_IN_PIDRO = {
+  'classic-conflict-fresh': {
+    wood: 1,
+    lines: ['Sign in with your username and password.'],
+    links: ['Forgot password?', 'Back'],
+  },
+  'classic-conflict-guest': {
+    wood: 1,
+    lines: ['Sign in with your username and password.', "Your guest games won't come along."],
+    links: ['Forgot password?', 'Back'],
+  },
+  'classic-conflict-guest-apple': {
+    wood: 1,
+    lines: ['You signed in with Apple.'],
+    links: ['Back'],
+  },
+  'classic-conflict': {
+    wood: 0,
+    lines: [
+      'Sign in with your username and password.',
+      "You're signed in as Bengt. Sign out first to use this one.",
+    ],
+    links: ['Back'],
+  },
+  'locale-sv-classic-already-claimed': {
+    wood: 1,
+    lines: ['Logga in med ditt användarnamn och lösenord.'],
+    links: ['Glömt lösenordet?', 'Tillbaka'],
+  },
+};
+
+async function assertAlreadyInPidro(screen, testCase) {
+  const expected = ALREADY_IN_PIDRO[testCase.name];
+  if (!expected) return;
+  const sv = testCase.locale === 'sv';
+  await screen.getByText(sv ? 'Redan i Pidro' : 'Already in Pidro', { exact: true }).waitFor();
+  assert.equal(await screen.getByText('Is this you?', { exact: true }).count(), 0);
+  assert.equal(
+    await screen.getByTestId('classic-forward').count(),
+    expected.wood,
+    `${testCase.name}: wood buttons`
+  );
+  if (expected.wood) {
+    const label = await screen.getByTestId('classic-forward').innerText();
+    assert.equal(label.trim(), sv ? 'Logga in' : 'Sign in', `${testCase.name}: wood label`);
+  }
+  for (const line of expected.lines) await screen.getByText(line, { exact: true }).waitFor();
+  // Every line the case doesn't expect is absent, so a line shown to the wrong player fails.
+  const others = sv
+    ? []
+    : [
+        'Sign in with your username and password.',
+        'You signed in with Apple.',
+        "Your guest games won't come along.",
+        "You're signed in as Bengt. Sign out first to use this one.",
+      ].filter((line) => !expected.lines.includes(line));
+  for (const line of others) {
+    assert.equal(
+      await screen.getByText(line, { exact: true }).count(),
+      0,
+      `${testCase.name}: no "${line}"`
+    );
+  }
+  const links = await screen
+    .getByRole('link')
+    .evaluateAll((nodes) => nodes.map((node) => node.textContent.trim()));
+  assert.deepEqual(links, expected.links, `${testCase.name}: links under the window`);
+  // Nothing on the screen overlaps: lines, card, button and links each keep their own box.
+  const boxes = await screen.evaluate((root) =>
+    [...root.querySelectorAll('[dir="auto"], [role="link"], [data-testid="classic-forward"]')]
+      .filter((el) => el.textContent.trim() && !el.querySelector('[dir="auto"]'))
+      .map((el) => {
+        const { x, y, width, height } = el.getBoundingClientRect();
+        return { text: el.textContent.trim(), x, y, width, height };
+      })
+  );
+  for (const [i, a] of boxes.entries()) {
+    for (const b of boxes.slice(i + 1)) {
+      const overlap =
+        a.x < b.x + b.width - 1 &&
+        b.x < a.x + a.width - 1 &&
+        a.y < b.y + b.height - 1 &&
+        b.y < a.y + a.height - 1;
+      assert.ok(!overlap, `${testCase.name}: "${a.text}" overlaps "${b.text}"`);
+    }
   }
 }
 

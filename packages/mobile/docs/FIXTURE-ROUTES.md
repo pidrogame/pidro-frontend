@@ -478,9 +478,20 @@ The real claim screen with deterministic presentation states and no backend muta
 `method` shows the three sign-in choices; `login` shows only Classic credentials;
 `preview` asks "Is this you?" with the Classic name and games/level/since;
 `password` asks for a new password, keeping ThunderThor88 and the Classic email;
-`rename` puts the replacement public name on the details step. `already-claimed`
-offers sign-in and its hint only when signed out; an existing player can go back.
-Use an authenticated guest fixture to check that guest games come along.
+`rename` puts the replacement public name on the details step.
+
+`already-claimed` (password owner, verified as ThunderThor88, a guest with 12 games) and
+`already-claimed-apple` (Apple owner, a guest with no games) say "Already in Pidro" over
+the Classic card, with one line on how the owner signs in. Signed out or a guest, the one
+wood action is "Sign in", which replaces this screen with Sign in, the verified Classic
+login filled in; a guest who played is told their guest games won't come along. A saved
+account gets "You're signed in as Bengt. Sign out first…" and no wood action. Under the
+window: "Forgot password?" (password owners, prefilled the same way) and "Back".
+PID-293 grammar cases: `classic-conflict-fresh` (nobody, password), `classic-conflict-guest`
+(guest with games, password), `classic-conflict-guest-apple` (guest, Apple) and
+`classic-conflict` (saved account), plus Swedish `locale-sv-classic-already-claimed`.
+They check the lines, the links, exactly one wood "Sign in" (none for the saved account)
+and that no text, link or button overlaps another.
 "Yes, that's me" opens details only when the claim needs something typed; otherwise
 it claims directly. Header back goes details → preview → method, or login → method.
 For Swedish use `/ui-dev?state=claim-classic&fixture=password&locale=sv`.

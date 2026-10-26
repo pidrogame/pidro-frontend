@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   claimAccount,
   claimForm,
+  alreadyClaimedView,
   claimNeedsDetails,
   refusedLogin,
 } from '../../src/features/auth/classicClaimForm';
@@ -160,5 +161,70 @@ describe('what a Classic claim asks for and sends', () => {
     const form = claimForm({ method: 'password', user: null });
     expect(refusedLogin(form, 'EMAIL_TAKEN')).toBeNull();
     expect(refusedLogin(form, 'username')).toBeNull();
+  });
+});
+
+describe('a Classic account another Pidro account already owns', () => {
+  const guest = { username: 'guest_7KQ4M2XB', display_name: 'Lucky Moose', guest: true };
+  const saved = { username: 'bengt', display_name: 'Bengt', guest: false };
+  const view = (method, user, guestGames = 0, login = 'tiger') =>
+    alreadyClaimedView({ alreadyClaimed: { sign_in_method: method }, user, guestGames, login });
+
+  it('is nothing to show when nobody owns it', () => {
+    expect(alreadyClaimedView({ alreadyClaimed: null, user: guest, guestGames: 3 })).toBeNull();
+  });
+
+  it('signed out, password owner: Sign in and Forgot password, both from the verified login', () => {
+    expect(view('password', null)).toEqual({
+      hint: 'auth.signed_password',
+      signIn: true,
+      login: 'tiger',
+      forgot: true,
+      guestGamesLost: false,
+      signedInAs: null,
+    });
+  });
+
+  it('a guest gets the same way in, and is told only games played are left behind', () => {
+    expect(view('password', guest, 4)).toMatchObject({
+      signIn: true,
+      login: 'tiger',
+      forgot: true,
+      guestGamesLost: true,
+      signedInAs: null,
+    });
+    expect(view('password', guest, 0).guestGamesLost).toBe(false);
+  });
+
+  it('an Apple or Facebook owner gets no password help and no Classic login to fill in', () => {
+    for (const method of ['apple', 'facebook']) {
+      expect(view(method, guest, 2)).toEqual({
+        hint: `auth.signed_${method}`,
+        signIn: true,
+        login: undefined,
+        forgot: false,
+        guestGamesLost: true,
+        signedInAs: null,
+      });
+    }
+    expect(view(null, null)).toMatchObject({ hint: null, signIn: true, forgot: false });
+    expect(view(null, null).login).toBeUndefined();
+  });
+
+  it('a saved account is told to sign out, with no way to sign in or reset from here', () => {
+    expect(view('password', saved, 9)).toEqual({
+      hint: 'auth.signed_password',
+      signIn: false,
+      login: undefined,
+      forgot: false,
+      guestGamesLost: false,
+      signedInAs: 'Bengt',
+    });
+    expect(view('apple', { username: 'bengt', display_name: null }).signedInAs).toBe('bengt');
+  });
+
+  it('fills in nothing when no login was verified', () => {
+    expect(view('password', null, 0, '').login).toBeUndefined();
+    expect(view('password', null, 0, undefined).forgot).toBe(true);
   });
 });

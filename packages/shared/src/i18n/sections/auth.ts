@@ -200,17 +200,17 @@ export const en = {
   "auth.classic_verify": "Find my account",
   "auth.classic_credentials": "Username and password",
   "auth.classic_found": "Is this you?",
+  "auth.already_in_pidro": "Already in Pidro",
   "auth.classic_private": "Classic name kept private",
   "auth.classic_level": "level",
   "auth.member_since": "since",
-  "auth.classic_linked":
-    "This Classic account is already linked to a Pidro account.",
   "auth.classic_linked_other":
     "This Classic account is already linked to another Pidro account.",
-  "auth.signed_password": "You signed in with your email and password.",
+  "auth.signed_password": "Sign in with your username and password.",
   "auth.signed_apple": "You signed in with Apple.",
   "auth.signed_facebook": "You signed in with Facebook.",
-  "auth.sign_in_that": "Sign in to that account",
+  "auth.signed_in_other": "You're signed in as %{name}. Sign out first to use this one.",
+  "auth.guest_games_left": "Your guest games won't come along.",
   "auth.back": "Back",
   "auth.classic_rename":
     "That name can’t be shown in the new game. Pick a new one; your Classic name stays yours.",
@@ -449,18 +449,18 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.classic_verify": "Hitta mitt konto",
   "auth.classic_credentials": "Namn och lösenord",
   "auth.classic_found": "Är det här du?",
+  "auth.already_in_pidro": "Redan i Pidro",
   "auth.classic_private": "Classic-namnet visas inte",
   "auth.classic_level": "nivå",
   "auth.member_since": "sedan",
-  "auth.classic_linked":
-    "Det här Classic-kontot är redan kopplat till ett Pidro-konto.",
   "auth.classic_linked_other":
     "Det här Classic-kontot är redan kopplat till ett annat Pidro-konto.",
-  "auth.signed_password":
-    "Du loggade in med din e-postadress och ditt lösenord.",
+  "auth.signed_password": "Logga in med ditt användarnamn och lösenord.",
   "auth.signed_apple": "Du loggade in med Apple.",
   "auth.signed_facebook": "Du loggade in med Facebook.",
-  "auth.sign_in_that": "Logga in",
+  "auth.signed_in_other":
+    "Du är inloggad som %{name}. Logga ut först för att använda det här kontot.",
+  "auth.guest_games_left": "Dina gästspel följer inte med.",
   "auth.back": "Tillbaka",
   "auth.classic_rename":
     "Det namnet kan inte visas i det nya spelet. Välj ett nytt; ditt Classic-namn förblir ditt.",
