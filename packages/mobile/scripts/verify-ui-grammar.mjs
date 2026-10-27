@@ -1549,8 +1549,6 @@ async function assertTargetGeometry(page, testCase, viewport) {
   await assertWoodButtonsHoldLabels(page, testCase.name, viewport);
 }
 
-// A wood button's keyline stays inside its rim and its label inside the face,
-// so nothing is cut where the platform clips (PID-212).
 // Game over never scrolls: every block sits inside the viewport, none
 // overlaps another, and the rematch row says who is in.
 async function assertGameOver(page, testCase, viewport) {
@@ -2002,6 +2000,10 @@ async function assertFeedbackRow(page, testCase, viewport) {
   assertInsideViewport(`${testCase.name} row`, await row.boundingBox(), viewport);
 }
 
+// A wood button's keyline stays inside its rim and its label inside the face's
+// padding, so nothing is cut where the platform clips (PID-212). Android sizes
+// text to the room the face has left and clips the glyphs to that box, so a
+// label that only spills into the padding is cut on a phone (PID-299).
 async function assertWoodButtonsHoldLabels(page, name, viewport) {
   const spills = await page.evaluate(() => {
     const keylineColor = 'rgb(42, 21, 5)';
@@ -2013,12 +2015,17 @@ async function assertWoodButtonsHoldLabels(page, name, viewport) {
       if (!rimBox.height) continue;
       const pad = parseFloat(getComputedStyle(rim).paddingBottom);
       const keyBox = keyline.getBoundingClientRect();
+      const faceStyle = getComputedStyle(keyline.firstElementChild);
       const face = keyline.firstElementChild.getBoundingClientRect();
+      const top = face.top + parseFloat(faceStyle.paddingTop);
+      const bottom = face.bottom - parseFloat(faceStyle.paddingBottom);
       const label = rim.getAttribute('aria-label');
       if (keyBox.bottom > rimBox.bottom - pad + 0.5) found.push(`${label}: keyline below rim`);
       for (const text of keyline.querySelectorAll('div[dir="auto"]')) {
         const box = text.getBoundingClientRect();
-        if (box.top < face.top - 0.5 || box.bottom > face.bottom + 0.5) {
+        // The label's 1px optical lift is drawn, not laid out.
+        const lift = new DOMMatrixReadOnly(getComputedStyle(text).transform).m42;
+        if (box.top - lift < top - 0.5 || box.bottom - lift > bottom + 0.5) {
           found.push(`${label}: label outside face`);
         }
       }
