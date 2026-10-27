@@ -22,7 +22,9 @@ describe('what a Classic claim asks for and sends', () => {
       for (const user of [null, { guest: true }, { guest: false }]) {
         for (const refused of [[], ['username'], ['email']]) {
           const form = claimForm({ method, user, newAccount: offered, refused });
-          const expected = !user || (user.guest && method === 'password');
+          const expected = !user
+            ? method === 'password' || refused.includes('username')
+            : user.guest && method === 'password';
           expect(claimNeedsDetails(form, true)).toBe(expected);
           expect(claimNeedsDetails(form, false)).toBe(true);
         }
@@ -111,14 +113,63 @@ describe('what a Classic claim asks for and sends', () => {
     expect(sent(guest)).toEqual({ email: 'typed@example.com', password: 'new-pidro-pass' });
   });
 
-  it('an Apple claim signed out asks only for a username, whatever the server offers', () => {
-    const form = claimForm({ method: 'apple', user: null, newAccount: offered });
-    expect(form).toEqual({
-      asks: { username: true, email: false, password: false },
-      kept: {},
-      fromClassic: false,
-    });
-    expect(sent(form)).toEqual({ username: 'typedname' });
+  it('a Facebook or Apple claim signed out keeps the offered username and asks nothing', () => {
+    for (const method of ['facebook', 'apple']) {
+      const form = claimForm({
+        method,
+        user: null,
+        newAccount: { username: 'mf252', email: null },
+      });
+      expect(form).toEqual({
+        asks: { username: false, email: false, password: false },
+        kept: { username: 'mf252' },
+        fromClassic: false,
+      });
+      expect(claimNeedsDetails(form, true)).toBe(false);
+      expect(sent(form)).toEqual({});
+      // An email offered to a social claim is still never kept or asked for.
+      expect(claimForm({ method, user: null, newAccount: offered }).kept).toEqual({
+        username: 'tiger',
+      });
+    }
+  });
+
+  it('a Facebook or Apple claim signed out asks for a username without an offer', () => {
+    for (const newAccount of [undefined, null, { username: null, email: null }]) {
+      const form = claimForm({ method: 'apple', user: null, newAccount });
+      expect(form).toEqual({
+        asks: { username: true, email: false, password: false },
+        kept: {},
+        fromClassic: false,
+      });
+      expect(claimNeedsDetails(form, true)).toBe(true);
+      expect(sent(form)).toEqual({ username: 'typedname' });
+    }
+  });
+
+  it('an offered username a social claim refused as taken becomes the username input', () => {
+    const newAccount = { username: 'mf252', email: null };
+    const form = claimForm({ method: 'facebook', user: null, newAccount });
+    expect(refusedLogin(form, 'USERNAME_TAKEN')).toBe('username');
+    const retry = claimForm({ method: 'facebook', user: null, newAccount, refused: ['username'] });
+    expect(retry.asks).toEqual({ username: true, email: false, password: false });
+    expect(sent(retry)).toEqual({ username: 'typedname' });
+  });
+
+  it('a guest Facebook or Apple claim ignores the offer and sends nothing', () => {
+    for (const method of ['facebook', 'apple']) {
+      const form = claimForm({
+        method,
+        user: { guest: true },
+        newAccount: { username: 'mf252', email: null },
+      });
+      expect(form).toEqual({
+        asks: { username: false, email: false, password: false },
+        kept: {},
+        fromClassic: false,
+      });
+      expect(sent(form)).toEqual({});
+    }
   });
 
   it('a signed-in player sends nothing but a replacement name', () => {

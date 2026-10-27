@@ -10,7 +10,10 @@ export interface ClassicClaimPreview {
   /** Null for Classic accounts created before Classic recorded a date. */
   member_since: string | null;
   name_allowed: boolean;
-  /** Password claims only: the Classic login the new account gets; null where the player chooses. */
+  /**
+   * The Classic login the new account gets; null where the player chooses. Password
+   * claims, and signed-out Apple or Facebook claims (username only, email null).
+   */
   new_account?: ClassicNewAccount | null;
 }
 

@@ -20,7 +20,8 @@ export interface ClaimForm {
  * What a claim asks for. A password claim by someone signed out or a guest
  * creates the Pidro login: the server offers the Classic username and email
  * (`new_account`), so only a new password and the values it couldn't offer are
- * typed. `refused` are offered values the claim answered as taken meanwhile.
+ * typed. Signed out, an Apple or Facebook claim keeps the offered username too.
+ * `refused` are offered values the claim answered as taken meanwhile.
  * A server without `new_account` gets today's username, email and password.
  */
 export function claimForm({
@@ -36,11 +37,10 @@ export function claimForm({
 }): ClaimForm {
   const credentials = method === 'password' && (!user || Boolean(user.guest));
   const offered = credentials ? newAccount : null;
+  const offeredUsername = credentials || !user ? newAccount?.username : null;
   const kept: ClaimForm['kept'] = {};
-  for (const field of ['username', 'email'] as const) {
-    const value = offered?.[field];
-    if (value && !refused.includes(field)) kept[field] = value;
-  }
+  if (offeredUsername && !refused.includes('username')) kept.username = offeredUsername;
+  if (offered?.email && !refused.includes('email')) kept.email = offered.email;
   return {
     asks: {
       // A guest already has a username, so it is only asked for when the offered one was taken.
