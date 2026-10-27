@@ -841,6 +841,20 @@ const allCases = [
     testId: 'seat-north',
     verifyDealerCutCards: true,
   },
+  // PID-302: a phone 1.5 s behind the server shows the cut's winner before the
+  // server deals, and a bid made during its deal lands the deal at once.
+  {
+    name: 'table-dealer-late',
+    path: '/table-dev?phase=bidding&role=player&fixture=dealer-late&late=1500',
+    testId: 'seat-north',
+    verifyCatchUp: true,
+  },
+  // PID-302: a phone still decoding the cards shows a quiet bar in the dock.
+  {
+    name: 'table-loading',
+    path: '/table-dev?phase=bidding&role=player&loading=0.4',
+    testId: 'table-loading',
+  },
   {
     name: 'table-completed-trick',
     // With count help on, the trick's winning card keeps its glow (PID-230).
@@ -4178,6 +4192,37 @@ async function assertCardCollection(page, winner, reduced) {
   );
 }
 
+/** Samples the cut as the dealer-late fixture plays it out, up to the deal. */
+async function assertDealerCatchUp(page, viewport) {
+  const timeline = await page.evaluate(async () => {
+    const samples = [];
+    for (let i = 0; i < 600; i++) {
+      const clock = globalThis.__pidroDealerClock;
+      const motion = globalThis.__pidroCardMotion?.() ?? [];
+      if (clock) {
+        samples.push({
+          t: Date.now() - clock.cutAt,
+          lit: motion.some(
+            (card) =>
+              card.kind === 'cut' && card.opacity > 0.5 && card.renderedScale > card.scale * 1.05
+          ),
+          dealtAt: clock.dealtAt && clock.dealtAt - clock.cutAt,
+        });
+        if (clock.dealtAt) break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return samples;
+  });
+  const end = timeline.at(-1);
+  assert.ok(end?.dealtAt, `the dealer-late fixture ran to its deal in ${viewport.name}`);
+  const litAt = timeline.find((sample) => sample.lit)?.t;
+  assert.ok(
+    litAt != null && end.dealtAt - litAt >= 300,
+    `the cut's winner is lit at least 300 ms before the server deals in ${viewport.name} (lit at ${litAt}, dealt at ${end.dealtAt})`
+  );
+}
+
 async function assertDealerCutCards(page, viewport) {
   const fourCards = page.getByTestId('rendered-cut-card-count-4').first();
   await fourCards.waitFor({ state: 'attached', timeout: 20_000 });
@@ -5569,6 +5614,9 @@ async function main() {
           }
           if (testCase.verifyDealerCutCards) {
             await assertDealerCutCards(page, viewport);
+          }
+          if (testCase.verifyCatchUp) {
+            await assertDealerCatchUp(page, viewport);
           }
           if (testCase.verifyDealerSelection || testCase.verifyDealerPrivacy) {
             await assertDealerSecondDeal(page, testCase, viewport);

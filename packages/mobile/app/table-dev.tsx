@@ -165,6 +165,15 @@ const CLOCKWISE: Position[] = ['north', 'east', 'south', 'west'];
 const nextSeat = (position: Position) => CLOCKWISE[(CLOCKWISE.indexOf(position) + 1) % 4];
 const highBid = (bids: ServerBid[]) => bids.filter((bid) => bid.amount !== 'pass').at(-1) ?? null;
 
+const DEALER_SELECTION_MS = 3_000;
+// East cuts the ace and deals.
+const DEALER_CUTS: Partial<Record<Position, Card>> = {
+  north: { rank: 9, suit: 'clubs' },
+  east: { rank: 14, suit: 'spades' },
+  south: { rank: 5, suit: 'hearts' },
+  west: { rank: 7, suit: 'diamonds' },
+};
+
 const DEAL_HAND: Card[] = [
   { rank: 8, suit: 'clubs' },
   { rank: 14, suit: 'spades' },
@@ -431,6 +440,8 @@ function TableDevHarness() {
   const locale = useLocale();
   const params = useLocalSearchParams<{
     fixture?: string;
+    loading?: string;
+    late?: string;
     phase?: string;
     autoplay?: string;
     invite?: string;
@@ -572,6 +583,8 @@ function TableDevHarness() {
             bidder={params.bidder}
             scoreHistory={fixture === 'scores'}
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
+            loading={params.loading ? Number(params.loading) : undefined}
+            dealerLate={fixture === 'dealer-late' ? Number(params.late) || 0 : undefined}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -798,6 +811,8 @@ function RolePreview({
   invitation = null,
   fold,
   scoreHistory = false,
+  loading,
+  dealerLate,
 }: {
   role: 'player' | 'spectator';
   phase: string;
@@ -821,6 +836,10 @@ function RolePreview({
   invitation?: SeatInvitation | null;
   fold?: 'count' | 'legacy' | 'trick' | 'trick-self';
   scoreHistory?: boolean;
+  /** `loading=0.4`: the cards are still decoding, 40% done. */
+  loading?: number;
+  /** `fixture=dealer-late&late=1500`: the dealer cut reaches a phone busy for 1.5 s. */
+  dealerLate?: number;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
@@ -1105,6 +1124,61 @@ function RolePreview({
     scoreHistory,
   ]);
 
+  // The dealer cut as the server times it: the cut, then the deal 3 s later.
+  // The phone is busy for `dealerLate` ms when the cut arrives, as an old
+  // phone is; it must catch up, not replay.
+  useEffect(() => {
+    if (!Table || dealerLate == null) return;
+    const store = useGameStore.getState();
+    const base = store.serverState!;
+    const cutAt = Date.now();
+    const clock = { cutAt, dealtAt: 0 };
+    (globalThis as { __pidroDealerClock?: typeof clock }).__pidroDealerClock = clock;
+    store.setLegalActions([]);
+    store.setPresentation({
+      dealer_selection: { started_at_ms: cutAt, ends_at_ms: cutAt + DEALER_SELECTION_MS },
+    });
+    store.setServerState({
+      ...base,
+      phase: 'dealer_selection',
+      dealer: 'east',
+      current_player: null,
+      bid_order: [],
+      highest_bid: null,
+      current_trick: [],
+      players: { north: { hand: 0 }, east: { hand: 0 }, south: { hand: [] }, west: { hand: 0 } },
+      dealer_selection_cuts: DEALER_CUTS,
+    } as unknown as ServerGameState);
+    // Busy, as an old phone is: the cut is in, but nothing draws yet.
+    while (Date.now() < cutAt + dealerLate);
+    const dealt = {
+      ...base,
+      phase: 'bidding',
+      dealer: 'east',
+      current_player: 'south',
+      bid_order: [],
+      highest_bid: null,
+      current_trick: [],
+      dealer_selection_cuts: null,
+      transition_delay_ms: 5_000,
+      players: {
+        north: { hand: 9 },
+        east: { hand: 9 },
+        south: { hand: DEAL_HAND },
+        west: { hand: 9 },
+      },
+    } as unknown as ServerGameState;
+    const timer = setTimeout(
+      () => {
+        clock.dealtAt = Date.now();
+        store.setPresentation(null);
+        store.setServerState(dealt);
+      },
+      cutAt + DEALER_SELECTION_MS - Date.now()
+    );
+    return () => clearTimeout(timer);
+  }, [Table, dealerLate]);
+
   useEffect(() => {
     if (!Table || !fold) return;
     const store = useGameStore.getState();
@@ -1303,6 +1377,7 @@ function RolePreview({
             botCrew && phase === 'game_over' ? { needed: 1, agreed: 0, youAgreed: false } : null
           }
           topDock={invitation ? invitationHeight : 0}
+          loading={loading}
         />
       ) : (
         <Loading />

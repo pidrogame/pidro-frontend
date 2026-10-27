@@ -117,6 +117,8 @@ export const UI_VIEWPORTS = [
     width: 375,
     height: 667,
     cases: [
+      'table-dealer-late',
+      'table-loading',
       'welcome',
       'welcome-sv',
       'news-welcome-en',
@@ -223,6 +225,8 @@ export const UI_VIEWPORTS = [
     width: 768,
     height: 1024,
     cases: [
+      'table-dealer-late',
+      'table-loading',
       'welcome',
       'welcome-sv',
       ...classicClaimCases,

@@ -324,6 +324,12 @@ the cancelled/new turn-timer events follow separately. Grammar cases
 departure, stable sprite identity and the ring through trick completion at
 390×844, 375×667, 844×390 and 768×1024. Completed cards still remain as hand history.
 
+PID-302: `/table-dev?phase=bidding&role=player&fixture=dealer-late&late=1500` sends the
+dealer cut with a 3 s window to a phone busy for `late` ms, then deals; grammar case
+`table-dealer-late` checks the cut's winner is lit at least 300 ms before the deal.
+`/table-dev?phase=bidding&role=player&loading=0.4` holds the quiet "Loading table…" bar a slow
+phone shows until its cards are decoded (`table-loading`).
+
 PID-279 extends that same loop with lift/settle, spring hand closure and a
 post-hold gather/sweep, currently off pending a team decision. Set
 `TRICK_SWEEP_ENABLED` in `animationTiming.ts` to try it; grammar assertions follow

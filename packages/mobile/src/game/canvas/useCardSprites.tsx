@@ -35,6 +35,7 @@ import {
 } from 'react-native-reanimated';
 import type { Card, Suit } from '@/types/game';
 import { trumpsIn } from '@/features/game/trump';
+import { catchUpPace } from '@/features/game/catchUp';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playSelectionHaptic } from '@/utils/haptics';
 import { blockedCardTap, blockedPlay, cardTap } from '@/diagnostics/actions';
@@ -112,6 +113,11 @@ const PRESS_MAX_MS = 10_000;
 /** A tapped card that has not flown by then was not played; drop it back. */
 const PRESS_UNPLAYED_MS = 700;
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
+/** The cut's winner stays lit this long before the server deals. */
+const CUT_WINNER_READ_MS = 700;
+/** When the cut's winner lights up, at the cut's own pace. */
+const cutRevealAt = (cuts: number) =>
+  Math.max(0, cuts - 1) * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS + CUT_WINNER_PAUSE_MS;
 
 function handSlotFn(L: TableLayout, n: number) {
   const step = handStep(L, n);
@@ -185,6 +191,8 @@ export function useCardSprites({
   const retirementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const cutSequenceKey = useRef<string | null>(null);
   const cutSequenceStartedAt = useRef(0);
+  // 1 as designed; less when this phone is behind the server; 0 skips to the result.
+  const cutPace = useRef(1);
   const winnerRevealSequenceKey = useRef<string | null>(null);
   const prevModel = useRef<TableModel | null>(null);
   const prevLayout = useRef(L);
@@ -396,9 +404,21 @@ export function useCardSprites({
             .map((card) => `${card.key}:${card.tx}:${card.ty}`)
             .join('|')
         : null;
-    const animateCutSequence =
+    const newCutSequence =
       !reduceMotion && !!nextCutSequenceKey && nextCutSequenceKey !== cutSequenceKey.current;
-    if (animateCutSequence) cutSequenceStartedAt.current = Date.now();
+    if (newCutSequence) {
+      cutSequenceStartedAt.current = Date.now();
+      // The server deals once its window is up: a phone behind it plays the
+      // cut faster, or, too far behind, lays the cards down with the winner lit.
+      cutPace.current = catchUpPace({
+        motionMs: cutRevealAt(Object.keys(model.dealerCuts).length),
+        holdMs: CUT_WINNER_READ_MS,
+        windowMs: model.dealerSelectionMs,
+        lateMs: model.arrivedAt != null ? Date.now() - model.arrivedAt : 0,
+      });
+    }
+    const animateCutSequence = newCutSequence && cutPace.current > 0;
+    const skipCutSequence = newCutSequence && cutPace.current === 0;
     cutSequenceKey.current = nextCutSequenceKey;
     const nextSlots: SlotInfo[] = Array(MAX).fill(null);
 
@@ -547,9 +567,10 @@ export function useCardSprites({
         model.phase === 'playing' && (d.kind === 'played' || slots[sl]?.kind === 'played');
       targets.current.set(sl, signature);
       if (cutCard && !reduceMotion) {
-        const delay = d.delayOrder * CUT_CARD_STAGGER_MS;
+        const pace = cutPace.current;
+        const delay = d.delayOrder * CUT_CARD_STAGGER_MS * pace;
         const cutCfg = {
-          duration: CUT_CARD_TRAVEL_MS,
+          duration: CUT_CARD_TRAVEL_MS * pace,
           easing: Easing.out(Easing.back(1.35)),
           reduceMotion: ReduceMotion.System,
         };
@@ -561,7 +582,11 @@ export function useCardSprites({
           delay,
           withTiming(d.topacity, { duration: 150, reduceMotion: ReduceMotion.System })
         );
-      } else if (firstLoad || (reduceMotion && (d.kind === 'cut' || model.phase === 'playing'))) {
+      } else if (
+        firstLoad ||
+        (d.kind === 'cut' && skipCutSequence) ||
+        (reduceMotion && (d.kind === 'cut' || model.phase === 'playing'))
+      ) {
         sx[sl].value = d.tx;
         sy[sl].value = d.ty;
         srot[sl].value = d.trot;
@@ -768,8 +793,7 @@ export function useCardSprites({
       winnerReveal.value = 1;
       return;
     }
-    const revealAtMs =
-      Math.max(0, cutCount - 1) * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS + CUT_WINNER_PAUSE_MS;
+    const revealAtMs = cutRevealAt(cutCount) * cutPace.current;
     const revealDelay = Math.max(0, revealAtMs - (Date.now() - cutSequenceStartedAt.current));
     winnerReveal.value = withDelay(
       revealDelay,

@@ -58,6 +58,7 @@ import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExpla
 import { PidroLayout, PidroSpacing } from '@/design/tokens';
 import { t, useTranslation } from '@/i18n';
 import { TableFeedback } from '@/components/game/TableFeedback';
+import { LeagueProgress } from '@/components/home/LeagueProgress';
 
 type Props = {
   room: Room;
@@ -78,6 +79,8 @@ type Props = {
   held?: HeldStyle;
   /** Upright, the height of a card under the header (a seat invitation): the table starts below it. */
   topDock?: number;
+  /** Fixtures: hold the loading bar at this share of the cards decoded. */
+  loading?: number;
 };
 
 /** `value` as it was when `hold` began, for as long as it holds. */
@@ -171,6 +174,16 @@ function statusText(
       return now(t('game.playing'));
   }
 }
+
+/**
+ * When this phone took in each server state; a busy phone takes them in late.
+ * Watched from when the waiting room loads this module, before the table mounts.
+ */
+const arrivals = new WeakMap<object, number>();
+useGameStore.subscribe((next, prev) => {
+  if (next.serverState && next.serverState !== prev.serverState)
+    arrivals.set(next.serverState, Date.now());
+});
 
 /** The turn light turns urgent for the last five seconds. */
 const URGENT_MS = 5_000;
@@ -297,6 +310,7 @@ export function GameCanvasTable({
   rulesFixtureSeen,
   held,
   topDock = 0,
+  loading,
 }: Props) {
   const { locale } = useTranslation();
   const controller = useGameTableController();
@@ -350,7 +364,15 @@ export function GameCanvasTable({
         : heldModel,
     [holding, heldModel]
   );
-  const dealt = useDealPresentation(tableModel, controller.viewModel?.dealerRelative ?? null);
+  // Catching up: what the server allows the dealer cut, and how late this phone is.
+  const arrivedAt = controller.serverState ? arrivals.get(controller.serverState) : undefined;
+  const selection = useGameStore((state) => state.presentation?.dealer_selection ?? null);
+  const dealerSelectionMs = selection ? selection.ends_at_ms - selection.started_at_ms : undefined;
+  const timedModel = useMemo(
+    () => ({ ...tableModel, arrivedAt, dealerSelectionMs }),
+    [tableModel, arrivedAt, dealerSelectionMs]
+  );
+  const dealt = useDealPresentation(timedModel, controller.viewModel?.dealerRelative ?? null);
   const presented = useSecondDealPresentation(dealt);
   const turnTimer = useGameStore((state) => state.turnTimer);
   const playPresentation = usePlayPresentation(presented, controller.handlePlayCard, turnTimer);
@@ -361,7 +383,8 @@ export function GameCanvasTable({
   useTableHaptics(model);
   const isBiddingTurn = controller.phase === 'bidding' && controller.isYourTurn;
   const facesReady = useHandPresentationReady(serverModel.yourHand, textures, isBiddingTurn);
-  const isHandReady = !model.dealStage && facesReady;
+  // A held loading bar is a phone still decoding: its hand is not ready either.
+  const isHandReady = !model.dealStage && facesReady && loading == null;
   const insets = useSafeAreaInsets();
   const reserves = useTableReserves({ top: TABLE_HEADER + topDock });
   const { topReserve, bottomReserve } = reserves;
@@ -632,6 +655,21 @@ export function GameCanvasTable({
         />
       )}
 
+      {/* Until this phone has decoded the cards: quiet, in the notice slot, never holding the game. */}
+      {loading != null || textures.loading ? (
+        <View
+          testID="table-loading"
+          style={[styles.bannerWrap, reserves.noticeSlot]}
+          pointerEvents="none">
+          <LeagueProgress
+            progress={loading ?? textures.loaded}
+            label={t('game.loading')}
+            width={LOADING_BAR_WIDTH}
+            align="center"
+          />
+        </View>
+      ) : null}
+
       {/* Connection banner, in the notice slot */}
       {isChannelJoined && <TableFeedback notice={controller.actionNotice ?? null} />}
       {!isGameOver && (
@@ -716,6 +754,8 @@ export function GameCanvasTable({
     </GestureHandlerRootView>
   );
 }
+
+const LOADING_BAR_WIDTH = 160;
 
 const styles = StyleSheet.create({
   bannerWrap: {

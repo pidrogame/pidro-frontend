@@ -66,6 +66,10 @@ export type TableSeat = {
 export type TableModel = {
   phase: GamePhase;
   transitionDelayMs?: number;
+  /** When this phone took the state in: how late its motion already starts. */
+  arrivedAt?: number;
+  /** How long the server shows the dealer cut before it deals. */
+  dealerSelectionMs?: number;
   /** Presentation deadline only; collecting never extends the server's turn gate. */
   collectAt?: number;
   trumpSuit: Suit | null;
