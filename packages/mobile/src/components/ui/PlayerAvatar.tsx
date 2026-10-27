@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Image, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -32,6 +32,7 @@ import {
 import { roundGlow } from '@/features/roundGlow';
 import { botPortrait, type BotPersona, type BotProfile } from '@pidro/shared';
 import { useBotProfile } from '@/features/bots';
+import { BoxShadow } from '@/game/canvas/bakedBlur';
 
 /**
  * A player, drawn the same way everywhere: the photo in a ring, with up to
@@ -100,6 +101,19 @@ const DEALER_GAP = 6;
 const FACE_GRADIENT = `linear-gradient(180deg, ${PidroBevel.panelHi} 0%, ${PidroBevel.panelMid} 60%, ${PidroBevel.panelDeep} 100%)`;
 const AWAY_OPACITY = 0.45;
 
+/**
+ * The still shadows. Native bakes each blur once (`BoxShadow`) instead of
+ * blurring it in every frame; web, which has no CanvasKit off the table, keeps
+ * the CSS. A keyline ring stays a crisp `boxShadow` over the baked blur.
+ */
+const BAKED = Platform.OS !== 'web';
+const RING_SHADOW = '0px 4px 10px rgba(0,0,0,0.45)';
+const GEM_RING = `0px 0px 0px 1.5px ${PidroBevel.panelDeep}`;
+const GEM_GLOW = `0px 0px 10px ${PidroBevel.avatarGemGlow}`;
+const COIN_RING = `0px 0px 0px 2px ${PidroBevel.panelDeep}`;
+const COIN_SHADOW = '0px 3px 6px rgba(0,0,0,0.5)';
+const OFFLINE_SHADOW = '0px 2px 4px rgba(0,0,0,0.5)';
+
 export function PlayerAvatar({
   size,
   uri,
@@ -159,7 +173,7 @@ export function PlayerAvatar({
       {seated ? (
         <View
           style={[
-            styles.ring,
+            !BAKED && styles.ringShadow,
             gradientBg(gold ? PidroBevel.goldRimGradient : PidroBevel.avatarGlassRingGradient),
             {
               width: size,
@@ -169,6 +183,13 @@ export function PlayerAvatar({
               opacity: away || photoProgress != null ? AWAY_OPACITY : 1,
             },
           ]}>
+          {BAKED ? (
+            <BoxShadow
+              shadow={RING_SHADOW}
+              radius={size / 2}
+              size={{ width: size, height: size }}
+            />
+          ) : null}
           <View
             style={[
               styles.face,
@@ -218,8 +239,17 @@ export function PlayerAvatar({
               left: (size - parts.gem) / 2,
               top: -parts.gem / 2,
             },
-          ]}
-        />
+          ]}>
+          {BAKED ? (
+            <BoxShadow
+              shadow={GEM_GLOW}
+              radius={2}
+              border={1.5}
+              ring={1.5}
+              size={{ width: parts.gem, height: parts.gem }}
+            />
+          ) : null}
+        </View>
       ) : null}
 
       {pin && seated && parts.pin ? (
@@ -660,6 +690,14 @@ export function Coin({
         { width: size, height: size, borderRadius: size / 2, padding: rim },
         style,
       ]}>
+      {BAKED ? (
+        <BoxShadow
+          shadow={COIN_SHADOW}
+          radius={size / 2}
+          ring={2}
+          size={{ width: size, height: size }}
+        />
+      ) : null}
       <View
         style={[
           styles.coinFace,
@@ -690,6 +728,14 @@ function AwayBadge({ away, size }: { away: AvatarAway; size: number }) {
         { width: size, height: size, borderRadius: size / 2 },
         place,
       ]}>
+      {BAKED ? (
+        <BoxShadow
+          shadow={OFFLINE_SHADOW}
+          radius={size / 2}
+          border={1.5}
+          size={{ width: size, height: size }}
+        />
+      ) : null}
       <Icon
         name="offline"
         size={Math.round(size * 0.55)}
@@ -714,8 +760,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  ring: {
-    boxShadow: '0px 4px 10px rgba(0,0,0,0.45)',
+  ringShadow: {
+    boxShadow: RING_SHADOW,
   },
   face: {
     flex: 1,
@@ -748,11 +794,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: PidroBevel.rim,
     transform: [{ rotate: '45deg' }],
-    boxShadow: `0px 0px 0px 1.5px ${PidroBevel.panelDeep}, 0px 0px 10px ${PidroBevel.avatarGemGlow}`,
+    boxShadow: BAKED ? GEM_RING : `${GEM_RING}, ${GEM_GLOW}`,
   },
   coin: {
     position: 'absolute',
-    boxShadow: `0px 0px 0px 2px ${PidroBevel.panelDeep}, 0px 3px 6px rgba(0,0,0,0.5)`,
+    boxShadow: BAKED ? COIN_RING : `${COIN_RING}, ${COIN_SHADOW}`,
   },
   coinFace: {
     flex: 1,
@@ -792,7 +838,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: PidroColors.dangerBorder,
     backgroundColor: PidroBevel.panelDeep,
-    boxShadow: '0px 2px 4px rgba(0,0,0,0.5)',
+    boxShadow: BAKED ? undefined : OFFLINE_SHADOW,
   },
   copy: {
     flexShrink: 1,

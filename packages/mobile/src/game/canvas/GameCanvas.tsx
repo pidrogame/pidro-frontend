@@ -39,7 +39,7 @@ import { T } from './tokens';
 import type { CardTextures } from './cardTextures';
 import type { TableModel } from './tableModel';
 import { useCardSprites } from './useCardSprites';
-import { bakeBlur } from './bakedBlur';
+import { keptBlur } from './bakedBlur';
 
 type Props = {
   model: TableModel;
@@ -306,10 +306,10 @@ function SuitGlyph({
     { scale: 1 + 0.35 * pop.value },
   ]);
   const opacity = useDerivedValue(() => 0.85 + 0.15 * pop.value);
-  // Dark halo lifts the glyph off the lit felt; blurred once per size.
+  // Dark halo lifts the glyph off the lit felt; blurred once per size, kept across hands.
   const halo = useMemo(() => {
     const r = size * 0.68;
-    return bakeBlur({ x: -r, y: -r, width: r * 2, height: r * 2, r }, 10, 'rgba(4, 22, 42, 0.42)');
+    return keptBlur({ x: -r, y: -r, width: r * 2, height: r * 2, r }, 10, 'rgba(4, 22, 42, 0.42)');
   }, [size]);
   if (!img) return null;
   return (

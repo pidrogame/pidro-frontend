@@ -81,7 +81,7 @@ import {
   TRICK_SWEEP_SCALE,
 } from './animationTiming';
 import { T } from './tokens';
-import { bakeBlur, type BakedBlur } from './bakedBlur';
+import { keptBlur, useKeptBlurs, type BakedBlur } from './bakedBlur';
 
 function motionEasing(curve: readonly [number, number, number, number]) {
   return {
@@ -911,15 +911,16 @@ export function useCardSprites({
   }, [playByKey]);
 
   // Every card's shadow and gold glow, blurred once per card size.
+  useKeptBlurs();
   const lights = useMemo(() => {
     const r = Math.min(10, cardW * 0.12);
     return {
-      glow: bakeBlur(
+      glow: keptBlur(
         { x: -cardW / 2 - 5, y: -cardH / 2 - 5, width: cardW + 10, height: cardH + 10, r: r + 5 },
         14,
         T.gold
       ),
-      shadow: bakeBlur(
+      shadow: keptBlur(
         { x: -cardW / 2 + 1, y: -cardH / 2 + 4, width: cardW, height: cardH, r },
         5,
         CARD_SHADOW

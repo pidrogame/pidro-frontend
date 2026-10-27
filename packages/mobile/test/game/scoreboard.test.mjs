@@ -22,6 +22,7 @@ it('keeps the hand log open across turns and hands, but closes it on leaving the
   const view = ({ children }) => h('div', null, children);
   mock.module('react-native', () => ({
     View: view,
+    Platform: { OS: 'web' },
     StyleSheet: { create: (styles) => styles },
     useWindowDimensions: () => ({ width: 390, height: 844 }),
   }));

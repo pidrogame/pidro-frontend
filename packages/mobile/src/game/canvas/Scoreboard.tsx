@@ -10,7 +10,7 @@
  * they landed in (PID-230).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -48,6 +48,8 @@ const VALUE_LINE = 29;
 export const SCORE_PLAQUE_HEIGHT = 2 * RIM + 2 * PidroSpacing.xxs + LABEL_LINE + VALUE_LINE;
 
 const NO_ENTRIES: HandLogEntry[] = [];
+/** Native bakes the plaque's still shadow once; web keeps the CSS. */
+const BAKED = Platform.OS !== 'web';
 
 /** Points landing on the score: up quickly, held a moment, then gone. */
 const GLOW_IN_MS = 180;
@@ -236,6 +238,7 @@ export function Scoreboard({
         accessibilityState={{ expanded: isOpen }}
         onPress={() => setIsOpen((open) => !open)}
         style={[styles.plaque, gradientBg(PidroBevel.goldRimGradient)]}>
+        {BAKED ? <BoxShadow shadow={PidroBevel.glassDropShadow} radius={PidroRadii.lg} /> : null}
         <View style={styles.plaqueRow}>
           <View style={styles.col}>
             {glowLight('us')}
@@ -298,7 +301,7 @@ const styles = StyleSheet.create({
   plaque: {
     padding: RIM,
     borderRadius: PidroRadii.lg,
-    boxShadow: PidroBevel.glassDropShadow,
+    boxShadow: BAKED ? undefined : PidroBevel.glassDropShadow,
   },
   plaqueRow: {
     flexDirection: 'row',

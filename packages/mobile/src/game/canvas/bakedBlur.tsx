@@ -3,7 +3,7 @@
  * Drawing the image where the blurred shape would be looks the same, scaled,
  * turned and faded with what casts it, without a blur in any frame.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, PixelRatio, Platform, StyleSheet, View, type ViewStyle } from 'react-native';
 import type { SkImage } from '@shopify/react-native-skia';
 
@@ -59,6 +59,53 @@ export function bakeBlur(rect: Rect, sigma: number, color: string, outside?: Rec
   } satisfies BakedBlur;
 }
 
+const shapeKey = (...shape: unknown[]) =>
+  JSON.stringify(shape, (_, v) => (typeof v === 'number' ? Math.round(v * 2) / 2 : v));
+
+// The table's blurs, one per shape, so a new hand, game or turn of the phone
+// draws the same image again instead of baking another.
+const kept = new Map<string, BakedBlur>();
+const KEPT_BLURS = 16;
+let tables = 0;
+let release: ReturnType<typeof setTimeout> | null = null;
+const RELEASE_MS = 10_000;
+
+/**
+ * `bakeBlur`, kept while a table is up (`useKeptBlurs`). A window that keeps
+ * resizing lets go of its oldest sizes; a failed bake is tried again.
+ */
+export function keptBlur(rect: Rect, sigma: number, color: string) {
+  const key = shapeKey(rect, sigma, color);
+  const found = kept.get(key);
+  if (found) return found;
+  const baked = bakeBlur(rect, sigma, color);
+  if (!baked) return null;
+  if (kept.size >= KEPT_BLURS) kept.delete(kept.keys().next().value!);
+  kept.set(key, baked);
+  return baked;
+}
+
+/**
+ * A table holds the kept blurs and baked shadows. A while after the last one
+ * closes they are let go; no canvas draws them then, and each image frees its
+ * pixels once nothing refers to it.
+ */
+export function useKeptBlurs() {
+  useEffect(() => {
+    tables++;
+    if (release) clearTimeout(release);
+    release = null;
+    return () => {
+      if (--tables > 0) return;
+      release = setTimeout(() => {
+        release = null;
+        kept.clear();
+        shadows.clear();
+      }, RELEASE_MS);
+    };
+  }, []);
+}
+
 export type BakedShadow = { uri: string; x: number; y: number; width: number; height: number };
 const shadows = new Map<string, BakedShadow | null>();
 const KEPT_SHADOWS = 64;
@@ -70,9 +117,7 @@ export function bakedShadow(
   color: string,
   outside?: Rect
 ): BakedShadow | null {
-  const key = JSON.stringify([rect, sigma, color, outside], (_, v) =>
-    typeof v === 'number' ? Math.round(v * 2) / 2 : v
-  );
+  const key = shapeKey(rect, sigma, color, outside);
   if (!shadows.has(key)) {
     if (shadows.size >= KEPT_SHADOWS) shadows.delete(shadows.keys().next().value!);
     const baked = bakeBlur(rect, sigma, color, outside);
@@ -97,17 +142,24 @@ export function bakedShadow(
  * `boxShadow`: it looks the same, and a view that moves or fades over the
  * table no longer blurs it again on every frame. A view with a border passes
  * its width, so the shadow starts outside the border, as `boxShadow` does.
+ * A view of known `size` bakes on its first frame. `ring` is the width of a
+ * crisp keyline the view keeps as its own `boxShadow`, drawn over this one.
  */
 export function BoxShadow({
   shadow,
   radius = 0,
   border = 0,
+  ring = 0,
+  size: known,
 }: {
   shadow: string;
   radius?: number;
   border?: number;
+  ring?: number;
+  size?: { width: number; height: number };
 }) {
-  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  const [measured, setSize] = useState<{ width: number; height: number } | null>(null);
+  const size = known ?? measured;
   const [x, y, blur, spread = 0] = (shadow.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
   const color = shadow.slice(shadow.search(/rgba?\(|#/));
   const baked =
@@ -122,18 +174,27 @@ export function BoxShadow({
       },
       blur / 2,
       color,
-      { x: 0, y: 0, ...size, r: Math.min(radius, Math.min(size.width, size.height) / 2) }
+      {
+        x: -ring,
+        y: -ring,
+        width: size.width + ring * 2,
+        height: size.height + ring * 2,
+        r: Math.min(radius, Math.min(size.width, size.height) / 2) + ring,
+      }
     );
   return (
     <View
       pointerEvents="none"
       style={[styles.fill, { top: -border, right: -border, bottom: -border, left: -border }]}
-      onLayout={({ nativeEvent: { layout } }) =>
-        setSize((was) =>
-          was?.width === layout.width && was.height === layout.height
-            ? was
-            : { width: layout.width, height: layout.height }
-        )
+      onLayout={
+        known
+          ? undefined
+          : ({ nativeEvent: { layout } }) =>
+              setSize((was) =>
+                was?.width === layout.width && was.height === layout.height
+                  ? was
+                  : { width: layout.width, height: layout.height }
+              )
       }>
       {baked ? <ShadowImage shadow={baked} /> : null}
     </View>
