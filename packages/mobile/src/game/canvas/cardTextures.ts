@@ -2,10 +2,13 @@
  * Cross-platform Skia card textures. Native loads the bundled require() modules
  * (same art as src/utils/cardImages.ts); web loads the public/cards mirror because
  * Metro-web require() doesn't resolve to a URL for Skia. All 52 faces + back +
- * 4 suit glyphs are preloaded; a missing texture renders as a fallback frame.
+ * 4 suit glyphs are decoded once for the whole app, starting as early as the
+ * waiting room (`preloadCardTextures`); a missing texture renders as a fallback
+ * frame.
  */
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { Platform } from 'react-native';
-import { useImage, type SkImage } from '@shopify/react-native-skia';
+import { loadData, Skia, type SkImage } from '@shopify/react-native-skia';
 import { getCardImage } from '@/utils/cardImages';
 import type { Card, Suit } from '@/types/game';
 import { cardKey, type CardKey } from './cardKey';
@@ -53,24 +56,91 @@ export type CardTextures = {
   back: SkImage | null;
   suit: (suit: Suit) => SkImage | null;
   ready: boolean;
+  /** Still decoding: the table shows how far. */
+  loading: boolean;
+  /** Share of the textures decoded so far, 0 to 1. */
+  loaded: number;
 };
 
+type ImgSourceParam = Parameters<typeof loadData>[0];
+const SOURCES: [string, ImgSource][] = [
+  ...ALL_CARDS.map((card): [string, ImgSource] => [cardKey(card), faceSource(card)]),
+  ...SUITS.map((suit): [string, ImgSource] => [suit, suitSource(suit)]),
+  ['back', BACK_SOURCE],
+];
+// Decoded textures. A failed one is left out, so its card draws the fallback
+// frame and the next table tries it again.
+const images = new Map<string, SkImage>();
+const listeners = new Set<() => void>();
+let loading: Promise<void> | null = null;
+let settled = 0;
+let notifying: ReturnType<typeof setTimeout> | null = null;
+// What the table has been told: it changes only when it is told.
+let version = 0;
+
+function notify() {
+  version++;
+  listeners.forEach((listener) => listener());
+}
+
+/** Tells the table at most every 100ms: a decode each is a re-render each. */
+function settle(key: string, image: SkImage | null) {
+  settled++;
+  if (image) images.set(key, image);
+  notifying ??= setTimeout(() => {
+    notifying = null;
+    notify();
+  }, NOTIFY_MS);
+}
+const NOTIFY_MS = 100;
+
+/** Pixels now, in the waiting room, not on the first frame that draws the card. */
+function decoded(image: SkImage | null) {
+  try {
+    return image?.makeNonTextureImage() ?? image;
+  } catch {
+    return image;
+  }
+}
+
+/** Decodes every texture once; later calls share the same work. */
+export function preloadCardTextures(): Promise<void> {
+  if (loading || images.size === SOURCES.length) return loading ?? Promise.resolve();
+  settled = images.size;
+  loading = Promise.all(
+    SOURCES.filter(([key]) => !images.has(key)).map(([key, source]) =>
+      loadData(source as ImgSourceParam, (data) => decoded(Skia.Image.MakeImageFromEncoded(data)))
+        .catch(() => null)
+        .then((image) => settle(key, image))
+    )
+  ).then(() => {
+    loading = null;
+    notify();
+  });
+  return loading;
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export function useCardTextures(): CardTextures {
-  /* eslint-disable react-hooks/rules-of-hooks -- fixed-length arrays → stable hook order */
-  const faces = ALL_CARDS.map((c) => useImage(faceSource(c) as Parameters<typeof useImage>[0]));
-  const suits = SUITS.map((s) => useImage(suitSource(s) as Parameters<typeof useImage>[0]));
-  /* eslint-enable react-hooks/rules-of-hooks */
-  const back = useImage(BACK_SOURCE as Parameters<typeof useImage>[0]);
-
-  const faceMap = new Map<CardKey, SkImage | null>();
-  ALL_CARDS.forEach((c, i) => faceMap.set(cardKey(c), faces[i] ?? null));
-  const suitMap = new Map<Suit, SkImage | null>();
-  SUITS.forEach((s, i) => suitMap.set(s, suits[i] ?? null));
-
-  return {
-    get: (k) => faceMap.get(k) ?? null,
-    back,
-    suit: (s) => suitMap.get(s) ?? null,
-    ready: back != null && faces.every((f) => f != null),
-  };
+  const told = useSyncExternalStore(subscribe, () => version);
+  useEffect(() => {
+    void preloadCardTextures();
+  }, []);
+  // `told` changes whenever `images` does: a new object, so the table redraws.
+  return useMemo(() => {
+    const image = (key: string) => images.get(key) ?? null;
+    return {
+      get: (k) => image(k),
+      back: image('back'),
+      suit: (s) => image(s),
+      ready: image('back') != null && ALL_CARDS.every((card) => image(cardKey(card)) != null),
+      loading: loading != null,
+      loaded: settled / SOURCES.length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [told]);
 }

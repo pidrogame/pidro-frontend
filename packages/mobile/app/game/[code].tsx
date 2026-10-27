@@ -324,6 +324,11 @@ export default function GameScreen() {
     (serverPhase === 'complete' || serverPhase === 'game_over') &&
     readiness?.status === 'finished' &&
     role === 'player';
+  // Waiting for the others is when a slow phone loads the table and decodes its
+  // cards, so they are ready by the time the game starts.
+  useEffect(() => {
+    if (tableIsWaiting) loadGameCanvasTable().catch(() => undefined);
+  }, [tableIsWaiting]);
   const [showGuestSave, setShowGuestSave] = useState(false);
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
   const promptedCompletionRef = useRef<string | null>(null);
