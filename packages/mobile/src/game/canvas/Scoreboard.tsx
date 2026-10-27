@@ -35,6 +35,7 @@ import { handLogEntries, type HandLogEntry, type HandLogGroup } from '@/game/han
 import { ActionTicker, type TickerRestingLine } from './ActionTicker';
 import { SCORE_COUNT } from './HandResult';
 import { HandLogWindow } from './HandLogWindow';
+import { BoxShadow } from './bakedBlur';
 import { formatNumber, useTranslation } from '@/i18n';
 
 type Scores = { north_south: number; east_west: number } | null | undefined;
@@ -204,12 +205,9 @@ export function Scoreboard({
       <Animated.View
         pointerEvents="none"
         testID={`score-glow-${column}`}
-        style={[
-          styles.glow,
-          { backgroundColor: GLOW_TINT[side], boxShadow: `0px 0px 10px ${GLOW_EDGE[side]}` },
-          glowStyle,
-        ]}
-      />
+        style={[styles.glow, { backgroundColor: GLOW_TINT[side] }, glowStyle]}>
+        <BoxShadow shadow={`0px 0px 10px ${GLOW_EDGE[side]}`} radius={PidroRadii.tight} />
+      </Animated.View>
     ) : null;
   };
   const [isOpen, setIsOpen] = useState(false);

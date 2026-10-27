@@ -334,19 +334,27 @@ function useFixtureTurnTimer(
   running: boolean,
   turn: RelativePosition
 ): Partial<Record<RelativePosition, SeatTurn>> | undefined {
-  const [tick, setTick] = useState<{ turn: RelativePosition; progress: number } | null>(null);
+  // As at the real table: the arc runs down by itself; the seats wake to turn urgent.
+  const [clock, setClock] = useState<{ turn: RelativePosition; endsAt: number; urgent: boolean }>();
   useEffect(() => {
     if (!running) return;
-    const startedAt = Date.now();
-    const id = setInterval(() => {
-      const left = Math.max(0, 1 - (Date.now() - startedAt) / FIXTURE_TURN_MS);
-      setTick({ turn, progress: left });
-      if (left === 0) clearInterval(id);
-    }, 200);
-    return () => clearInterval(id);
+    const endsAt = Date.now() + FIXTURE_TURN_MS;
+    const ids = [
+      setTimeout(() => setClock({ turn, endsAt, urgent: false }), 0),
+      setTimeout(() => setClock({ turn, endsAt, urgent: true }), FIXTURE_TURN_MS * 0.75),
+    ];
+    return () => ids.forEach(clearTimeout);
   }, [running, turn]);
-  const progress = tick?.turn === turn ? tick.progress : 1;
-  return running ? { [turn]: { progress, urgent: progress < 0.25 } } : undefined;
+  if (!running) return undefined;
+  const live = clock?.turn === turn ? clock : null;
+  return {
+    [turn]: {
+      progress: 1,
+      urgent: live?.urgent ?? false,
+      endsAt: live?.endsAt,
+      durationMs: FIXTURE_TURN_MS,
+    },
+  };
 }
 
 export type GameCanvasDevProps = {

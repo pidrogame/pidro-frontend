@@ -46,6 +46,7 @@ it('keeps the hand log open across turns and hands, but closes it on leaving the
   mock.module('../../src/game/canvas/HandResult.tsx', () => ({
     SCORE_COUNT: { delayMs: 0, ms: 0 },
   }));
+  mock.module('../../src/game/canvas/bakedBlur.tsx', () => ({ BoxShadow: () => null }));
   mock.module('../../src/game/canvas/ActionTicker.tsx', () => ({
     ActionTicker: ({ onOpenLog }) =>
       h('button', { onClick: onOpenLog, id: 'open-log' }, 'This hand'),

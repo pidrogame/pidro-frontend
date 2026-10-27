@@ -178,33 +178,25 @@ const URGENT_MS = 5_000;
 function useTurnTimerProgress(
   turnTimer: ActiveTurnTimer | null
 ): { position: string; turn: SeatTurn } | null {
-  const [now, setNow] = useState(() => Date.now());
+  const [clock, setNow] = useState(() => Date.now());
+  // A timer is received as it renders; an older clock would add the time before it.
+  const now = Math.max(clock, turnTimer?.receivedAtMs ?? 0);
+  const expiresAt =
+    turnTimer && turnTimer.durationMs > 0 ? turnTimer.receivedAtMs + turnTimer.remainingMs : 0;
 
+  // The arc keeps its own clock; the seats wake only when the light turns urgent and when it runs out.
   useEffect(() => {
-    if (
-      !turnTimer ||
-      turnTimer.scope !== 'seat' ||
-      !turnTimer.position ||
-      turnTimer.durationMs <= 0 ||
-      turnTimer.remainingMs <= 0
-    ) {
-      return;
-    }
-
-    const expiresAt = turnTimer.receivedAtMs + turnTimer.remainingMs;
-    const id = setInterval(() => {
-      const nextNow = Date.now();
-      setNow(nextNow);
-      if (nextNow >= expiresAt) clearInterval(id);
-    }, 200);
-    return () => clearInterval(id);
-  }, [turnTimer]);
+    if (!expiresAt) return;
+    const next = [expiresAt - URGENT_MS, expiresAt].find((at) => at >= now);
+    if (next === undefined) return;
+    const id = setTimeout(() => setNow(Date.now()), next - Date.now() + 1);
+    return () => clearTimeout(id);
+  }, [expiresAt, now]);
 
   if (!turnTimer || turnTimer.scope !== 'seat' || !turnTimer.position) return null;
   if (turnTimer.durationMs <= 0) return null;
 
-  const elapsedMs = now - turnTimer.receivedAtMs;
-  const remainingTotalMs = Math.max(0, turnTimer.remainingMs - elapsedMs);
+  const remainingTotalMs = Math.max(0, expiresAt - now);
   if (remainingTotalMs <= 0) return null;
 
   const countdownRemainingMs = Math.min(turnTimer.durationMs, remainingTotalMs);
@@ -213,6 +205,8 @@ function useTurnTimerProgress(
     turn: {
       progress: countdownRemainingMs / turnTimer.durationMs,
       urgent: countdownRemainingMs <= URGENT_MS,
+      endsAt: expiresAt,
+      durationMs: turnTimer.durationMs,
     },
   };
 }

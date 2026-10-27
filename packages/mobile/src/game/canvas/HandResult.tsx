@@ -40,6 +40,7 @@ import { formatNumber, useTranslation } from '@/i18n';
 import { TABLE_HEADER, headerTop } from './TableChrome';
 import { computeLayout } from './layout';
 import type { TableModel } from './tableModel';
+import { BoxShadow } from './bakedBlur';
 
 /** The cards fly in one after another; the score header counts while they land. */
 const CARDS_FROM_MS = 300;
@@ -271,9 +272,11 @@ export function HandResultPanel({
             backgroundColor: tone.tray,
             borderColor: tone.edge,
             minHeight: faceW * CARD_RATIO + (sweep ? 38 : 22),
-            boxShadow: sweep ? PidroColors.handAll14Glow : undefined,
           },
         ]}>
+        {sweep ? (
+          <BoxShadow shadow={PidroColors.handAll14Glow} radius={TRAY_RADIUS} border={1.5} />
+        ) : null}
         <View style={styles.who}>
           <PidroText role="metadata" style={[styles.eyebrow, { color: trayLabelColor(tray) }]}>
             {teamLabel(tray)}
@@ -543,14 +546,14 @@ function PointCard({
   }));
   const chip = CHIP_TONE[side];
   return (
-    <Animated.View
-      style={[
-        styles.card,
-        { width, height: width * CARD_RATIO, boxShadow: PidroColors.pointCardShadow },
-        style,
-      ]}>
+    <Animated.View style={[styles.card, { width, height: width * CARD_RATIO }, style]}>
+      <BoxShadow shadow={PidroColors.pointCardShadow} radius={PidroRadii.tight} />
       {/* A five's gold ring: solid, behind the card and its chip, never over them. */}
-      {points >= PIDRO_POINTS ? <View pointerEvents="none" style={styles.fiveRing} /> : null}
+      {points >= PIDRO_POINTS ? (
+        <View pointerEvents="none" style={styles.fiveRing}>
+          <BoxShadow shadow={PidroColors.pointCardFiveGlow} radius={PidroRadii.tight + 3} />
+        </View>
+      ) : null}
       <Image
         source={getCardImage(card)}
         accessibilityIgnoresInvertColors
@@ -570,6 +573,8 @@ function PointCard({
     </Animated.View>
   );
 }
+
+const TRAY_RADIUS = 14;
 
 const styles = StyleSheet.create({
   // Under the score header and the menu, over the felt and the seats.
@@ -615,7 +620,7 @@ const styles = StyleSheet.create({
     paddingTop: PidroSpacing.sm,
     paddingBottom: 10,
     paddingHorizontal: 14,
-    borderRadius: 14,
+    borderRadius: TRAY_RADIUS,
     borderWidth: 1.5,
   },
   who: { width: 52, alignItems: 'flex-start' },
@@ -630,7 +635,6 @@ const styles = StyleSheet.create({
     bottom: -3,
     borderRadius: PidroRadii.tight + 3,
     backgroundColor: PidroBevel.textGold,
-    boxShadow: PidroColors.pointCardFiveGlow,
   },
   cardImage: { width: '100%', height: '100%', borderRadius: PidroRadii.tight },
   chip: {

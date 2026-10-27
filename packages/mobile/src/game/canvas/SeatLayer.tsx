@@ -25,6 +25,7 @@ import {
   View,
   useWindowDimensions,
   type ImageSourcePropType,
+  type ImageStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlayerAvatar, type PlayerAvatarProps } from '@/components/ui/PlayerAvatar';
@@ -72,6 +73,7 @@ import {
   SECOND_DEAL_SWOOP_STAGGER_MS,
 } from './animationTiming';
 import type { SecondDealShow } from './useSecondDealPresentation';
+import { bakedShadow } from './bakedBlur';
 import { t, useTranslation } from '@/i18n';
 
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
@@ -80,7 +82,8 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 const BACK: ImageSourcePropType =
   Platform.OS === 'web' ? { uri: '/cards/cardback.png' } : require('~/assets/images/cardback.png');
 
-export type SeatTurn = { progress: number; urgent: boolean };
+/** With `endsAt` and `durationMs` the turn light runs down on its own clock. */
+export type SeatTurn = { progress: number; urgent: boolean; endsAt?: number; durationMs?: number };
 
 function avatarFor(
   data: TableSeat,
@@ -110,7 +113,13 @@ function avatarFor(
     pin: data.pin,
     dealer,
     turn: onTurn
-      ? { progress: turn?.progress ?? 1, urgent: turn?.urgent ?? false, attention: data.isYou }
+      ? {
+          progress: turn?.progress ?? 1,
+          urgent: turn?.urgent ?? false,
+          endsAt: turn?.endsAt,
+          durationMs: turn?.durationMs,
+          attention: data.isYou,
+        }
       : null,
     away,
     kind,
@@ -681,20 +690,16 @@ function Pack({ count, backW, cx, cy }: { count: number; backW: number; cx: numb
       accessibilityElementsHidden
       style={{ position: 'absolute', left: cx - backW / 2, top: cy - h / 2 }}>
       {Array.from({ length: layers }, (_, i) => (
-        <Image
+        <Back
           key={i}
-          source={BACK}
-          style={[
-            styles.back,
-            {
-              position: 'absolute',
-              left: i * 0.6 + pose(i).dy * 1.2,
-              top: -i * 1.1,
-              width: backW,
-              height: h,
-              transform: [{ rotate: `${pose(i).tilt * 2.2}deg` }],
-            },
-          ]}
+          w={backW}
+          h={h}
+          style={{
+            position: 'absolute',
+            left: i * 0.6 + pose(i).dy * 1.2,
+            top: -i * 1.1,
+            transform: [{ rotate: `${pose(i).tilt * 2.2}deg` }],
+          }}
         />
       ))}
     </View>
@@ -805,7 +810,7 @@ function ThrownBack({
   }));
   return (
     <Animated.View style={[{ position: 'absolute', width: w, height: h }, motion]}>
-      <Image source={BACK} style={[styles.back, { width: w, height: h }]} />
+      <Back w={w} h={h} />
     </Animated.View>
   );
 }
@@ -866,17 +871,58 @@ function FlyingBack({
         },
         motion,
       ]}>
-      <Image
+      <Back
         source={source}
-        style={[
-          styles.back,
-          { width: w, height: h },
-          { transform: [{ rotate: `${(sideways ? 90 : 0) + tilt}deg` }] },
-        ]}
+        w={w}
+        h={h}
+        style={{ transform: [{ rotate: `${(sideways ? 90 : 0) + tilt}deg` }] }}
       />
     </Animated.View>
   );
 }
+
+/**
+ * A card back on its shadow. The shadow is blurred once per size: a blurred
+ * `boxShadow` under a tilted or moving card blurs again every frame. Web never
+ * drew one (react-native-web drops an Image's `boxShadow`), and still does not.
+ */
+function Back({
+  w,
+  h,
+  source = BACK,
+  style,
+}: {
+  w: number;
+  h: number;
+  source?: ImageSourcePropType;
+  style?: ImageStyle;
+}) {
+  const shadow =
+    Platform.OS === 'web'
+      ? null
+      : bakedShadow({ x: 0, y: 1, width: w, height: h, r: BACK_RADIUS }, 1.5, BACK_SHADOW);
+  const back = <Image source={source} style={[styles.back, { width: w, height: h }, style]} />;
+  if (!shadow) return back;
+  return (
+    <View style={[{ width: w, height: h }, style]}>
+      <Image
+        source={{ uri: shadow.uri }}
+        fadeDuration={0}
+        style={{
+          position: 'absolute',
+          left: shadow.x,
+          top: shadow.y,
+          width: shadow.width,
+          height: shadow.height,
+        }}
+      />
+      <Image source={source} style={[styles.back, { width: w, height: h }]} />
+    </View>
+  );
+}
+
+const BACK_RADIUS = 4;
+const BACK_SHADOW = 'rgba(0,0,0,0.55)';
 
 const styles = StyleSheet.create({
   bid: {
@@ -896,11 +942,10 @@ const styles = StyleSheet.create({
   // A solid light edge on a solid card, and a shadow under it, so
   // overlapping backs read as separate cards: nothing shows through.
   back: {
-    borderRadius: 4,
+    borderRadius: BACK_RADIUS,
     borderWidth: 1.5,
     borderColor: PidroColors.text,
     backgroundColor: PidroBevel.panelMid,
     overflow: 'hidden',
-    boxShadow: '0px 1px 3px rgba(0,0,0,0.55)',
   },
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -29,6 +29,7 @@ import {
   type AvatarKind,
   type AvatarPin,
 } from '@/features/avatar';
+import { roundGlow } from '@/features/roundGlow';
 import { botPortrait, type BotPersona, type BotProfile } from '@pidro/shared';
 import { useBotProfile } from '@/features/bots';
 
@@ -59,8 +60,16 @@ export interface PlayerAvatarProps {
   /**
    * `progress` is the time left, 1 to 0; the arc runs clockwise from twelve.
    * `attention` is for your own turn: the light pings once and then breathes.
+   * With `endsAt` and `durationMs` the arc runs down on its own clock, so
+   * nothing around it re-renders while a timer runs.
    */
-  turn?: { progress: number; urgent?: boolean; attention?: boolean } | null;
+  turn?: {
+    progress: number;
+    urgent?: boolean;
+    attention?: boolean;
+    endsAt?: number;
+    durationMs?: number;
+  } | null;
   /** Upload percentage, 0–100. Dims the pending photo without table-turn signals. */
   photoProgress?: number | null;
   away?: AvatarAway | null;
@@ -405,22 +414,32 @@ function useActedPulse(pulse: string | null) {
 
 /** The light behind a seat that just acted: the turn's shine, briefly. */
 function ActedLight({ size, acted }: { size: number; acted: ReturnType<typeof useActedPulse> }) {
-  return (
-    <Animated.View
-      pointerEvents="none"
-      style={[
-        styles.shine,
-        {
-          width: size,
-          height: size,
-          left: 0,
-          top: 0,
-          boxShadow: `0px 0px ${Math.round(size * 0.45)}px ${Math.round(size * 0.16)}px ${PidroColors.turnLightShine}`,
-        },
-        acted.light,
-      ]}
-    />
+  const glow = useRoundGlow(
+    size / 2,
+    Math.round(size * 0.45),
+    Math.round(size * 0.16),
+    PidroColors.turnLightShine
   );
+  return <Animated.View pointerEvents="none" style={[glowBox(size, glow), acted.light]} />;
+}
+
+/**
+ * A shine as a drawn gradient rather than a blurred shadow: it looks the same,
+ * and breathing scales it without blurring it again every frame.
+ */
+function useRoundGlow(radius: number, blur: number, spread: number, color: string) {
+  return useMemo(() => roundGlow({ radius, blur, spread, color }), [radius, blur, spread, color]);
+}
+
+function glowBox(size: number, glow: ReturnType<typeof roundGlow>): ViewStyle {
+  return {
+    position: 'absolute',
+    width: glow.extent * 2,
+    height: glow.extent * 2,
+    left: size / 2 - glow.extent,
+    top: size / 2 - glow.extent,
+    ...gradientBg(glow.backgroundImage),
+  };
 }
 
 /** Strong ease-out: the ping leaves the ring fast and settles softly. */
@@ -477,20 +496,18 @@ function TurnLight({
   }));
 
   const box = (arc.radius + arc.stroke / 2) * 2;
-  const shine = urgent ? PidroColors.turnUrgentShine : PidroColors.turnLightShine;
+  const glow = useRoundGlow(
+    box / 2,
+    Math.round(size * 0.42),
+    Math.round(size * 0.14),
+    urgent ? PidroColors.turnUrgentShine : PidroColors.turnLightShine
+  );
   return (
     <Animated.View
       pointerEvents="none"
       style={[
-        styles.shine,
-        {
-          width: box,
-          height: box,
-          left: (size - box) / 2,
-          top: (size - box) / 2,
-          boxShadow: `0px 0px ${Math.round(size * 0.42)}px ${Math.round(size * 0.14)}px ${shine}`,
-          opacity: attention ? 1 : OTHER_SHINE,
-        },
+        glowBox(size, glow),
+        { opacity: attention ? 1 : OTHER_SHINE },
         breathing ? motion : null,
       ]}
     />
@@ -552,13 +569,13 @@ function TurnArc({
 }: {
   size: number;
   arc: { radius: number; stroke: number };
-  turn: { progress: number; urgent?: boolean };
+  turn: { progress: number; urgent?: boolean; endsAt?: number; durationMs?: number };
 }) {
   const { radius, stroke } = arc;
   const box = Math.ceil((radius + stroke) * 2);
   const center = box / 2;
   const length = 2 * Math.PI * radius;
-  const left = Math.min(1, Math.max(0, turn.progress));
+  const left = Math.min(1, Math.max(0, useTimeLeft(turn)));
   return (
     <View
       pointerEvents="none"
@@ -591,6 +608,29 @@ function TurnArc({
       </Svg>
     </View>
   );
+}
+
+/** The share of the turn left, read again every 200ms while a timer runs. */
+function useTimeLeft({
+  progress,
+  endsAt,
+  durationMs,
+}: {
+  progress: number;
+  endsAt?: number;
+  durationMs?: number;
+}) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!endsAt || !durationMs) return;
+    const id = setInterval(() => {
+      const next = Date.now();
+      setNow(next);
+      if (next >= endsAt) clearInterval(id);
+    }, 200);
+    return () => clearInterval(id);
+  }, [endsAt, durationMs]);
+  return endsAt && durationMs ? Math.min(progress, (endsAt - now) / durationMs) : progress;
 }
 
 /** A struck coin: the pin, and the glass bot badge. Placed absolutely unless `style` says otherwise. */
@@ -694,10 +734,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: PidroColors.cyanBorderStrong,
     backgroundColor: PidroColors.panel,
-  },
-  shine: {
-    position: 'absolute',
-    borderRadius: 999,
   },
   arc: {
     position: 'absolute',

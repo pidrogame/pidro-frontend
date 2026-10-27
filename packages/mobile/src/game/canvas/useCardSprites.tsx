@@ -18,7 +18,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Gesture } from 'react-native-gesture-handler';
-import { BlurMask, Group, Image, RoundedRect, type SkImage } from '@shopify/react-native-skia';
+import { Group, Image, RoundedRect, type SkImage } from '@shopify/react-native-skia';
 import {
   Easing,
   ReduceMotion,
@@ -80,6 +80,7 @@ import {
   TRICK_SWEEP_SCALE,
 } from './animationTiming';
 import { T } from './tokens';
+import { bakeBlur, type BakedBlur } from './bakedBlur';
 
 function motionEasing(curve: readonly [number, number, number, number]) {
   return {
@@ -885,6 +886,23 @@ export function useCardSprites({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playByKey]);
 
+  // Every card's shadow and gold glow, blurred once per card size.
+  const lights = useMemo(() => {
+    const r = Math.min(10, cardW * 0.12);
+    return {
+      glow: bakeBlur(
+        { x: -cardW / 2 - 5, y: -cardH / 2 - 5, width: cardW + 10, height: cardH + 10, r: r + 5 },
+        14,
+        T.gold
+      ),
+      shadow: bakeBlur(
+        { x: -cardW / 2 + 1, y: -cardH / 2 + 4, width: cardW, height: cardH, r },
+        5,
+        CARD_SHADOW
+      ),
+    };
+  }, [cardW, cardH]);
+
   const nodes = useMemo(() => {
     const ordered = slots
       .map((s, i) => ({ s, i }))
@@ -916,12 +934,13 @@ export function useCardSprites({
             flashing={s.flashing}
             flashGlow={flashGlow}
             previewed={s.previewed}
+            lights={lights}
           />
         ))}
       </>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots, textures, cardW, cardH, L]);
+  }, [slots, textures, cardW, cardH, L, lights]);
 
   const renderedPlayedCardCount = slots.reduce(
     (count, slot) => count + (slot?.kind === 'played' ? 1 : 0),
@@ -1009,6 +1028,7 @@ function CardSprite({
   flashing,
   flashGlow,
   previewed,
+  lights,
 }: {
   img: SkImage | null;
   x: SharedValue<number>;
@@ -1031,6 +1051,7 @@ function CardSprite({
   flashing: boolean;
   flashGlow: SharedValue<number>;
   previewed: boolean;
+  lights: { glow: BakedBlur | null; shadow: BakedBlur | null };
 }) {
   const sweep = useDerivedValue(() =>
     Math.max(0, (collection.value - TRICK_GATHER_PROGRESS) / (1 - TRICK_GATHER_PROGRESS))
@@ -1068,28 +1089,13 @@ function CardSprite({
     )
   );
   const r = Math.min(10, w * 0.12);
+  // Only these cards ever glow; for the rest the glow is never drawn at all.
+  const glows = winner || leading || flashing;
   return (
     <Group transform={transform} opacity={visible}>
-      <RoundedRect
-        x={-w / 2 - 5}
-        y={-h / 2 - 5}
-        width={w + 10}
-        height={h + 10}
-        r={r + 5}
-        color={T.gold}
-        opacity={winnerOpacity}>
-        <BlurMask blur={14} style="normal" />
-      </RoundedRect>
+      {glows && lights.glow && <Baked blur={lights.glow} opacity={winnerOpacity} />}
       {/* Soft drop shadow grounds the card on the felt. */}
-      <RoundedRect
-        x={-w / 2 + 1}
-        y={-h / 2 + 4}
-        width={w}
-        height={h}
-        r={r}
-        color="rgba(2, 14, 28, 0.38)">
-        <BlurMask blur={5} style="normal" />
-      </RoundedRect>
+      {lights.shadow && <Baked blur={lights.shadow} />}
       {img ? (
         <Image image={img} x={-w / 2} y={-h / 2} width={w} height={h} fit="cover" />
       ) : (
@@ -1106,17 +1112,19 @@ function CardSprite({
           color="rgba(6, 22, 38, 0.52)"
         />
       )}
-      <RoundedRect
-        x={-w / 2 - 2}
-        y={-h / 2 - 2}
-        width={w + 4}
-        height={h + 4}
-        r={r + 2}
-        color={T.goldLight}
-        style="stroke"
-        strokeWidth={3}
-        opacity={winnerOpacity}
-      />
+      {glows && (
+        <RoundedRect
+          x={-w / 2 - 2}
+          y={-h / 2 - 2}
+          width={w + 4}
+          height={h + 4}
+          r={r + 2}
+          color={T.goldLight}
+          style="stroke"
+          strokeWidth={3}
+          opacity={winnerOpacity}
+        />
+      )}
       {previewed && (
         <RoundedRect
           x={-w / 2 - 1}
@@ -1130,5 +1138,21 @@ function CardSprite({
         />
       )}
     </Group>
+  );
+}
+
+const CARD_SHADOW = 'rgba(2, 14, 28, 0.38)';
+
+function Baked({ blur, opacity }: { blur: BakedBlur; opacity?: SharedValue<number> }) {
+  return (
+    <Image
+      image={blur.image}
+      x={blur.x}
+      y={blur.y}
+      width={blur.width}
+      height={blur.height}
+      fit="fill"
+      opacity={opacity}
+    />
   );
 }

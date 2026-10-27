@@ -28,6 +28,7 @@ import { isStillCapture } from '@/utils/stillCapture';
 import { computeLayout, playedCardTarget, type TableLayout } from './layout';
 import type { TableModel, TrickResult } from './tableModel';
 import type { ScoreGlow } from './Scoreboard';
+import { BoxShadow } from './bakedBlur';
 import { useTranslation } from '@/i18n';
 
 const POP_MS = 1500;
@@ -282,12 +283,8 @@ function Pop({
       pointerEvents="none"
       testID={`trick-pop-pidro-${side}`}
       style={[styles.pop, { left: x - box / 2, top: y - height / 2, width: box }, motion]}>
-      <View
-        style={[
-          styles.popChip,
-          styles.popChipBig,
-          { borderColor: tone.border, boxShadow: `0px 0px 18px ${tone.glow}` },
-        ]}>
+      <View style={[styles.popChip, styles.popChipBig, { borderColor: tone.border }]}>
+        <BoxShadow shadow={`0px 0px 18px ${tone.glow}`} radius={PidroRadii.full} border={2} />
         <PidroText
           role="title"
           style={[styles.popText, side === 'ours' ? styles.pidro : { color: tone.text }]}>
