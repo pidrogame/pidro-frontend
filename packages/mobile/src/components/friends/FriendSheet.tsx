@@ -164,8 +164,6 @@ export function FriendSheet({
                         <BevelButton
                           label={state.label}
                           fullWidth
-                          fill
-                          style={styles.mainButton}
                           loading={busy}
                           onPress={() => void run(state.action!)}
                         />
@@ -329,7 +327,6 @@ const styles = StyleSheet.create({
   },
   gold: { color: PidroBevel.textGold },
   main: { gap: 10, paddingBottom: 6 },
-  mainButton: { height: 52 },
   actions: { minWidth: 0 },
   wideActions: { flex: 1, justifyContent: 'center' },
   line: {
