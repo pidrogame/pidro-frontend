@@ -290,7 +290,7 @@ export default function AgeScreen() {
             disabled={!selection}
             loading={submitting}
             onPress={continueWithSelection}
-            style={styles.continueButton}>
+            style={[styles.continueButton, landscape && styles.continueLandscape]}>
             <PidroText style={styles.continueLabel}>{t('auth.continue')}</PidroText>
           </BevelButton>
         </View>
@@ -346,9 +346,10 @@ const styles = StyleSheet.create({
   continueButton: {
     width: '100%',
     maxWidth: 340,
-    height: 68,
     marginTop: PidroSpacing.xs,
   },
+  // A short landscape phone has no room for the extra step above the label-sized button.
+  continueLandscape: { marginTop: 0 },
   continueLabel: {
     fontFamily: PidroFonts.display,
     fontSize: 27,
