@@ -532,6 +532,9 @@ and the post-game `KeepProgressPrompt`. Deliberately outside the auth guard. tes
 The real claim screen with deterministic presentation states and no backend mutation. States:
 `method` shows the three sign-in choices; `login` shows only Classic credentials;
 `preview` asks "Is this you?" with the Classic name and games/level/since;
+`social` is the same card after a Facebook verification that offers the Classic
+username (PID-301): signed out, "Yes, that's me" claims without a details step
+(grammar case `classic-social`; `classic-fresh` is its password control, which opens one);
 `password` asks for a new password, keeping ThunderThor88 and the Classic email;
 `rename` puts the replacement public name on the details step.
 

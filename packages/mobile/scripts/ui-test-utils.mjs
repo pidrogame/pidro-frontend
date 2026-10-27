@@ -65,6 +65,7 @@ const classicClaimCases = [
   'classic-login',
   'classic-preview',
   'classic-fresh',
+  'classic-social',
   'classic-guest',
   'classic-password',
   'classic-password-guest',

@@ -575,6 +575,14 @@ const allCases = [
     name: 'classic-fresh',
     path: '/(auth)/claim-classic?fixture=preview',
     testId: 'claim-classic-screen',
+    yesInputs: 1,
+  },
+  // PID-301: signed out, Facebook with the Classic username offered claims without a step.
+  {
+    name: 'classic-social',
+    path: '/(auth)/claim-classic?fixture=social',
+    testId: 'claim-classic-screen',
+    yesInputs: 0,
   },
   {
     name: 'classic-rename',
@@ -2192,8 +2200,20 @@ async function assertClassicLogin(page, testCase, viewport) {
     await screen.getByLabel(sv ? 'Nytt lösenord' : 'New password', { exact: true }).waitFor();
     assert.equal(await screen.getByText('sonja.lindqvist@example.com', { exact: true }).count(), 0);
   }
-  if (testCase.path.includes('fixture=preview')) {
+  if (/fixture=(preview|social)/.test(testCase.path)) {
     assert.equal(await screen.locator('input').count(), 0, 'identity check has no inputs');
+  }
+  if (testCase.yesInputs !== undefined) {
+    await screen.getByTestId('classic-forward').click();
+    await screen
+      .getByText(testCase.yesInputs ? 'New password' : 'Is this you?', { exact: true })
+      .first()
+      .waitFor();
+    assert.equal(
+      await screen.locator('input').count(),
+      testCase.yesInputs,
+      `${testCase.name}: inputs after Yes, that's me`
+    );
   }
   if (testCase.path.includes('fixture=login')) {
     assert.equal(await screen.locator('input').count(), 2, 'Classic sign-in has two inputs');

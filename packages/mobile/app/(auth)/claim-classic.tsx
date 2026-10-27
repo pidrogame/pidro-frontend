@@ -64,6 +64,7 @@ type Field = 'login' | 'classicPassword' | 'username' | 'email' | 'password' | '
 type Fixture =
   | 'method'
   | 'preview'
+  | 'social'
   | 'login'
   | 'password'
   | 'rename'
@@ -117,6 +118,9 @@ export default function ClaimClassicScreen() {
           ? { name: 'Old Name', name_allowed: false }
           : {}),
         ...(fixture === 'details' || fixture === 'rename-details' ? { new_account: null } : {}),
+        ...(fixture === 'social'
+          ? { new_account: { username: 'ThunderThor88', email: null } }
+          : {}),
       },
       ...(fixture === 'already-claimed'
         ? { already_claimed: { sign_in_method: 'password' as const } }
@@ -126,7 +130,12 @@ export default function ClaimClassicScreen() {
     };
   }, [fixture]);
   const [method, setMethod] = useState<ClassicClaimMethod | null>(
-    providerHandoff?.method ?? (fixtureVerification || fixture === 'login' ? 'password' : null)
+    providerHandoff?.method ??
+      (fixture === 'social'
+        ? 'facebook'
+        : fixtureVerification || fixture === 'login'
+          ? 'password'
+          : null)
   );
   const [verification, setVerification] = useState<ClassicVerification | null>(
     providerHandoff?.verification ?? fixtureVerification
