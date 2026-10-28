@@ -20,6 +20,7 @@ import { PidroBevel, PidroColors } from '@/design/tokens';
 import { PidroText } from '@/components/ui/PidroText';
 import { CountBadge } from '@/components/ui/CountBadge';
 import { PressableFX } from '@/components/ui/PressableFX';
+import { STILL_LAYER } from '@/components/ui/StillLayer';
 import { gradientBg } from '@/components/ui/Bevel';
 import { useTranslation } from '@/i18n';
 import { playSelectionHaptic } from '@/utils/haptics';
@@ -29,6 +30,8 @@ export type ShellTab = 'league' | 'stats' | 'table' | 'friends' | 'settings';
 // Pill geometry, single source of truth for clearance math.
 const PILL_THICKNESS = 65; // item 50 + face padding 12 + rim 2.5
 const PILL_EDGE_GAP = 6; // pill inset beyond the safe area
+/** Room around the pill for its shadows, inside the anchor. */
+const PILL_BLEED = 40;
 const CONTENT_GAP = 14; // breathing room between content and pill (portrait)
 const CONTENT_GAP_RAIL = 22; // the rail deserves more air beside content
 
@@ -157,12 +160,20 @@ export function TabPill({
   const rail = orientation === 'rail';
 
   return (
+    // Drawn once on Android, its shadows inside the padding; the anchor moves out as far.
     <View
+      {...STILL_LAYER}
       pointerEvents="box-none"
       style={[
         rail
-          ? [styles.railAnchor, { right: Math.max(insets.right, 8) + PILL_EDGE_GAP + 2 }]
-          : [styles.bottomAnchor, { bottom: Math.max(insets.bottom, 10) + PILL_EDGE_GAP }],
+          ? [
+              styles.railAnchor,
+              { right: Math.max(insets.right, 8) + PILL_EDGE_GAP + 2 - PILL_BLEED },
+            ]
+          : [
+              styles.bottomAnchor,
+              { bottom: Math.max(insets.bottom, 10) + PILL_EDGE_GAP - PILL_BLEED },
+            ],
         style,
       ]}>
       <View testID="tab-pill" style={[styles.pillRim, gradientBg(PidroBevel.glassRimGradient)]}>
@@ -226,12 +237,14 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+    paddingVertical: PILL_BLEED,
   },
   railAnchor: {
     position: 'absolute',
     top: 0,
     bottom: 0,
     justifyContent: 'center',
+    paddingHorizontal: PILL_BLEED,
   },
   pillRim: {
     borderRadius: 33,

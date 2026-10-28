@@ -23,6 +23,7 @@ import { Icon } from '@/components/ui/Icon';
 import { PidroLogo } from '@/components/ui/PidroLogo';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
+import { StillLayer } from '@/components/ui/StillLayer';
 import { Surface } from '@/components/ui/Surface';
 import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
@@ -129,65 +130,70 @@ export default function HomeScreen() {
           })
         : t('social.start');
 
+  // Drawn once on Android: only the rays turn on Home, and they repaint the window.
   const topBar = (
-    <View testID="home-header" style={[styles.topBar, tablet && styles.topBarTablet]}>
-      <PressableFX
-        accessibilityRole="button"
-        accessibilityLabel={
-          waiting > 0
-            ? `${t('social.open_profile')}, ${t('friend_notice.badge', { count: waiting })}`
-            : t('social.open_profile')
-        }
-        onPress={() => router.push('/profile')}
-        style={styles.identity}>
-        <View>
-          <PlayerAvatar
-            uri={user?.avatar_url}
-            size={tablet ? 56 : compactLandscape ? 44 : 48}
-            level={level}
-            accessibilityLabel={t('social.profile_picture')}
-          />
-          {waiting > 0 ? (
-            <View testID="home-waiting-count" pointerEvents="none" style={styles.waitingBadge}>
-              <CountBadge count={waiting} size="sm" />
-            </View>
-          ) : null}
-        </View>
-        <View style={styles.identityCopy}>
-          <PidroText
-            style={[styles.playerName, tablet && styles.playerNameTablet]}
-            numberOfLines={1}>
-            {playerName}
-          </PidroText>
-          {identityMeta ? (
-            <View style={styles.identityMeta}>
-              <PidroText role="metadata" tone="soft" style={tablet && styles.identityMetaTablet}>
-                {identityMeta}
-              </PidroText>
-              {guest ? <Icon name="chevron-right" size={14} color={PidroColors.textSoft} /> : null}
-            </View>
-          ) : null}
-        </View>
-      </PressableFX>
-      {guest ? (
-        <View style={styles.identityMeta}>
-          <BevelButton
-            label={t('social.friends')}
-            material="glass"
-            size="sm"
-            onPress={() => router.push('/friends')}
-          />
-          <BevelButton
-            accessibilityLabel={t('social.settings')}
-            material="glass"
-            size="icon"
-            onPress={() => router.push('/settings')}
-            style={tablet && styles.settingsTablet}>
-            <Icon name="settings" size={tablet ? 22 : 20} />
-          </BevelButton>
-        </View>
-      ) : null}
-    </View>
+    <StillLayer bleed={20} style={styles.still}>
+      <View testID="home-header" style={[styles.topBar, tablet && styles.topBarTablet]}>
+        <PressableFX
+          accessibilityRole="button"
+          accessibilityLabel={
+            waiting > 0
+              ? `${t('social.open_profile')}, ${t('friend_notice.badge', { count: waiting })}`
+              : t('social.open_profile')
+          }
+          onPress={() => router.push('/profile')}
+          style={styles.identity}>
+          <View>
+            <PlayerAvatar
+              uri={user?.avatar_url}
+              size={tablet ? 56 : compactLandscape ? 44 : 48}
+              level={level}
+              accessibilityLabel={t('social.profile_picture')}
+            />
+            {waiting > 0 ? (
+              <View testID="home-waiting-count" pointerEvents="none" style={styles.waitingBadge}>
+                <CountBadge count={waiting} size="sm" />
+              </View>
+            ) : null}
+          </View>
+          <View style={styles.identityCopy}>
+            <PidroText
+              style={[styles.playerName, tablet && styles.playerNameTablet]}
+              numberOfLines={1}>
+              {playerName}
+            </PidroText>
+            {identityMeta ? (
+              <View style={styles.identityMeta}>
+                <PidroText role="metadata" tone="soft" style={tablet && styles.identityMetaTablet}>
+                  {identityMeta}
+                </PidroText>
+                {guest ? (
+                  <Icon name="chevron-right" size={14} color={PidroColors.textSoft} />
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        </PressableFX>
+        {guest ? (
+          <View style={styles.identityMeta}>
+            <BevelButton
+              label={t('social.friends')}
+              material="glass"
+              size="sm"
+              onPress={() => router.push('/friends')}
+            />
+            <BevelButton
+              accessibilityLabel={t('social.settings')}
+              material="glass"
+              size="icon"
+              onPress={() => router.push('/settings')}
+              style={tablet && styles.settingsTablet}>
+              <Icon name="settings" size={tablet ? 22 : 20} />
+            </BevelButton>
+          </View>
+        ) : null}
+      </View>
+    </StillLayer>
   );
 
   const logoStage = (
@@ -208,83 +214,87 @@ export default function HomeScreen() {
   );
 
   const actions = (
-    <View
-      style={[
-        styles.actions,
-        tablet && styles.actionsTablet,
-        compactLandscape && styles.actionsLandscape,
-      ]}>
-      {quickGame.error ? (
-        <Surface variant="subtle" style={styles.error} accessibilityRole="alert">
-          <PidroText role="metadata" tone="danger" align="center">
-            {quickGame.error}
-          </PidroText>
-        </Surface>
-      ) : null}
-
-      <View style={[styles.tiles, tablet && styles.tilesTablet]}>
-        <HomeTileButton
-          material={guest ? 'wood' : 'glass'}
-          icon={
-            <Icon
-              name="bot"
-              size={tablet ? 40 : compactLandscape ? 28 : 30}
-              color={guest ? PidroBevel.textGold : PidroColors.iconOnGlass}
-            />
-          }
-          title={t('social.quick_game')}
-          subtitle={t('social.three_bots')}
-          status={guest ? t('social.no_signup') : undefined}
-          size={tileSize}
-          loading={quickGame.loading}
-          onPress={quickGame.start}
-          testID="home-quick-game"
-          style={!guest && compactLandscape && noticeInset === 0 && styles.accountLandscapeTile}
-        />
-        <HomeTileButton
-          material={guest ? 'glass' : 'wood'}
-          icon={
-            <Icon
-              name="friends"
-              size={tablet ? 40 : compactLandscape ? 28 : 30}
-              color={guest ? PidroColors.iconOnGlass : PidroBevel.textGold}
-            />
-          }
-          title={t('social.play_online')}
-          subtitle={t('social.real_players')}
-          status={guest ? t('social.free_account') : onlineStatus}
-          size={tileSize}
-          onPress={() => {
-            if (guest) setAccountSheetReason('multiplayer');
-            else router.push('/lobby');
-          }}
-          testID="home-play-online"
-          style={!guest && compactLandscape && noticeInset === 0 && styles.accountLandscapeTile}
-        />
-      </View>
-
-      {guest ? (
-        <>
-          <ClassicPlaque onPress={() => router.push('/(auth)/claim-classic')} />
-          <View style={styles.accountLinks}>
-            <PidroText role="metadata" tone="soft" style={tablet && styles.accountTextTablet}>
-              {t('social.have_account')}
+    <StillLayer
+      bleed={32}
+      style={[styles.still, (showInvitations || compactLandscape) && styles.stillStart]}>
+      <View
+        style={[
+          styles.actions,
+          tablet && styles.actionsTablet,
+          compactLandscape && styles.actionsLandscape,
+        ]}>
+        {quickGame.error ? (
+          <Surface variant="subtle" style={styles.error} accessibilityRole="alert">
+            <PidroText role="metadata" tone="danger" align="center">
+              {quickGame.error}
             </PidroText>
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => router.push('/(auth)/login')}
-              style={styles.accountLink}>
-              <PidroText
-                role="metadata"
-                tone="cyan"
-                style={[styles.signIn, tablet && styles.accountTextTablet]}>
-                {t('social.sign_in')}
+          </Surface>
+        ) : null}
+
+        <View style={[styles.tiles, tablet && styles.tilesTablet]}>
+          <HomeTileButton
+            material={guest ? 'wood' : 'glass'}
+            icon={
+              <Icon
+                name="bot"
+                size={tablet ? 40 : compactLandscape ? 28 : 30}
+                color={guest ? PidroBevel.textGold : PidroColors.iconOnGlass}
+              />
+            }
+            title={t('social.quick_game')}
+            subtitle={t('social.three_bots')}
+            status={guest ? t('social.no_signup') : undefined}
+            size={tileSize}
+            loading={quickGame.loading}
+            onPress={quickGame.start}
+            testID="home-quick-game"
+            style={!guest && compactLandscape && noticeInset === 0 && styles.accountLandscapeTile}
+          />
+          <HomeTileButton
+            material={guest ? 'glass' : 'wood'}
+            icon={
+              <Icon
+                name="friends"
+                size={tablet ? 40 : compactLandscape ? 28 : 30}
+                color={guest ? PidroColors.iconOnGlass : PidroBevel.textGold}
+              />
+            }
+            title={t('social.play_online')}
+            subtitle={t('social.real_players')}
+            status={guest ? t('social.free_account') : onlineStatus}
+            size={tileSize}
+            onPress={() => {
+              if (guest) setAccountSheetReason('multiplayer');
+              else router.push('/lobby');
+            }}
+            testID="home-play-online"
+            style={!guest && compactLandscape && noticeInset === 0 && styles.accountLandscapeTile}
+          />
+        </View>
+
+        {guest ? (
+          <>
+            <ClassicPlaque onPress={() => router.push('/(auth)/claim-classic')} />
+            <View style={styles.accountLinks}>
+              <PidroText role="metadata" tone="soft" style={tablet && styles.accountTextTablet}>
+                {t('social.have_account')}
               </PidroText>
-            </Pressable>
-          </View>
-        </>
-      ) : null}
-    </View>
+              <Pressable
+                accessibilityRole="link"
+                onPress={() => router.push('/(auth)/login')}
+                style={styles.accountLink}>
+                <PidroText
+                  role="metadata"
+                  tone="cyan"
+                  style={[styles.signIn, tablet && styles.accountTextTablet]}>
+                  {t('social.sign_in')}
+                </PidroText>
+              </Pressable>
+            </View>
+          </>
+        ) : null}
+      </View>
+    </StillLayer>
   );
 
   return (
@@ -379,6 +389,9 @@ const styles = StyleSheet.create({
   },
   mainTablet: { gap: PidroSpacing.lg, paddingHorizontal: 48, paddingTop: 48, paddingBottom: 56 },
   mainLandscape: { paddingHorizontal: LANDSCAPE_GUTTER, paddingVertical: PidroSpacing.md, gap: 6 },
+  // Each layer holds its child where the parent did: centered in the column, at the start in a scroll.
+  still: { alignSelf: 'stretch', alignItems: 'center', flexShrink: 0 },
+  stillStart: { alignItems: 'flex-start' },
   topBar: {
     width: '100%',
     maxWidth: 794,

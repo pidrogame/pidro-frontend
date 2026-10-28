@@ -6,6 +6,7 @@ import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PidroSwitch } from '@/components/ui/PidroSwitch';
 import { ActionPill } from '@/components/ui/ActionPill';
+import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroColors, PidroSpacing } from '@/design/tokens';
 import { useSettingsStore } from '@/stores/settings';
 import { headerTop } from './TableChrome';
@@ -56,13 +57,15 @@ export function TableSettings({
           styles.trigger,
           { top: headerTop(insets.top), right: insets.right + PidroSpacing.sm },
         ]}>
-        <BevelButton
-          material="glass"
-          size="icon"
-          accessibilityLabel={t('game.settings')}
-          onPress={() => setPanel('settings')}>
-          <Icon name="settings" size={22} />
-        </BevelButton>
+        <StillLayer bleed={16}>
+          <BevelButton
+            material="glass"
+            size="icon"
+            accessibilityLabel={t('game.settings')}
+            onPress={() => setPanel('settings')}>
+            <Icon name="settings" size={22} />
+          </BevelButton>
+        </StillLayer>
       </View>
       <TableUtilityWindow
         title={t(panel === 'leave' ? 'game.leave_question' : 'game.settings')}

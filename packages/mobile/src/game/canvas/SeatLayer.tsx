@@ -31,6 +31,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PlayerAvatar, type PlayerAvatarProps } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { PidroText } from '@/components/ui/PidroText';
+import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { avatarLabel, avatarParts, textFits } from '@/features/avatar';
 import { seatLine, type SeatLine } from '@/features/game/seatLine';
@@ -427,7 +428,7 @@ export function SeatLayer({
             ) : null}
           </View>
         );
-        const avatar = onProfile?.[rel] ? (
+        const pressable = onProfile?.[rel] ? (
           <PressableFX
             accessibilityRole="button"
             accessibilityLabel={`${t('friends.view_profile', {
@@ -439,6 +440,13 @@ export function SeatLayer({
           </PressableFX>
         ) : (
           <View pointerEvents="none">{decorated}</View>
+        );
+        // Drawn once on Android, its lights inside the bleed. A breathing seat stays live, and so
+        // do quiet seats: a layer would fade as one image, unlike the views it holds.
+        const avatar = (
+          <StillLayer bleed={Math.ceil(size * 0.95)} live={quiet || !!seat.turn?.attention}>
+            {pressable}
+          </StillLayer>
         );
 
         if (rel === 'south' && tight) {

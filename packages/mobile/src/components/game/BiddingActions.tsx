@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { pushGameAction } from '@/channels/hooks/useGameChannel';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
+import { STILL_LAYER } from '@/components/ui/StillLayer';
 import { PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { AVATAR_SIZE, computeLayout, handScale } from '@/game/canvas/layout';
 import { playActionHaptic } from '@/game/useGameHaptics';
@@ -122,7 +123,8 @@ export function BiddingActions({
         },
       ]}
       pointerEvents="box-none">
-      <View testID="bidding-window" style={styles.panel}>
+      {/* Drawn once on Android: only your shine breathes while you bid. */}
+      <View testID="bidding-window" {...STILL_LAYER} style={styles.panel}>
         <View testID="bidding-grid" style={[styles.bidGrid, { width: gridWidth, gap: GRID_GAP }]}>
           {bidValues.map((amount) => {
             const isLegal = legalBidSet.has(amount);

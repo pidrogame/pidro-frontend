@@ -25,6 +25,7 @@ import { gradientBg } from '@/components/ui/Bevel';
 import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
+import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@/design/tokens';
 import type { Position } from '@/types/lobby';
 import type { PointsSide } from '@/features/game/points';
@@ -232,44 +233,47 @@ export function Scoreboard({
         { top, left: left + PidroSpacing.sm },
       ]}
       pointerEvents="box-none">
-      <PressableFX
-        accessibilityRole="button"
-        accessibilityLabel={t('game.score_accessibility', { usLabel, us, themLabel, them })}
-        accessibilityState={{ expanded: isOpen }}
-        onPress={() => setIsOpen((open) => !open)}
-        style={[styles.plaque, gradientBg(PidroBevel.goldRimGradient)]}>
-        {BAKED ? <BoxShadow shadow={PidroBevel.glassDropShadow} radius={PidroRadii.lg} /> : null}
-        <View style={styles.plaqueRow}>
-          <View style={styles.col}>
-            {glowLight('us')}
-            <PidroText
-              role="metadata"
-              style={[styles.label, { color: PidroColors.teamUs }]}
-              maxFontSizeMultiplier={1}>
-              {usLabel}
-            </PidroText>
-            <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
-              {formatNumber(us)}
-            </PidroText>
+      {/* Drawn once on Android; the breath and the cards repaint the window around it. */}
+      <StillLayer bleed={24}>
+        <PressableFX
+          accessibilityRole="button"
+          accessibilityLabel={t('game.score_accessibility', { usLabel, us, themLabel, them })}
+          accessibilityState={{ expanded: isOpen }}
+          onPress={() => setIsOpen((open) => !open)}
+          style={[styles.plaque, gradientBg(PidroBevel.goldRimGradient)]}>
+          {BAKED ? <BoxShadow shadow={PidroBevel.glassDropShadow} radius={PidroRadii.lg} /> : null}
+          <View style={styles.plaqueRow}>
+            <View style={styles.col}>
+              {glowLight('us')}
+              <PidroText
+                role="metadata"
+                style={[styles.label, { color: PidroColors.teamUs }]}
+                maxFontSizeMultiplier={1}>
+                {usLabel}
+              </PidroText>
+              <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
+                {formatNumber(us)}
+              </PidroText>
+            </View>
+            {moved ? <ScoreDelta value={moved.us} side={usSide} /> : null}
+            <View style={styles.divider} />
+            <View style={styles.col}>
+              {glowLight('them')}
+              <PidroText
+                role="metadata"
+                style={[styles.label, { color: PidroColors.teamThem }]}
+                maxFontSizeMultiplier={1}>
+                {themLabel}
+              </PidroText>
+              <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
+                {formatNumber(them)}
+              </PidroText>
+            </View>
+            {moved ? <ScoreDelta value={moved.them} side={themSide} /> : null}
+            <Icon name="chevron-down" size={14} color={PidroColors.goldLight} />
           </View>
-          {moved ? <ScoreDelta value={moved.us} side={usSide} /> : null}
-          <View style={styles.divider} />
-          <View style={styles.col}>
-            {glowLight('them')}
-            <PidroText
-              role="metadata"
-              style={[styles.label, { color: PidroColors.teamThem }]}
-              maxFontSizeMultiplier={1}>
-              {themLabel}
-            </PidroText>
-            <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
-              {formatNumber(them)}
-            </PidroText>
-          </View>
-          {moved ? <ScoreDelta value={moved.them} side={themSide} /> : null}
-          <Icon name="chevron-down" size={14} color={PidroColors.goldLight} />
-        </View>
-      </PressableFX>
+        </PressableFX>
+      </StillLayer>
       {/* A new table starts its ticker afresh. */}
       {ticker !== null ? (
         <View style={{ marginTop: ticker?.drop ?? 0 }} pointerEvents="box-none">
