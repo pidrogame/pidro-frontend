@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Image, Platform, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  Animated as RNAnimated,
+  Image,
+  Platform,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
   cancelAnimation,
   Easing,
@@ -7,7 +15,6 @@ import Animated, {
   useReducedMotion,
   useSharedValue,
   withDelay,
-  withRepeat,
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
@@ -350,13 +357,13 @@ export function PlayerAvatar({
                 {name || (kind === 'open' ? t('ui.openSeat') : '')}
               </PidroText>
             ) : null}
-            <Animated.View style={[{ transformOrigin: SWELL_ORIGIN[label] }, acted.swell]}>
+            <RNAnimated.View style={[{ transformOrigin: SWELL_ORIGIN[label] }, acted.swell]}>
               <PidroText
                 numberOfLines={1}
                 style={[styles.status, parts.status, { color: STATUS_TONES[statusTone] }]}>
                 {status || ' '}
               </PidroText>
-            </Animated.View>
+            </RNAnimated.View>
             {below && named && dealerChip && parts.dealer ? (
               <View
                 pointerEvents="none"
@@ -417,7 +424,8 @@ const SWELL_ORIGIN = { below: 'center', right: 'left', left: 'right' } as const;
 /** 0 at rest, 1 while the seat that just acted is lit; still under reduced motion. */
 function useActedPulse(pulse: string | null) {
   const calm = useReducedMotion() || isStillCapture();
-  const t = useSharedValue(0);
+  // React Native's own driver: a table of seats lighting up commits nothing per frame.
+  const [t] = useState(() => new RNAnimated.Value(0));
   const seen = useRef(pulse);
 
   useEffect(() => {
@@ -425,21 +433,36 @@ function useActedPulse(pulse: string | null) {
     if (!pulse || pulse === seen.current) return;
     seen.current = pulse;
     if (calm) return;
-    t.set(
-      withSequence(
-        withTiming(1, { duration: ACTED_IN_MS, easing: Easing.out(Easing.quad) }),
-        withDelay(
-          ACTED_HOLD_MS,
-          withTiming(0, { duration: ACTED_OUT_MS, easing: Easing.in(Easing.quad) })
-        )
-      )
-    );
+    const useNativeDriver = Platform.OS !== 'web';
+    RNAnimated.sequence([
+      RNAnimated.timing(t, {
+        toValue: 1,
+        duration: ACTED_IN_MS,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver,
+      }),
+      RNAnimated.timing(t, {
+        toValue: 0,
+        delay: ACTED_HOLD_MS,
+        duration: ACTED_OUT_MS,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver,
+      }),
+    ]).start();
   }, [pulse, calm, t]);
-  useEffect(() => () => cancelAnimation(t), [t]);
+  useEffect(() => () => t.stopAnimation(), [t]);
 
-  const light = useAnimatedStyle(() => ({ opacity: t.value }));
-  const swell = useAnimatedStyle(() => ({ transform: [{ scale: 1 + ACTED_SWELL * t.value }] }));
-  return { light, swell };
+  return useMemo(
+    () => ({
+      light: { opacity: t },
+      swell: {
+        transform: [
+          { scale: t.interpolate({ inputRange: [0, 1], outputRange: [1, 1 + ACTED_SWELL] }) },
+        ],
+      },
+    }),
+    [t]
+  );
 }
 
 /** The light behind a seat that just acted: the turn's shine, briefly. */
@@ -450,7 +473,7 @@ function ActedLight({ size, acted }: { size: number; acted: ReturnType<typeof us
     Math.round(size * 0.16),
     PidroColors.turnLightShine
   );
-  return <Animated.View pointerEvents="none" style={[glowBox(size, glow), acted.light]} />;
+  return <RNAnimated.View pointerEvents="none" style={[glowBox(size, glow), acted.light]} />;
 }
 
 /**
@@ -476,6 +499,16 @@ function glowBox(size: number, glow: ReturnType<typeof roundGlow>): ViewStyle {
 const PING_EASE = Easing.bezier(0.23, 1, 0.32, 1);
 const PING_MS = 650;
 const PING_GAP_MS = 140;
+const breathEase = Easing.inOut(Easing.sin);
+/** A breath at `at` (0..1): eased down to 0.35 and back to where it began. */
+function breathAt(from: number, at: number) {
+  return at < 0.5
+    ? from + (0.35 - from) * breathEase(at * 2)
+    : 0.35 + (from - 0.35) * breathEase(at * 2 - 1);
+}
+/** Close enough to the curve that no frame can tell. */
+const BREATH_PHASES = Array.from({ length: 65 }, (_, step) => step / 64);
+const BREATH_DEPTHS = BREATH_PHASES.map((at) => (1 - breathAt(1, at)) / 0.65);
 /** One breath in or out; quicker when the timer runs low. */
 const BREATH_MS = 1100;
 const URGENT_BREATH_MS = 450;
@@ -499,31 +532,57 @@ function TurnLight({
   attention?: boolean;
 }) {
   const calm = useReducedMotion() || isStillCapture();
-  const breath = useSharedValue(1);
   const breathing = !!attention && !calm;
+  // One native loop through a whole breath: no JS between frames or between breaths.
+  const [phase] = useState(() => new RNAnimated.Value(0));
+  // Where the breath turns back: 1 from rest, or wherever it was when the timer turned urgent.
+  const [from] = useState(() => new RNAnimated.Value(1));
+  const fromRef = useRef(1);
 
   useEffect(() => {
     if (!breathing) {
-      breath.set(1);
+      phase.setValue(0);
+      from.setValue(1);
+      fromRef.current = 1;
       return;
     }
-    breath.set(
-      withRepeat(
-        withTiming(0.35, {
-          duration: urgent ? URGENT_BREATH_MS : BREATH_MS,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        -1,
-        true
-      )
-    );
-    return () => cancelAnimation(breath);
-  }, [breathing, urgent, breath]);
+    let live = true;
+    let loop: RNAnimated.CompositeAnimation | undefined;
+    phase.stopAnimation((at) => {
+      if (!live) return;
+      fromRef.current = breathAt(fromRef.current, at);
+      from.setValue(fromRef.current);
+      phase.setValue(0);
+      loop = RNAnimated.loop(
+        RNAnimated.timing(phase, {
+          toValue: 1,
+          duration: 2 * (urgent ? URGENT_BREATH_MS : BREATH_MS),
+          easing: Easing.linear,
+          useNativeDriver: Platform.OS !== 'web',
+        })
+      );
+      loop.start();
+    });
+    return () => {
+      live = false;
+      loop?.stop();
+    };
+  }, [breathing, urgent, phase, from]);
 
-  const motion = useAnimatedStyle(() => ({
-    opacity: breath.value,
-    transform: [{ scale: 0.96 + 0.06 * breath.value }],
-  }));
+  const motion = useMemo(() => {
+    // How far down the breath is: 0 at `from`, 1 at 0.35.
+    const depth = phase.interpolate({ inputRange: BREATH_PHASES, outputRange: BREATH_DEPTHS });
+    const opacity = RNAnimated.add(
+      from,
+      RNAnimated.multiply(RNAnimated.subtract(0.35, from), depth)
+    );
+    return {
+      opacity,
+      transform: [
+        { scale: opacity.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1.02] }) },
+      ],
+    };
+  }, [phase, from]);
 
   const box = (arc.radius + arc.stroke / 2) * 2;
   const glow = useRoundGlow(
@@ -532,9 +591,12 @@ function TurnLight({
     Math.round(size * 0.14),
     urgent ? PidroColors.turnUrgentShine : PidroColors.turnLightShine
   );
+  // A fresh view when the breath stops, so no value the driver set outlives it.
   return (
-    <Animated.View
+    <RNAnimated.View
+      key={breathing ? 'breathing' : 'still'}
       pointerEvents="none"
+      renderToHardwareTextureAndroid={breathing}
       style={[
         glowBox(size, glow),
         { opacity: attention ? 1 : OTHER_SHINE },

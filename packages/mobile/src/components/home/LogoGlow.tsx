@@ -4,17 +4,9 @@
  * breathe (pulse on level-up, brighten on wins). Twelve rays sharing one
  * radial fade, one full turn every 80 seconds. Honors reduced motion.
  */
-import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
-import Animated, {
-  cancelAnimation,
-  Easing,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from 'react-native-reanimated';
+import { useEffect, useMemo, useState } from 'react';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 import Svg, { Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import { PidroColors } from '@/design/tokens';
 
@@ -43,17 +35,31 @@ export interface LogoGlowProps {
 
 export function LogoGlow({ size = 460 }: LogoGlowProps) {
   const reduceMotion = useReducedMotion();
-  const turns = useSharedValue(0);
+  // React Native's own driver: each frame turns the view, with no commit behind it.
+  const [turns] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (reduceMotion) return;
-    turns.set(withRepeat(withTiming(1, { duration: 80_000, easing: Easing.linear }), -1));
-    return () => cancelAnimation(turns);
+    const loop = Animated.loop(
+      Animated.timing(turns, {
+        toValue: 1,
+        duration: 80_000,
+        easing: Easing.linear,
+        useNativeDriver: Platform.OS !== 'web',
+      })
+    );
+    loop.start();
+    return () => loop.stop();
   }, [reduceMotion, turns]);
 
-  const spin = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${turns.value * 360}deg` }],
-  }));
+  const spin = useMemo(
+    () => ({
+      transform: [
+        { rotate: turns.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+      ],
+    }),
+    [turns]
+  );
 
   const r = size / 2;
 
