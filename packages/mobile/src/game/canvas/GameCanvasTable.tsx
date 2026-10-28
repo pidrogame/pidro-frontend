@@ -6,7 +6,7 @@
  * module is imported. Native imports this module directly.
  */
 import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { BotPersona, RematchVote } from '@pidro/shared';
@@ -521,7 +521,7 @@ export function GameCanvasTable({
     {} as Partial<Record<RelativePosition, SeatLine | null>>
   );
   return (
-    <GestureHandlerRootView testID="game-table" style={{ flex: 1, backgroundColor: T.bgDeep }}>
+    <GestureHandlerRootView testID="game-table" style={styles.root}>
       {/* The table surface */}
       <GameCanvas
         model={model}
@@ -758,6 +758,8 @@ export function GameCanvasTable({
 const LOADING_BAR_WIDTH = 160;
 
 const styles = StyleSheet.create({
+  // The felt canvas covers it; on Android it would only be painted over.
+  root: { flex: 1, backgroundColor: Platform.OS === 'android' ? undefined : T.bgDeep },
   bannerWrap: {
     position: 'absolute',
     left: 0,

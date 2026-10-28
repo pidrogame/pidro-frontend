@@ -8,6 +8,7 @@ import { useDeferredInviteBootstrap } from '@/features/invites/useDeferredInvite
 import { PidroLogo } from '@/components/ui/PidroLogo';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { PidroColors, PidroSpacing } from '@/design/tokens';
+import { Background } from '@/components/ui/Background';
 
 export default function Index() {
   const status = useAuthStore((s) => s.status);
@@ -33,7 +34,11 @@ export default function Index() {
     );
   }
 
-  return <Redirect href={route as Href} />;
+  return (
+    <Background>
+      <Redirect href={route as Href} />
+    </Background>
+  );
 }
 
 const styles = StyleSheet.create({

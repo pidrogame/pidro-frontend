@@ -23,6 +23,7 @@ import { useAgeGateStore } from '@/stores/ageGate';
 import { useLobbyStore } from '@/stores/lobby';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { useTranslation } from '@/i18n';
+import { Background } from '@/components/ui/Background';
 
 type LaunchState = 'idle' | 'creatingGuest' | 'creatingRoom' | 'roomFailed' | 'joiningInvite';
 
@@ -117,9 +118,13 @@ export default function WelcomeScreen() {
   ]);
 
   if (isAuthenticated && launchState === 'idle') {
-    return user ? (
-      <Redirect href={authenticatedEntryDestination(pendingInvite, ageBand, user) as Href} />
-    ) : null;
+    return (
+      <Background>
+        {user ? (
+          <Redirect href={authenticatedEntryDestination(pendingInvite, ageBand, user) as Href} />
+        ) : null}
+      </Background>
+    );
   }
 
   const currentPreview =

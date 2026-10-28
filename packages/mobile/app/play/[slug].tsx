@@ -5,6 +5,7 @@ import { joinRedirectDestination } from '@/navigation/initialRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
 import { useAuthStore } from '@/stores/auth';
 import { holdFriendLink, usePendingFriendLinkStore } from '@/stores/pendingFriendLink';
+import { Background } from '@/components/ui/Background';
 
 /**
  * A player's own link, `pidro.online/play/<slug>`. Signed in, it opens their
@@ -29,6 +30,6 @@ export default function PlayLinkRoute() {
     } else router.replace({ pathname: '/friends', params: { player: slug } });
   }, [ageBand, ageGateHydrated, linkHydrated, router, slug, user]);
 
-  if (!slug) return <Redirect href="/+not-found" />;
-  return null;
+  // Only ever on its way elsewhere: the felt shows meanwhile.
+  return <Background>{slug ? null : <Redirect href="/+not-found" />}</Background>;
 }

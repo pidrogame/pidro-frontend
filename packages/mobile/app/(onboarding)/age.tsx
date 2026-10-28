@@ -25,6 +25,7 @@ import { useAgeGateStore } from '@/stores/ageGate';
 import { useAuthStore } from '@/stores/auth';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { useTranslation, type TranslationKey } from '@/i18n';
+import { Background } from '@/components/ui/Background';
 
 const TERMS_URL = 'https://www.pidro.online/terms-of-use';
 const PRIVACY_URL = 'https://www.pidro.online/privacy-policy';
@@ -155,16 +156,18 @@ export default function AgeScreen() {
 
   if (!fixture && storedBand !== 'under_13' && !needsAgeGate(storedBand, user)) {
     return (
-      <Redirect
-        href={
-          entryDestination(
-            user ? 'authenticated' : 'unauthenticated',
-            pendingInvite,
-            storedBand,
-            user
-          ) as Href
-        }
-      />
+      <Background>
+        <Redirect
+          href={
+            entryDestination(
+              user ? 'authenticated' : 'unauthenticated',
+              pendingInvite,
+              storedBand,
+              user
+            ) as Href
+          }
+        />
+      </Background>
     );
   }
 

@@ -645,7 +645,11 @@ export default function GameScreen() {
   }
 
   if (authHydrated && !accessToken) {
-    return <Redirect href="/welcome" />;
+    return (
+      <Background>
+        <Redirect href="/welcome" />
+      </Background>
+    );
   }
 
   const terminalJoinFailure = terminalGameJoinFailure(lastError);

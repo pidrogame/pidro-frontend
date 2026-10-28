@@ -1,7 +1,7 @@
 import '../global.css';
 
 import { useEffect } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -58,7 +58,8 @@ export default function RootLayout() {
   return (
     // Keep the native felt mounted through hydration and overlay dismissal.
     <SafeAreaProvider>
-      <Background>
+      {/* On Android every screen is opaque over it once ready: kept loaded, not painted. */}
+      <Background hidden={Platform.OS === 'android' && ready}>
         {ready ? (
           <View collapsable={false} style={styles.content} onLayout={hideSplash}>
             <AnalyticsProvider>

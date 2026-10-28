@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth';
 import { useAgeGateStore } from '@/stores/ageGate';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { joinRedirectDestination, needsAgeGate } from '@/navigation/initialRoute';
+import { Background } from '@/components/ui/Background';
 
 const OPEN_FIXTURE: InvitePreview = {
   code: '7KQ4M2XB',
@@ -65,7 +66,12 @@ export default function JoinInviteRoute() {
     user,
   ]);
 
-  if (!code) return <Redirect href="/+not-found" />;
+  if (!code)
+    return (
+      <Background>
+        <Redirect href="/+not-found" />
+      </Background>
+    );
   if (
     !fixture &&
     (!authHydrated ||
@@ -74,6 +80,6 @@ export default function JoinInviteRoute() {
       !user ||
       needsAgeGate(ageBand, user))
   )
-    return null;
+    return <Background />;
   return <JoinInviteScreen key={code} code={code} source={source} fixture={fixture} />;
 }
