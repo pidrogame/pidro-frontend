@@ -61,9 +61,11 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
         styles.picker,
         { left: frame.left, top: frame.top, width: frame.width, height: frame.height },
       ]}>
-      <PidroText role="label" tone="soft" align="center" maxFontSizeMultiplier={1.2}>
-        {t('game.choose_trump')}
-      </PidroText>
+      {frame.caption ? (
+        <PidroText role="label" tone="soft" align="center" maxFontSizeMultiplier={1.2}>
+          {t('game.choose_trump')}
+        </PidroText>
+      ) : null}
       <View style={[styles.grid, { gap: frame.gap }]}>
         {TRUMP_SUITS.map((suit) => {
           const name = t(`game.${suit}`);
@@ -83,12 +85,17 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
               onPress={() => actionTap('declare_trump', () => choose(suit))}
               style={[
                 styles.suit,
+                { height: frame.buttonHeight },
                 active && styles.active,
                 chosen === suit && styles.chosen,
                 chosen && chosen !== suit && styles.waiting,
               ]}
               pressedStyle={styles.chosen}>
-              <Image source={SUIT_IMAGES[suit]} style={styles.glyph} resizeMode="contain" />
+              <Image
+                source={SUIT_IMAGES[suit]}
+                style={[styles.glyph, frame.buttonHeight < TRUMP_BUTTON.height && styles.short]}
+                resizeMode="contain"
+              />
               <PidroText role="label" align="center" numberOfLines={1} maxFontSizeMultiplier={1.2}>
                 {name}
               </PidroText>
@@ -145,4 +152,5 @@ const styles = StyleSheet.create({
     height: 32,
     marginBottom: 2,
   },
+  short: { width: 24, height: 24 },
 });

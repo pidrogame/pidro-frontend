@@ -5,9 +5,9 @@
  * Under it in portrait, beside it in landscape where the West seat sits below,
  * the action ticker: the latest table actions, resting on who holds the bid as
  * Classic's "Bet 6" did. Tap the ticker for the hand's log. With count help
- * (PID-220), the "Last trick" pill sits under it, and small phones that leave
- * the ticker out keep its resting line. Points a trick scores glow the column
- * they landed in (PID-230).
+ * (PID-220), the "Last trick" pill sits under it. Tight phones leave both
+ * out and open the hand's log from the score panel instead (PID-304). Points
+ * a trick scores glow the column they landed in (PID-230).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -165,6 +165,7 @@ export function Scoreboard({
   stateArrived = true,
   restingOnly = false,
   help = null,
+  logInPanel = false,
   glow = null,
   delta = null,
 }: {
@@ -187,6 +188,8 @@ export function Scoreboard({
   restingOnly?: boolean;
   /** Under the ticker: the count help's "Last trick". */
   help?: ReactNode;
+  /** No ticker to open the hand's log from: the score panel opens it. */
+  logInPanel?: boolean;
   /** The columns a trick's points just landed in. */
   glow?: ScoreGlow | null;
   /** What the hand just scored moved each team's score by (`delta` of `last_hand`). */
@@ -292,7 +295,19 @@ export function Scoreboard({
       <HandLogWindow open={logOpen} onClose={() => setLogOpen(false)} groups={logOpen ? log : []} />
 
       {isOpen ? (
-        <HandHistory history={history} viewer={youPosition} onClose={() => setIsOpen(false)} />
+        <HandHistory
+          history={history}
+          viewer={youPosition}
+          onClose={() => setIsOpen(false)}
+          onOpenLog={
+            logInPanel
+              ? () => {
+                  setIsOpen(false);
+                  setLogOpen(true);
+                }
+              : undefined
+          }
+        />
       ) : null}
     </View>
   );

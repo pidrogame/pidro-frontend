@@ -1,7 +1,7 @@
 /**
  * RN seat furniture over the Skia canvas: each player is a `PlayerAvatar` with
  * their name and what they are doing (below it in portrait, beside it in
- * landscape), the dealer chip beside the name, the turn light on the avatar, and opponent
+ * landscape), the dealer chip and winning bid on the avatar's corners, the turn light on it, and opponent
  * card-backs in the right orientation (North = upright fan, East/West =
  * landscape stacks along the edge). Positioned at the pure computeLayout()
  * seat coords so it lines up with the canvas cards/fly origins.
@@ -27,11 +27,15 @@ import {
   type ImageStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PlayerAvatar, type PlayerAvatarProps } from '@/components/ui/PlayerAvatar';
+import {
+  DEALER_SLIDE_MS,
+  PlayerAvatar,
+  type DealerTrail,
+  type PlayerAvatarProps,
+} from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
-import { PidroText } from '@/components/ui/PidroText';
 import { StillLayer } from '@/components/ui/StillLayer';
-import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { avatarLabel, avatarParts, textFits } from '@/features/avatar';
 import { seatLine, type SeatLine } from '@/features/game/seatLine';
 import { whosePoints } from '@/features/game/points';
@@ -44,7 +48,6 @@ import {
   landscapeNorthLeft,
   landscapeNorthShift,
   northBackWidth,
-  northChipBehind,
   HELD_STYLE,
   heldPose,
   handStep,
@@ -59,7 +62,7 @@ import {
   sideSeatTop,
   sideStacks,
   TIGHT_AVATAR,
-  TIGHT_SOUTH_SLOT,
+  TIGHT_SOUTH_GAP,
   type RelativePosition,
 } from './layout';
 import { viewerOf } from './HandResult';
@@ -180,6 +183,27 @@ export function SeatLayer({
     setPreviousOut(out);
     setFolding(REL.filter((_, i) => out[i] && !previousOut[i]));
   }
+  // The dealer chip slides from the seat that last showed it to the next one
+  // that does (a hand's result hides it in between); that seat draws live
+  // meanwhile, or Android's still layer would clip the chip outside its box.
+  // A new game's cut for dealer starts afresh: its first chip just stands.
+  const dealerTrail = useRef<DealerTrail['current']>(null);
+  const shownDealer = quiet ? null : (dealerRel ?? null);
+  const [lastDealer, setLastDealer] = useState(shownDealer);
+  const [sliding, setSliding] = useState<{ rel: RelativePosition; at: number } | null>(null);
+  if (!dealerRel && lastDealer) setLastDealer(null);
+  else if (shownDealer && shownDealer !== lastDealer) {
+    setLastDealer(shownDealer);
+    if (lastDealer) setSliding({ rel: shownDealer, at: (sliding?.at ?? 0) + 1 });
+  }
+  useEffect(() => {
+    if (!dealerRel) dealerTrail.current = null;
+  }, [dealerRel]);
+  useEffect(() => {
+    if (!sliding) return;
+    const id = setTimeout(() => setSliding(null), DEALER_SLIDE_MS + 200);
+    return () => clearTimeout(id);
+  }, [sliding]);
   const { width, height } = useTableSize();
   const insets = useSafeAreaInsets();
   const { top, bottom, left, right } = insets;
@@ -189,7 +213,7 @@ export function SeatLayer({
   );
   const portrait = L.profile.endsWith('portrait');
   // Tight phones: every name beside a smaller avatar, no level chips or pins,
-  // and your avatar alone at the left of your hand (the ticker says your plays).
+  // and your avatar alone under your hand, with its short line when it has one.
   const tight = portrait && L.tight;
   const size = tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
   const tablet = L.profile.startsWith('tablet');
@@ -201,8 +225,7 @@ export function SeatLayer({
   // pushing the seat off its axis. North and south have the table's width to
   // themselves; east and west get what North's column leaves them, their
   // names kept a step off the screen edge. Landscape caps the label's reach
-  // and leaves the turn light room, as the boards do, plus room for the
-  // dealer chip after the name.
+  // and leaves the turn light room, as the boards do.
   const gap = seatNameGap(L.profile);
   const centerColumn = tablet ? 200 : 156;
   const sideColumn = Math.min(
@@ -215,26 +238,15 @@ export function SeatLayer({
   // Landscape South's name runs toward the hand and North's toward the menu:
   // each gets what those leave (`landscapeNameReach`).
   const northBacks = clamp(seats.north?.out ? 0 : (seats.north?.cardCount ?? 0), 0, 9);
-  const chipW = parts.dealer ? parts.dealer.size + gap : 0;
-  // On the narrowest phones North's chip tucks behind its avatar, as South's
-  // does, and its fan and seat move left (`landscapeNorthShift`).
-  const northTucked = !portrait && northChipBehind(L, insets, northBacks, chipW);
+  // On the narrowest phones North's fan and seat move left (`landscapeNorthShift`).
   const northShift = portrait ? 0 : landscapeNorthShift(L, insets, northBacks);
-  const chip = (rel: RelativePosition) =>
-    dealerRel === rel && rel !== 'south' && !(rel === 'north' && northTucked) ? chipW : 0;
   const reach = (rel: RelativePosition) =>
     landscapeNameReach(L, rel, {
       insets,
       southCards: seats.south?.cardCount ?? 9,
       northBacks,
-      chip: chip(rel),
     });
-  // The dealer chip faces the table: right of West's name, left of everyone
-  // else's. In landscape it takes the name's far end, except South's, which
-  // sits behind the avatar, away from the hand (and North's, where tucked).
   const besideName = !portrait || tight;
-  const dealerSide = (rel: RelativePosition): 'left' | 'right' =>
-    rel === 'west' || (besideName && rel === 'north' && !northTucked) ? 'right' : 'left';
   // Tight North's avatar stays on the table's axis, its name running right;
   // East and West run toward each other, each up to the middle.
   const tightNorthLeft = width / 2 - size / 2;
@@ -252,7 +264,7 @@ export function SeatLayer({
           ? { width: centerColumn }
           : { width: sideColumn, paddingHorizontal: PidroSpacing.xs }
         : {
-            maxWidth: size + gap + reach(rel) + chip(rel),
+            maxWidth: size + gap + reach(rel),
             gap,
           };
   const tableTop = insets.top + topReserve;
@@ -289,7 +301,8 @@ export function SeatLayer({
           stacks.maxHeight / 2
       )
     : L.sides.cy;
-  const sideInset = tight ? PidroSpacing.xs : portrait ? 0 : 12;
+  // Tight side seats keep their dealer chip, on the avatar's outer corner, on screen.
+  const sideInset = tight ? PidroSpacing.sm : portrait ? 0 : 12;
   // New backs fly in from the pack in the second deal, from the middle in the first.
   const pack = packSpot(L);
   const from = secondDeal ? pack : { x: L.felt.cx, y: L.felt.cy };
@@ -359,16 +372,19 @@ export function SeatLayer({
         const line = quiet ? null : seatLine(data, statusByRel?.[rel]);
         // A spectator sees North–South as the first team.
         const team = whosePoints(data.absolutePosition, viewer).column;
-        const teamColor = team === 'us' ? PidroColors.teamUs : PidroColors.teamThem;
         const seat = quiet
           ? { ...avatarFor(data, false, null, undefined, team), level: null, pin: null, turn: null }
           : avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team);
+        const holds = !quiet && bid?.seat === rel ? bid.amount : null;
+        // What the seat says aloud, its winning bid included.
+        const spoken = { ...seat, bid: holds };
         const identity = (
           <PlayerAvatar
             testID={`seat-${rel}`}
             size={size}
             label={besideName ? (rel === 'east' ? 'left' : 'right') : 'below'}
-            dealerSide={dealerSide(rel)}
+            bid={holds != null ? { amount: holds, tone: team } : null}
+            dealerTrail={dealerTrail}
             nameRoom={
               !portrait
                 ? reach(rel)
@@ -385,80 +401,56 @@ export function SeatLayer({
             {...(tight &&
               rel === 'south' && {
                 label: 'below' as const,
-                dealerSide: 'left' as const,
                 name: null,
                 status: line?.short ?? null,
-                accessibilityLabel: avatarLabel({ ...seat, level: null, pin: null }),
+                accessibilityLabel: avatarLabel({ ...spoken, level: null, pin: null }),
               })}
             {...(!portrait &&
               (rel === 'south' || rel === 'north') &&
               line &&
               !textFits(line.text, besideStatus, reach(rel)) && {
                 status: line.short ?? null,
-                accessibilityLabel: avatarLabel(seat),
+                accessibilityLabel: avatarLabel(spoken),
               })}
           />
-        );
-        const bidInset =
-          portrait && !tight
-            ? ((rel === 'north' || rel === 'south' ? centerColumn : sideColumn) - size) / 2 -
-              PidroSpacing.xxs
-            : 0;
-        const decorated = (
-          <View>
-            {identity}
-            {!quiet && bid?.seat === rel ? (
-              <View
-                testID={`seat-${rel}-bid`}
-                pointerEvents="none"
-                style={[
-                  styles.bid,
-                  rel === 'east' ? { right: bidInset } : { left: bidInset },
-                  { borderColor: teamColor },
-                ]}>
-                <PidroText
-                  role="label"
-                  maxFontSizeMultiplier={1}
-                  accessibilityLabel={t('game.bid', { amount: bid.amount })}
-                  style={{ color: teamColor }}>
-                  {bid.amount}
-                </PidroText>
-              </View>
-            ) : null}
-          </View>
         );
         const pressable = onProfile?.[rel] ? (
           <PressableFX
             accessibilityRole="button"
             accessibilityLabel={`${t('friends.view_profile', {
               name: data.username ?? t('social.player'),
-            })}, ${avatarLabel({ ...seat, ...(tight && { level: null, pin: null }) })}`}
+            })}, ${avatarLabel({ ...spoken, ...(tight && { level: null, pin: null }) })}`}
             onPress={onProfile[rel]}
             style={{ minHeight: PidroLayout.touchTarget, minWidth: PidroLayout.touchTarget }}>
-            {decorated}
+            {identity}
           </PressableFX>
         ) : (
-          <View pointerEvents="none">{decorated}</View>
+          <View pointerEvents="none">{identity}</View>
         );
         // Drawn once on Android, its lights inside the bleed. A breathing seat stays live, and so
         // do quiet seats: a layer would fade as one image, unlike the views it holds.
         const avatar = (
-          <StillLayer bleed={Math.ceil(size * 0.95)} live={quiet || !!seat.turn?.attention}>
+          <StillLayer
+            bleed={Math.ceil(size * 0.95)}
+            live={quiet || !!seat.turn?.attention || sliding?.rel === rel}>
             {pressable}
           </StillLayer>
         );
 
         if (rel === 'south' && tight) {
-          // Your avatar alone at the left of your hand, its short line under
-          // it (your bid, while the hand is bid); the label still speaks.
+          // Your avatar alone, centred under your hand, its short line under
+          // it when there is one (your bid, while the hand is bid); the label
+          // still speaks.
           return (
             <View
               key={rel}
               pointerEvents="box-none"
               style={{
                 position: 'absolute',
-                left: L.hand.cx - L.hand.maxWidth / 2 - TIGHT_SOUTH_SLOT - PidroSpacing.xs,
-                top: L.hand.cy - size / 2,
+                left: 0,
+                right: 0,
+                top: L.hand.cy + L.cardH / 2 + TIGHT_SOUTH_GAP,
+                alignItems: 'center',
               }}>
               {avatar}
             </View>
@@ -932,17 +924,6 @@ const BACK_RADIUS = 4;
 const BACK_SHADOW = 'rgba(0,0,0,0.55)';
 
 const styles = StyleSheet.create({
-  bid: {
-    position: 'absolute',
-    top: -PidroSpacing.xs,
-    minWidth: 28,
-    height: 28,
-    borderRadius: PidroRadii.full,
-    borderWidth: 1,
-    backgroundColor: PidroColors.panelStrong,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   out: { opacity: 0.6 },
   // Under the hand result's scrim the seats fade back further, as on the board.
   quiet: { opacity: 0.8 },

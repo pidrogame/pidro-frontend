@@ -121,11 +121,12 @@ describe('avatar label', () => {
       avatarLabel({
         name: 'Kalle',
         dealer: true,
+        bid: 7,
         level: 18,
         pin: 'founding_tester',
         status: 'Plays nine of hearts',
       })
-    ).toBe('Kalle, dealer, level 18, Founding Tester, plays nine of hearts');
+    ).toBe('Kalle, dealer, bid 7, level 18, Founding Tester, plays nine of hearts');
   });
 
   it('names the turn and an urgent turn', () => {

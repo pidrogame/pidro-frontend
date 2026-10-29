@@ -155,6 +155,7 @@ export function avatarLabel({
   level,
   pin,
   dealer,
+  bid = null,
   turn,
   away,
   kind = 'player',
@@ -165,6 +166,8 @@ export function avatarLabel({
   level?: number | null;
   pin?: AvatarPin | null;
   dealer?: boolean;
+  /** The winning bid the seat holds, on its corner. */
+  bid?: number | null;
   turn?: { urgent?: boolean } | null;
   away?: AvatarAway | null;
   kind?: AvatarKind;
@@ -180,11 +183,13 @@ export function avatarLabel({
       : away === 'bot'
         ? t('social.avatar_bot')
         : null;
-  const statusText = status?.trim() ? status.trim().replace(/^./, (c) => c.toLowerCase()) : null;
+  const lower = (text: string) => text.replace(/^./, (c) => c.toLowerCase());
+  const statusText = status?.trim() ? lower(status.trim()) : null;
   return [
     who,
     kind === 'bot' && persona ? t('social.bot') : null,
     dealer ? t('social.avatar_dealer') : null,
+    bid != null ? lower(t('game.bid', { amount: formatNumber(bid) })) : null,
     level != null ? t('social.avatar_level', { number: formatNumber(level) }) : null,
     pin ? t(pin === 'classic' ? 'profile.classic_app' : 'profile.founding_tester') : null,
     turn ? t(turn.urgent ? 'social.avatar_urgent' : 'social.avatar_turn') : null,

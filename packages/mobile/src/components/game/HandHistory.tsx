@@ -4,20 +4,27 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SUIT_SYMBOLS, type Position, type ServerHandSummary } from '@pidro/shared';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { PidroText } from '@/components/ui/PidroText';
+import { TextLink } from '@/components/ui/TextLink';
 import { PidroColors, PidroSpacing } from '@/design/tokens';
 import { handHistoryRows } from '@/features/game/handHistory';
 import { TableUtilityWindow } from '@/game/canvas/TableUtilityWindow';
 import { formatNumber, useTranslation } from '@/i18n';
 
-/** Both entry points read the same server ledger; pages keep every size bounded. */
+/**
+ * Both entry points read the same server ledger; pages keep every size bounded.
+ * `onOpenLog`: where the table has no ticker to open this hand's log (tight
+ * phones with count help, PID-304), the panel opens it.
+ */
 export function HandHistory({
   history,
   viewer,
   onClose,
+  onOpenLog,
 }: {
   history: readonly ServerHandSummary[] | null | undefined;
   viewer: Position | null;
   onClose: () => void;
+  onOpenLog?: () => void;
 }) {
   const { t } = useTranslation();
   const { height } = useWindowDimensions();
@@ -35,6 +42,16 @@ export function HandHistory({
   return (
     <TableUtilityWindow title={t('game.every_hand')} open onClose={onClose}>
       <View testID="hand-history" style={styles.list}>
+        {onOpenLog ? (
+          <TextLink
+            testID="hand-history-this-hand"
+            label={t('game.this_hand_link')}
+            accessibilityLabel={t('game.this_hand')}
+            accessibilityRole="button"
+            onPress={onOpenLog}
+            style={styles.link}
+          />
+        ) : null}
         <PidroText role="metadata" tone="soft">
           {t('game.history_order', { first: labels[0], second: labels[1] })}
         </PidroText>
@@ -103,6 +120,7 @@ export function HandHistory({
 
 const styles = StyleSheet.create({
   list: { gap: PidroSpacing.xs },
+  link: { alignSelf: 'flex-start' },
   row: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xxs },
   hand: { minHeight: 50, borderTopWidth: 1, borderTopColor: PidroColors.border },
   number: { width: 22 },

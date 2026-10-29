@@ -377,6 +377,7 @@ export default function GameCanvasDev({
   const { width, height } = useTableSize();
   const reserves = useTableReserves();
   const { topReserve, bottomReserve } = reserves;
+  const layout = computeLayout(width, height, insets, topReserve, bottomReserve);
   const [hand, setHand] = useState<Card[]>([]);
   const [trick, setTrick] = useState<Play[]>([]);
   const [tricks, setTricks] = useState<
@@ -834,10 +835,11 @@ export default function GameCanvasDev({
                 ? { who: 'Eli', what: t('game.bid', { amount: 6 }), ours: false }
                 : null
             }
+            logInPanel={countHelp && layout.tight}
             ticker={
               countHelp
                 ? tickerPlacement(
-                    computeLayout(width, height, insets, topReserve, bottomReserve),
+                    layout,
                     {
                       tableTop: insets.top + topReserve,
                       plaqueLeft: insets.left + PidroSpacing.sm,

@@ -40,7 +40,7 @@ import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
 import type { SeatLine } from '@/features/game/seatLine';
-import { SCORE_PLAQUE_HEIGHT, Scoreboard } from './Scoreboard';
+import { Scoreboard } from './Scoreboard';
 import type { TickerRestingLine } from './ActionTicker';
 import { buildHandLog } from '@/game/handLog';
 import { bidSeatLine, bidsShown } from '@/features/game/bidding';
@@ -645,7 +645,6 @@ export function GameCanvasTable({
                     tableTop: insets.top + topReserve,
                     plaqueLeft: insets.left + PidroSpacing.sm,
                     plaqueTop: headerTop(insets.top),
-                    plaqueBottom: headerTop(insets.top) + SCORE_PLAQUE_HEIGHT + PidroSpacing.xxs,
                   },
                   true
                 )
@@ -653,6 +652,8 @@ export function GameCanvasTable({
           }
           restingOnly={!fullTicker}
           help={lastTrickView ? <LastTrick trick={lastTrickView} yourTurn={isYourTurn} /> : null}
+          // Tight phones leave the ticker and Last trick out (PID-304); the log stays a tap away.
+          logInPanel={countHelp && layout.tight}
           glow={countHelp ? scoreGlow(model.lastTrick, model.seats, trickKey) : null}
           delta={handResult.result?.hand.delta ?? null}
           yourTurn={

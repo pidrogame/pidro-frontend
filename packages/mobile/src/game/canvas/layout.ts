@@ -30,8 +30,8 @@ export type TableLayout = {
   cardH: number;
   felt: { cx: number; cy: number };
   /**
-   * Short phones: smaller avatars without level chips, every name beside its
-   * avatar, and your avatar at the left of your hand instead of under it.
+   * Short phones: smaller avatars without level chips, every other name beside
+   * its avatar, and only your avatar and its short line under your hand.
    */
   tight: boolean;
   /** `pileScale`: how large played cards are drawn around the circle. */
@@ -194,30 +194,52 @@ export function sideSeatTop(
 
 /** A trump button: the suit, its name and the count stacked, big enough for older hands. */
 export const TRUMP_BUTTON = { width: 76, height: 76 } as const;
+/** The shortest tight phones' trump button: still a thumb's width, a little less tall. */
+const SHORT_TRUMP_BUTTON = 64;
 const TRUMP_GAP = 8;
 /** "Pick trump" and the gap under it. */
 const TRUMP_CAPTION = 22;
+/** Between the picker and your hand: room for a previewed suit to rise, and air. */
+const TRUMP_HAND_GAP = 28;
 /**
  * The trump picker, in the trick circle: a 2×2 grid in portrait, one row of
  * four in landscape. Where the side seats come down beside it (small phones,
- * landscape), it sits below them instead of over their names.
+ * landscape), it sits below them instead of over their names. On tight
+ * phones short of room above your hand "Pick trump" yields first (the
+ * buttons name each suit and its count), then the buttons lose a little
+ * height, and on the very shortest (under ~600pt) the picker rises over the
+ * side names' ends, never into North (PID-304).
  */
 export function trumpPicker(L: TableLayout, tableTop: number, headerBottom: number) {
   const portrait = L.profile.endsWith('portrait');
   const columns = portrait ? 2 : 4;
   const rows = 4 / columns;
   const width = columns * TRUMP_BUTTON.width + (columns - 1) * TRUMP_GAP;
-  const height = TRUMP_CAPTION + rows * TRUMP_BUTTON.height + (rows - 1) * TRUMP_GAP;
   const seat = L.tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
   const seatsBottom =
     L.tight || !portrait
       ? sideSeatTop(L, { tableTop, seatHeight: seat, headerBottom }) + seat + TRUMP_GAP
       : 0;
+  const topFor = (height: number) => Math.max(L.trick.cy - height / 2, seatsBottom);
+  const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
+  const grid = (button: number) => rows * button + (rows - 1) * TRUMP_GAP;
+  const fits = (h: number) => topFor(h) + h <= handTop - TRUMP_HAND_GAP;
+  const caption = !L.tight || fits(TRUMP_CAPTION + grid(TRUMP_BUTTON.height));
+  const buttonHeight =
+    caption || fits(grid(TRUMP_BUTTON.height)) ? TRUMP_BUTTON.height : SHORT_TRUMP_BUTTON;
+  const height = (caption ? TRUMP_CAPTION : 0) + grid(buttonHeight);
   return {
     columns,
     gap: TRUMP_GAP,
+    caption,
+    buttonHeight,
     left: L.trick.cx - width / 2,
-    top: Math.max(L.trick.cy - height / 2, seatsBottom),
+    top: L.tight
+      ? Math.max(
+          northSeatBottom(L, tableTop),
+          Math.min(topFor(height), handTop - TRUMP_HAND_GAP - height)
+        )
+      : topFor(height),
     width,
     height,
   };
@@ -232,30 +254,17 @@ const TICKER_CHEVRON = 16;
  * back into it, over the first back's edge only; landscape lines sit beside
  * the plaque, dropped below the fan where it hangs into the header row.
  * Null where the table leaves the ticker out (`showsTicker`), unless the
- * player's count help needs its resting line there anyway (`always`). Small
- * phones then hang it below North's fan, where the line can run as far as
- * North's avatar.
+ * player's count help needs its resting line there anyway (`always`). Tight
+ * phones leave it out even then: it crowded West's seat (PID-304), and the
+ * hand's log opens from the score panel instead.
  */
 export function tickerPlacement(
   L: TableLayout,
-  {
-    tableTop,
-    plaqueLeft,
-    plaqueTop,
-    plaqueBottom,
-  }: { tableTop: number; plaqueLeft: number; plaqueTop: number; plaqueBottom?: number },
+  { tableTop, plaqueLeft, plaqueTop }: { tableTop: number; plaqueLeft: number; plaqueTop: number },
   always = false
 ): { lineMaxWidth: number; drop: number } | null {
-  if (!always && !showsTicker(L)) return null;
+  if (L.tight || (!always && !showsTicker(L))) return null;
   const backW = northBackWidth(L.cardW, compactNorth(L));
-  if (L.tight && L.profile.endsWith('portrait')) {
-    const fanBottom = northFanTop(L, tableTop) + backW * CARD_RATIO;
-    const room = L.width / 2 - TIGHT_AVATAR / 2 - 4 - plaqueLeft - TICKER_CHEVRON;
-    return {
-      lineMaxWidth: clamp(room, TICKER_LINE_MIN, TICKER_LINE_MAX),
-      drop: Math.max(0, fanBottom - (plaqueBottom ?? plaqueTop)),
-    };
-  }
   if (!L.profile.endsWith('portrait')) {
     const fanBottom = northFanTop(L, tableTop) + backW * CARD_RATIO;
     return { lineMaxWidth: TICKER_LINE_MAX, drop: Math.max(0, fanBottom + 4 - plaqueTop) };
@@ -298,14 +307,10 @@ const northRoom = (L: TableLayout, insets: Insets, backs: number) =>
   AVATAR_SIZE[L.profile] -
   seatNameGap(L.profile);
 /**
- * Landscape North on the narrowest phones (640pt with a side inset): where
- * the dealer chip after the name would leave it less than NORTH_NAME_MIN, the
- * chip tucks behind the avatar, as South's does (`northChipBehind`), and the
- * fan and seat move left of the table's axis by what the name still lacks
- * (`landscapeNorthShift`).
+ * Landscape North on the narrowest phones (640pt with a side inset): the fan
+ * and seat move left of the table's axis by what the name still lacks of
+ * NORTH_NAME_MIN.
  */
-export const northChipBehind = (L: TableLayout, insets: Insets, backs: number, chip: number) =>
-  chip > 0 && northRoom(L, insets, backs) - chip < NORTH_NAME_MIN;
 export const landscapeNorthShift = (L: TableLayout, insets: Insets, backs: number) =>
   clamp(NORTH_NAME_MIN - northRoom(L, insets, backs), 0, NORTH_SHIFT_MAX);
 /** Where landscape North's seat starts: right of its fan of backs. */
@@ -316,10 +321,10 @@ export const landscapeNorthLeft = (L: TableLayout, insets: Insets, backs: number
   16;
 /**
  * How far a landscape name runs before it truncates. South's runs toward
- * your hand, North's (and the dealer chip after it, `chip`) toward the menu:
- * each takes what those leave. South never gets less than SOUTH_NAME_MIN (the
- * hand makes way for it); North never runs into the menu, and makes room for
- * NORTH_NAME_MIN where it can (`northChipBehind`).
+ * your hand, North's toward the menu: each takes what those leave. South
+ * never gets less than SOUTH_NAME_MIN (the hand makes way for it); North
+ * never runs into the menu, and makes room for NORTH_NAME_MIN where it can
+ * (`landscapeNorthShift`).
  */
 export function landscapeNameReach(
   L: TableLayout,
@@ -328,8 +333,7 @@ export function landscapeNameReach(
     insets,
     southCards = FULL_HAND,
     northBacks = 6,
-    chip = 0,
-  }: { insets: Insets; southCards?: number; northBacks?: number; chip?: number }
+  }: { insets: Insets; southCards?: number; northBacks?: number }
 ): number {
   const most = L.profile.startsWith('tablet') ? 160 : 104;
   const seat = AVATAR_SIZE[L.profile] + seatNameGap(L.profile);
@@ -337,20 +341,16 @@ export function landscapeNameReach(
     rel === 'south'
       ? handLeft(L, southCards) - (insets.left + LANDSCAPE_SOUTH_LEFT + seat) - 12
       : rel === 'north'
-        ? L.width -
-          insets.right -
-          MENU_SLOT -
-          8 -
-          landscapeNorthLeft(L, insets, northBacks) -
-          seat -
-          (northChipBehind(L, insets, northBacks, chip) ? 0 : chip)
+        ? L.width - insets.right - MENU_SLOT - 8 - landscapeNorthLeft(L, insets, northBacks) - seat
         : most;
   return clamp(room, rel === 'north' ? 0 : SOUTH_NAME_MIN, most);
 }
 /** A tight seat: the avatar alone, its name beside it, no level chip. */
 export const TIGHT_AVATAR = 44;
-/** Your tight seat sits left of the hand: the avatar and a gap. */
-export const TIGHT_SOUTH_SLOT = TIGHT_AVATAR + 8;
+/** Between your hand and your tight avatar: the turn ring's room. */
+export const TIGHT_SOUTH_GAP = 6;
+/** Your tight seat under the hand: the gap, the avatar, its short line and a gap above the dock. */
+const TIGHT_SOUTH_SEAT = TIGHT_SOUTH_GAP + TIGHT_AVATAR + 4 + 14 + 2;
 /** Landscape phones shorter than this have no room for the ticker. */
 const TICKER_MIN_LANDSCAPE_HEIGHT = 390;
 /**
@@ -470,14 +470,14 @@ export function computeLayout(
   // the band is short (small phones) the circle and its cards shrink; where
   // it is not, the circle keeps its usual size. On the shortest phones even
   // that is not enough (`tight`): North's name moves beside a smaller avatar,
-  // and yours moves to the left of your hand, which drops to the bottom edge.
+  // and yours keeps only the avatar and its short line.
   // Landscape keeps the legacy full-felt composition with floating chrome.
   const tabletPortrait = profile === 'tablet-portrait';
   const usualR = clamp(shortest * (portrait ? 0.19 : 0.18), 82, 190);
   const portraitBand = (tightSeats: boolean) => {
-    // Your seat below the hand: avatar, level chip, name and status, or only
-    // a gap above the dock when your avatar sits beside the hand.
-    const southSeat = tightSeats ? 12 : tabletPortrait ? 140 : 120;
+    // Your seat below the hand: avatar, level chip, name and status, or on a
+    // tight phone the smaller avatar and its short line.
+    const southSeat = tightSeats ? TIGHT_SOUTH_SEAT : tabletPortrait ? 140 : 120;
     const handY = tableBottom - southSeat - cardH * 0.5;
     const northBottom =
       tableTop +
@@ -491,7 +491,10 @@ export function computeLayout(
   const roomy = portraitBand(false);
   const tight = portrait && !tabletPortrait && fitR(roomy.band, COMPACT_PILE_SCALE) < MIN_COMFORT_R;
   const { handY: portraitHandY, northBottom, band } = portraitBand(tight);
-  const compact = portrait && fitR(band, PILE_SCALE) < usualR;
+  // Your tight seat under the hand takes its room from the trick band where a
+  // phone has none spare: the circle then keeps clear of a lifted card too.
+  const lift = tight ? Math.min(16, cardH * 0.14) : 0;
+  const compact = portrait && fitR(band, PILE_SCALE) - lift < usualR;
   const handH = cardH * handScale(profile);
   const handY = portrait ? portraitHandY : tableBottom - handH / 2 - cardH * 0.11;
   const trickCy = portrait ? northBottom + band / 2 : height * 0.49;
@@ -507,7 +510,7 @@ export function computeLayout(
       ? COMPACT_PILE_SCALE
       : LANDSCAPE_PILE_SCALE;
   const trickR = compact
-    ? Math.max(32, Math.min(usualR, fitR(band, pileScale)))
+    ? Math.max(32, Math.min(usualR, fitR(band, pileScale) - lift))
     : shortLandscape
       ? Math.max(32, Math.min(usualR, landscapeR(pileScale)))
       : usualR;
@@ -573,13 +576,8 @@ export function computeLayout(
     sides: { cy: sideCy },
     seats,
     bottom: tableBottom,
-    // A tight hand makes room on its left for your avatar.
     hand: portrait
-      ? {
-          cx: tight ? cx + TIGHT_SOUTH_SLOT / 2 : cx,
-          cy: handY,
-          maxWidth: width - insets.left - insets.right - 32 - (tight ? TIGHT_SOUTH_SLOT : 0),
-        }
+      ? { cx, cy: handY, maxWidth: width - insets.left - insets.right - 32 }
       : {
           cx: landscapeHandCx,
           cy: handY,

@@ -14,7 +14,6 @@ import {
   landscapeNorthShift,
   MENU_SLOT,
   NORTH_NAME_MIN,
-  northChipBehind,
   compactNorth,
   northBackWidth,
   northFanTop,
@@ -27,7 +26,7 @@ import {
   sideStacks,
   showsTicker,
   TIGHT_AVATAR,
-  TIGHT_SOUTH_SLOT,
+  TIGHT_SOUTH_GAP,
   tickerPlacement,
   TRUMP_BUTTON,
   trumpPicker,
@@ -93,7 +92,9 @@ describe('side stacks and the hand', () => {
       const L = computeLayout(width, height, insets, 60, utilityDockReserve(height));
       const stacks = sideStacks(L);
       expect(stacks.top).toBeGreaterThanOrEqual(L.trick.cy - stacks.maxHeight / 2);
-      expect(stacks.top + stacks.maxHeight).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2 - 12 + 0.01);
+      expect(stacks.top + stacks.maxHeight).toBeLessThanOrEqual(
+        L.hand.cy - L.cardH / 2 - 12 + 0.01
+      );
     }
   });
 
@@ -156,12 +157,27 @@ describe('tight phones', () => {
     });
   }
 
-  it('leave your avatar a slot at the left of a full hand', () => {
-    const L = computeLayout(360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, 60, dock(640));
-    const avatarLeft = L.hand.cx - L.hand.maxWidth / 2 - TIGHT_SOUTH_SLOT;
-    expect(avatarLeft).toBeGreaterThanOrEqual(8);
-    expect(avatarLeft + TIGHT_AVATAR).toBeLessThanOrEqual(handLeft(L, 9));
-  });
+  // PID-304: the hand on the table's axis, your avatar and its short line
+  // under it, above the dock, and the trick still clear of the hand.
+  for (const [width, height, insets] of [
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [360, 720, { top: 24, bottom: 48, left: 0, right: 0 }],
+  ]) {
+    it(`put your avatar under a centred hand on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, 60, dock(height));
+      expect(L.tight).toBe(true);
+      expect(L.hand.cx).toBe(width / 2);
+      expect(L.hand.maxWidth).toBe(width - 32);
+      const avatarTop = L.hand.cy + L.cardH / 2 + TIGHT_SOUTH_GAP;
+      // The avatar, a 4pt gap and one 14pt status line.
+      expect(avatarTop + TIGHT_AVATAR + 4 + 14).toBeLessThanOrEqual(L.bottom);
+      const south = playedCardTarget(L, 'south', 0, 1);
+      expect(south.y + (L.cardH * south.scale) / 2).toBeLessThanOrEqual(
+        L.hand.cy - L.cardH / 2 - handLift(L)
+      );
+    });
+  }
 });
 
 describe('the plaque ticker keeps off North’s fan', () => {
@@ -219,19 +235,10 @@ describe('small phones leave the ticker out', () => {
   }
 });
 
-describe('count help keeps the bid line on small phones (PID-220)', () => {
-  it('hangs it below North’s fan, ending before North’s avatar', () => {
+describe('tight phones leave the bid line out, count help or not (PID-304)', () => {
+  it('on 360×640', () => {
     const L = computeLayout(360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, 60, 0);
-    const plaqueBottom = 64;
-    const placed = tickerPlacement(
-      L,
-      { tableTop: 84, plaqueLeft: 12, plaqueTop: 32, plaqueBottom },
-      true
-    );
-    const fanBottom = northFanTop(L, 84) + (northBackWidth(L.cardW) * 110) / 78;
-    expect(plaqueBottom + placed.drop).toBeGreaterThanOrEqual(fanBottom);
-    // The line, then the chevron and its gap, short of the tight North avatar.
-    expect(12 + placed.lineMaxWidth + 16).toBeLessThan(360 / 2 - 44 / 2);
+    expect(tickerPlacement(L, { tableTop: 84, plaqueLeft: 12, plaqueTop: 32 }, true)).toBe(null);
   });
 });
 
@@ -248,8 +255,7 @@ describe('count help shows the bidder’s whole name on phones (PID-220)', () =>
 
   for (const [width, height, insets] of [
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
-    [375, 667, { top: 0, bottom: 0, left: 0, right: 0 }],
-    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
   ]) {
     it(`on ${width}×${height}, ${insets.top}pt top inset`, () => {
       const HEADER = 61;
@@ -257,11 +263,7 @@ describe('count help shows the bidder’s whole name on phones (PID-220)', () =>
       const L = computeLayout(width, height, insets, HEADER, utilityDockReserve(height));
       const plaqueTop = insets.top > 0 ? insets.top : 8;
       const plaqueBottom = plaqueTop + 53 + 4;
-      const placed = tickerPlacement(
-        L,
-        { tableTop, plaqueLeft: 12, plaqueTop, plaqueBottom },
-        true
-      );
+      const placed = tickerPlacement(L, { tableTop, plaqueLeft: 12, plaqueTop }, true);
       for (const name of ['Jocke', 'Margaretha']) {
         expect(nameWidth(name)).toBeLessThanOrEqual(placed.lineMaxWidth - PILL);
       }
@@ -389,6 +391,8 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
   // The header row: an 8pt inset and the 53pt score plaque (TABLE_HEADER).
   const HEADER = 61;
   for (const [width, height, insets] of [
+    [360, 640, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
     [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
@@ -411,7 +415,8 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
 
       // A 2×2 grid in portrait, one row in landscape, of buttons 64pt or more.
       expect(P.columns).toBe(portrait ? 2 : 4);
-      expect(Math.min(TRUMP_BUTTON.width, TRUMP_BUTTON.height)).toBeGreaterThanOrEqual(64);
+      expect(Math.min(TRUMP_BUTTON.width, P.buttonHeight)).toBeGreaterThanOrEqual(64);
+      if (!L.tight) expect(P.caption && P.buttonHeight === TRUMP_BUTTON.height).toBe(true);
       expect(P.width).toBe(P.columns * TRUMP_BUTTON.width + (P.columns - 1) * P.gap);
 
       // In the trick circle.
@@ -421,10 +426,11 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
       // The header, North and your hand stay clear.
       expect(P.top).toBeGreaterThanOrEqual(portrait ? tableTop : headerBottom);
       if (portrait) expect(P.top).toBeGreaterThanOrEqual(northSeatBottom(L, tableTop));
-      // Your hand, its previewed trumps lifted, keeps a gap.
-      expect(bottom).toBeLessThanOrEqual(
-        L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L) - 8
-      );
+      // Your hand, its previewed trumps lifted, keeps a gap; on tight phones,
+      // under your seat's new room, a wider one (PID-304), "Pick trump" yielding.
+      const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
+      expect(bottom).toBeLessThanOrEqual(handTop - handLift(L) - 8);
+      if (L.tight) expect(bottom).toBeLessThanOrEqual(handTop - 28);
 
       // East and West: their stacks along the edges, their seats above them.
       // Roomy portraits give the seats a column beside the picker; small
@@ -442,6 +448,18 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
           sideSeatTop(L, { tableTop, seatHeight: seat, headerBottom }) + seat
         );
       }
+    });
+  }
+});
+
+describe('the shortest phones lift the trump picker clear of your hand (PID-304)', () => {
+  // 360×616: a 16:9 Android phone under a 24pt status bar and a solid nav bar.
+  for (const height of [592, 616]) {
+    it(`on 360×${height}`, () => {
+      const L = computeLayout(360, height, { top: 24, bottom: 0, left: 0, right: 0 }, 61, 52);
+      const P = trumpPicker(L, 85, 93);
+      expect(P.top).toBeGreaterThanOrEqual(northSeatBottom(L, 85));
+      expect(P.top + P.height).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2 - 28);
     });
   }
 });
@@ -484,8 +502,8 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
     }
   };
 
-  // A name that long fills its whole reach: each seat is drawn at its widest,
-  // the dealer chip after the name included.
+  // A name that long fills its whole reach: each seat is drawn at its widest.
+  // The dealer chip sits on the avatar's corner (PID-304), never after a name.
   for (const [width, height, insets] of [
     [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
     [640, 360, { top: 0, bottom: 0, left: 48, right: 0 }],
@@ -499,7 +517,6 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
       const L = computeLayout(width, height, insets);
       const size = AVATAR_SIZE[L.profile];
       const gap = seatNameGap(L.profile);
-      const chipW = avatarParts(size).dealer.size + gap;
       const headerBottom = insets.top + HEADER + 8;
       const sideTop = sideSeatTop(L, { tableTop: insets.top, seatHeight: size, headerBottom });
       const menu = {
@@ -508,81 +525,68 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
         top: 8,
         bottom: 8 + 44,
       };
-      for (const dealer of ['north', 'east', 'south', 'west']) {
-        for (const n of [1, 6, 9]) {
-          // A tucked chip sits behind North's avatar, not after its name.
-          const tucked = dealer === 'north' && northChipBehind(L, insets, n, chipW);
-          const chip = (rel) =>
-            rel === dealer && rel !== 'south' && !(rel === 'north' && tucked) ? chipW : 0;
-          const seatW = (rel) =>
-            size +
-            gap +
-            landscapeNameReach(L, rel, { insets, southCards: n, northBacks: n, chip: chip(rel) }) +
-            chip(rel);
-          const southLeft = insets.left + LANDSCAPE_SOUTH_LEFT;
-          const northLeft = landscapeNorthLeft(L, insets, n);
-          const eastRight = width - insets.right - 12;
-          const seats = {
-            south: {
-              left: southLeft,
-              right: southLeft + seatW('south'),
-              top: L.hand.cy - size / 2,
-              bottom: L.hand.cy + size / 2,
-            },
-            north: {
-              left: northLeft - (tucked ? chipW : 0),
-              right: northLeft + seatW('north'),
-              top: insets.top + 8,
-              bottom: insets.top + 8 + size,
-            },
-            east: { left: eastRight - seatW('east'), right: eastRight, top: sideTop },
-            west: { left: insets.left + 12, right: insets.left + 12 + seatW('west'), top: sideTop },
-          };
-          seats.east.bottom = seats.west.bottom = sideTop + size;
-          for (const seat of Object.values(seats)) {
-            expect(seat.left).toBeGreaterThanOrEqual(insets.left);
-            expect(seat.right).toBeLessThanOrEqual(width - insets.right);
-          }
-          expect(seats.east.top).toBeGreaterThanOrEqual(headerBottom);
-          expectApart(
-            seats,
-            [
-              ['hand', handBox(L, n)],
-              ['menu', menu],
-              ...playedCards(L).map((card) => ['a played card', card]),
-            ],
-            `dealer ${dealer}, ${n} cards`
-          );
+      for (const n of [1, 6, 9]) {
+        const seatW = (rel) =>
+          size + gap + landscapeNameReach(L, rel, { insets, southCards: n, northBacks: n });
+        const southLeft = insets.left + LANDSCAPE_SOUTH_LEFT;
+        const northLeft = landscapeNorthLeft(L, insets, n);
+        const eastRight = width - insets.right - 12;
+        const seats = {
+          south: {
+            left: southLeft,
+            right: southLeft + seatW('south'),
+            top: L.hand.cy - size / 2,
+            bottom: L.hand.cy + size / 2,
+          },
+          north: {
+            left: northLeft,
+            right: northLeft + seatW('north'),
+            top: insets.top + 8,
+            bottom: insets.top + 8 + size,
+          },
+          east: { left: eastRight - seatW('east'), right: eastRight, top: sideTop },
+          west: { left: insets.left + 12, right: insets.left + 12 + seatW('west'), top: sideTop },
+        };
+        seats.east.bottom = seats.west.bottom = sideTop + size;
+        for (const seat of Object.values(seats)) {
+          expect(seat.left).toBeGreaterThanOrEqual(insets.left);
+          expect(seat.right).toBeLessThanOrEqual(width - insets.right);
         }
+        expect(seats.east.top).toBeGreaterThanOrEqual(headerBottom);
+        expectApart(
+          seats,
+          [
+            ['hand', handBox(L, n)],
+            ['menu', menu],
+            ...playedCards(L).map((card) => ['a played card', card]),
+          ],
+          `${n} cards`
+        );
       }
     });
   }
 
-  // A 640×360 Android phone with its nav bar on the right: North's dealer
-  // chip tucks behind the avatar, and its fan moves left, so a long name
-  // still shows its first several letters.
+  // A 640×360 Android phone with its nav bar on the right: North's fan moves
+  // left, so a long name still shows its first several letters, and the
+  // dealer chip on the avatar's corner keeps off the fan.
   for (const right of [48, 59]) {
     it(`landscape 640×360, ${right}pt right inset, North dealing`, () => {
       const insets = { top: 0, bottom: 0, left: 0, right };
       const L = computeLayout(640, 360, insets);
       const size = AVATAR_SIZE[L.profile];
       const dealer = avatarParts(size).dealer;
-      const chipW = dealer.size + seatNameGap(L.profile);
       for (const n of [1, 6, 9]) {
-        const reach = landscapeNameReach(L, 'north', { insets, northBacks: n, chip: chipW });
+        const reach = landscapeNameReach(L, 'north', { insets, northBacks: n });
         expect(reach).toBeGreaterThanOrEqual(NORTH_NAME_MIN);
         const northLeft = landscapeNorthLeft(L, insets, n);
         const labelRight = northLeft + size + seatNameGap(L.profile) + reach;
         expect(labelRight).toBeLessThanOrEqual(640 - right - MENU_SLOT - 8);
-        if (!northChipBehind(L, insets, n, chipW)) continue;
-        // PlayerAvatar draws a chip behind the avatar 6pt off it, centered on the row.
         const chip = {
-          left: northLeft - 6 - dealer.size,
-          right: northLeft - 6,
-          top: 8 + size / 2 - dealer.size / 2,
-          bottom: 8 + size / 2 + dealer.size / 2,
+          left: northLeft + dealer.left,
+          right: northLeft + dealer.left + dealer.size,
+          top: 8 + size - dealer.bottom - dealer.size,
+          bottom: 8 + size - dealer.bottom,
         };
-        const menu = { left: 640 - right - MENU_SLOT, right: 640 - right - 12, top: 8, bottom: 52 };
         const fanW = northFanWidth(L.cardW, n, compactNorth(L));
         const fanLeft = 320 - landscapeNorthShift(L, insets, n) - fanW / 2;
         const fanTop = northFanTop(L, 0);
@@ -592,7 +596,6 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
           top: fanTop,
           bottom: fanTop + (northBackWidth(L.cardW, compactNorth(L)) * 110) / 78,
         };
-        expect(overlap(chip, menu)).toBe(false);
         expect(overlap(chip, fan)).toBe(false);
       }
     });

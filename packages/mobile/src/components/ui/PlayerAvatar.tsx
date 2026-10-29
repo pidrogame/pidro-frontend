@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Animated as RNAnimated,
   Image,
@@ -27,7 +27,7 @@ import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PidroBevel, PidroColors, PidroFonts } from '@/design/tokens';
 import { isStillCapture } from '@/utils/stillCapture';
-import { useTranslation } from '@/i18n';
+import { formatNumber, useTranslation } from '@/i18n';
 import {
   avatarLabel,
   avatarParts,
@@ -46,12 +46,14 @@ import { BoxShadow } from '@/game/canvas/bakedBlur';
  * five signals around it. The ring says whether they pay (glass, gold, or
  * gold with a gem for lifetime), the pin where they come from, the chip their
  * all-time level. At the table the turn light runs down as their timer, the
- * only light there; the name's colour says the team, and the dealer chip sits
- * beside the name (on the avatar only when there is no name). Smaller sizes
- * drop parts, never the ring (`avatarParts`). Read-only: wrap it in a
- * pressable to make it tappable.
+ * only light there, and the name's colour says the team. Each corner has one
+ * meaning (PID-304): the dealer chip bottom left, the bot badge bottom right,
+ * the winning bid top right (over the pin while it shows), and top left
+ * nothing, where the turn light sweeps. Smaller sizes drop parts, never the
+ * ring (`avatarParts`). Read-only: wrap it in a pressable to make it tappable.
  */
 export type AvatarRing = 'glass' | 'gold' | 'lifetime';
+export type DealerTrail = { current: { x: number; y: number } | null };
 
 export interface PlayerAvatarProps {
   size: number;
@@ -61,10 +63,12 @@ export interface PlayerAvatarProps {
   level?: number | null;
   dealer?: boolean;
   /**
-   * Which side the dealer chip takes. Below the avatar: that side of the name.
-   * Beside it: the name's far end, or behind the avatar if that is the side asked.
+   * Where the dealer chip last stood on screen, shared by a table's seats: a
+   * new dealer's chip slides in from the old one's corner.
    */
-  dealerSide?: 'left' | 'right';
+  dealerTrail?: DealerTrail;
+  /** The winning bid, in the bidding team's colour. It moves in from the status line when it appears. */
+  bid?: { amount: number; tone: 'us' | 'them' } | null;
   /**
    * `progress` is the time left, 1 to 0; the arc runs clockwise from twelve.
    * `attention` is for your own turn: the light pings once and then breathes.
@@ -103,8 +107,6 @@ export interface PlayerAvatarProps {
   testID?: string;
 }
 
-/** Space between the name and the dealer chip beside it. */
-const DEALER_GAP = 6;
 const FACE_GRADIENT = `linear-gradient(180deg, ${PidroBevel.panelHi} 0%, ${PidroBevel.panelMid} 60%, ${PidroBevel.panelDeep} 100%)`;
 const AWAY_OPACITY = 0.45;
 
@@ -128,7 +130,8 @@ export function PlayerAvatar({
   pin = null,
   level = null,
   dealer = false,
-  dealerSide = 'left',
+  dealerTrail,
+  bid = null,
   turn = null,
   photoProgress = null,
   away = null,
@@ -160,15 +163,36 @@ export function PlayerAvatar({
   const spoken =
     accessibilityLabel ??
     (name || kind !== 'player'
-      ? avatarLabel({ name, status, level, pin, dealer, turn, away, kind, persona: crew })
+      ? avatarLabel({
+          name,
+          status,
+          level,
+          pin,
+          dealer,
+          bid: bid?.amount,
+          turn,
+          away,
+          kind,
+          persona: crew,
+        })
       : undefined);
 
   const hasLabel = !!(name || status);
-  // A status alone (your tight seat) sits under the avatar; the chip stays on it.
   const named = !!name || kind === 'open';
   const acted = useActedPulse(pulse);
-  const dealerChip =
-    dealer && seated && parts.dealer ? <DealerChip size={parts.dealer.size} /> : null;
+  const below = label === 'below';
+  // The bot badge's coin; the winning bid matches it across the top.
+  const badge = (parts.dealer?.size ?? Math.round(size * 0.42)) + 2;
+  // The bid arrives from the middle of the status line, under the avatar or beside it.
+  const copyHeight = (named ? parts.name.lineHeight : 0) + parts.status.lineHeight;
+  const statusY = below
+    ? size + (chip ? chip.height + chip.bottom + 3 : 4) + copyHeight - parts.status.lineHeight / 2
+    : size / 2 + copyHeight / 2 - parts.status.lineHeight / 2;
+  const statusX = below ? size / 2 : label === 'right' ? size + 8 + badge / 2 : -8 - badge / 2;
+  const arrival = useBidArrival(bid?.amount ?? null, {
+    x: statusX - (size - BID_CORNER.right - badge / 2),
+    y: statusY - (BID_CORNER.top + badge / 2),
+  });
 
   const avatar = (
     <View style={{ width: size, height: size }}>
@@ -259,7 +283,7 @@ export function PlayerAvatar({
         </View>
       ) : null}
 
-      {pin && seated && parts.pin ? (
+      {pin && seated && parts.pin && !bid ? (
         <Coin
           testID={testID ? `${testID}-pin` : undefined}
           material={pin === 'classic' ? 'wood' : 'glass'}
@@ -305,26 +329,43 @@ export function PlayerAvatar({
         </View>
       ) : null}
 
-      {dealerChip && parts.dealer && !named ? (
-        <View
-          style={[styles.badge, { left: parts.dealer.left, bottom: parts.dealer.bottom }]}
-          pointerEvents="none">
-          {dealerChip}
-        </View>
+      {dealer && seated && parts.dealer ? (
+        <DealerBadge
+          {...parts.dealer}
+          trail={dealerTrail}
+          testID={testID ? `${testID}-dealer` : undefined}
+        />
       ) : null}
 
       {away && seated && parts.dealer ? <AwayBadge away={away} size={parts.dealer.size} /> : null}
       {crew && !away ? (
-        <AwayBadge away="bot" size={parts.dealer?.size ?? Math.round(size * 0.42)} />
+        <AwayBadge away="bot" size={badge - 2} testID={testID ? `${testID}-bot` : undefined} />
+      ) : null}
+      {bid && seated ? (
+        <RNAnimated.View
+          testID={testID ? `${testID}-bid` : undefined}
+          pointerEvents="none"
+          style={[
+            styles.bid,
+            {
+              width: badge,
+              height: badge,
+              borderRadius: badge / 2,
+              ...BID_CORNER,
+              borderColor: NAME_TONES[bid.tone],
+            },
+            arrival,
+          ]}>
+          <PidroText
+            maxFontSizeMultiplier={1}
+            style={[styles.bidText, { fontSize: Math.round(badge * 0.5) }]}>
+            {formatNumber(bid.amount)}
+          </PidroText>
+        </RNAnimated.View>
       ) : null}
     </View>
   );
 
-  const below = label === 'below';
-  // Beside the avatar the chip takes the far end of the name; asked for the
-  // other side, it sits behind the avatar instead, without moving the seat.
-  const rowChip = named && !below ? dealerChip : null;
-  const chipBehind = (label === 'right') === (dealerSide === 'left');
   const levelClearance = chip ? chip.height + chip.bottom + 3 : 4;
 
   return (
@@ -358,40 +399,15 @@ export function PlayerAvatar({
               </PidroText>
             ) : null}
             <RNAnimated.View style={[{ transformOrigin: SWELL_ORIGIN[label] }, acted.swell]}>
+              {/* A status alone (your tight seat) has a fixed slot above the chat band. */}
               <PidroText
                 numberOfLines={1}
+                maxFontSizeMultiplier={named ? undefined : 1}
                 style={[styles.status, parts.status, { color: STATUS_TONES[statusTone] }]}>
                 {status || ' '}
               </PidroText>
             </RNAnimated.View>
-            {below && named && dealerChip && parts.dealer ? (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.besideName,
-                  { marginTop: -parts.dealer.size / 2 },
-                  dealerSide === 'right'
-                    ? { right: -(parts.dealer.size + DEALER_GAP) }
-                    : { left: -(parts.dealer.size + DEALER_GAP) },
-                ]}>
-                {dealerChip}
-              </View>
-            ) : null}
           </View>
-        </View>
-      ) : null}
-      {rowChip && !chipBehind ? <View pointerEvents="none">{rowChip}</View> : null}
-      {rowChip && chipBehind && parts.dealer ? (
-        <View
-          pointerEvents="none"
-          style={[
-            styles.besideName,
-            { marginTop: -parts.dealer.size / 2 },
-            label === 'right'
-              ? { left: -(parts.dealer.size + DEALER_GAP) }
-              : { right: -(parts.dealer.size + DEALER_GAP) },
-          ]}>
-          {rowChip}
         </View>
       ) : null}
     </View>
@@ -412,6 +428,113 @@ const STATUS_TONES = {
   warning: PidroColors.warning,
   danger: PidroColors.danger,
 } as const;
+
+/** The winning bid's corner: the bot badge's place, mirrored to the top. */
+const BID_CORNER = { right: -4, top: -2 };
+/** The winning bid's move from the status line into its corner. */
+const BID_ARRIVAL_MS = 320;
+
+/**
+ * Where the bid stands, as an offset from its corner: `from` when it first
+ * appears on a seat already on screen, eased to rest. A seat drawn with its
+ * bid already showing (a rejoin) does not replay it; reduced motion skips it.
+ */
+function useBidArrival(amount: number | null, from: { x: number; y: number }) {
+  const calm = useReducedMotion() || isStillCapture();
+  const [t] = useState(() => new RNAnimated.Value(0));
+  const shown = useRef(amount);
+  useLayoutEffect(() => {
+    const before = shown.current;
+    shown.current = amount;
+    if (amount == null || before != null || calm) return;
+    t.setValue(1);
+    RNAnimated.timing(t, {
+      toValue: 0,
+      duration: BID_ARRIVAL_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: Platform.OS !== 'web',
+    }).start();
+  }, [amount, calm, t]);
+  useEffect(() => () => t.stopAnimation(), [t]);
+  return {
+    transform: [
+      { translateX: t.interpolate({ inputRange: [0, 1], outputRange: [0, from.x] }) },
+      { translateY: t.interpolate({ inputRange: [0, 1], outputRange: [0, from.y] }) },
+    ],
+  };
+}
+
+/** The dealer chip's slide from the last dealer's corner to the new one's. */
+export const DEALER_SLIDE_MS = 360;
+
+/**
+ * The dealer chip on its corner. One that appears where another stood a
+ * moment ago (`trail`) slides in from there; the first on a table, and any
+ * under reduced motion, just stands. Every chip leaves its place on the trail
+ * for the next.
+ */
+function DealerBadge({
+  size,
+  left,
+  bottom,
+  trail,
+  testID,
+}: {
+  size: number;
+  left: number;
+  bottom: number;
+  trail?: DealerTrail;
+  testID?: string;
+}) {
+  const calm = useReducedMotion() || isStillCapture();
+  const ref = useRef<View>(null);
+  const placed = useRef(false);
+  const [offset] = useState(() => new RNAnimated.ValueXY({ x: 0, y: 0 }));
+  // A chip that may slide stays hidden until it knows where from: measuring
+  // answers after the first frame.
+  const [shown] = useState(() => new RNAnimated.Value(trail?.current ? 0 : 1));
+  useEffect(() => () => offset.stopAnimation(), [offset]);
+  // A seat can move without its chip moving within it (cards played,
+  // rotation): every render of the dealer leaves its place on the trail.
+  useEffect(() => {
+    if (!trail || !placed.current) return;
+    ref.current?.measureInWindow((x, y) => {
+      trail.current = { x, y };
+    });
+  });
+  const onLayout = () => {
+    if (!trail) return;
+    ref.current?.measureInWindow((x, y) => {
+      const from = trail.current;
+      trail.current = { x, y };
+      if (placed.current) return;
+      placed.current = true;
+      if (from && !calm && (from.x !== x || from.y !== y)) {
+        offset.setValue({ x: from.x - x, y: from.y - y });
+        RNAnimated.timing(offset, {
+          toValue: { x: 0, y: 0 },
+          duration: DEALER_SLIDE_MS,
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: Platform.OS !== 'web',
+        }).start();
+      }
+      shown.setValue(1);
+    });
+  };
+  return (
+    <RNAnimated.View
+      ref={ref}
+      onLayout={onLayout}
+      testID={testID}
+      pointerEvents="none"
+      style={[
+        styles.badge,
+        { left, bottom, opacity: shown, transform: offset.getTranslateTransform() },
+      ]}>
+      <DealerChip size={size} />
+    </RNAnimated.View>
+  );
+}
 
 /** A seat that just acted: up quickly, held long enough to find, then gone. */
 const ACTED_IN_MS = 180;
@@ -772,11 +895,11 @@ export function Coin({
   );
 }
 
-function AwayBadge({ away, size }: { away: AvatarAway; size: number }) {
+function AwayBadge({ away, size, testID }: { away: AvatarAway; size: number; testID?: string }) {
   const place = { right: -4, bottom: -2 };
   if (away === 'bot') {
     return (
-      <Coin material="glass" size={size + 2} rim={1.5} style={place}>
+      <Coin testID={testID} material="glass" size={size + 2} rim={1.5} style={place}>
         <Icon name="bot" size={Math.round(size * 0.58)} color={PidroColors.text} />
       </Coin>
     );
@@ -913,9 +1036,19 @@ const styles = StyleSheet.create({
   copyLine: {
     maxWidth: '100%',
   },
-  besideName: {
+  bid: {
     position: 'absolute',
-    top: '50%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    backgroundColor: PidroBevel.panelDeep,
+    boxShadow: COIN_RING,
+  },
+  bidText: {
+    color: PidroColors.text,
+    fontFamily: PidroFonts.ui,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
   },
   name: {
     fontFamily: PidroFonts.ui,
