@@ -36,6 +36,12 @@ export type TableLayout = {
   tight: boolean;
   /** `pileScale`: how large played cards are drawn around the circle. */
   trick: { cx: number; cy: number; r: number; pileScale: number };
+  /**
+   * Landscape phones only (PID-305): each seat's front row, inward of its
+   * hand, where its played card and its thrown cards land. The trick is
+   * the cross of the four.
+   */
+  front?: Record<RelativePosition, { x: number; y: number }>;
   /** Vertical center of the east and west card-back stacks. */
   sides: { cy: number };
   seats: Record<RelativePosition, Seat>;
@@ -67,20 +73,29 @@ const NORTH_SEAT_STACK = { phone: 98, tablet: 115 } as const;
 // Opponents' backs are big enough to count at a glance: veterans read the
 // second deal off them (how many each drew), not just that cards are there.
 export const northBackWidth = (cardW: number, compact = false) =>
-  compact ? clamp(cardW * 0.66, 31, 58) : clamp(cardW * 0.8, 36, 68);
-/** Landscape phones keep North's smaller fan: its row is shared with the name, chip and menu. */
+  compact ? sideBackWidth(cardW) : clamp(cardW * 0.8, 36, 68);
+/**
+ * Landscape phones keep North's smaller fan, a step below the faces like the
+ * side stacks: its row is shared with the name, chip and menu.
+ */
 export const compactNorth = (L: Pick<TableLayout, 'profile'>) => L.profile === 'phone-landscape';
 /**
  * Where the pack waits in the second deal: the bottom-right corner, under the
  * right end of your hand and clear of East's stack, out of the middle where
  * the thrown piles land, so it never covers your cards. Where the table has
  * no room below the hand (landscape, the shortest phones) it rises only as
- * far as it must, at worst back beside the hand. Its center; the pack's backs
- * are North's size.
+ * far as it must, at worst back beside the hand. Landscape phones keep it
+ * right of the hand, level with it, below East's front row. Its center; the
+ * pack's backs are North's size.
  */
 export function packSpot(L: TableLayout) {
   const w = northBackWidth(L.cardW, compactNorth(L));
   const h = w * CARD_RATIO;
+  if (L.front)
+    return {
+      x: Math.min(L.hand.cx + L.hand.maxWidth / 2 + 8 + w / 2, L.width - w / 2 - 12),
+      y: L.hand.cy,
+    };
   const beside = L.hand.cy + L.cardH * 0.45;
   const below = L.hand.cy + (L.cardH * handScale(L.profile)) / 2 + 10 + h / 2;
   return {
@@ -112,6 +127,14 @@ export function heldPose(
 }
 /** East and West's backs, before they lie sideways. */
 export const sideBackWidth = (cardW: number) => clamp(cardW * 0.7, 31, 62);
+/**
+ * How far in from the screen edge East's or West's stack reaches. It bleeds
+ * past a bare edge, never into an `edge` inset (the Dynamic Island).
+ */
+export const sideStackInner = (cardW: number, edge: number) =>
+  (edge > 0 ? edge : -Math.min(cardW * 0.28, 18)) + sideBackWidth(cardW) * CARD_RATIO;
+/** Landscape phones: a side seat's distance in from its stack, the dealer chip on its corner included. */
+export const SIDE_SEAT_GAP = 16;
 /** North's fan of backs: each back after the first adds half a back, up to six. */
 // The backs grew so they can be counted, and a full hand spreads a little
 // wider than it did with smaller backs, as far as the table has room. Few
@@ -140,10 +163,19 @@ export function sideStackStep(cardW: number, n: number, reach = sideStackReach(c
 }
 /**
  * Where North's backs start. Portrait hangs them under the header row;
- * landscape tucks them partly above the table, under the floating scores.
+ * landscape tablets tuck them partly above the table, under the floating
+ * scores; landscape phones keep them whole along the top edge, to be counted.
  */
 export const northFanTop = (L: TableLayout, tableTop: number) =>
-  L.profile.endsWith('portrait') ? tableTop + 8 : tableTop - L.cardH * 0.36;
+  L.profile.endsWith('portrait')
+    ? tableTop + 8
+    : L.front
+      ? tableTop + ROW_EDGE
+      : tableTop - L.cardH * 0.36;
+/** Landscape phones: between a hand row and the screen edge. */
+const ROW_EDGE = 4;
+/** Landscape phones: between a hand row and its front row. */
+const ROW_GAP = 6;
 
 /** Portrait seat clearance, including its level chip, name and status line. */
 export const northSeatBottom = (L: TableLayout, tableTop: number) =>
@@ -172,7 +204,8 @@ export function sideStacks(L: TableLayout) {
  * opponents a triangle where it can: a step below North, the stacks moving
  * down under them as far as the hand allows; on the smallest phones the
  * seats rise beside North instead. Landscape seats never rise into the
- * header row. `seatHeight` is the seat drawn above the stack.
+ * header row; on phones they sit just under it, at the inner top corner of
+ * their stack, above their front row. `seatHeight` is the seat drawn above the stack.
  */
 export function sideSeatTop(
   L: TableLayout,
@@ -183,6 +216,7 @@ export function sideSeatTop(
   }: { tableTop: number; seatHeight: number; headerBottom: number }
 ): number {
   const stacks = sideStacks(L);
+  if (L.front) return headerBottom;
   if (!L.profile.endsWith('portrait')) return Math.max(headerBottom, stacks.top - 12 - seatHeight);
   const northSeatTop =
     northFanTop(L, tableTop) + northBackWidth(L.cardW, compactNorth(L)) * CARD_RATIO + 12;
@@ -280,14 +314,15 @@ const TICKER_CHEVRON = 16;
  * Null where the table leaves the ticker out (`showsTicker`), unless the
  * player's count help needs its resting line there anyway (`always`). Tight
  * phones leave it out even then: it crowded West's seat (PID-304), and the
- * hand's log opens from the score panel instead.
+ * hand's log opens from the score panel instead. So do landscape phones,
+ * whose West seat sits under the plaque (PID-305).
  */
 export function tickerPlacement(
   L: TableLayout,
   { tableTop, plaqueLeft, plaqueTop }: { tableTop: number; plaqueLeft: number; plaqueTop: number },
   always = false
 ): { lineMaxWidth: number; drop: number } | null {
-  if (L.tight || (!always && !showsTicker(L))) return null;
+  if (L.tight || L.front || (!always && !showsTicker(L))) return null;
   const backW = northBackWidth(L.cardW, compactNorth(L));
   if (!L.profile.endsWith('portrait')) {
     const fanBottom = northFanTop(L, tableTop) + backW * CARD_RATIO;
@@ -348,7 +383,8 @@ export const landscapeNorthLeft = (L: TableLayout, insets: Insets, backs: number
  * your hand, North's toward the menu: each takes what those leave. South
  * never gets less than SOUTH_NAME_MIN (the hand makes way for it); North
  * never runs into the menu, and makes room for NORTH_NAME_MIN where it can
- * (`landscapeNorthShift`).
+ * (`landscapeNorthShift`). On landscape phones East's and West's stop short
+ * of North's widest pile in its front row.
  */
 export function landscapeNameReach(
   L: TableLayout,
@@ -361,13 +397,21 @@ export function landscapeNameReach(
 ): number {
   const most = L.profile.startsWith('tablet') ? 160 : 104;
   const seat = AVATAR_SIZE[L.profile] + seatNameGap(L.profile);
+  const side = rel === 'east' || rel === 'west';
   const room =
     rel === 'south'
       ? handLeft(L, southCards) - (insets.left + LANDSCAPE_SOUTH_LEFT + seat) - 12
       : rel === 'north'
         ? L.width - insets.right - MENU_SLOT - 8 - landscapeNorthLeft(L, insets, northBacks) - seat
-        : most;
-  return clamp(room, rel === 'north' ? 0 : SOUTH_NAME_MIN, most);
+        : L.front
+          ? L.width / 2 -
+            (L.cardW * FRONT_PILE_SPAN) / 2 -
+            8 -
+            sideStackInner(L.cardW, rel === 'east' ? insets.right : insets.left) -
+            SIDE_SEAT_GAP -
+            seat
+          : most;
+  return clamp(room, rel === 'south' || (side && !L.front) ? SOUTH_NAME_MIN : 0, most);
 }
 /** A tight seat: the avatar alone, its name beside it, no level chip. */
 export const TIGHT_AVATAR = 44;
@@ -375,15 +419,12 @@ export const TIGHT_AVATAR = 44;
 export const TIGHT_SOUTH_GAP = 6;
 /** Your tight seat under the hand: the gap, the avatar, its short line and a gap above the dock. */
 const TIGHT_SOUTH_SEAT = TIGHT_SOUTH_GAP + TIGHT_AVATAR + 4 + 14 + 2;
-/** Landscape phones shorter than this have no room for the ticker. */
-const TICKER_MIN_LANDSCAPE_HEIGHT = 390;
 /**
  * Small phones leave the ticker out: the seats' status lines say the same,
- * and the table needs the room (Marcel, 2026-10-15).
+ * and the table needs the room (Marcel, 2026-10-15). Landscape phones too.
  */
 export function showsTicker(L: TableLayout): boolean {
-  if (L.tight) return false;
-  return !(L.profile === 'phone-landscape' && L.height < TICKER_MIN_LANDSCAPE_HEIGHT);
+  return !L.tight && !L.front;
 }
 /** Below this circle radius the trick reads as a heap: give it the seats' room. */
 const MIN_COMFORT_R = 64;
@@ -405,6 +446,19 @@ export function playedCardTarget(
   // Side cards face their owner: the card's top edge points at the table
   // center (east top→left, west top→right), matching the seat rot below.
   const rot = rel === 'east' ? -Math.PI / 2 : rel === 'west' ? Math.PI / 2 : 0;
+  // Landscape phones: the card lands in its player's front row. A side
+  // seat's newest card lies on its spot and the older ones step toward the
+  // middle, clear of the seat above, their corner index still showing.
+  if (L.front) {
+    const { x, y } = L.front[rel];
+    const back = (count - 1 - index) * L.cardW * 0.44;
+    return {
+      x: rel === 'west' ? x + back : rel === 'east' ? x - back : x + off * spacing,
+      y,
+      rot,
+      scale: pileScale,
+    };
+  }
 
   // Each pile center lands on a cardinal point of the trick circle. Multiple
   // cards spread along the tangent so the ring remains the visual ruler.
@@ -425,6 +479,36 @@ export function playedCardTarget(
   return { x, y, rot, scale: pileScale };
 }
 
+/** A card in a pile in front of a seat (thrown or killed): a played card's size on landscape phones. */
+export const pileCardW = (L: TableLayout) =>
+  L.front ? L.cardW : L.cardW * L.trick.pileScale * 0.82;
+/** How wide North's or your front-row pile spreads at most, in faces. */
+const FRONT_PILE_SPAN = 3.4;
+/**
+ * Where card `i` of a seat's pile of `n` lies: spread over its trick spot,
+ * or on landscape phones along its front row, the side seats' toward the
+ * middle and short of North's and your piles, closing up to fit.
+ */
+export function pileSpot(L: TableLayout, rel: RelativePosition, i: number, n: number) {
+  const w = pileCardW(L);
+  const sideways = rel === 'east' || rel === 'west';
+  if (!L.front) {
+    const at = playedCardTarget(L, rel, 0, 1);
+    const off = (i - (n - 1) / 2) * w * 0.44;
+    return sideways ? { x: at.x, y: at.y + off } : { x: at.x + off, y: at.y };
+  }
+  const at = L.front[rel];
+  const span = w * FRONT_PILE_SPAN;
+  if (!sideways) {
+    const step = n > 1 ? Math.min(w * 0.44, (span - w) / (n - 1)) : 0;
+    return { x: at.x + (i - (n - 1) / 2) * step, y: at.y };
+  }
+  // A sideways card is a face's height wide; its inner edge stops 8pt short of North's widest pile.
+  const room = Math.abs(at.x - L.trick.cx) - span / 2 - 8 - L.cardH / 2;
+  const step = n > 1 ? Math.min(w * 0.44, Math.max(0, room) / (n - 1)) : 0;
+  return { x: at.x + i * step * (rel === 'west' ? 1 : -1), y: at.y };
+}
+
 /** How far a playable (or previewed) hand card rises out of the row. */
 export const handLift = (L: TableLayout) => Math.min(16, L.cardH * 0.14);
 
@@ -436,11 +520,11 @@ export function handStep(L: TableLayout, n: number): number {
 }
 
 /**
- * How large your hand is drawn. Landscape phones draw it larger, ranks
- * readable at arm's length (PID-217); landscape tablets a touch smaller.
+ * How large your hand is drawn. Landscape phones draw it the size of the
+ * cards on the table, as Classic does (PID-305); landscape tablets a touch smaller.
  */
 export function handScale(profile: Profile): number {
-  return profile === 'phone-landscape' ? 1.2 : profile === 'tablet-landscape' ? 0.9 : 1;
+  return profile === 'tablet-landscape' ? 0.9 : 1;
 }
 
 /** Left edge of an n-card hand, a lifted (playable) card included. */
@@ -520,24 +604,43 @@ export function computeLayout(
   const lift = tight ? Math.min(16, cardH * 0.14) : 0;
   const compact = portrait && fitR(band, PILE_SCALE) - lift < usualR;
   const handH = cardH * handScale(profile);
-  const handY = portrait ? portraitHandY : tableBottom - handH / 2 - cardH * 0.11;
-  const trickCy = portrait ? northBottom + band / 2 : height * 0.49;
+  // Landscape phones lay every seat out in Classic's two rows of one card
+  // size (PID-305): the hand along its edge, its front row inward. North's
+  // front row hangs under its backs, yours stands above your hand (a lifted
+  // card included), and the trick's center lies halfway between the two.
+  const twoRows = profile === 'phone-landscape';
+  const handY = portrait
+    ? portraitHandY
+    : twoRows
+      ? tableBottom - cardH / 2 - ROW_EDGE
+      : tableBottom - handH / 2 - cardH * 0.11;
+  const northFrontY = tableTop + ROW_EDGE + sideBackWidth(cardW) * CARD_RATIO + ROW_GAP + cardH / 2;
+  const southFrontY = handY - cardH - Math.min(16, cardH * 0.14) - ROW_GAP;
+  const trickCy = portrait
+    ? northBottom + band / 2
+    : twoRows
+      ? (northFrontY + southFrontY) / 2
+      : height * 0.49;
   // Landscape: your played card lands above the hand. Short phones shrink the
   // circle and its cards until it does.
   const landscapeR = (scale: number) => handY - handH / 2 - 8 - (cardH * scale) / 2 - trickCy;
-  const shortLandscape = !portrait && landscapeR(LANDSCAPE_PILE_SCALE) < usualR;
+  const shortLandscape = !portrait && !twoRows && landscapeR(LANDSCAPE_PILE_SCALE) < usualR;
   const pileScale = portrait
     ? compact
       ? COMPACT_PILE_SCALE
       : PILE_SCALE
-    : shortLandscape
-      ? COMPACT_PILE_SCALE
-      : LANDSCAPE_PILE_SCALE;
+    : twoRows
+      ? 1
+      : shortLandscape
+        ? COMPACT_PILE_SCALE
+        : LANDSCAPE_PILE_SCALE;
   const trickR = compact
     ? Math.max(32, Math.min(usualR, fitR(band, pileScale) - lift))
-    : shortLandscape
-      ? Math.max(32, Math.min(usualR, landscapeR(pileScale)))
-      : usualR;
+    : twoRows
+      ? (southFrontY - northFrontY) / 2
+      : shortLandscape
+        ? Math.max(32, Math.min(usualR, landscapeR(pileScale)))
+        : usualR;
 
   const northY = tableTop + cardH * (portrait ? 0.48 : 0.22) + 10;
   // Portrait drops the side line only as far as a full stack still ends above
@@ -550,7 +653,9 @@ export function computeLayout(
           cardH * PORTRAIT_SIDE_DROP
         )
       : 0;
-  const sideCy = portrait ? trickCy + portraitDrop : trickCy + LANDSCAPE_SIDE_DROP;
+  const sideCy = portrait ? trickCy + portraitDrop : trickCy + (twoRows ? 0 : LANDSCAPE_SIDE_DROP);
+  // West's and East's front rows: inward of their stacks, level with them.
+  const sideFront = (edge: number) => sideStackInner(cardW, edge) + ROW_GAP + cardH / 2;
   // Played cards leave from here; portrait keeps its historical screen-center origin.
   const sideY = portrait ? cy : sideCy;
 
@@ -596,6 +701,14 @@ export function computeLayout(
     cardH,
     felt: { cx, cy: trickCy },
     trick: { cx, cy: trickCy, r: trickR, pileScale },
+    front: twoRows
+      ? {
+          north: { x: cx, y: northFrontY },
+          south: { x: cx, y: southFrontY },
+          west: { x: sideFront(insets.left), y: sideCy },
+          east: { x: width - sideFront(insets.right), y: sideCy },
+        }
+      : undefined,
     tight,
     sides: { cy: sideCy },
     seats,

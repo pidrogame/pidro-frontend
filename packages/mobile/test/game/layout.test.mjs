@@ -21,8 +21,12 @@ import {
   northFanWidth,
   northSeatBottom,
   packSpot,
+  pileCardW,
+  pileSpot,
   playedCardTarget,
   sideSeatTop,
+  sideStackInner,
+  SIDE_SEAT_GAP,
   seatNameGap,
   sideStacks,
   showsTicker,
@@ -48,21 +52,26 @@ describe('played-card piles', () => {
           for (let i = 1; i < count; i++) {
             const older = playedCardTarget(layout, seat, i - 1, count);
             const newer = playedCardTarget(layout, seat, i, count);
-            // Newer cards are on top. In card-local coordinates they must move
-            // right, exposing the older card's left-hand rank/suit index.
-            const dx = newer.x - older.x;
-            const dy = newer.y - older.y;
-            const localX = dx * Math.cos(older.rot) + dy * Math.sin(older.rot);
-            const localY = -dx * Math.sin(older.rot) + dy * Math.cos(older.rot);
-            expect(localX).toBeGreaterThan(0);
-            expect(localX).toBeLessThan(layout.cardW * older.scale);
-            expect(localY).toBeCloseTo(0);
+            // Newer cards are on top: the older card's top-left rank/suit
+            // index stays outside the newer card, and the two still overlap.
+            const [w, h] = [layout.cardW * older.scale, layout.cardH * older.scale];
+            const toScreen = (card, x, y) => ({
+              x: card.x + x * Math.cos(card.rot) - y * Math.sin(card.rot),
+              y: card.y + x * Math.sin(card.rot) + y * Math.cos(card.rot),
+            });
+            const toLocal = (card, p) => ({
+              x: (p.x - card.x) * Math.cos(card.rot) + (p.y - card.y) * Math.sin(card.rot),
+              y: -(p.x - card.x) * Math.sin(card.rot) + (p.y - card.y) * Math.cos(card.rot),
+            });
+            const index = toLocal(newer, toScreen(older, -w / 2 + 6, -h / 2 + 12));
+            expect(Math.abs(index.x) < w / 2 && Math.abs(index.y) < h / 2).toBe(false);
+            expect(Math.hypot(newer.x - older.x, newer.y - older.y)).toBeLessThan(w);
           }
         }
       }
+      // On landscape phones East's card lands in its front row (PID-305).
       expect(playedCardTarget(layout, 'east', 0, 1)).toMatchObject({
-        x: layout.trick.cx + layout.trick.r,
-        y: layout.trick.cy,
+        ...(layout.front?.east ?? { x: layout.trick.cx + layout.trick.r, y: layout.trick.cy }),
         rot: -Math.PI / 2,
       });
     });
@@ -72,11 +81,15 @@ describe('played-card piles', () => {
 describe('side stacks and the hand', () => {
   const none = { top: 0, bottom: 0, left: 0, right: 0 };
 
-  it('drops landscape side stacks below the trick line, and their cards leave from there', () => {
-    const landscape = computeLayout(874, 402, { top: 0, bottom: 21, left: 62, right: 62 });
+  it('drops landscape tablet side stacks below the trick line, and their cards leave from there', () => {
+    const landscape = computeLayout(1180, 820, { top: 0, bottom: 21, left: 0, right: 0 });
     expect(landscape.sides.cy).toBeGreaterThan(landscape.trick.cy);
     expect(landscape.seats.east.y).toBe(landscape.sides.cy);
     expect(landscape.seats.west.y).toBe(landscape.sides.cy);
+    // Landscape phones keep them level with the trick, as its cross (PID-305).
+    const phone = computeLayout(874, 402, { top: 0, bottom: 21, left: 62, right: 62 });
+    expect(phone.sides.cy).toBe(phone.trick.cy);
+    expect(phone.seats.west.y).toBe(phone.sides.cy);
 
     const portrait = computeLayout(402, 874, { top: 62, bottom: 34, left: 0, right: 0 }, 60, 72);
     expect(portrait.sides.cy).toBeGreaterThan(portrait.trick.cy);
@@ -201,8 +214,8 @@ describe('the plaque ticker keeps off North’s fan', () => {
     });
   }
 
-  it('drops below the fan beside the plaque in landscape', () => {
-    const L = computeLayout(844, 390, noInsets, 64, 0);
+  it('drops below the fan beside the plaque on landscape tablets', () => {
+    const L = computeLayout(1180, 820, noInsets, 64, 0);
     const { lineMaxWidth, drop } = tickerPlacement(L, { tableTop: 64, ...plaque });
     const fanBottom = northFanTop(L, 64) + (northBackWidth(L.cardW, compactNorth(L)) * 110) / 78;
     expect(plaque.plaqueTop + drop).toBeGreaterThanOrEqual(fanBottom);
@@ -210,14 +223,15 @@ describe('the plaque ticker keeps off North’s fan', () => {
   });
 });
 
-describe('small phones leave the ticker out', () => {
+describe('small and landscape phones leave the ticker out', () => {
   for (const [width, height, insets, shown] of [
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, false],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }, false],
     [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }, false],
     [667, 375, { top: 0, bottom: 0, left: 0, right: 0 }, false],
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }, true],
-    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }, true],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }, false],
+    [1180, 820, { top: 0, bottom: 20, left: 0, right: 0 }, true],
   ]) {
     it(`${shown ? 'shows' : 'hides'} it on ${width}×${height}`, () => {
       const portrait = height > width;
@@ -341,7 +355,7 @@ describe('landscape: your played card lands above your hand', () => {
   }
 });
 
-describe('landscape phones draw a larger hand beside your seat', () => {
+describe('landscape phones draw your hand the size of the table’s cards, beside your seat', () => {
   // Android (0, or a 48pt button bar on either side) and iPhones with the
   // Dynamic Island on either side.
   for (const [width, height, insets] of [
@@ -357,8 +371,8 @@ describe('landscape phones draw a larger hand beside your seat', () => {
     it(`on ${width}×${height} ${JSON.stringify(insets)}`, () => {
       const L = computeLayout(width, height, insets);
       const handW = L.cardW * handScale(L.profile);
-      expect(handW).toBeCloseTo(cardSize(height) * 1.2);
-      expect(handW).toBeGreaterThanOrEqual(64);
+      expect(handW).toBeCloseTo(cardSize(height));
+      expect(handW).toBeGreaterThanOrEqual(54);
 
       // Your seat: 70pt in, a 52pt avatar, a 10pt gap and at least 56pt of name.
       const seatRight = insets.left + 70 + 52 + 10 + 56;
@@ -524,6 +538,25 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
         return { left: card.x - x, right: card.x + x, top: card.y - y, bottom: card.y + y };
       })
     );
+  // Every seat's pile of `n` thrown cards in its front row (PID-305).
+  const frontPiles = (L, n) =>
+    ['north', 'east', 'south', 'west'].flatMap((rel) =>
+      Array.from({ length: n }, (_, i) => {
+        const card = pileSpot(L, rel, i, n);
+        const [w, h] = [pileCardW(L), (pileCardW(L) * 110) / 78];
+        const [x, y] = rel === 'east' || rel === 'west' ? [h / 2, w / 2] : [w / 2, h / 2];
+        return { left: card.x - x, right: card.x + x, top: card.y - y, bottom: card.y + y };
+      })
+    );
+  // East's and West's full stacks along the edges.
+  const sideStackBoxes = (L, insets) => {
+    const { top, maxHeight } = sideStacks(L);
+    const rows = { top, bottom: top + maxHeight };
+    return [
+      { ...rows, left: -Infinity, right: sideStackInner(L.cardW, insets.left) },
+      { ...rows, left: L.width - sideStackInner(L.cardW, insets.right), right: Infinity },
+    ];
+  };
   const expectApart = (seats, others, label) => {
     const names = Object.keys(seats);
     for (const [i, a] of names.entries()) {
@@ -564,7 +597,9 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
           size + gap + landscapeNameReach(L, rel, { insets, southCards: n, northBacks: n });
         const southLeft = insets.left + LANDSCAPE_SOUTH_LEFT;
         const northLeft = landscapeNorthLeft(L, insets, n);
-        const eastRight = width - insets.right - 12;
+        // At the inner top corner of their stacks (PID-305).
+        const westLeft = sideStackInner(L.cardW, insets.left) + SIDE_SEAT_GAP;
+        const eastRight = width - sideStackInner(L.cardW, insets.right) - SIDE_SEAT_GAP;
         const seats = {
           south: {
             left: southLeft,
@@ -579,7 +614,7 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
             bottom: insets.top + 8 + size,
           },
           east: { left: eastRight - seatW('east'), right: eastRight, top: sideTop },
-          west: { left: insets.left + 12, right: insets.left + 12 + seatW('west'), top: sideTop },
+          west: { left: westLeft, right: westLeft + seatW('west'), top: sideTop },
         };
         seats.east.bottom = seats.west.bottom = sideTop + size;
         for (const seat of Object.values(seats)) {
@@ -593,6 +628,8 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
             ['hand', handBox(L, n)],
             ['menu', menu],
             ...playedCards(L).map((card) => ['a played card', card]),
+            ...frontPiles(L, n).map((card) => ['a thrown card', card]),
+            ...sideStackBoxes(L, insets).map((stack) => ['a side stack', stack]),
           ],
           `${n} cards`
         );

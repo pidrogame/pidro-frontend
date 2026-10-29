@@ -19,7 +19,7 @@ import { Scoreboard } from './Scoreboard';
 import { handHistory } from './DevOverlays';
 import { TableSettings } from './TableSettings';
 import { TableChromeBars, headerTop, useTableReserves, useTableSize } from './TableChrome';
-import { computeLayout, tickerPlacement } from './layout';
+import { computeLayout, showsTicker, tickerPlacement } from './layout';
 import { useCardTextures } from './cardTextures';
 import { buildTableModel } from './tableModel';
 import { usePlayPresentation } from './usePlayPresentation';
@@ -835,7 +835,7 @@ export default function GameCanvasDev({
                 ? { who: 'Eli', what: t('game.bid', { amount: 6 }), ours: false }
                 : null
             }
-            logInPanel={countHelp && layout.tight}
+            logInPanel={countHelp && !showsTicker(layout)}
             ticker={
               countHelp
                 ? tickerPlacement(

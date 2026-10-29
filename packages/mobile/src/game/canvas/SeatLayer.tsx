@@ -56,10 +56,13 @@ import {
   packSpot,
   northFanStep,
   sideStackStep,
-  playedCardTarget,
+  pileCardW,
+  pileSpot,
   seatNameGap,
   sideBackWidth,
   sideSeatTop,
+  sideStackInner,
+  SIDE_SEAT_GAP,
   sideStacks,
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
@@ -342,8 +345,13 @@ export function SeatLayer({
             : rel === 'south'
               ? { x: L.hand.cx, y: L.hand.cy }
               : {
-                  x:
-                    rel === 'west'
+                  // Landscape phones fold a side hand inside its stack's
+                  // column, short of its front row (PID-305).
+                  x: L.front
+                    ? rel === 'west'
+                      ? (insets.left + sideStackInner(L.cardW, insets.left)) / 2
+                      : width - (insets.right + sideStackInner(L.cardW, insets.right)) / 2
+                    : rel === 'west'
                       ? insets.left + sideBackW * 0.7
                       : width - insets.right - sideBackW * 0.7,
                   y: sideStackCy,
@@ -364,13 +372,16 @@ export function SeatLayer({
             }
             from={from}
             // Cold hands fold where they were held; only second-deal throws cross the felt.
-            at={foldingHand ? from : playedCardTarget(L, rel, 0, 1)}
+            at={foldingHand ? undefined : (i) => pileSpot(L, rel, i, thrown)}
             cardW={
-              (foldingHand && rel !== 'south'
-                ? rel === 'north'
-                  ? northBackWidth(L.cardW, compactNorth(L))
-                  : sideBackW
-                : L.cardW * L.trick.pileScale) * 0.82
+              foldingHand
+                ? (rel === 'south'
+                    ? L.cardW * L.trick.pileScale
+                    : rel === 'north'
+                      ? northBackWidth(L.cardW, compactNorth(L))
+                      : // Narrower on landscape phones, to fit the stack's column.
+                        sideBackW * (L.front ? 0.85 : 1)) * 0.82
+                : pileCardW(L)
             }
           />
         );
@@ -541,13 +552,16 @@ export function SeatLayer({
         // East / west card-backs keep hugging the edges, their seats above them.
         // They bleed past a bare screen edge but never into an inset: in
         // landscape the Dynamic Island sits on one of these sides.
+        // Landscape phones seat them at the inner top corner of their stack,
+        // above their front row (PID-305).
         const edgeOffset = Math.min(L.cardW * 0.28, 18);
         const sideEdge = rel === 'east' ? insets.right : insets.left;
         const backsInset = sideEdge > 0 ? sideEdge : -edgeOffset;
+        const seatEdge = L.front
+          ? sideStackInner(L.cardW, sideEdge) + SIDE_SEAT_GAP
+          : sideEdge + sideInset;
         const seatPos =
-          rel === 'east'
-            ? { ...sideSeatPos, right: insets.right + sideInset }
-            : { ...sideSeatPos, left: insets.left + sideInset };
+          rel === 'east' ? { ...sideSeatPos, right: seatEdge } : { ...sideSeatPos, left: seatEdge };
         const backsEdge = rel === 'east' ? { right: backsInset } : { left: backsInset };
         return (
           <View key={rel} style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -719,8 +733,9 @@ function Pack({ count, backW, cx, cy }: { count: number; backW: number; cx: numb
 }
 
 /**
- * Second-deal throws spread in the trick area to be counted, then clear.
- * Cold hands collapse into a small face-down stack in their own hand area.
+ * Second-deal throws spread in front of their seat to be counted (`at`
+ * places each card), then clear. Cold hands collapse into a small face-down
+ * stack in their own hand area.
  */
 function ThrownPile({
   rel,
@@ -735,7 +750,7 @@ function ThrownPile({
   rel: RelativePosition;
   count: number;
   from: { x: number; y: number };
-  at: { x: number; y: number };
+  at?: (i: number) => { x: number; y: number };
   cardW: number;
   folded?: boolean;
   animate?: boolean;
@@ -746,7 +761,6 @@ function ThrownPile({
   const [moving] = useState(animate && !reducedMotion);
   const cardH = cardW * (110 / 78);
   const sideways = rel === 'east' || rel === 'west';
-  const step = cardW * (folded ? 0.1 : 0.44);
   return (
     <Animated.View
       testID={folded ? `seat-${rel}-folded` : `second-deal-thrown-${rel}`}
@@ -755,8 +769,12 @@ function ThrownPile({
       exiting={folded ? undefined : FadeOut.duration(SECOND_DEAL_FLIGHT_MS)}
       style={StyleSheet.absoluteFill}>
       {Array.from({ length: count }, (_, i) => {
-        const off = (i - (count - 1) / 2) * step;
+        const off = (i - (count - 1) / 2) * cardW * 0.1;
         const heldOff = (i - (count - 1) / 2) * fromStep;
+        const spot = at?.(i) ?? {
+          x: from.x + (sideways ? 0 : off),
+          y: from.y + (sideways ? off : 0),
+        };
         return (
           <ThrownBack
             key={i}
@@ -768,8 +786,8 @@ function ThrownPile({
                   }
                 : from
             }
-            x={sideways ? at.x : at.x + off}
-            y={sideways ? at.y + off : at.y}
+            x={spot.x}
+            y={spot.y}
             w={cardW}
             h={cardH}
             // A thrown card never lands quite square.
