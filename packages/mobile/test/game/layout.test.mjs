@@ -2,6 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import { avatarParts } from '../../src/features/avatar';
 import {
   AVATAR_SIZE,
+  bidWindowTop,
   cardSize,
   computeLayout,
   handLeft,
@@ -461,6 +462,39 @@ describe('the shortest phones lift the trump picker clear of your hand (PID-304)
       expect(P.top).toBeGreaterThanOrEqual(northSeatBottom(L, 85));
       expect(P.top + P.height).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2 - 28);
     });
+  }
+});
+
+describe('the bid grid sits on the trick, 18pt clear of your hand', () => {
+  // A 3×3 grid of 44pt buttons over Pass; `tall` adds a failed bid's message.
+  const grid = 3 * 44 + 2 * 4;
+  const window = (tall) => ({ center: 4 + grid / 2, height: grid + 68 + (tall ? 40 : 0) });
+  const handTop = (L) => L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
+
+  it('centres it where the table has room (390×844)', () => {
+    const L = computeLayout(390, 844, { top: 0, bottom: 0, left: 0, right: 0 }, 61, 52);
+    const w = window(false);
+    const top = bidWindowTop(L, { tableTop: 61, ...w });
+    expect(top + w.center).toBe(L.trick.cy);
+    expect(top + w.height).toBeLessThan(handTop(L) - 18);
+  });
+
+  // PID-304: tight phones lift the grid above the trick's centre, never below it.
+  for (const [width, height, insets] of [
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [360, 616, { top: 24, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    for (const tall of [false, true]) {
+      it(`lifts it on tight ${width}×${height}${tall ? ' with a failed bid' : ''}`, () => {
+        const L = computeLayout(width, height, insets, 61, 52);
+        expect(L.tight).toBe(true);
+        const w = window(tall);
+        const top = bidWindowTop(L, { tableTop: insets.top + 61, ...w });
+        expect(top + w.center).toBeLessThanOrEqual(L.trick.cy);
+        expect(top + w.height).toBeLessThanOrEqual(handTop(L) - 18);
+      });
+    }
   }
 });
 

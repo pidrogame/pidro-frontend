@@ -7,7 +7,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { STILL_LAYER } from '@/components/ui/StillLayer';
 import { PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
-import { AVATAR_SIZE, computeLayout, handScale } from '@/game/canvas/layout';
+import { AVATAR_SIZE, bidWindowTop, computeLayout, handScale } from '@/game/canvas/layout';
 import { playActionHaptic } from '@/game/useGameHaptics';
 import { useGameStore } from '@/stores/game';
 import type { LegalAction } from '@/types/game';
@@ -85,7 +85,8 @@ export function BiddingActions({
   const handHeight = layout.cardH * handScale(layout.profile);
   const handTop = layout.hand.cy - handHeight / 2;
   const tableTop = insets.top + topReserve;
-  // A tight table has no room for the usual air between the grid and the hand.
+  // A tight table keeps its buttons' size over the usual air below them: the
+  // window rises instead (`bidWindowTop`).
   const handGap = landscape ? HAND_GAP : layout.tight ? PidroSpacing.sm : PORTRAIT_HAND_GAP;
   const sideBackWidth = Math.max(30, Math.min(56, layout.cardW * 0.62));
   // Landscape North sits 8pt below the table's top edge.
@@ -101,17 +102,12 @@ export function BiddingActions({
   const gridWidth = buttonSize * 3 + GRID_GAP * 2;
   const gridHeight = buttonSize * 3 + GRID_GAP * 2;
   const hardTop = tableTop + HAND_GAP;
-  // Centered on the trick, but never reaching down onto the hand, a failed
-  // bid's error included.
   const errorHeight = submissionError ? CONTROL_GAP + ERROR_LINES_HEIGHT : 0;
-  const portraitTop = Math.max(
-    hardTop,
-    Math.min(
-      layout.trick.cy - gridHeight / 2 - PANEL_PADDING,
-      // Staying centered may take some of the portrait gap, never the last 18pt.
-      handTop - Math.min(handGap, HAND_GAP) - gridHeight - FIXED_GROUP_HEIGHT - errorHeight
-    )
-  );
+  const portraitTop = bidWindowTop(layout, {
+    tableTop,
+    center: PANEL_PADDING + gridHeight / 2,
+    height: gridHeight + FIXED_GROUP_HEIGHT + errorHeight,
+  });
 
   return (
     <View

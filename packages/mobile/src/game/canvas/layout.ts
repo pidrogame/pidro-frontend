@@ -248,6 +248,27 @@ export function trumpPicker(L: TableLayout, tableTop: number, headerBottom: numb
   };
 }
 
+/** Between the bid window and your hand: never less, on any phone. */
+const BID_HAND_GAP = 18;
+/**
+ * Where the portrait bid window starts: `height` tall (Pass and a failed
+ * bid's message included), its grid's centre `center` below its top. The
+ * grid sits on the trick's centre, but the window never comes closer to
+ * your hand than BID_HAND_GAP. On tight phones (PID-304) your seat under
+ * the hand leaves less room below the trick, so the grid rises above the
+ * centre there, never below it; North keeps clear by its own check.
+ */
+export function bidWindowTop(
+  L: TableLayout,
+  { tableTop, center, height }: { tableTop: number; center: number; height: number }
+) {
+  const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
+  return Math.max(
+    tableTop + BID_HAND_GAP,
+    Math.min(L.trick.cy - center, handTop - BID_HAND_GAP - height)
+  );
+}
+
 const TICKER_LINE_MAX = 168;
 const TICKER_LINE_MIN = 72;
 /** The chevron and the gap before it. */
