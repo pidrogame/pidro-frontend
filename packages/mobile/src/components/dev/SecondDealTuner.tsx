@@ -30,6 +30,7 @@ const SECOND_DEAL_ROWS: Row[] = [
   { key: 'cardMs', label: 'Each dealt card', step: 20 },
   { key: 'seatGapMs', label: 'Between players', step: 50 },
   { key: 'robMs', label: 'Dealer takes rest', step: 50 },
+  { key: 'dealerHoldMs', label: "Dealer's throw holds", step: 250 },
   { key: 'startMs', label: 'Before first throw', step: 50 },
 ];
 const HAND_RESULT_ROWS: Row[] = [{ key: 'showMs', label: 'Result on screen', step: 500 }];

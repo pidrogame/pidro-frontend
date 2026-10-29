@@ -241,6 +241,7 @@ function TimedSeatLayer({
   onProfile,
   quiet,
   secondDeal,
+  killed,
   held,
   bid,
 }: {
@@ -254,6 +255,7 @@ function TimedSeatLayer({
   onProfile: (playerId: string | null, persona?: BotPersona | null) => void;
   quiet: boolean;
   secondDeal: ComponentProps<typeof SeatLayer>['secondDeal'];
+  killed: ComponentProps<typeof SeatLayer>['killed'];
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
 }) {
@@ -283,6 +285,7 @@ function TimedSeatLayer({
       turnByRel={turnByRel}
       quiet={quiet}
       secondDeal={secondDeal}
+      killed={killed}
       held={held}
       bid={bid}
       onProfile={Object.fromEntries(
@@ -379,7 +382,10 @@ export function GameCanvasTable({
     [tableModel, arrivedAt, dealerSelectionMs]
   );
   const dealt = useDealPresentation(timedModel, controller.viewModel?.dealerRelative ?? null);
-  const presented = useSecondDealPresentation(dealt);
+  const presented = useSecondDealPresentation(
+    dealt,
+    isPrivateDealerRob ? dealerRobPresentation : null
+  );
   const turnTimer = useGameStore((state) => state.turnTimer);
   const playPresentation = usePlayPresentation(presented, controller.handlePlayCard, turnTimer);
   const model = useMemo(
@@ -552,6 +558,7 @@ export function GameCanvasTable({
         onProfile={openProfile}
         quiet={handResult.result != null}
         secondDeal={model.secondDealShow}
+        killed={model.killed}
         held={model.held}
         bid={
           showBid &&

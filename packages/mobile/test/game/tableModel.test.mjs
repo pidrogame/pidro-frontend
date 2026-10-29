@@ -424,3 +424,34 @@ describe('second deal counts', () => {
     ).toBeNull();
   });
 });
+
+describe('thrown and killed cards (PID-306)', () => {
+  // Rotated: absolute north sits at relative east, absolute south at west.
+  const serverPlayers = {
+    north: { hand: 6, kept_count: 7, drawn_count: 0, discarded_count: 2 },
+    east: { hand: [], kept_count: 2, drawn_count: 4, discarded_count: 7 },
+    south: { hand: 6, kept_count: 4, drawn_count: 2, discarded_count: 5 },
+    west: { hand: 6, kept_count: 3, drawn_count: 3, discarded_count: 6 },
+  };
+  const queen = { suit: 'spades', rank: 12 };
+
+  it('counts every throw and puts killed trumps in front of the seat that killed them', () => {
+    const model = build({
+      phase: 'playing',
+      dealerRelative: 'west',
+      serverPlayers,
+      killedCards: { north: [queen], south: [] },
+    });
+    expect(model.seats.east.discarded).toBe(2);
+    expect(model.seats.west.discarded).toBe(5);
+    expect(model.killed).toEqual({ east: [queen] });
+  });
+
+  it('shows no kill outside play, and nothing from an older server', () => {
+    const killedCards = { north: [queen] };
+    expect(build({ phase: 'second_deal', serverPlayers, killedCards }).killed).toEqual({});
+    const old = build({ phase: 'playing', serverPlayers: { north: { hand: 6, kept_count: 1 } } });
+    expect(old.killed).toEqual({});
+    expect(old.seats.east.discarded).toBeNull();
+  });
+});

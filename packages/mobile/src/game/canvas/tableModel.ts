@@ -62,6 +62,11 @@ export type TableSeat = {
    * cards drawn to refill. Never the dealer's: that stays the dealer's.
    */
   secondDeal: { kept: number; drawn: number | null } | null;
+  /**
+   * How many cards the seat threw away in the second deal, the dealer's
+   * once down to six (PID-306). Null until known or from an older server.
+   */
+  discarded?: number | null;
 };
 export type TableModel = {
   phase: GamePhase;
@@ -105,6 +110,8 @@ export type TableModel = {
   held?: HeldStyle;
   /** The second deal playing out (`useSecondDealPresentation`). */
   secondDealShow?: SecondDealShow;
+  /** Trumps killed over six, face up for everyone, by the seat that killed them (PID-306). */
+  killed?: Partial<Record<RelativePosition, Card[]>>;
 };
 
 export type TrickResult = {
@@ -143,6 +150,8 @@ export type TableModelInput = {
   serverPlayers?: Partial<Record<Position, ServerPlayerView>> | null;
   /** "Help me keep count": lights the card winning the trick. */
   countHelp?: boolean;
+  /** Trumps killed over six (PID-306); absent from older servers. */
+  killedCards?: Partial<Record<Position, Card[]>> | null;
 };
 
 type RawPlay = { player?: Position; position?: Position; card?: Card };
@@ -347,6 +356,9 @@ export function buildTableModel(input: TableModelInput): TableModel {
               ? DEALT_HAND
               : input.getCardCountForPlayer(p.absolutePosition),
           secondDeal: secondDealOf(p.absolutePosition),
+          discarded: afterDiscard
+            ? (input.serverPlayers?.[p.absolutePosition]?.discarded_count ?? null)
+            : null,
           lastPlayedCard: currentTrick[rel] ?? null,
           out: outOf(p.absolutePosition),
           foldedCount: foldedOf(p.absolutePosition),
@@ -376,6 +388,14 @@ export function buildTableModel(input: TableModelInput): TableModel {
     lastTrick,
     lastHand: input.lastHand ?? null,
     yourTeam: you ? teamOf(you.absolutePosition) : null,
+    killed: playing
+      ? Object.fromEntries(
+          input.players.flatMap((p) => {
+            const cards = input.killedCards?.[p.absolutePosition];
+            return cards?.length ? [[p.relativePosition, cards]] : [];
+          })
+        )
+      : {},
   };
 }
 
@@ -405,6 +425,7 @@ export function useTableModel(
         getCardCountForPlayer: c.getCardCountForPlayer,
         serverPlayers: c.serverState?.players ?? null,
         countHelp,
+        killedCards: c.serverState?.killed_cards ?? null,
       }),
     [
       c.phase,
@@ -427,6 +448,7 @@ export function useTableModel(
       c.getCardCountForPlayer,
       c.serverState?.players,
       countHelp,
+      c.serverState?.killed_cards,
     ]
   );
 }

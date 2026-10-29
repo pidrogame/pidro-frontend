@@ -2,9 +2,12 @@
  * The second deal, frame by frame (`useSecondDealPresentation` plays them),
  * at Classic's pace: each player in turn from the dealer's left throws down
  * to their trumps in one swoop, the piles hold to be counted and clear, the
- * dealer gives each player their cards one at a time, then takes the rest.
- * The dealer never shows a discard. Pure: built only from the server's counts and hands.
+ * dealer gives each player their cards one at a time, then takes the rest
+ * and, once down to six, throws too (PID-306; a server that does not count
+ * the dealer's throw leaves it unseen). Pure: built only from the server's
+ * counts and hands.
  */
+import type { Card } from '@/types/game';
 import type { RelativePosition } from './layout';
 import type { TableCard, TableModel } from './tableModel';
 import { SECOND_DEAL_PACK, secondDealTiming } from './animationTiming';
@@ -20,8 +23,10 @@ export type Counts = Partial<Record<RelativePosition, number>>;
 export type SecondDealShow = {
   /** Cards still in the pack in the middle. */
   pack: number;
-  /** Cards each player has thrown face down in front of them. */
+  /** Cards each player has thrown in front of them, face down. */
   thrown: Counts;
+  /** The faces of a pile only its thrower sees (PID-306): yours. */
+  faces?: Partial<Record<RelativePosition, Card[]>>;
 };
 
 export type Frame = SecondDealShow & {
@@ -33,6 +38,8 @@ export type Frame = SecondDealShow & {
   hand: Counts;
   /** How long this frame holds before the next. */
   ms: number;
+  /** The dealer has taken the pack and thrown down to six: their pile shows. */
+  dealerThrew?: boolean;
 };
 
 export type Plan = {
@@ -48,8 +55,7 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
   const t = secondDealTiming;
   const kept: Counts = {};
   const drawn: Counts = {};
-  // Only the players dealt to are counted: the dealer's discard stays hidden,
-  // the dealer's edge at a real table.
+  // Only the players dealt to are counted here; the dealer's throw comes last.
   for (const rel of CLOCKWISE) {
     const seat = model.seats[rel];
     if (!seat || rel === dealer) continue;
@@ -126,8 +132,47 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
       push(between ? t.cardMs + t.seatGapMs : t.cardMs);
     }
   });
-  // The dealer takes the rest, unseen: their hand keeps its look until play.
+  // The dealer takes the rest, unseen: their hand keeps its look until they
+  // throw. A server that counts throws (PID-306) shows the dealer's last.
   pack = 0;
   push(t.robMs);
+  if (players.some((rel) => model.seats[rel]?.discarded != null)) {
+    frames.push({ ...frames[frames.length - 1], dealerThrew: true, ms: t.dealerHoldMs });
+  }
   return { frames, yourThrown, yourDrawn };
+}
+
+/**
+ * What the table shows at `frame` (PID-306). Everyone sees how many each
+ * player threw, the dealer's once down to six; only the thrower sees the
+ * faces: yours when you were dealt to, and when you deal, `dealt` (the pool
+ * you were shown less the six you kept). An older server shows only backs.
+ */
+export function showAt(
+  frame: Frame,
+  model: TableModel,
+  plan: Plan,
+  dealt: Card[] | null
+): SecondDealShow {
+  const dealer = model.dealerRelative;
+  const thrown = { ...frame.thrown };
+  const faces: SecondDealShow['faces'] = {};
+  const counted = model.seats.south?.discarded != null;
+  const yours = plan.yourThrown ?? [];
+  if (counted && yours.length > 0 && thrown.south === yours.length)
+    faces.south = yours.map((c) => c.card);
+  if (frame.dealerThrew && dealer) {
+    thrown[dealer] = model.seats[dealer]?.discarded ?? 0;
+    if (dealer === 'south' && dealt && dealt.length > 0 && dealt.length === thrown.south)
+      faces.south = dealt;
+  }
+  return { pack: frame.pack, thrown, faces };
+}
+
+/** The cards you threw as dealer: the pool you were shown less the six you kept. */
+export function dealerThrow(pool: Card[] | undefined, kept: Card[] | undefined): Card[] | null {
+  if (!pool || !kept) return null;
+  const key = (c: Card) => `${c.suit}_${c.rank}`;
+  const keep = new Set(kept.map(key));
+  return pool.filter((c) => !keep.has(key(c)));
 }

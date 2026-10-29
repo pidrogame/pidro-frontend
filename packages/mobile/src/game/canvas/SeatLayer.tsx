@@ -8,7 +8,7 @@
  * Only player identities handle presses; card backs leave gestures to the canvas.
  * Skia-free (only the pure layout module), safe to import anywhere.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import Animated, {
   Easing,
   FadeOut,
@@ -81,6 +81,8 @@ import {
 import type { SecondDealShow } from './useSecondDealPresentation';
 import { bakedShadow } from './bakedBlur';
 import { t, useTranslation } from '@/i18n';
+import type { Card } from '@/types/game';
+import { getCardImage } from '@/utils/cardImages';
 
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -158,6 +160,8 @@ type Props = {
   quiet?: boolean;
   /** The second deal playing out: the pack, what each seat threw. */
   secondDeal?: SecondDealShow;
+  /** Killed trumps, face up in front of the seat that killed them (PID-306). */
+  killed?: Partial<Record<RelativePosition, Card[]>>;
   /** How every hand holds its cards. */
   held?: HeldStyle;
   bid?: { seat: RelativePosition | undefined; amount: number };
@@ -174,6 +178,7 @@ export function SeatLayer({
   onProfile,
   quiet = false,
   secondDeal,
+  killed,
   held = HELD_STYLE,
   bid,
 }: Props) {
@@ -332,7 +337,8 @@ export function SeatLayer({
       {REL.map((rel) => {
         const folded = seats[rel]?.foldedCount ?? 0;
         const thrown = secondDeal?.thrown[rel] ?? folded;
-        if (!seats[rel] || thrown === 0) return null;
+        const kills = killed?.[rel] ?? [];
+        if (!seats[rel] || (thrown === 0 && kills.length === 0)) return null;
         const foldingHand = !secondDeal && folded > 0;
         const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
         const from =
@@ -357,33 +363,48 @@ export function SeatLayer({
                   y: sideStackCy,
                 };
         return (
-          <ThrownPile
-            key={`thrown-${rel}`}
-            rel={rel}
-            count={thrown}
-            folded={foldingHand}
-            animate={!foldingHand || folding.includes(rel)}
-            fromStep={
-              rel === 'south'
-                ? handStep(L, thrown)
-                : rel === 'north'
-                  ? northFanStep(L.cardW, thrown, compactNorth(L))
-                  : sideStackStep(L.cardW, thrown, sideReach)
-            }
-            from={from}
-            // Cold hands fold where they were held; only second-deal throws cross the felt.
-            at={foldingHand ? undefined : (i) => pileSpot(L, rel, i, thrown)}
-            cardW={
-              foldingHand
-                ? (rel === 'south'
-                    ? L.cardW * L.trick.pileScale
+          <Fragment key={`thrown-${rel}`}>
+            {kills.length > 0 ? (
+              <ThrownPile
+                rel={rel}
+                testID={`killed-${rel}`}
+                count={kills.length}
+                faces={kills}
+                from={from}
+                at={(i) => pileSpot(L, rel, i, kills.length)}
+                cardW={pileCardW(L)}
+              />
+            ) : null}
+            {thrown > 0 ? (
+              <ThrownPile
+                rel={rel}
+                faces={foldingHand ? undefined : secondDeal?.faces?.[rel]}
+                count={thrown}
+                folded={foldingHand}
+                animate={!foldingHand || folding.includes(rel)}
+                fromStep={
+                  rel === 'south'
+                    ? handStep(L, thrown)
                     : rel === 'north'
-                      ? northBackWidth(L.cardW, compactNorth(L))
-                      : // Narrower on landscape phones, to fit the stack's column.
-                        sideBackW * (L.front ? 0.85 : 1)) * 0.82
-                : pileCardW(L)
-            }
-          />
+                      ? northFanStep(L.cardW, thrown, compactNorth(L))
+                      : sideStackStep(L.cardW, thrown, sideReach)
+                }
+                from={from}
+                // Cold hands fold where they were held; only second-deal throws cross the felt.
+                at={foldingHand ? undefined : (i) => pileSpot(L, rel, i, thrown)}
+                cardW={
+                  foldingHand
+                    ? (rel === 'south'
+                        ? L.cardW * L.trick.pileScale
+                        : rel === 'north'
+                          ? northBackWidth(L.cardW, compactNorth(L))
+                          : // Narrower on landscape phones, to fit the stack's column.
+                            sideBackW * (L.front ? 0.85 : 1)) * 0.82
+                    : pileCardW(L)
+                }
+              />
+            ) : null}
+          </Fragment>
         );
       })}
       {REL.map((rel) => {
@@ -746,9 +767,14 @@ function ThrownPile({
   folded = false,
   animate = true,
   fromStep = 0,
+  faces,
+  testID,
 }: {
   rel: RelativePosition;
   count: number;
+  /** Face up: the thrower's own, or killed trumps (PID-306). */
+  faces?: Card[];
+  testID?: string;
   from: { x: number; y: number };
   at?: (i: number) => { x: number; y: number };
   cardW: number;
@@ -763,7 +789,7 @@ function ThrownPile({
   const sideways = rel === 'east' || rel === 'west';
   return (
     <Animated.View
-      testID={folded ? `seat-${rel}-folded` : `second-deal-thrown-${rel}`}
+      testID={testID ?? (folded ? `seat-${rel}-folded` : `second-deal-thrown-${rel}`)}
       accessibilityElementsHidden
       pointerEvents="none"
       exiting={folded ? undefined : FadeOut.duration(SECOND_DEAL_FLIGHT_MS)}
@@ -791,11 +817,13 @@ function ThrownPile({
             w={cardW}
             h={cardH}
             // A thrown card never lands quite square.
-            rot={(sideways ? 90 : 0) + (((i * 37) % 7) - 3)}
+            // Faces lie as played cards do, their tops toward the middle.
+            rot={(rel === 'east' && faces ? -90 : sideways ? 90 : 0) + (((i * 37) % 7) - 3)}
             delay={folded ? 0 : i * SECOND_DEAL_SWOOP_STAGGER_MS}
             duration={folded ? FOLD_FLIGHT_MS : SECOND_DEAL_FLIGHT_MS}
             moving={moving}
             folded={folded}
+            card={faces?.[i]}
           />
         );
       })}
@@ -814,7 +842,9 @@ function ThrownBack({
   duration,
   moving,
   folded,
+  card,
 }: {
+  card?: Card;
   duration: number;
   moving: boolean;
   folded: boolean;
@@ -840,7 +870,16 @@ function ThrownBack({
   }));
   return (
     <Animated.View style={[{ position: 'absolute', width: w, height: h }, motion]}>
-      <Back w={w} h={h} />
+      {card ? (
+        <Image
+          testID="thrown-face"
+          source={getCardImage(card)}
+          accessibilityIgnoresInvertColors
+          style={{ width: w, height: h, borderRadius: BACK_RADIUS }}
+        />
+      ) : (
+        <Back w={w} h={h} />
+      )}
     </Animated.View>
   );
 }

@@ -82,6 +82,11 @@ export interface ServerPlayerView {
    */
   kept_count?: number | null;
   drawn_count?: number | null;
+  /**
+   * How many cards this seat threw away in the second deal (PID-306): the
+   * dealer's once they are down to six. Absent from older servers.
+   */
+  discarded_count?: number | null;
 }
 
 export interface ServerTrickPlay {
@@ -187,6 +192,11 @@ export interface ServerGameState {
   bid_team?: 'north_south' | 'east_west' | null;
 
   trump?: Suit | null;
+  /**
+   * Trumps killed over six, face up for everyone from the start of play until
+   * the hand ends (PID-306). Absent from older servers.
+   */
+  killed_cards?: Partial<Record<Position, Card[]>>;
 
   current_trick?: ServerTrickPlay[];
   current_trick_details?: ServerTrickDetails | null;

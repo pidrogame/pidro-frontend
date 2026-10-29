@@ -78,6 +78,8 @@ export const secondDealTiming = {
   seatGapMs: 250,
   /** The rest of the pack to the dealer, then the hands settle. */
   robMs: 700,
+  /** The dealer's throw on the felt, to count, after everyone else's (PID-306). */
+  dealerHoldMs: 2_000,
 };
 export type SecondDealTiming = typeof secondDealTiming;
 export const SECOND_DEAL_DEFAULTS: SecondDealTiming = { ...secondDealTiming };
@@ -98,9 +100,12 @@ export function secondDealDurationMs(dealt: number, timing: SecondDealTiming = s
     timing.packMs +
     dealt * timing.cardMs +
     2 * timing.seatGapMs +
-    timing.robMs
+    timing.robMs +
+    timing.dealerHoldMs
   );
 }
+/** Killed trumps lie face up at the start of play this long, or until the first card lands (PID-306). */
+export const KILLED_SHOW_MS = 3_000;
 /** Cards in one swoop leave a hair apart, so it reads as a handful. */
 export const SECOND_DEAL_SWOOP_STAGGER_MS = 35;
 /** A thrown or dealt card's flight. */
