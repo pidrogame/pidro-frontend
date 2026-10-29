@@ -7,7 +7,7 @@
  * Throwaway scaffold.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameCanvas from './GameCanvas';
@@ -18,7 +18,7 @@ import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
 import { Scoreboard } from './Scoreboard';
 import { handHistory } from './DevOverlays';
 import { TableSettings } from './TableSettings';
-import { TableChromeBars, headerTop, useTableReserves } from './TableChrome';
+import { TableChromeBars, headerTop, useTableReserves, useTableSize } from './TableChrome';
 import { computeLayout, tickerPlacement } from './layout';
 import { useCardTextures } from './cardTextures';
 import { buildTableModel } from './tableModel';
@@ -374,7 +374,7 @@ export default function GameCanvasDev({
   const { locale } = useTranslation();
   const textures = useCardTextures();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useTableSize();
   const reserves = useTableReserves();
   const { topReserve, bottomReserve } = reserves;
   const [hand, setHand] = useState<Card[]>([]);

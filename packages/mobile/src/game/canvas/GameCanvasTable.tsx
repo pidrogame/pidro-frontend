@@ -6,7 +6,7 @@
  * module is imported. Native imports this module directly.
  */
 import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { BotPersona, RematchVote } from '@pidro/shared';
@@ -49,7 +49,13 @@ import { waitsForContinue } from '@/features/game/handResult';
 import { useSettingsStore } from '@/stores/settings';
 import { LastTrick, type LastTrickView } from './LastTrick';
 
-import { TABLE_HEADER, TableChromeBars, headerTop, useTableReserves } from './TableChrome';
+import {
+  TABLE_HEADER,
+  TableChromeBars,
+  headerTop,
+  useTableReserves,
+  useTableSize,
+} from './TableChrome';
 import { TableSignals, scoreGlow, tablePidro } from './TableSignals';
 import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
 import { computeLayout, showsTicker, tickerPlacement, trumpPicker, type HeldStyle } from './layout';
@@ -394,7 +400,7 @@ export function GameCanvasTable({
     isSpectator || !controller.youPositionAbs,
     rulesFixtureSeen
   );
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useTableSize();
   const layout = computeLayout(width, height, insets, topReserve, bottomReserve);
 
   const {

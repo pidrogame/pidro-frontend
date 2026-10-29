@@ -6,7 +6,8 @@
  * passes quietly. How a hand scored is `HandResult`.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useTableSize } from './TableChrome';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -44,7 +45,7 @@ type Props = {
 };
 
 export function TableSignals({ model, topReserve = 0, bottomReserve = 0 }: Props) {
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useTableSize();
   const { top, bottom, left, right } = useSafeAreaInsets();
   const L = useMemo(
     () => computeLayout(width, height, { top, bottom, left, right }, topReserve, bottomReserve),

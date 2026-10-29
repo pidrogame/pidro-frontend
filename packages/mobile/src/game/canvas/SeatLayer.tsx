@@ -23,7 +23,6 @@ import {
   Platform,
   StyleSheet,
   View,
-  useWindowDimensions,
   type ImageSourcePropType,
   type ImageStyle,
 } from 'react-native';
@@ -64,7 +63,7 @@ import {
   type RelativePosition,
 } from './layout';
 import { viewerOf } from './HandResult';
-import { TABLE_HEADER } from './TableChrome';
+import { TABLE_HEADER, useTableSize } from './TableChrome';
 import type { TableSeat } from './tableModel';
 import {
   DEAL_PACKET_CARD_STAGGER_MS,
@@ -181,7 +180,7 @@ export function SeatLayer({
     setPreviousOut(out);
     setFolding(REL.filter((_, i) => out[i] && !previousOut[i]));
   }
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useTableSize();
   const insets = useSafeAreaInsets();
   const { top, bottom, left, right } = insets;
   const L = useMemo(

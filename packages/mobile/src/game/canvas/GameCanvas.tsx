@@ -5,7 +5,8 @@
  * Self-contained for window/insets; web callers load CanvasKit before import.
  */
 import { useEffect, useMemo } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { useTableSize } from './TableChrome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureDetector } from 'react-native-gesture-handler';
 import {
@@ -59,7 +60,7 @@ export default function GameCanvas({
   bottomReserve = 0,
   previewSuit = null,
 }: Props) {
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useTableSize();
   const insets = useSafeAreaInsets();
   const { top, bottom, left, right } = insets;
   const L = useMemo(

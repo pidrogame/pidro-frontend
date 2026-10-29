@@ -5,8 +5,8 @@
  * the menu on the right. Portrait reserves it above the north seat; landscape
  * seats North inside the row, between the two (see the Table boards).
  */
-import { StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Platform, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { SCORE_PLAQUE_HEIGHT } from './Scoreboard';
 import { utilityDockReserve } from './layout';
@@ -29,6 +29,19 @@ export const TABLE_HEADER = HEADER_INSET + Math.max(SCORE_PLAQUE_HEIGHT, PidroLa
 // or compact table details, but those modes should never stack vertically.
 export { UTILITY_DOCK_RESERVE } from './layout';
 
+/**
+ * The size the table lays itself out in. Android draws the app edge to edge,
+ * under the status and navigation bars, but before Android 11 its window
+ * size leaves both bars out; with the insets taken off again, a TCL 5053Y
+ * kept 72pt of felt empty under the hand (PID-304). There the table measures
+ * the view it fills; elsewhere the window is that view.
+ */
+export function useTableSize(): { width: number; height: number } {
+  const window = useWindowDimensions();
+  const frame = useSafeAreaFrame();
+  return Platform.OS === 'android' ? frame : window;
+}
+
 export interface TableReserves {
   landscape: boolean;
   topReserve: number;
@@ -46,7 +59,7 @@ export function useTableReserves({
   top = TABLE_HEADER,
   bottom,
 }: TableDockHeights = {}): TableReserves {
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useTableSize();
   bottom ??= utilityDockReserve(height);
   const insets = useSafeAreaInsets();
   const landscape = width > height;

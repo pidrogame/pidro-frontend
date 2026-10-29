@@ -7,7 +7,7 @@
  * waits. The server says what every card was worth and who kept it.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Image, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
   interpolate,
@@ -37,7 +37,7 @@ import { SUIT_SYMBOLS } from '@/utils/cards';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playOurPidroHaptic } from '@/game/useGameHaptics';
 import { formatNumber, useTranslation } from '@/i18n';
-import { TABLE_HEADER, headerTop } from './TableChrome';
+import { TABLE_HEADER, headerTop, useTableSize } from './TableChrome';
 import { computeLayout } from './layout';
 import type { TableModel } from './tableModel';
 import { BoxShadow } from './bakedBlur';
@@ -144,7 +144,7 @@ export function HandResultPanel({
 }) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
-  const { width, height } = useWindowDimensions();
+  const { width, height } = useTableSize();
   const insets = useSafeAreaInsets();
   const L = useMemo(
     () => computeLayout(width, height, insets, topReserve, bottomReserve),
