@@ -294,11 +294,20 @@ export function SeatLayer({
       headerBottom: insets.top + TABLE_HEADER + PidroSpacing.xs,
     }),
   };
+  // On the shortest phones your seat under the hand leaves a full side stack
+  // no room below its seat: its backs close up to fit (PID-304).
+  const handTop = L.hand.cy - L.cardH / 2;
+  const sideReach = tight
+    ? Math.min(stacks.maxHeight, handTop - 12 - (sideSeatPos.top + stackedSeat + PidroSpacing.sm))
+    : stacks.maxHeight;
   const sideStackCy = portrait
     ? Math.max(
         L.sides.cy,
-        Math.min(sideSeatPos.top + stackedSeat + PidroSpacing.sm, stacks.lowestTop) +
-          stacks.maxHeight / 2
+        Math.min(
+          sideSeatPos.top + stackedSeat + PidroSpacing.sm,
+          Math.max(stacks.top, handTop - 12 - sideReach)
+        ) +
+          sideReach / 2
       )
     : L.sides.cy;
   // Tight side seats keep their dealer chip, on the avatar's outer corner, on screen.
@@ -351,7 +360,7 @@ export function SeatLayer({
                 ? handStep(L, thrown)
                 : rel === 'north'
                   ? northFanStep(L.cardW, thrown, compactNorth(L))
-                  : sideStackStep(L.cardW, thrown)
+                  : sideStackStep(L.cardW, thrown, sideReach)
             }
             from={from}
             // Cold hands fold where they were held; only second-deal throws cross the felt.
@@ -562,6 +571,7 @@ export function SeatLayer({
                 seat={rel}
                 count={data.out ? 0 : (data.cardCount ?? 0)}
                 cardW={L.cardW}
+                reach={sideReach}
                 held={held}
                 dealing={dealing}
                 originX={
@@ -630,6 +640,7 @@ function BacksStackV({
   seat,
   count,
   cardW,
+  reach,
   dealing,
   originX,
   originDy = 0,
@@ -639,6 +650,8 @@ function BacksStackV({
   held?: HeldStyle;
   count: number;
   cardW: number;
+  /** How tall a full stack may draw. */
+  reach: number;
   dealing: boolean;
   originX: number;
   /** How far the felt's center sits below (+) or above (−) the stack's own. */
@@ -650,7 +663,7 @@ function BacksStackV({
   const ch = cw * (110 / 78);
   const visW = ch;
   const visH = cw;
-  const overlap = sideStackStep(cardW, n);
+  const overlap = sideStackStep(cardW, n, reach);
   return (
     <View style={{ width: visW, height: visH + (n - 1) * overlap }}>
       {Array.from({ length: n }, (_, i) => (

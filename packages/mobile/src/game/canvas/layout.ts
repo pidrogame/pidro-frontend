@@ -130,9 +130,12 @@ export function northFanStep(cardW: number, n: number, compact = false) {
 /** North's fan of backs, as wide as it draws. */
 export const northFanWidth = (cardW: number, count: number, compact = false) =>
   northBackWidth(cardW, compact) + (Math.max(1, count) - 1) * northFanStep(cardW, count, compact);
-/** Points between sideways backs in East's or West's stack of `n`. */
-export function sideStackStep(cardW: number, n: number) {
-  const room = legacySideBack(cardW) * SIDE_ROOM * 5;
+/**
+ * Points between sideways backs in East's or West's stack of `n`, drawn at
+ * most `reach` tall (a tight stack squeezed between its seat and your hand).
+ */
+export function sideStackStep(cardW: number, n: number, reach = sideStackReach(cardW)) {
+  const room = reach - sideBackWidth(cardW);
   return n > 1 ? Math.min(sideBackWidth(cardW) * 0.66, room / (n - 1)) : 0;
 }
 /**
