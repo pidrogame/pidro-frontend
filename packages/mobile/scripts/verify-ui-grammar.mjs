@@ -1032,7 +1032,26 @@ const allCases = [
   // land. ironman3001 deals at West, Margaretha Lindqvist holds the bid.
   ...[
     ['bidding', 'fixture=details&dealer=west&bidder=north&phase=bidding', 'bidding-window', {}],
-    ['second-deal', 'deal=draw', 'seat-south', { thrown: ['north', 'east', 'south'] }],
+    [
+      'second-deal',
+      'deal=draw',
+      'seat-south',
+      { thrown: ['north', 'east', 'south'], faces: { south: 7 } },
+    ],
+    // PID-306: only the thrower sees their faces; everyone sees killed trumps.
+    ['dealer-throws', 'deal=draw&dealerHoldMs=600000', 'seat-south', { thrown: ['west'] }],
+    [
+      'you-deal',
+      'deal=draw&you=deal&dealerHoldMs=600000',
+      'seat-south',
+      { thrown: ['south'], faces: { south: 2 } },
+    ],
+    [
+      'kill',
+      'deal=draw&kill=1&holdMs=100&dealerHoldMs=100&cardMs=10',
+      'seat-south',
+      { killed: ['east'] },
+    ],
     ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4 }],
     ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
   ].map(([name, query, testId, twoRows]) => ({
@@ -4748,7 +4767,7 @@ async function assertSmallTable(page, testCase, viewport) {
 // or hand result; no hand row touches a front row; no two front rows touch.
 async function assertTwoRows(page, testCase, viewport) {
   if (!testCase.twoRows) return;
-  const { thrown = [], played = 0, result = false } = testCase.twoRows;
+  const { thrown = [], played = 0, result = false, faces = {}, killed = [] } = testCase.twoRows;
   const rels = ['north', 'east', 'south', 'west'];
   const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
   const union = (label, boxes) => {
@@ -4769,8 +4788,20 @@ async function assertTwoRows(page, testCase, viewport) {
   for (const rel of thrown) {
     await page.getByTestId(`second-deal-thrown-${rel}`).waitFor({ timeout: 20_000 });
   }
+  for (const rel of killed) await page.getByTestId(`killed-${rel}`).waitFor({ timeout: 20_000 });
   // The last throw lands.
-  if (thrown.length) await page.waitForTimeout(700);
+  if (thrown.length || killed.length) await page.waitForTimeout(700);
+  for (const rel of thrown) {
+    const shown = await page
+      .getByTestId(`second-deal-thrown-${rel}`)
+      .getByTestId('thrown-face')
+      .count();
+    assert.equal(shown, faces[rel] ?? 0, `${testCase.name}: ${rel}'s pile shows ${shown} faces`);
+  }
+  for (const rel of killed) {
+    const shown = await page.getByTestId(`killed-${rel}`).getByTestId('thrown-face').count();
+    assert.ok(shown > 0, `${testCase.name}: ${rel}'s killed trumps lie face up`);
+  }
   await page.getByTestId(`rendered-played-card-count-${played}`).waitFor({ timeout: 20_000 });
   if (played) await page.waitForTimeout(600);
   const sprites = await page.evaluate(() => window.__pidroCardMotion?.() ?? []);
@@ -4799,6 +4830,7 @@ async function assertTwoRows(page, testCase, viewport) {
     }
     const front = [
       ...(await images(`second-deal-thrown-${rel}`)),
+      ...(await images(`killed-${rel}`)),
       ...sprites.filter((s) => s.kind === 'played' && s.key.split('-')[3] === rel).map(spriteBox),
     ];
     if (front.length) {
@@ -4807,7 +4839,11 @@ async function assertTwoRows(page, testCase, viewport) {
       fronts.push(row);
     }
   }
-  assert.equal(fronts.length, Math.max(thrown.length, played), `${testCase.name}: front rows`);
+  assert.equal(
+    fronts.length,
+    Math.max(thrown.length + killed.length, played),
+    `${testCase.name}: front rows`
+  );
   const hand = sprites.filter((s) => s.kind === 'hand').map(spriteBox);
   if (hand.length) {
     // Playable cards rise out of the row: the hand is where they rest too.

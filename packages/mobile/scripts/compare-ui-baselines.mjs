@@ -26,7 +26,8 @@ const diffRoot = resolve(captureRoot, 'diffs');
 const MAX_DIFF_PERCENT = Number(process.env.UI_DIFF_MAX_PERCENT ?? '2');
 
 // Screens with ongoing motion at capture time — not stable enough to diff.
-const SKIP = new Set(['table-completed-trick']);
+// The kill clears as the first card lands (PID-306): asserted, not diffed.
+const SKIP = new Set(['table-completed-trick', 'table-two-rows-kill']);
 
 if (!existsSync(baselineRoot)) {
   console.error(`no baselines at ${baselineRoot} — run \`bun run ui:baselines\` first`);

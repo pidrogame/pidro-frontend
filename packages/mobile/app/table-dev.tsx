@@ -366,6 +366,9 @@ const DRAW_YOU_POOL: Card[] = [
   { rank: 7, suit: 'diamonds' },
 ];
 const DRAW_YOU_KEEP: Card[] = DRAW_YOU_POOL.slice(0, 5).concat([{ rank: 12, suit: 'clubs' }]);
+/** `kill=1`: East keeps seven trumps and kills the queen over six, face up for everyone. */
+const DRAW_COUNTS_KILL = { ...DRAW_COUNTS, east: { kept: 7, drawn: 0 } } as const;
+const DRAW_KILLED = { east: [spade(12)] };
 const DRAW_FIRST_TRICK = [
   { player: 'north', card: spade(13) },
   { player: 'east', card: spade(9) },
@@ -507,6 +510,7 @@ function TableDevHarness() {
     bidder?: Position;
     hand?: string;
     you?: string;
+    kill?: string;
     end?: string;
     invitation?: string;
     botTurn?: Position;
@@ -572,6 +576,7 @@ function TableDevHarness() {
             room={params.names === 'long' ? DRAW_LONG_ROOM : DRAW_ROOM}
             held={params.hand === 'still' || params.hand === 'fan' ? params.hand : 'tilt'}
             youDeal={params.you === 'deal'}
+            kill={params.kill === '1'}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -1452,21 +1457,24 @@ function RolePreview({
  * named with everyone holding nine; the next snapshot is the hand ready to
  * play (the second deal and the dealer's pick done), and play waits for the
  * table to play the second deal out. Then it deals again. `you=deal` has you
- * deal. Tune opens the second deal's timings; the link takes them too
+ * deal; `kill=1` has East kill a trump over six. Every throw is counted, the
+ * dealer's once play starts (PID-306). Tune opens the second deal's timings; the link takes them too
  * (`holdMs=3000&cardMs=230`…).
  */
 function DrawCountPreview({
   room,
   held,
   youDeal,
+  kill,
 }: {
   room: Room;
   held: HeldStyle;
   youDeal: boolean;
+  kill: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
-  const counts = youDeal ? DRAW_COUNTS_YOU_DEAL : DRAW_COUNTS;
+  const counts = youDeal ? DRAW_COUNTS_YOU_DEAL : kill ? DRAW_COUNTS_KILL : DRAW_COUNTS;
   const dealer: Position = youDeal ? 'south' : 'west';
   const dealt = (['north', 'east', 'south', 'west'] as const)
     .filter((position) => position !== dealer)
@@ -1488,6 +1496,9 @@ function DrawCountPreview({
     const dealtTo: Position[] = (['north', 'east', 'south', 'west'] as const).filter(
       (position) => position !== dealer
     );
+    // The dealer took up what they kept and the rest of the pack, and threw down to six.
+    const rest = 52 - 36 - dealt;
+    const dealerThrew = counts[dealer].kept + rest - 6;
     const seats = (hands: Record<Position, Card[] | number>, counted: boolean) =>
       Object.fromEntries(
         (['north', 'east', 'south', 'west'] as const).map((position) => [
@@ -1499,6 +1510,9 @@ function DrawCountPreview({
                 kept_count: counts[position].kept,
                 drawn_count: counts[position].drawn,
               }),
+            ...(counted && {
+              discarded_count: dealtTo.includes(position) ? 9 - counts[position].kept : dealerThrew,
+            }),
           },
         ])
       );
@@ -1518,6 +1532,7 @@ function DrawCountPreview({
       tricks: [],
       current_trick: [],
       trump: 'spades',
+      ...(kill && { killed_cards: DRAW_KILLED }),
     };
     const yours = youDeal ? DRAW_YOU_KEEP : DRAW_REFILLED;
     const ready = { north: 6, east: 6, south: yours, west: 6 };
@@ -1536,7 +1551,8 @@ function DrawCountPreview({
       players: seats(after(plays), true),
     });
     // Play waits for the second deal to play out, as the server holds it.
-    const play = 1500 + secondDealDurationMs(dealt) + 800;
+    // The kill lies face up a while first.
+    const play = 1500 + secondDealDurationMs(dealt) + (kill ? 3_000 : 800);
     const frames: [number, Record<string, unknown>][] = [
       [
         0,
@@ -1584,7 +1600,7 @@ function DrawCountPreview({
     // Hold on the finished trick, then deal again.
     timers.push(setTimeout(() => setRun((n) => n + 1), play + 7_000));
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, room, youDeal, counts, dealer, dealt]);
+  }, [Table, run, room, youDeal, kill, counts, dealer, dealt]);
 
   return (
     <View style={{ flex: 1 }}>
