@@ -1032,9 +1032,10 @@ const allCases = [
   // land. ironman3001 deals at West, Margaretha Lindqvist holds the bid.
   ...[
     ['bidding', 'fixture=details&dealer=west&bidder=north&phase=bidding', 'bidding-window', {}],
+    // The piles hold until captured: a 3 s hold races the still capture.
     [
       'second-deal',
-      'deal=draw',
+      'deal=draw&holdMs=600000',
       'seat-south',
       { thrown: ['north', 'east', 'south'], faces: { south: 7 } },
     ],
