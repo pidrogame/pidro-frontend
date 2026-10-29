@@ -311,6 +311,19 @@ const DRAW_ROOM: Room = {
   })),
 };
 
+/** `names=long` (PID-305): ironman3001 deals at West, Margaretha Lindqvist holds North's bid. */
+const DRAW_LONG_ROOM: Room = {
+  ...DRAW_ROOM,
+  seats: DRAW_ROOM.seats!.map((seat) =>
+    seat.position === 'west' || seat.position === 'north'
+      ? {
+          ...seat,
+          player: LONG_NAMES_ROOM.seats!.find((long) => long.position === seat.position)!.player,
+        }
+      : seat
+  ),
+};
+
 const DRAW_TRUMP_HAND: Card[] = [spade(14), spade(11)];
 const DRAW_DEALT: Card[] = [
   ...DRAW_TRUMP_HAND,
@@ -535,6 +548,7 @@ function TableDevHarness() {
       <SafeAreaProvider>
         <FixtureInsets preset={params.safeArea}>
           <HandEndPreview
+            room={params.names === 'long' ? DRAW_LONG_ROOM : DRAW_ROOM}
             result={
               params.end === 'we-made' ||
               params.end === 'we-missed' ||
@@ -555,6 +569,7 @@ function TableDevHarness() {
       <SafeAreaProvider>
         <FixtureInsets preset={params.safeArea}>
           <DrawCountPreview
+            room={params.names === 'long' ? DRAW_LONG_ROOM : DRAW_ROOM}
             held={params.hand === 'still' || params.hand === 'fan' ? params.hand : 'tilt'}
             youDeal={params.you === 'deal'}
           />
@@ -585,7 +600,8 @@ function TableDevHarness() {
             connected={params.connection !== 'lost'}
             bidRound={BID_ROUNDS[params.bids ?? ''] ?? null}
             outPlayers={OUT_PLAYERS[params.out as keyof typeof OUT_PLAYERS] ?? null}
-            botTrick={params.trick === 'bots'}
+            botTrick={params.trick === 'bots' || params.trick === 'full'}
+            fullTrick={params.trick === 'full'}
             botCrew={fixture === 'bot-crew'}
             botTurn={params.botTurn}
             botHand={Number(params.botHand) || 4}
@@ -829,6 +845,7 @@ function RolePreview({
   bidder = 'east',
   longNames = false,
   botTrick = false,
+  fullTrick = false,
   botCrew = false,
   botTurn = 'west',
   botHand = 4,
@@ -856,6 +873,8 @@ function RolePreview({
   /** `names=long`: ironman3001 at West and a long North name. */
   longNames?: boolean;
   botTrick?: boolean;
+  /** `trick=full` (PID-305): you have played A♥ to the bots' trick, all four cards down. */
+  fullTrick?: boolean;
   botCrew?: boolean;
   botTurn?: Position;
   botHand?: number;
@@ -1027,10 +1046,12 @@ function RolePreview({
           north: { hand: 5 },
           east: { hand: 5 },
           west: { hand: 5 },
-          south: { hand: BOT_TRICK_HAND },
+          south: { hand: fullTrick ? BOT_TRICK_HAND.slice(1) : BOT_TRICK_HAND },
         },
         highest_bid: { position: 'east', amount: 6 },
-        current_trick: BOT_TRICK,
+        current_trick: fullTrick
+          ? [...BOT_TRICK, { player: 'south', card: BOT_TRICK_HAND[0] }]
+          : BOT_TRICK,
       }),
       ...(details && {
         highest_bid: { position: bidder, amount: 7 },
@@ -1144,6 +1165,7 @@ function RolePreview({
     details,
     bidder,
     botTrick,
+    fullTrick,
     botCrew,
     botTurn,
     botHand,
@@ -1433,7 +1455,15 @@ function RolePreview({
  * deal. Tune opens the second deal's timings; the link takes them too
  * (`holdMs=3000&cardMs=230`…).
  */
-function DrawCountPreview({ held, youDeal }: { held: HeldStyle; youDeal: boolean }) {
+function DrawCountPreview({
+  room,
+  held,
+  youDeal,
+}: {
+  room: Room;
+  held: HeldStyle;
+  youDeal: boolean;
+}) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
   const counts = youDeal ? DRAW_COUNTS_YOU_DEAL : DRAW_COUNTS;
@@ -1525,7 +1555,7 @@ function DrawCountPreview({ held, youDeal }: { held: HeldStyle; youDeal: boolean
       [play + 4500, playing('north', 4)],
     ];
     store.reset();
-    store.initFromRoom({ room: DRAW_ROOM, youPlayerId: 'p-south' });
+    store.initFromRoom({ room, youPlayerId: 'p-south' });
     store.setRole('player');
     store.setYouPosition('south');
     store.setChannelStatus(true);
@@ -1554,12 +1584,12 @@ function DrawCountPreview({ held, youDeal }: { held: HeldStyle; youDeal: boolean
     // Hold on the finished trick, then deal again.
     timers.push(setTimeout(() => setRun((n) => n + 1), play + 7_000));
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, youDeal, counts, dealer, dealt]);
+  }, [Table, run, room, youDeal, counts, dealer, dealt]);
 
   return (
     <View style={{ flex: 1 }}>
       {Table ? (
-        <Table key={run} room={DRAW_ROOM} rulesFixtureSeen onLeave={() => {}} held={held} />
+        <Table key={run} room={room} rulesFixtureSeen onLeave={() => {}} held={held} />
       ) : (
         <Loading />
       )}
@@ -1585,7 +1615,7 @@ const HAND_ENDS: Record<HandEnd, { bidder: Position; bid: number; ns: number }> 
  * `end=they-made|we-made|we-missed|they-missed`; Tune changes how long
  * the result stays (`showMs=` in the link).
  */
-function HandEndPreview({ result }: { result: HandEnd }) {
+function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
   useEffect(() => {
@@ -1710,7 +1740,7 @@ function HandEndPreview({ result }: { result: HandEnd }) {
       ],
     ];
     store.reset();
-    store.initFromRoom({ room: DRAW_ROOM, youPlayerId: 'p-south' });
+    store.initFromRoom({ room, youPlayerId: 'p-south' });
     store.setRole('player');
     store.setYouPosition('south');
     store.setChannelStatus(true);
@@ -1720,15 +1750,11 @@ function HandEndPreview({ result }: { result: HandEnd }) {
     );
     timers.push(setTimeout(() => setRun((n) => n + 1), 1500 + handResultTiming.showMs + 6_000));
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, result]);
+  }, [Table, run, room, result]);
 
   return (
     <View style={{ flex: 1 }}>
-      {Table ? (
-        <Table key={run} room={DRAW_ROOM} rulesFixtureSeen onLeave={() => {}} />
-      ) : (
-        <Loading />
-      )}
+      {Table ? <Table key={run} room={room} rulesFixtureSeen onLeave={() => {}} /> : <Loading />}
       {result !== 'game-over' ? <HandResultTuner onReplay={() => setRun((n) => n + 1)} /> : null}
     </View>
   );

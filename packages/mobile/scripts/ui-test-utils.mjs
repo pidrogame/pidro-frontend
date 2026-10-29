@@ -197,6 +197,18 @@ export const UI_VIEWPORTS = [
     ],
   },
   { name: 'landscape', width: 844, height: 390 },
+  // Marcel's TCL 5053Y on its side (PID-305): Classic's two rows per seat.
+  {
+    name: 'android-landscape',
+    width: 780,
+    height: 360,
+    cases: [
+      'table-two-rows-bidding',
+      'table-two-rows-second-deal',
+      'table-two-rows-trick',
+      'table-two-rows-hand-end',
+    ],
+  },
   {
     // The smallest landscape phone testers hold (Galaxy A5).
     name: 'small-landscape',

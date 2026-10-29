@@ -186,6 +186,18 @@ Grammar cases `table-small-west-deals`, `table-small-north-bid` and
 touches another seat, a played card, your hand or the chat band.
 `/table-dev?deal=hand` shows the dealer chip sliding from West to North.
 
+PID-305, landscape phones: Classic's two rows per seat, one card size. Each
+hand lies along its edge (North's backs whole along the top, yours along the
+bottom), and each seat's front row lies inward of it: thrown cards land there
+in the second deal, and its played card in a trick, so the trick is a cross.
+No bid line or Last trick; with count help the score panel opens the log.
+`names=long` seats ironman3001 dealing at West and Margaretha Lindqvist at
+North in `deal=draw` and `deal=hand` too; `trick=full` (with
+`phase=playing&role=player`) is the bots' trick with your A♥ on it. Grammar
+cases `table-two-rows-{bidding,second-deal,trick,hand-end}` run at 844×390
+and 780×360 (Marcel's TCL) and fail when an avatar (badges included), a hand
+row, a front row or the bid window touch one another.
+
 `/table-dev?fixture=details&bidder=east` (PID-272) shows a winning bid of 7,
 count help off, six subtly offset backs at each opponent, and a spade hand with
 5♣ directly after 5♠, then hearts/clubs/diamonds. `bidder=north|south|west`

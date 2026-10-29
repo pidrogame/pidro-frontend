@@ -926,14 +926,14 @@ const allCases = [
     testId: 'hand-result',
   },
   // PID-221: the ticker at its fullest, long names included, stays clear of the
-  // plaque and the North seat; the hand log opens from it. Small phones leave
-  // the ticker out (PID-229).
+  // plaque and the North seat; the hand log opens from it. Small and landscape
+  // phones leave the ticker out (PID-229, PID-305).
   {
     name: 'table-ticker',
     path: '/table-dev?phase=playing&ticker=full&names=long&count=on',
     testId: 'ticker-line-bid-4-south',
     protectNorthSeat: true,
-    skipViewports: ['compact-landscape'],
+    skipViewports: ['landscape', 'small-landscape', 'compact-landscape'],
   },
   // PID-232: a 32-character name in every seat, North dealing, truncates
   // inside its seat, clear of the other seats and the hand.
@@ -1027,6 +1027,20 @@ const allCases = [
     testId: 'seat-south',
     smallTable,
   })),
+  // PID-305: landscape phones lay each seat out in two rows, its hand along
+  // the edge and its front row inward, where its throws and its played card
+  // land. ironman3001 deals at West, Margaretha Lindqvist holds the bid.
+  ...[
+    ['bidding', 'fixture=details&dealer=west&bidder=north&phase=bidding', 'bidding-window', {}],
+    ['second-deal', 'deal=draw', 'seat-south', { thrown: ['north', 'east', 'south'] }],
+    ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4 }],
+    ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
+  ].map(([name, query, testId, twoRows]) => ({
+    name: `table-two-rows-${name}`,
+    path: `/table-dev?${query}&names=long&count=on`,
+    testId,
+    twoRows,
+  })),
   // PID-267: the bots bid while the cards are still being dealt. Until the
   // deal ends no seat and no log line shows a bid; then all three show.
   {
@@ -1052,8 +1066,14 @@ const allCases = [
     path: '/table-dev?phase=playing&role=player&out=one&count=on',
     open: 'Last trick, trick 2',
     testId: 'last-trick-cards',
-    // Tight phones have no Last trick: table-count-help opens the log there.
-    skipViewports: ['small-portrait', 'compact-portrait'],
+    // Tight and landscape phones have no Last trick: table-count-help opens the log there.
+    skipViewports: [
+      'small-portrait',
+      'compact-portrait',
+      'landscape',
+      'small-landscape',
+      'compact-landscape',
+    ],
   },
   // Everyone else is out: the rest of the hand is yours.
   {
@@ -4722,6 +4742,114 @@ async function assertSmallTable(page, testCase, viewport) {
   assert.equal(await page.getByTestId('hand-history').count(), 0, 'the log replaces the panel');
 }
 
+// PID-305: on landscape phones nothing on a seat's two rows touches another
+// thing: no avatar (badges included) touches another avatar, a hand row (the
+// backs, your faces), a front row (thrown or played cards) or the bid window
+// or hand result; no hand row touches a front row; no two front rows touch.
+async function assertTwoRows(page, testCase, viewport) {
+  if (!testCase.twoRows) return;
+  const { thrown = [], played = 0, result = false } = testCase.twoRows;
+  const rels = ['north', 'east', 'south', 'west'];
+  const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
+  const union = (label, boxes) => {
+    const x = Math.min(...boxes.map((b) => b.x));
+    const y = Math.min(...boxes.map((b) => b.y));
+    const r = Math.max(...boxes.map((b) => b.x + b.width));
+    const btm = Math.max(...boxes.map((b) => b.y + b.height));
+    return { label, x, y, width: r - x, height: btm - y };
+  };
+  const images = async (testId) => {
+    const boxes = [];
+    for (const image of await page.getByTestId(testId).locator('img').all()) {
+      const box = await image.boundingBox();
+      if (box) boxes.push(box);
+    }
+    return boxes;
+  };
+  for (const rel of thrown) {
+    await page.getByTestId(`second-deal-thrown-${rel}`).waitFor({ timeout: 20_000 });
+  }
+  // The last throw lands.
+  if (thrown.length) await page.waitForTimeout(700);
+  await page.getByTestId(`rendered-played-card-count-${played}`).waitFor({ timeout: 20_000 });
+  if (played) await page.waitForTimeout(600);
+  const sprites = await page.evaluate(() => window.__pidroCardMotion?.() ?? []);
+  const spriteBox = (s) => {
+    const c = Math.abs(Math.cos(s.rotation));
+    const n = Math.abs(Math.sin(s.rotation));
+    const width = (s.width * c + s.height * n) * s.renderedScale;
+    const height = (s.width * n + s.height * c) * s.renderedScale;
+    return { label: s.key, x: s.x - width / 2, y: s.y - height / 2, width, height };
+  };
+  const seats = [];
+  const handRows = [];
+  const fronts = [];
+  for (const rel of rels) {
+    const parts = [await getStableBox(page.getByTestId(`seat-${rel}`).first(), page)];
+    for (const badge of ['dealer', 'bid', 'bot']) {
+      const node = page.getByTestId(`seat-${rel}-${badge}`);
+      if (await node.count()) parts.push(await node.first().boundingBox());
+    }
+    const seat = union(`seat-${rel}`, parts.filter(Boolean));
+    assertInsideViewport(`${testCase.name} ${seat.label}`, seat, viewport);
+    seats.push(seat);
+    if (rel !== 'south') {
+      const backs = await images(`seat-${rel}-cards`);
+      if (backs.length) handRows.push(union(`${rel}'s backs`, backs));
+    }
+    const front = [
+      ...(await images(`second-deal-thrown-${rel}`)),
+      ...sprites.filter((s) => s.kind === 'played' && s.key.split('-')[3] === rel).map(spriteBox),
+    ];
+    if (front.length) {
+      const row = union(`${rel}'s front row`, front);
+      assertInsideViewport(`${testCase.name} ${row.label}`, row, viewport);
+      fronts.push(row);
+    }
+  }
+  assert.equal(fronts.length, Math.max(thrown.length, played), `${testCase.name}: front rows`);
+  const hand = sprites.filter((s) => s.kind === 'hand').map(spriteBox);
+  if (hand.length) {
+    // Playable cards rise out of the row: the hand is where they rest too.
+    const rest = await page.getByTestId('player-hand-top').boundingBox();
+    hand.push({ ...hand[0], y: rest.y });
+    handRows.push(union('your hand', hand));
+  }
+  const windows = [];
+  for (const id of ['bidding-window', 'trump-picker', 'hand-result-panel']) {
+    const node = page.getByTestId(id);
+    if (await node.count()) windows.push(named(id, await getStableBox(node.first(), page)));
+  }
+  if (result) assert.equal(windows.length, 1, `${testCase.name}: the hand result shows`);
+  const apart = (a, b) =>
+    a.x + a.width <= b.x + 0.5 ||
+    b.x + b.width <= a.x + 0.5 ||
+    a.y + a.height <= b.y + 0.5 ||
+    b.y + b.height <= a.y + 0.5;
+  const check = (as, bs) => {
+    for (const [i, a] of as.entries()) {
+      for (const b of as === bs ? bs.slice(i + 1) : bs) {
+        assert.ok(
+          apart(a, b),
+          `${testCase.name}: ${a.label} overlaps ${b.label} in ${viewport.name}: ${JSON.stringify({ a, b })}`
+        );
+      }
+    }
+  };
+  check(seats, seats);
+  // The hand's result dims the seats under it on purpose (PID-236); it only keeps off the hands.
+  check(seats, [...handRows, ...fronts, ...windows.filter((w) => w.label !== 'hand-result-panel')]);
+  check(handRows, [...fronts, ...windows]);
+  check(fronts, fronts);
+  // Landscape phones show no bid line or Last trick; the score panel opens the log.
+  assert.equal(await page.getByTestId('last-trick').count(), 0, 'landscape phones: no Last trick');
+  assert.equal(
+    await page.getByRole('button', { name: /Opens this hand's log/ }).count(),
+    0,
+    'landscape phones: no bid line'
+  );
+}
+
 // Folded backs stay in their seat's hand area, never on any Skia played card,
 // including the retained history. Read actual sprite transforms, not DOM proxies.
 async function assertFoldGeometry(page, testCase, viewport) {
@@ -4740,8 +4868,12 @@ async function assertFoldGeometry(page, testCase, viewport) {
       '9♥ keeps its winning glow'
     );
     if (testCase.completedFold) {
-      // Tight phones have no Last trick (PID-304).
-      if (!(viewport.height > viewport.width && viewport.height < 700))
+      // Tight and landscape phones have no Last trick (PID-304, PID-305).
+      if (
+        viewport.height > viewport.width
+          ? viewport.height >= 700
+          : Math.min(viewport.width, viewport.height) >= 600
+      )
         assert.equal(
           await page.getByTestId('last-trick').getAttribute('aria-label'),
           'Last trick, trick 1'
@@ -4832,8 +4964,13 @@ async function assertCountHelp(page, testCase, viewport) {
   if (help.lone) await spoken(help.lone, words.lone);
   if (!help.line) return;
   const bidLine = page.getByTestId('bid-line');
-  if (viewport.height > viewport.width && viewport.height < 700) {
-    // Tight: no bid line, no Last trick; the score panel opens the log, trick 2 in it.
+  if (
+    viewport.height > viewport.width
+      ? viewport.height < 700
+      : Math.min(viewport.width, viewport.height) < 600
+  ) {
+    // Tight and landscape phones (PID-305): no bid line, no Last trick; the
+    // score panel opens the log, trick 2 in it.
     assert.equal(await bidLine.count(), 0, `${testCase.name}: no bid line on a tight phone`);
     assert.equal(
       await page.getByTestId('last-trick').count(),
@@ -4915,7 +5052,8 @@ async function assertTrumpPicker(page, testCase, box, viewport) {
 }
 
 // PID-258: the invitation reads in full, stays inside the safe edges, and
-// leaves the hand, the bids and North's played card uncovered. Not now closes it.
+// leaves the hand, the bids and (but on landscape phones) North's played card
+// uncovered. Not now closes it.
 async function assertTableInvitation(page, testCase, viewport) {
   if (!testCase.invitation) return;
   const card = page.getByTestId('table-invitation');
@@ -4952,10 +5090,12 @@ async function assertTableInvitation(page, testCase, viewport) {
       );
     }
   }
+  // Landscape phones keep it in the header row, over North's two rows (PID-305)
+  // until you answer; elsewhere it stops above North's played card.
   const bottom = box.y + box.height;
   const north = await getStableBox(page.getByTestId('trick-north-top').first(), page);
   assert.ok(
-    bottom <= north.y + 0.5,
+    (viewport.width > viewport.height && viewport.height < 500) || bottom <= north.y + 0.5,
     `${testCase.name}: clears North's played card in ${viewport.name}`
   );
   await assertAbovePlayerHand(page, testCase.name, box, viewport, biddingClearance(viewport));
@@ -5423,6 +5563,7 @@ async function main() {
           return ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(
             viewport.name
           );
+        if (testCase.twoRows) return ['landscape', 'android-landscape'].includes(viewport.name);
         if (testCase.newTableFixture)
           return [
             'portrait',
@@ -5922,6 +6063,7 @@ async function main() {
           await assertCrew(page, testCase);
           await assertBotVoice(page, testCase, caseViewport);
           await assertPlayLines(page, testCase, caseViewport);
+          await assertTwoRows(page, testCase, caseViewport);
           if (testCase.locale && testCase.path.includes('game_over')) {
             await page
               .getByTestId('victory-confetti')

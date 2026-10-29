@@ -6,7 +6,7 @@
  */
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { PidroBevel, PidroColors, PidroFonts, PidroSpacing } from '@/design/tokens';
+import { PidroBevel, PidroColors, PidroFonts, PidroLayout, PidroSpacing } from '@/design/tokens';
 import {
   resetSecondDealTiming,
   secondDealDurationMs,
@@ -196,7 +196,7 @@ const styles = StyleSheet.create({
   },
   small: {
     minWidth: 72,
-    height: 40,
+    height: PidroLayout.touchTarget,
     paddingHorizontal: 12,
     borderRadius: 10,
     alignItems: 'center',
