@@ -256,6 +256,28 @@ const BOT_ROOM: Room = {
   ],
 };
 
+// `names=long` (PID-304): Marcel's TCL table. West is ironman3001, North a
+// long name, East a bot, so every corner of every seat can be checked.
+const LONG_NAMES_ROOM: Room = {
+  ...BOT_ROOM,
+  positions: { north: 'p-north', east: 'b-east', south: 'p-south', west: 'p-west' },
+  seats: BOT_ROOM.seats!.map((seat) =>
+    seat.position === 'west'
+      ? {
+          ...seat,
+          player: {
+            id: 'p-west',
+            username: 'ironman3001',
+            avatar_url: fixtureAvatar('i', '#437d9e'),
+            level: 18,
+          },
+        }
+      : seat.position === 'north'
+        ? { ...seat, player: { id: 'p-north', username: 'Margaretha Lindqvist', level: 31 } }
+        : seat
+  ),
+};
+
 // JA36's seating, unlike the usual quick-game bot order.
 const FOLD_TRICK_ROOM: Room = {
   ...BOT_ROOM,
@@ -581,6 +603,7 @@ function TableDevHarness() {
             countHelp={params.count === 'on'}
             details={fixture === 'details'}
             bidder={params.bidder}
+            longNames={params.names === 'long'}
             scoreHistory={fixture === 'scores'}
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
             loading={params.loading ? Number(params.loading) : undefined}
@@ -804,6 +827,7 @@ function RolePreview({
   countHelp = false,
   details = false,
   bidder = 'east',
+  longNames = false,
   botTrick = false,
   botCrew = false,
   botTurn = 'west',
@@ -829,6 +853,8 @@ function RolePreview({
   countHelp?: boolean;
   details?: boolean;
   bidder?: Position;
+  /** `names=long`: ironman3001 at West and a long North name. */
+  longNames?: boolean;
   botTrick?: boolean;
   botCrew?: boolean;
   botTurn?: Position;
@@ -843,8 +869,9 @@ function RolePreview({
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
-  const tableRoom =
-    fold === 'trick' || fold === 'trick-self'
+  const tableRoom = longNames
+    ? LONG_NAMES_ROOM
+    : fold === 'trick' || fold === 'trick-self'
       ? FOLD_TRICK_ROOM
       : bidRound || botTrick || botCrew || outPlayers || invitation || fold
         ? BOT_ROOM

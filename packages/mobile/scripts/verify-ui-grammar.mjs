@@ -150,7 +150,7 @@ const allCases = [
       {
         screen: 'hand-log',
         path: '/table-dev?phase=playing&count=on',
-        open: "Recent table actions. Opens this hand's log.",
+        openLog: true,
         testId: 'hand-log-entry-trump-4',
       },
     ].map(({ screen, path, ...props }) => ({
@@ -944,7 +944,7 @@ const allCases = [
     longNames: true,
   },
   // A 640×360 Android phone with a 59pt right inset, North dealing: North's
-  // chip tucks behind its avatar, so its name keeps its first letters.
+  // fan moves left, so its name keeps its first letters.
   {
     name: 'table-long-names-inset',
     path: '/table-dev?phase=playing&names=max&dealer=north&safeArea=island-right',
@@ -957,7 +957,7 @@ const allCases = [
   {
     name: 'table-hand-log',
     path: '/table-dev?phase=playing&count=on',
-    open: "Recent table actions. Opens this hand's log.",
+    openLog: true,
     testId: 'hand-log-entry-trump-4',
     skipViewports: ['compact-landscape'],
   },
@@ -1010,6 +1010,23 @@ const allCases = [
     details: phase === 'game_over' ? 'ended' : phase === 'declaring' ? 'south' : 'east',
     detailsPhase: phase,
   })),
+  // PID-304: small phones, from Marcel's TCL. ironman3001 deals at West and a
+  // long North name holds the bid in one; no seat may touch a played card,
+  // your hand or the chat band, and every corner keeps its one meaning.
+  ...[
+    ['west-deals', 'fixture=details&dealer=west&bidder=east', { dealer: 'west', bidder: 'east' }],
+    ['north-bid', 'fixture=details&dealer=west&bidder=north', { dealer: 'west', bidder: 'north' }],
+    [
+      'your-turn',
+      'phase=playing&role=player&trick=bots',
+      { dealer: 'north', bidder: 'east', played: 3 },
+    ],
+  ].map(([name, query, smallTable]) => ({
+    name: `table-small-${name}`,
+    path: `/table-dev?${query}&names=long&count=on`,
+    testId: 'seat-south',
+    smallTable,
+  })),
   // PID-267: the bots bid while the cards are still being dealt. Until the
   // deal ends no seat and no log line shows a bid; then all three show.
   {
@@ -1021,13 +1038,13 @@ const allCases = [
     viewports: { 'compact-landscape': { width: 640, height: 360 } },
   },
   // PID-220: with count help on, the plaque's bid line carries the bidders'
-  // count and "Last trick" sits under it, clear of every seat, also on the
-  // small phones that leave the ticker out. Marcel is out of trumps: dimmed,
-  // "Out", the two cards folded face down on the felt.
+  // count and "Last trick" sits under it, clear of every seat. Tight phones
+  // leave both out and open the hand's log from the score panel (PID-304).
+  // Marcel is out of trumps: dimmed, "Out", the two cards folded face down.
   {
     name: 'table-count-help',
     path: '/table-dev?phase=playing&role=player&out=one&count=on',
-    testId: 'last-trick',
+    testId: 'seat-south',
     countHelp: { bidder: 'Jocke', line: 'bid 6', out: ['west'], folded: ['west'] },
   },
   {
@@ -1035,6 +1052,8 @@ const allCases = [
     path: '/table-dev?phase=playing&role=player&out=one&count=on',
     open: 'Last trick, trick 2',
     testId: 'last-trick-cards',
+    // Tight phones have no Last trick: table-count-help opens the log there.
+    skipViewports: ['small-portrait', 'compact-portrait'],
   },
   // Everyone else is out: the rest of the hand is yours.
   {
@@ -1414,7 +1433,8 @@ async function assertLocalization(page, testCase, viewport) {
     const expected = testCase.language
       ? 'Språk'
       : testCase.name.endsWith('-trump')
-        ? 'Välj trumf'
+        ? // The shortest phones drop "Välj trumf" (PID-304); the suits still speak Swedish.
+          'Hjärter'
         : testCase.name.endsWith('-hand-selection')
           ? 'Välj din hand'
           : null;
@@ -1517,7 +1537,7 @@ async function assertTargetGeometry(page, testCase, viewport) {
       await assertTrumpPicker(page, testCase, box, viewport);
     }
     if (testCase.protectPlayerHand) {
-      await assertAbovePlayerHand(page, testCase.name, box, viewport);
+      await assertAbovePlayerHand(page, testCase.name, box, viewport, biddingClearance(viewport));
       await assertBidGridLayout(page, viewport, testCase.locale);
     }
 
@@ -4600,6 +4620,108 @@ async function assertPlayLines(page, testCase, viewport) {
   }
 }
 
+// PID-304: each seat (avatar, name, status and corner badges) keeps off the
+// others, every played card, your hand and the chat band under it; the dealer
+// chip sits bottom left, the winning bid top right at the bot badge's size.
+// Tight phones show no ticker or Last trick: the score panel opens the log.
+async function assertSmallTable(page, testCase, viewport) {
+  if (!testCase.smallTable) return;
+  const { dealer, bidder, played = 0 } = testCase.smallTable;
+  await page.getByTestId(`rendered-played-card-count-${played}`).waitFor();
+  await page.waitForTimeout(450);
+  const sprites = await page.evaluate(() => window.__pidroCardMotion());
+  const spriteBox = (s) => {
+    const c = Math.abs(Math.cos(s.rotation));
+    const n = Math.abs(Math.sin(s.rotation));
+    const width = (s.width * c + s.height * n) * s.renderedScale;
+    const height = (s.width * n + s.height * c) * s.renderedScale;
+    return { label: s.key, x: s.x - width / 2, y: s.y - height / 2, width, height };
+  };
+  const cards = sprites.filter((s) => s.kind === 'played').map(spriteBox);
+  const hand = sprites.filter((s) => s.kind === 'hand').map(spriteBox);
+  assert.equal(cards.length, played, `${testCase.name}: every played card is measured`);
+  assert.ok(hand.length > 0, `${testCase.name}: your hand is measured`);
+  const union = (boxes) => {
+    const x = Math.min(...boxes.map((b) => b.x));
+    const y = Math.min(...boxes.map((b) => b.y));
+    return {
+      x,
+      y,
+      width: Math.max(...boxes.map((b) => b.x + b.width)) - x,
+      height: Math.max(...boxes.map((b) => b.y + b.height)) - y,
+    };
+  };
+  const seats = {};
+  for (const rel of ['north', 'east', 'south', 'west']) {
+    const parts = [await getStableBox(page.getByTestId(`seat-${rel}`).first(), page)];
+    for (const badge of ['dealer', 'bid', 'bot']) {
+      const node = page.getByTestId(`seat-${rel}-${badge}`);
+      if (await node.count()) parts.push(await node.first().boundingBox());
+    }
+    seats[rel] = { ...union(parts), label: `seat-${rel}` };
+    assertInsideViewport(`${testCase.name} seat-${rel}`, seats[rel], viewport);
+  }
+  const apart = (a, b) =>
+    a.x + a.width <= b.x + 0.5 ||
+    b.x + b.width <= a.x + 0.5 ||
+    a.y + a.height <= b.y + 0.5 ||
+    b.y + b.height <= a.y + 0.5;
+  // Playable cards rise out of the row: the hand is where they rest too.
+  const rest = await page.getByTestId('player-hand-top').boundingBox();
+  hand.push({ ...hand[0], y: rest.y, height: Math.max(...hand.map((h) => h.height)) });
+  const others = [...cards, { ...union(hand), label: 'your hand' }];
+  const dock = page.getByTestId('table-utility-dock');
+  if (await dock.count()) {
+    const box = await getStableBox(dock.first(), page);
+    others.push({ ...box, label: 'the chat band' });
+    assert.ok(apart(union(hand), box), `${testCase.name}: your hand reaches the chat band`);
+  }
+  const rels = Object.keys(seats);
+  for (const [i, a] of rels.entries()) {
+    for (const b of rels.slice(i + 1)) {
+      assert.ok(apart(seats[a], seats[b]), `${testCase.name}: seat-${a} overlaps seat-${b}`);
+    }
+    for (const other of others) {
+      assert.ok(
+        apart(seats[a], other),
+        `${testCase.name}: seat-${a} overlaps ${other.label} in ${viewport.name}: ${JSON.stringify({ seat: seats[a], other })}`
+      );
+    }
+  }
+  // One meaning per corner, read against the avatar each badge sits on.
+  const corner = (id) =>
+    page.getByTestId(id).evaluate((node) => {
+      const badge = node.getBoundingClientRect();
+      const avatar = node.parentElement.getBoundingClientRect();
+      return {
+        right: badge.x + badge.width / 2 > avatar.x + avatar.width / 2,
+        below: badge.y + badge.height / 2 > avatar.y + avatar.height / 2,
+        size: badge.width,
+      };
+    });
+  assert.equal(await page.locator('[data-testid$="-dealer"]').count(), 1, 'one dealer chip');
+  const d = await corner(`seat-${dealer}-dealer`);
+  assert.ok(!d.right && d.below, `${testCase.name}: the dealer chip sits bottom left`);
+  const b = await corner(`seat-${bidder}-bid`);
+  assert.ok(b.right && !b.below, `${testCase.name}: the winning bid sits top right`);
+  const bot = await page.getByTestId('seat-east-bot').boundingBox();
+  assert.ok(
+    Math.abs(b.size - bot.width) <= 0.5,
+    `${testCase.name}: bid ${b.size}pt, bot ${bot.width}pt`
+  );
+  if (viewport.name !== 'compact-portrait') return;
+  assert.equal(await page.getByTestId('last-trick').count(), 0, 'tight phones show no Last trick');
+  assert.equal(
+    await page.getByRole('button', { name: /Opens this hand's log/ }).count(),
+    0,
+    'tight phones show no ticker'
+  );
+  await page.getByRole('button', { name: /Every hand\.$/ }).click();
+  await page.getByTestId('hand-history-this-hand').click();
+  await page.getByText('This hand', { exact: true }).waitFor();
+  assert.equal(await page.getByTestId('hand-history').count(), 0, 'the log replaces the panel');
+}
+
 // Folded backs stay in their seat's hand area, never on any Skia played card,
 // including the retained history. Read actual sprite transforms, not DOM proxies.
 async function assertFoldGeometry(page, testCase, viewport) {
@@ -4618,10 +4740,12 @@ async function assertFoldGeometry(page, testCase, viewport) {
       '9♥ keeps its winning glow'
     );
     if (testCase.completedFold) {
-      assert.equal(
-        await page.getByTestId('last-trick').getAttribute('aria-label'),
-        'Last trick, trick 1'
-      );
+      // Tight phones have no Last trick (PID-304).
+      if (!(viewport.height > viewport.width && viewport.height < 700))
+        assert.equal(
+          await page.getByTestId('last-trick').getAttribute('aria-label'),
+          'Last trick, trick 1'
+        );
       assert.match(await page.getByTestId('seat-south').getAttribute('aria-label'), /, out$/);
     }
   }
@@ -4708,6 +4832,25 @@ async function assertCountHelp(page, testCase, viewport) {
   if (help.lone) await spoken(help.lone, words.lone);
   if (!help.line) return;
   const bidLine = page.getByTestId('bid-line');
+  if (viewport.height > viewport.width && viewport.height < 700) {
+    // Tight: no bid line, no Last trick; the score panel opens the log, trick 2 in it.
+    assert.equal(await bidLine.count(), 0, `${testCase.name}: no bid line on a tight phone`);
+    assert.equal(
+      await page.getByTestId('last-trick').count(),
+      0,
+      `${testCase.name}: no Last trick`
+    );
+    await page.getByRole('button', { name: /(Every hand|Alla givar)\.$/ }).click();
+    await page.getByTestId('hand-history-this-hand').click();
+    await page
+      .getByText(testCase.locale === 'sv' ? 'Stick 2' : 'Trick 2', { exact: true })
+      .waitFor();
+    await page
+      .getByRole('button', { name: testCase.locale === 'sv' ? 'Stäng' : 'Close' })
+      .first()
+      .click();
+    return;
+  }
   await bidLine.getByText(help.line, { exact: true }).waitFor({ timeout: 10_000 });
   const who = bidLine.getByText(help.bidder, { exact: true });
   if (await who.evaluate((el) => el.scrollWidth > el.clientWidth + 1)) {
@@ -4815,7 +4958,7 @@ async function assertTableInvitation(page, testCase, viewport) {
     bottom <= north.y + 0.5,
     `${testCase.name}: clears North's played card in ${viewport.name}`
   );
-  await assertAbovePlayerHand(page, testCase.name, box, viewport);
+  await assertAbovePlayerHand(page, testCase.name, box, viewport, biddingClearance(viewport));
   for (const button of await page.getByTestId('bidding-window').getByRole('button').all()) {
     const bid = await getStableBox(button, page);
     assert.ok(!boxesOverlap(box, bid), `${testCase.name}: clears the bids in ${viewport.name}`);
@@ -4824,13 +4967,19 @@ async function assertTableInvitation(page, testCase, viewport) {
   await card.waitFor({ state: 'detached' });
 }
 
-async function assertAbovePlayerHand(page, name, box, viewport) {
+// The bidding window stays centred on the trick; on tight phones, your seat
+// under the hand (PID-304) leaves it its own 18pt floor above the hand, where
+// no card is lifted while you bid.
+const biddingClearance = (viewport) =>
+  viewport.height > viewport.width && viewport.height < 700 ? 18 : undefined;
+
+async function assertAbovePlayerHand(page, name, box, viewport, clearance) {
   const handBoundary = page.getByTestId('player-hand-top').first();
   await handBoundary.waitFor({ state: 'attached', timeout: 20_000 });
   const handBox = await getStableBox(handBoundary, page);
   if (!handBox) throw new Error(`${name} player-hand boundary has no geometry`);
   const handTop = handBox.y;
-  const minimumClearance = viewport.height >= viewport.width ? 28 : 8;
+  const minimumClearance = clearance ?? (viewport.height >= viewport.width ? 28 : 8);
 
   // Layout/card transforms can land on opposite sides of a half-pixel boundary.
   if (box.y + box.height > handTop - minimumClearance + 0.5) {
@@ -4888,7 +5037,12 @@ async function assertBidGridLayout(page, viewport, locale) {
     const centerOffset = Math.abs(
       centerButton.y + centerButton.height / 2 - (trickCenter.y + trickCenter.height / 2)
     );
-    if (centerOffset > 2) {
+    // Tight phones (PID-304): your seat under the hand leaves the grid less
+    // room below the trick, so it may rise above the marker, never sink below.
+    const risen =
+      viewport.height < 700 &&
+      centerButton.y + centerButton.height / 2 <= trickCenter.y + trickCenter.height / 2 + 2;
+    if (centerOffset > 2 && !risen) {
       throw new Error(
         `Bid 10 is not centered on the trick marker in ${viewport.name}: offset=${centerOffset}`
       );
@@ -5628,6 +5782,23 @@ async function main() {
           if (testCase.verifyDealerSelection || testCase.verifyDealerPrivacy) {
             await assertDealerSecondDeal(page, testCase, viewport);
           }
+          // The ticker opens the hand's log; tight phones have none, and their
+          // score panel opens it instead (PID-304).
+          if (testCase.openLog) {
+            const ticker = page.getByRole('button', {
+              name: "Recent table actions. Opens this hand's log.",
+              exact: true,
+            });
+            const shown = await ticker.waitFor({ timeout: 3000 }).then(
+              () => true,
+              () => false
+            );
+            if (shown) await ticker.click();
+            else {
+              await page.getByRole('button', { name: /Every hand\.$/ }).click();
+              await page.getByTestId('hand-history-this-hand').click();
+            }
+          }
           if (testCase.open) {
             if (testCase.botVoice)
               assert.equal(
@@ -5844,7 +6015,7 @@ async function main() {
               })
             );
             assert.ok(background, `${testCase.name}: the image covers all four viewport edges`);
-            if (testCase.open) {
+            if (testCase.open || testCase.openLog) {
               const backdrop = await page.getByTestId('table-utility-window').evaluate((window) => {
                 const box = window.parentElement.getBoundingClientRect();
                 return { top: box.top, bottom: box.bottom };
@@ -5911,6 +6082,7 @@ async function main() {
           await assertAuthSheetKeepsTyping(page, testCase.name);
           await assertSwitchInteractions(page, testCase.name, screenshotDir);
           await assertTableDetails(page, testCase, caseViewport);
+          await assertSmallTable(page, testCase, caseViewport);
           await assertTeams(page, testCase);
           await assertRowControls(page, testCase.name, screenshotDir);
           await assertFriendComponents(page, testCase.name, screenshotDir);

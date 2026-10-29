@@ -146,7 +146,7 @@ UI_SHOT_DIR=/tmp/pidro-locales node scripts/verify-ui-grammar.mjs
 | `notice`     | `true`                                                                                    | same as `feedback=notice`; on a waiting phase, a join notice below the toolbar                                                                                            |
 | `connection` | `lost`                                                                                    | with `role=`: the channel is down, so the table shows its Reconnecting… banner                                                                                            |
 | `invite`     | `true`                                                                                    | opens InviteModal (needs `phase=waiting-host`/`ready-host`)                                                                                                               |
-| `names`      | `long` · `max`                                                                            | waiting: west seat → "Alexandria the Long-Named Player" (wrapping); table: Classic-length names on every seat (ThunderThor88 …); `max`: that 32-character name on every table seat |
+| `names`      | `long` · `max`                                                                            | waiting: west seat → "Alexandria the Long-Named Player" (wrapping); table: Classic-length names on every seat (ThunderThor88 …); `max`: that 32-character name on every table seat; with `role=player` or a `fixture=`, `long` seats ironman3001 at West and Margaretha Lindqvist at North (PID-304) |
 | `dealer`     | `north` · `east` · `south` · `west`                                                       | table (mock model): who holds the dealer chip, default `south`                                                                                                            |
 | `timer`      | `running`                                                                                 | table (mock model): a 20 s turn timer on the seat on turn; amber in its last quarter                                                                                      |
 | `signals`    | `pidro`, `pidro-theirs`, `points`, `points-theirs`                                        | mock table, `autoplay=true`: `pidro` gold "Pidro!", "Us +6" in `teamUs`; `pidro-theirs` "Them +5 · Wynn" in `teamThem`; `points(-theirs)` a "+1" and the 2 of trump's in the team's colour |
@@ -172,6 +172,19 @@ Quick note. Add `locale=sv` for Swedish. Grammar cases `table-hand-own(-sv)`,
 `table-pace-solo-en|sv`, `table-pace-human-en|sv` and `settings-pace-en|sv` cover
 390×844, 375×667, 844×390 and 768×1024. The table windows fit without scrolling;
 the existing full Settings page still scrolls to its account and update sections.
+
+PID-304, small phones: every avatar keeps one meaning per corner (dealer D
+bottom left, bot bottom right, winning bid top right at the bot badge's size,
+nothing top left, where the turn ring sweeps). Tight phones put your avatar
+under a centred hand and leave out the bid line and Last trick; with count
+help the score panel's **This hand ›** opens the log. Marcel's TCL tables:
+`/table-dev?fixture=details&names=long&dealer=west&bidder=east|north&count=on`,
+and your turn `/table-dev?phase=playing&role=player&trick=bots&names=long&count=on`.
+Grammar cases `table-small-west-deals`, `table-small-north-bid` and
+`table-small-your-turn` run at 390×844, 360×780 (Android 24/48 insets),
+360×640 and both landscapes, and fail when a seat (its badges included)
+touches another seat, a played card, your hand or the chat band.
+`/table-dev?deal=hand` shows the dealer chip sliding from West to North.
 
 `/table-dev?fixture=details&bidder=east` (PID-272) shows a winning bid of 7,
 count help off, six subtly offset backs at each opponent, and a spade hand with

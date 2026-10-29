@@ -168,11 +168,22 @@ export const UI_VIEWPORTS = [
       'table-game-over-online-loss',
     ],
   },
+  // Marcel's TCL 5053Y: 360×780 on Android 9, drawn under 24/48 system bars (PID-304).
+  {
+    name: 'android-portrait',
+    width: 360,
+    height: 780,
+    safeArea: 'android',
+    cases: ['table-small-west-deals', 'table-small-north-bid', 'table-small-your-turn'],
+  },
   {
     name: 'compact-portrait',
     width: 360,
     height: 640,
     cases: [
+      'table-small-west-deals',
+      'table-small-north-bid',
+      'table-small-your-turn',
       'welcome',
       'welcome-guest',
       'update-notice',
