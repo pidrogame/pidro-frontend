@@ -857,6 +857,8 @@ UI_CASES=table-bidding,home bun run test:ui      # just these
 UI_SHOT_DIR=/tmp/shots bun run test:ui           # where screenshots land
 UI_PARTITION=1/10 UI_REPORT_PATH=/tmp/ui-report.json bun run test:ui  # one CI-sized batch
 node scripts/verify-ui-grammar.mjs --list        # selected viewport/case IDs, no browser
+node scripts/verify-ui-grammar.mjs --list-cases  # every case's name and route, no browser
+node scripts/ci-affected.mjs <base-sha>          # what CI would run for the changes since base
 MOBILE_BASE_URL=http://localhost:8081 node scripts/verify-seat-decisions.mjs
 node scripts/verify-waiting-seats.mjs   # 4 target sizes; shared list, readiness, kick and live choices
 node scripts/verify-profile.mjs
@@ -867,13 +869,17 @@ node scripts/verify-dealing.mjs  # four dealers, 3/6/9 receive order, sort/biddi
 renders, so Mac captures flag font/antialiasing noise. Adopt intentional drift with
 `bun run ui:baselines <runId>`.
 
-CI balances the full matrix across ten jobs using Linux case durations in
+A push runs only the cases its change touches (`scripts/ci-affected.mjs`, with
+the reasons in the "Select checks" job summary); the release test (Actions →
+Frontend CI → Run workflow) runs all of them. CI balances the selected matrix
+across up to ten jobs, about forty screens each, using Linux case durations in
 `scripts/ui-case-costs.json` (last calibration: Actions run `39359720639`).
 New cases use the median recorded duration and are still included.
 Refresh the weights from a successful run's `ui-report-*`
 artifacts (each record's `id` maps to its `ms`); local Mac timings are not comparable.
-The aggregate checks that every case completed exactly once and its capture
-exists, then compares all committed baselines. Its job summary lists the slowest
+The aggregate checks that every selected case completed exactly once and its
+capture exists, then compares the captured screens against their baselines; a
+full run requires every baseline to have a capture. Its job summary lists the slowest
 cases so future tuning can use measured costs.
 
 `UI_CASES` names: `home` `home-guest` `home-table-unknown` `game-away` `profile` `profile-guest` `profile-badges` `settings` `league` `lobby-list` `lobby-empty` `lobby-rejoin` `lobby-open` `lobby-substitute` `lobby-watch` `lobby-search-empty` `login` `register` `register-password`
