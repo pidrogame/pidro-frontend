@@ -6,7 +6,8 @@
  */
 import { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useTableInsets, useTableSize } from './TableChrome';
+import { useTableSize } from './TableChrome';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureDetector } from 'react-native-gesture-handler';
 import {
   Canvas,
@@ -60,7 +61,7 @@ export default function GameCanvas({
   previewSuit = null,
 }: Props) {
   const { width, height } = useTableSize();
-  const insets = useTableInsets();
+  const insets = useSafeAreaInsets();
   const { top, bottom, left, right } = insets;
   const L = useMemo(
     () => computeLayout(width, height, { top, bottom, left, right }, topReserve, bottomReserve),

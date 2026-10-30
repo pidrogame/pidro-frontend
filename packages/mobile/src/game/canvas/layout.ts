@@ -397,7 +397,7 @@ export function landscapeSideSeatTop(L: TableLayout, rel: 'east' | 'west', seatH
  * bar's inset can take the rest, as on a TCL 5053Y).
  */
 export const SIDE_SEAT_WIDTH = 108;
-const SIDE_SEAT_LEAST = 84;
+const SIDE_SEAT_LEAST = 76;
 /** From a side stack's inner edge to its played card's centre, a full side seat between. */
 const sideSeatReach = (cardH: number) => SIDE_SEAT_GAP + SIDE_SEAT_WIDTH + TRICK_GAP + cardH / 2;
 
@@ -546,8 +546,9 @@ export function playedCardTarget(
 
 /**
  * Landscape phones (PID-308): a seat's earlier cards this hand trail behind
- * its played card, smaller: sideways at North and South, down East's and
- * West's columns, away from the seats above them on narrower tables. `back` counts from the card nearest it (1).
+ * its played card, smaller: sideways at North and South, up West's column
+ * and down East's, toward each card's index. `back` counts from the card nearest it (1),
+ * of `count`.
  */
 export const TRAIL_SCALE = 0.72;
 const TRAIL_NEAR = 0.42;
@@ -555,13 +556,27 @@ const TRAIL_STEP = 0.26;
 /** How far North's or your trail reaches left of its card's centre, five cards long. */
 const trailReach = (cardW: number) =>
   cardW * (TRAIL_NEAR + 4 * TRAIL_STEP) + (cardW * TRAIL_SCALE) / 2;
-export function trailSpot(L: TableLayout, rel: RelativePosition, back: number) {
+export function trailSpot(L: TableLayout, rel: RelativePosition, back: number, count = 5) {
   const spot = playedCardTarget(L, rel, 0, 1);
-  const d = L.cardW * (TRAIL_NEAR + (back - 1) * TRAIL_STEP);
+  // A side card's index lies toward the top at West and the foot at East: its
+  // trail steps that way, closing up to stay in its column. On narrower tables
+  // West's seat sits right above its card, so its trail turns the other way
+  // round and steps down, as East's does (PID-308).
+  const side = rel === 'west' || rel === 'east';
+  const up = rel === 'west' && !!L.sidesUnder;
+  const room =
+    side && L.band
+      ? (up ? spot.y - L.band.top : L.band.bottom - spot.y) -
+        (L.cardW * TRAIL_SCALE) / 2 -
+        L.cardW * TRAIL_NEAR
+      : Infinity;
+  const step = Math.max(0, Math.min(L.cardW * TRAIL_STEP, room / Math.max(1, count - 1)));
+  const d = L.cardW * TRAIL_NEAR + (back - 1) * step;
   return {
     ...spot,
-    x: spot.x - (rel === 'north' || rel === 'south' ? d : 0),
-    y: spot.y + (rel === 'west' || rel === 'east' ? d : 0),
+    x: spot.x - (side ? 0 : d),
+    y: spot.y + (!side ? 0 : up ? -d : d),
+    rot: rel === 'west' && !up ? spot.rot + Math.PI : spot.rot,
     scale: spot.scale * TRAIL_SCALE,
   };
 }
@@ -846,10 +861,10 @@ export function computeLayout(
           south: { x: cx, y: trickCy + reach },
           west: { x: sideSpot(insets.left), y: sideCy },
           // A nav bar's inset narrows East's side: its cards come in, short
-          // of your and North's card, to leave its seat room (PID-308).
+          // of North's and your widest pile, to leave its seat room (PID-308).
           east: {
             x: Math.max(
-              cx + cardW / 2 + TRICK_GAP + cardH / 2,
+              cx + (cardW * FRONT_PILE_SPAN) / 2 + TRICK_GAP + cardH / 2,
               Math.min(
                 width - sideSpot(insets.right),
                 width - sideStackInner(cardW, insets.right) - sideSeatReach(cardH)

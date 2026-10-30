@@ -26,6 +26,7 @@ import {
   type ImageSourcePropType,
   type ImageStyle,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   DEALER_SLIDE_MS,
   PlayerAvatar,
@@ -71,7 +72,7 @@ import {
   type RelativePosition,
 } from './layout';
 import { viewerOf } from './HandResult';
-import { TABLE_HEADER, useTableInsets, useTableSize } from './TableChrome';
+import { TABLE_HEADER, useTableSize } from './TableChrome';
 import type { TableSeat } from './tableModel';
 import {
   DEAL_PACKET_CARD_STAGGER_MS,
@@ -215,7 +216,7 @@ export function SeatLayer({
     return () => clearTimeout(id);
   }, [sliding]);
   const { width, height } = useTableSize();
-  const insets = useTableInsets();
+  const insets = useSafeAreaInsets();
   const { top, bottom, left, right } = insets;
   const L = useMemo(
     () => computeLayout(width, height, { top, bottom, left, right }, topReserve, bottomReserve),

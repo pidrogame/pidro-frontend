@@ -394,7 +394,7 @@ export function useCardSprites({
           const li = live.indexOf(tc);
           if (li >= 0) target = playedCardTarget(L, rel, li, live.length);
           else {
-            target = trailSpot(L, rel, earlier.length - earlier.indexOf(tc));
+            target = trailSpot(L, rel, earlier.length - earlier.indexOf(tc), earlier.length);
             shade = !(model.countHelp && POINT_RANKS.has(tc.card.rank));
           }
         }
@@ -944,8 +944,9 @@ export function useCardSprites({
     const r = Math.min(10, cardW * 0.12);
     return {
       glow: keptBlur(
-        { x: -cardW / 2 - 5, y: -cardH / 2 - 5, width: cardW + 10, height: cardH + 10, r: r + 5 },
-        14,
+        // A soft halo close to the edge, not a slab over the cards beside it (PID-308).
+        { x: -cardW / 2 - 2, y: -cardH / 2 - 2, width: cardW + 4, height: cardH + 4, r: r + 2 },
+        8,
         T.gold
       ),
       shadow: keptBlur(
@@ -1130,7 +1131,7 @@ function CardSprite({
         scale:
           scale.value *
           (1 - (1 - TRICK_SWEEP_SCALE) * sweep.value) *
-          (winner ? 1 + winnerReveal.value * 0.1 : leading ? 1 + leadGlow.value * 0.06 : 1),
+          (winner ? 1 + winnerReveal.value * 0.05 : leading ? 1 + leadGlow.value * 0.02 : 1),
       },
     ];
   });
@@ -1165,16 +1166,17 @@ function CardSprite({
           color="rgba(6, 22, 38, 0.52)"
         />
       )}
+      {/* A fine gold rim on the card's own edge, never past it. */}
       {glows && (
         <RoundedRect
-          x={-w / 2 - 2}
-          y={-h / 2 - 2}
-          width={w + 4}
-          height={h + 4}
-          r={r + 2}
+          x={-w / 2 + 0.75}
+          y={-h / 2 + 0.75}
+          width={w - 1.5}
+          height={h - 1.5}
+          r={Math.max(0, r - 0.75)}
           color={T.goldLight}
           style="stroke"
-          strokeWidth={3}
+          strokeWidth={1.5}
           opacity={winnerOpacity}
         />
       )}

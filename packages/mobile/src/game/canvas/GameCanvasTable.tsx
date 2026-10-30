@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { BotPersona, RematchVote } from '@pidro/shared';
 import type { Room } from '@/types/lobby';
@@ -52,7 +53,6 @@ import {
   TABLE_HEADER,
   TableChromeBars,
   headerTop,
-  useTableInsets,
   useTableReserves,
   useTableSize,
 } from './TableChrome';
@@ -397,7 +397,7 @@ export function GameCanvasTable({
   const facesReady = useHandPresentationReady(serverModel.yourHand, textures, isBiddingTurn);
   // A held loading bar is a phone still decoding: its hand is not ready either.
   const isHandReady = !model.dealStage && facesReady && loading == null;
-  const insets = useTableInsets();
+  const insets = useSafeAreaInsets();
   const reserves = useTableReserves({ top: TABLE_HEADER + topDock });
   const { topReserve, bottomReserve } = reserves;
   const ruleSet = controller.serverState?.variant ?? 'finnish';

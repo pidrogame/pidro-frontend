@@ -99,7 +99,7 @@ describe('side stacks and the hand', () => {
     // A TCL 5053Y: 780×360 with its nav bar's 50pt on the right still seats them so.
     const tcl = computeLayout(780, 360, { top: 0, bottom: 0, left: 0, right: 50 });
     expect(tcl.sidesUnder).toBe(true);
-    expect(tcl.sideSeatWidth).toBeGreaterThanOrEqual(84);
+    expect(tcl.sideSeatWidth).toBeGreaterThanOrEqual(76);
     expect(phone.sides.cy).toBe(phone.trick.cy);
     expect(phone.seats.west.y).toBe(phone.trick.cy);
 
