@@ -135,22 +135,14 @@ describe('the second deal from a server that counts every throw (PID-306)', () =
     ]);
   });
 
-  it('shows you your own throw face up, and the dealer’s as backs to count', () => {
-    const yourThrow = showAt(plan.frames[3], model, plan, null);
+  // PID-307: a throw is counted, not read; Classic shows the thrower backs too.
+  it('shows your own throw as backs, like everyone’s, and the dealer’s as backs to count', () => {
+    const yourThrow = showAt(plan.frames[3], model, null);
     expect(yourThrow.thrown.south).toBe(7);
-    expect(yourThrow.faces.south.map((c) => `${c.suit}_${c.rank}`)).toEqual([
-      'hearts_13',
-      'diamonds_8',
-      'clubs_4',
-      'hearts_12',
-      'clubs_7',
-      'diamonds_3',
-      'hearts_9',
-    ]);
-    expect(yourThrow.faces.north).toBeUndefined();
+    expect(yourThrow.faces).toEqual({});
     expect(yourThrow.thrown.west).toBe(0);
 
-    const dealers = showAt(plan.frames.at(-1), model, plan, null);
+    const dealers = showAt(plan.frames.at(-1), model, null);
     expect(dealers.thrown).toEqual({ north: 0, east: 0, south: 0, west: 6 });
     expect(dealers.faces).toEqual({});
   });
@@ -209,38 +201,16 @@ describe('your own throw when you deal (PID-306)', () => {
       'diamonds_3',
       'clubs_2',
     ]);
-    const show = showAt(last, model, plan, thrown);
+    const show = showAt(last, model, thrown);
     expect(show.thrown.south).toBe(5);
     expect(show.faces.south).toEqual(thrown);
   });
 
   it('shows backs without your pick, or when it does not add up to the server’s count', () => {
     expect(dealerThrow(undefined, kept)).toBeNull();
-    expect(showAt(last, model, plan, null).faces.south).toBeUndefined();
-    const short = showAt(last, model, plan, dealerThrow(pool.slice(0, 9), kept));
+    expect(showAt(last, model, null).faces.south).toBeUndefined();
+    const short = showAt(last, model, dealerThrow(pool.slice(0, 9), kept));
     expect(short.thrown.south).toBe(5);
     expect(short.faces.south).toBeUndefined();
-  });
-});
-
-describe('an older server, which counts no throws', () => {
-  // Today's table: your own pile stays face down too.
-  const model = {
-    phase: 'playing',
-    dealerRelative: 'west',
-    yourHand: held.slice(0, 2),
-    seats: {
-      north: seat(1, 5, 6),
-      east: seat(3, 3, 6),
-      south: seat(2, 4, 6),
-      west: seat(null, null, 6),
-    },
-  };
-  const plan = makePlan(model, held);
-
-  it('shows every pile as backs, yours included', () => {
-    const yourThrow = showAt(plan.frames[3], model, plan, null);
-    expect(yourThrow.thrown.south).toBe(7);
-    expect(yourThrow.faces).toEqual({});
   });
 });

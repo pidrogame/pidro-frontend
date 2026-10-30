@@ -25,7 +25,7 @@ export type SecondDealShow = {
   pack: number;
   /** Cards each player has thrown in front of them, face down. */
   thrown: Counts;
-  /** The faces of a pile only its thrower sees (PID-306): yours. */
+  /** The faces of a pile only its thrower sees: yours, when you deal (PID-307). */
   faces?: Partial<Record<RelativePosition, Card[]>>;
 };
 
@@ -143,24 +143,15 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
 }
 
 /**
- * What the table shows at `frame` (PID-306). Everyone sees how many each
- * player threw, the dealer's once down to six; only the thrower sees the
- * faces: yours when you were dealt to, and when you deal, `dealt` (the pool
- * you were shown less the six you kept). An older server shows only backs.
+ * What the table shows at `frame` (PID-306, PID-307). Everyone sees how many
+ * each player threw, backs only, the thrower too, as in Classic: what counts
+ * is how many. The dealer's throw, once down to six, shows its faces to the
+ * dealer alone: `dealt`, the pool you were shown less the six you kept.
  */
-export function showAt(
-  frame: Frame,
-  model: TableModel,
-  plan: Plan,
-  dealt: Card[] | null
-): SecondDealShow {
+export function showAt(frame: Frame, model: TableModel, dealt: Card[] | null): SecondDealShow {
   const dealer = model.dealerRelative;
   const thrown = { ...frame.thrown };
   const faces: SecondDealShow['faces'] = {};
-  const counted = model.seats.south?.discarded != null;
-  const yours = plan.yourThrown ?? [];
-  if (counted && yours.length > 0 && thrown.south === yours.length)
-    faces.south = yours.map((c) => c.card);
   if (frame.dealerThrew && dealer) {
     thrown[dealer] = model.seats[dealer]?.discarded ?? 0;
     if (dealer === 'south' && dealt && dealt.length > 0 && dealt.length === thrown.south)

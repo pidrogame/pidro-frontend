@@ -3,7 +3,7 @@
  * can be read off the cards: each player in turn throws their non-trumps
  * face down in front of them, the piles hold to be counted and clear, the
  * dealer gives each player their cards one at a time, takes the rest and
- * throws down to six last. Only a thrower sees their own faces (`showAt`).
+ * throws down to six last. Throws are backs; only the dealer sees their own (`showAt`).
  * Then any killed trumps lie face up for everyone, KILLED_SHOW_MS or until
  * the first card lands, without holding play (PID-306). Built only from the
  * server's counts and the hands it already sent: a presentation, never game
@@ -122,7 +122,7 @@ export function useSecondDealPresentation(
   if (!plan || !frame || reducedMotion || !AFTER.has(model.phase) || hasPlay(model)) return shown;
 
   const dealer = model.dealerRelative;
-  const show: SecondDealShow = showAt(frame, model, plan, dealt);
+  const show: SecondDealShow = showAt(frame, model, dealt);
   const seats = { ...model.seats };
   for (const rel of CLOCKWISE) {
     const seat = seats[rel];
