@@ -35,6 +35,7 @@ import {
 } from 'react-native-reanimated';
 import type { Card, Suit } from '@/types/game';
 import { trumpsIn } from '@/features/game/trump';
+import { trickOnTable } from '@/features/game/playPresentation';
 import { catchUpPace } from '@/features/game/catchUp';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playSelectionHaptic } from '@/utils/haptics';
@@ -184,6 +185,7 @@ export function useCardSprites({
   /* eslint-enable react-hooks/rules-of-hooks */
 
   const [slots, setSlots] = useState<SlotInfo[]>(() => Array(MAX).fill(null));
+  const [cleared, setCleared] = useState(0);
   const reduceMotion = useReducedMotion();
 
   const keyToSlot = useRef<Map<string, number>>(new Map());
@@ -316,13 +318,21 @@ export function useCardSprites({
         : []
     );
 
+    // Landscape phones show only the trick on the table (PID-307), and a
+    // card of yours lifts only into your empty spot, never onto your card
+    // still lying there from the trick just taken.
+    const played = L.front
+      ? trickOnTable(model.playedCards, Date.now(), model.collectAt)
+      : model.playedCards;
+    const spotTaken = !!L.front && (played.south?.length ?? 0) > 0;
+
     model.yourHand.forEach((tc, i) => {
       const s = handSlot(i);
       const legal = model.canPlay && tc.isLegalPlay;
       const blocked = model.canPlay && !tc.isLegalPlay;
       const previewed = preview.has(tc.textureKey);
       // Reduce Motion keeps a previewed card in the row: its outline says enough.
-      const lifted = legal || (previewed && !reduceMotion);
+      const lifted = (legal || (previewed && !reduceMotion)) && !spotTaken;
       // Held by a hand, not printed: each card keeps a slight tilt of its own.
       const held = heldPose(model.held ?? HELD_STYLE, tc.key, i - (n - 1) / 2);
       desired.push({
@@ -367,7 +377,7 @@ export function useCardSprites({
       });
     });
     REL.forEach((rel) => {
-      const cards = model.playedCards[rel] ?? [];
+      const cards = played[rel] ?? [];
       cards.forEach((tc, i) => {
         const target = playedCardTarget(L, rel, i, cards.length);
         const seat = L.seats[rel];
@@ -764,8 +774,14 @@ export function useCardSprites({
     setSlots(nextSlots);
     prevModel.current = model;
     prevLayout.current = L;
+    // A finished trick clears once its hold is over: look again then.
+    const holdLeft = (model.collectAt ?? 0) - Date.now();
+    if (L.front && Number.isFinite(holdLeft) && holdLeft > 0) {
+      const timer = setTimeout(() => setCleared((n) => n + 1), holdLeft + 1);
+      return () => clearTimeout(timer);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, L, enabled, reduceMotion, previewSuit]);
+  }, [model, L, enabled, reduceMotion, previewSuit, cleared]);
 
   useEffect(() => {
     const cutCount = model ? Object.keys(model.dealerCuts).length : 0;

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { optimisticPlay, turnLight } from '../../src/features/game/playPresentation.ts';
+import {
+  optimisticPlay,
+  trickOnTable,
+  turnLight,
+} from '../../src/features/game/playPresentation.ts';
 import { buildTableModel } from '../../src/game/canvas/tableModel.ts';
 
 const hand = [
@@ -54,6 +58,70 @@ describe('optimistic play is presentation only', () => {
         expect(optimisticPlay(confirmed, { card, startedAt: 1000, rejected }, now)).toBe(confirmed);
       }
     }
+  });
+});
+
+// PID-307: the server keeps every trick of the hand; a landscape phone shows one.
+describe('the trick on a landscape table', () => {
+  const heart = (rank) => ({ suit: 'hearts', rank });
+  const seats = ['north', 'east', 'south', 'west'];
+  const trick = (ranks) => ({
+    cards: seats.map((player, i) => ({ player, card: heart(ranks[i]) })),
+  });
+  const table = (currentTrick) =>
+    buildTableModel({
+      phase: 'playing',
+      trumpSuit: 'hearts',
+      players: seats.map((p) => ({ absolutePosition: p, relativePosition: p })),
+      yourHand: [],
+      yourCardCount: 0,
+      currentTrick,
+      tricks: [trick([2, 3, 4, 6]), trick([7, 8, 9, 10])],
+      legalActions: [],
+      currentTurnRelative: 'north',
+      canPlay: false,
+      getCardCountForPlayer: () => 5,
+    }).playedCards;
+  const shown = (played) =>
+    Object.fromEntries(
+      Object.entries(played).map(([rel, cards]) => [rel, cards.map((c) => c.card.rank)])
+    );
+
+  it('holds the trick just taken, never an earlier one, until its hold is over', () => {
+    const played = table([]);
+    expect(shown(trickOnTable(played, 1000, 2500))).toEqual({
+      north: [7],
+      east: [8],
+      south: [9],
+      west: [10],
+    });
+    expect(shown(trickOnTable(played, 2500, 2500))).toEqual({
+      north: [],
+      east: [],
+      south: [],
+      west: [],
+    });
+    // No presentation clock: the trick just taken stays until the next starts.
+    expect(shown(trickOnTable(played, 99_000))).toEqual({
+      north: [7],
+      east: [8],
+      south: [9],
+      west: [10],
+    });
+  });
+
+  it('shows only the trick being played once its first card is down, a seat’s two cards both', () => {
+    const played = table([
+      { player: 'east', card: heart(13) },
+      { player: 'east', card: heart(12) },
+      { player: 'south', card: heart(14) },
+    ]);
+    expect(shown(trickOnTable(played, 1000, 2500))).toEqual({
+      north: [],
+      east: [13, 12],
+      south: [14],
+      west: [],
+    });
   });
 });
 

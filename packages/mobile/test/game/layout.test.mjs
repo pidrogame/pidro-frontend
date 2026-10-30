@@ -33,7 +33,9 @@ import {
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
   tickerPlacement,
+  TRICK_GAP,
   TRUMP_BUTTON,
+  TRUMP_MARK,
   trumpPicker,
   utilityDockReserve,
 } from '../../src/game/canvas/layout.ts';
@@ -86,10 +88,11 @@ describe('side stacks and the hand', () => {
     expect(landscape.sides.cy).toBeGreaterThan(landscape.trick.cy);
     expect(landscape.seats.east.y).toBe(landscape.sides.cy);
     expect(landscape.seats.west.y).toBe(landscape.sides.cy);
-    // Landscape phones keep them level with the trick, as its cross (PID-305).
+    // Landscape phones hang them under their seats, as Classic does, and
+    // their played cards leave level with the trick (PID-307).
     const phone = computeLayout(874, 402, { top: 0, bottom: 21, left: 62, right: 62 });
-    expect(phone.sides.cy).toBe(phone.trick.cy);
-    expect(phone.seats.west.y).toBe(phone.sides.cy);
+    expect(sideStacks(phone).top).toBeCloseTo(phone.band.top + 2);
+    expect(phone.seats.west.y).toBe(phone.trick.cy);
 
     const portrait = computeLayout(402, 874, { top: 62, bottom: 34, left: 0, right: 0 }, 60, 72);
     expect(portrait.sides.cy).toBeGreaterThan(portrait.trick.cy);
@@ -384,8 +387,14 @@ describe('landscape phones draw your hand the size of the table’s cards, besid
       }
       // A full hand fits at its usual overlap: every rank in reach of a thumb.
       expect(handStep(L, 9)).toBeCloseTo(L.cardW * 0.72);
-      expect(L.hand.cy + (L.cardH * handScale(L.profile)) / 2).toBeLessThanOrEqual(
-        height - insets.bottom
+      // Pushed down to the bottom edge (PID-307), past it where the table is
+      // short, always showing the cards' rank and suit (the top 58%) and a
+      // 44pt tap target, TRICK_GAP clear of your played card.
+      const shown = height - (L.hand.cy - L.cardH / 2);
+      expect(shown).toBeGreaterThanOrEqual(Math.max(44, L.cardH * 0.58));
+      expect(L.hand.cy + L.cardH / 2).toBeGreaterThanOrEqual(height - insets.bottom - 4 - 0.01);
+      expect(L.hand.cy - L.cardH / 2).toBeGreaterThanOrEqual(
+        L.front.south.y + L.cardH / 2 + TRICK_GAP
       );
     });
   }
@@ -476,6 +485,79 @@ describe('the shortest phones lift the trump picker clear of your hand (PID-304)
       expect(P.top).toBeGreaterThanOrEqual(northSeatBottom(L, 85));
       expect(P.top + P.height).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2 - 28);
     });
+  }
+});
+
+// PID-307: Classic's cross. Every played card, two from a seat that kept
+// seven trumps included, keeps TRICK_GAP from the trump mark, the other
+// seats' cards, North's backs and your hand, a lifted card included.
+describe('landscape phones lay the trick out as Classic’s cross', () => {
+  const box = (x, y, w, h) => ({
+    left: x - w / 2,
+    right: x + w / 2,
+    top: y - h / 2,
+    bottom: y + h / 2,
+  });
+  const gap = (a, b) =>
+    Math.max(b.left - a.right, a.left - b.right, b.top - a.bottom, a.top - b.bottom);
+  for (const [width, height, insets] of [
+    [780, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [844, 390, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
+    // Marcel's TCL as it runs: the nav bar beside the window, the status bar over it.
+    [732, 360, { top: 28, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    for (const count of [1, 2]) {
+      it(`on ${width}×${height} ${JSON.stringify(insets)}, ${count} card(s) a seat`, () => {
+        const L = computeLayout(width, height, insets);
+        const mark = L.cardW * TRUMP_MARK;
+        const things = [['the trump mark', box(L.trick.cx, L.trick.cy, mark, mark)]];
+        for (const rel of ['north', 'east', 'south', 'west']) {
+          const cards = Array.from({ length: count }, (_, i) => {
+            const c = playedCardTarget(L, rel, i, count);
+            const side = rel === 'east' || rel === 'west';
+            return box(c.x, c.y, side ? L.cardH : L.cardW, side ? L.cardW : L.cardH);
+          });
+          things.push([
+            `${rel}'s cards`,
+            {
+              left: Math.min(...cards.map((c) => c.left)),
+              right: Math.max(...cards.map((c) => c.right)),
+              top: Math.min(...cards.map((c) => c.top)),
+              bottom: Math.max(...cards.map((c) => c.bottom)),
+            },
+          ]);
+        }
+        const fanTop = northFanTop(L, insets.top);
+        const fanW = northFanWidth(L.cardW, 9, compactNorth(L));
+        const backH = (northBackWidth(L.cardW, compactNorth(L)) * 110) / 78;
+        things.push([
+          "North's backs",
+          {
+            left: L.trick.cx - fanW / 2,
+            right: L.trick.cx + fanW / 2,
+            top: fanTop,
+            bottom: fanTop + backH,
+          },
+        ]);
+        const hand = {
+          left: handLeft(L, 9),
+          right: handLeft(L, 9) + 8 * handStep(L, 9) + L.cardW * 1.03,
+        };
+        // At rest: a card of yours lifts only into your empty spot.
+        things.push(['your hand', { ...hand, top: L.hand.cy - L.cardH / 2, bottom: height }]);
+        for (const [i, [a, ab]] of things.entries())
+          for (const [b, bb] of things.slice(i + 1))
+            expect(gap(ab, bb), `${a} and ${b}`).toBeGreaterThanOrEqual(TRICK_GAP - 0.01);
+        // Side cards keep to their column, between their seat and yours.
+        for (const rel of ['east', 'west'])
+          for (let i = 0; i < count; i++) {
+            const { y } = playedCardTarget(L, rel, i, count);
+            expect(y - L.cardW / 2).toBeGreaterThanOrEqual(L.band.top - 0.01);
+            expect(y + L.cardW / 2).toBeLessThanOrEqual(L.band.bottom + 0.01);
+          }
+      });
+    }
   }
 });
 

@@ -45,6 +45,7 @@ import {
   computeLayout,
   LANDSCAPE_SOUTH_LEFT,
   landscapeNameReach,
+  landscapeSouthY,
   landscapeNorthLeft,
   landscapeNorthShift,
   northBackWidth,
@@ -341,27 +342,31 @@ export function SeatLayer({
         if (!seats[rel] || (thrown === 0 && kills.length === 0)) return null;
         const foldingHand = !secondDeal && folded > 0;
         const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
+        // Landscape phones throw from just inside the hand, never from behind
+        // North's backs or a side stack (PID-307).
         const from =
-          rel === 'north'
-            ? {
-                x: width / 2 - northShift,
-                // Landscape's held fan bleeds offscreen; tuck its fold just below that edge.
-                y: (foldingHand ? Math.max(insets.top, northBackTop) : northBackTop) + backH / 2,
-              }
-            : rel === 'south'
-              ? { x: L.hand.cx, y: L.hand.cy }
-              : {
-                  // Landscape phones fold a side hand inside its stack's
-                  // column, short of its front row (PID-305).
-                  x: L.front
-                    ? rel === 'west'
-                      ? (insets.left + sideStackInner(L.cardW, insets.left)) / 2
-                      : width - (insets.right + sideStackInner(L.cardW, insets.right)) / 2
-                    : rel === 'west'
-                      ? insets.left + sideBackW * 0.7
-                      : width - insets.right - sideBackW * 0.7,
-                  y: sideStackCy,
-                };
+          L.front && !foldingHand && rel !== 'south'
+            ? L.seats[rel]
+            : rel === 'north'
+              ? {
+                  x: width / 2 - northShift,
+                  // Landscape's held fan bleeds offscreen; tuck its fold just below that edge.
+                  y: (foldingHand ? Math.max(insets.top, northBackTop) : northBackTop) + backH / 2,
+                }
+              : rel === 'south'
+                ? { x: L.hand.cx, y: L.hand.cy }
+                : {
+                    // Landscape phones fold a side hand inside its stack's
+                    // column, short of its front row (PID-305).
+                    x: L.front
+                      ? rel === 'west'
+                        ? (insets.left + sideStackInner(L.cardW, insets.left)) / 2
+                        : width - (insets.right + sideStackInner(L.cardW, insets.right)) / 2
+                      : rel === 'west'
+                        ? insets.left + sideBackW * 0.7
+                        : width - insets.right - sideBackW * 0.7,
+                    y: sideStackCy,
+                  };
         return (
           <Fragment key={`thrown-${rel}`}>
             {kills.length > 0 ? (
@@ -373,6 +378,7 @@ export function SeatLayer({
                 from={from}
                 at={(i) => pileSpot(L, rel, i, kills.length)}
                 cardW={pileCardW(L)}
+                square={!!L.front}
               />
             ) : null}
             {thrown > 0 ? (
@@ -392,6 +398,7 @@ export function SeatLayer({
                 from={from}
                 // Cold hands fold where they were held; only second-deal throws cross the felt.
                 at={foldingHand ? undefined : (i) => pileSpot(L, rel, i, thrown)}
+                square={!!L.front}
                 cardW={
                   foldingHand
                     ? (rel === 'south'
@@ -515,7 +522,7 @@ export function SeatLayer({
                   : {
                       position: 'absolute',
                       left: landscapeSouthLeft,
-                      top: L.hand.cy - size / 2,
+                      top: landscapeSouthY(L) - size / 2,
                     }
               }>
               {avatar}
@@ -769,9 +776,12 @@ function ThrownPile({
   fromStep = 0,
   faces,
   testID,
+  square = false,
 }: {
   rel: RelativePosition;
   count: number;
+  /** Landscape phones lay a pile square, as Classic does, to keep its gaps (PID-307). */
+  square?: boolean;
   /** Face up: the thrower's own, or killed trumps (PID-306). */
   faces?: Card[];
   testID?: string;
@@ -818,7 +828,10 @@ function ThrownPile({
             h={cardH}
             // A thrown card never lands quite square.
             // Faces lie as played cards do, their tops toward the middle.
-            rot={(rel === 'east' && faces ? -90 : sideways ? 90 : 0) + (((i * 37) % 7) - 3)}
+            rot={
+              (rel === 'east' && faces ? -90 : sideways ? 90 : 0) +
+              (square && !folded ? 0 : ((i * 37) % 7) - 3)
+            }
             delay={folded ? 0 : i * SECOND_DEAL_SWOOP_STAGGER_MS}
             duration={folded ? FOLD_FLIGHT_MS : SECOND_DEAL_FLIGHT_MS}
             moving={moving}

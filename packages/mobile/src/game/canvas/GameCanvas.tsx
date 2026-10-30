@@ -35,7 +35,7 @@ import Animated, {
 import type { Card, Suit } from '@/types/game';
 import { DealerChip } from '@/components/game/DealerChip';
 import { useTranslation } from '@/i18n';
-import { computeLayout, handLeft, handScale } from './layout';
+import { computeLayout, handLeft, handScale, TRUMP_MARK } from './layout';
 import { T } from './tokens';
 import type { CardTextures } from './cardTextures';
 import type { TableModel } from './tableModel';
@@ -122,7 +122,7 @@ export default function GameCanvas({
           img={textures.suit(model.trumpSuit)}
           x={L.trick.cx}
           y={L.trick.cy}
-          size={L.cardW * 0.7}
+          size={L.cardW * TRUMP_MARK}
           pop={trumpPop}
         />
       )}
@@ -137,7 +137,12 @@ export default function GameCanvas({
       <View style={{ flex: 1 }}>
         {canvas}
         {model.phase === 'dealer_selection' && (
-          <DealerSelectionMarker x={L.trick.cx} y={L.trick.cy} size={Math.max(58, L.cardW * 0.9)} />
+          <DealerSelectionMarker
+            x={L.trick.cx}
+            y={L.trick.cy}
+            // Landscape phones keep Classic's small chip, clear of the cross (PID-307).
+            size={L.front ? L.cardW * TRUMP_MARK : Math.max(58, L.cardW * 0.9)}
+          />
         )}
         <View
           testID="table-trick-center"
