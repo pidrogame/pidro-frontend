@@ -354,7 +354,17 @@ export function SeatLayer({
                   y: (foldingHand ? Math.max(insets.top, northBackTop) : northBackTop) + backH / 2,
                 }
               : rel === 'south'
-                ? { x: L.hand.cx, y: L.hand.cy }
+                ? {
+                    x: L.hand.cx,
+                    // Landscape phones hold the hand past the bottom edge;
+                    // its fold stays on the table, its tilt clear of the edge (PID-307).
+                    y: L.front
+                      ? Math.min(
+                          L.hand.cy,
+                          L.bottom - (L.cardW * L.trick.pileScale * 0.82 * (110 / 78)) / 2 - 1.5
+                        )
+                      : L.hand.cy,
+                  }
                 : {
                     // Landscape phones fold a side hand inside its stack's
                     // column, short of its front row (PID-305).
