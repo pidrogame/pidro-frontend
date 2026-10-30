@@ -51,9 +51,10 @@ shows the second deal). It plays at Classic's pace: each player in turn from
 the dealer's left throws their non-trumps face down in front of them, the
 piles hold to be counted and clear, the dealer gives each player their cards
 one at a time, takes the rest and throws down to six last (`dealerHoldMs`).
-Only the thrower sees their faces: yours, and when you deal the pool you took
-up less the six you kept; everyone else sees backs, as many as the server's
-`discarded_count`. A server without it shows no dealer's throw (PID-306).
+Throws are backs for everyone, the thrower included, as many as each player
+threw; the dealer alone sees the pool they took up less the six they kept face
+up for `dealerHoldMs`, everyone else as many backs as the server's
+`discarded_count` (PID-307). A server without it shows no dealer's throw.
 `you=deal` has you deal; `kill=1` has East keep seven trumps and kill the
 queen, face up in East's front row for everyone until the first card lands
 (`killed_cards`); `hand=still|tilt|fan` tries how hands hold their
@@ -198,11 +199,19 @@ in the second deal, and its played card in a trick, so the trick is a cross.
 No bid line or Last trick; with count help the score panel opens the log.
 `names=long` seats ironman3001 dealing at West and Margaretha Lindqvist at
 North in `deal=draw` and `deal=hand` too; `trick=full` (with
-`phase=playing&role=player`) is the bots' trick with your A♥ on it. Grammar
-cases `table-two-rows-{bidding,second-deal,trick,hand-end}` and PID-306's
-`table-two-rows-{dealer-throws,you-deal,kill}` (each pile's faces counted) run at 844×390
-and 780×360 (Marcel's TCL) and fail when an avatar (badges included), a hand
-row, a front row or the bid window touch one another.
+`phase=playing&role=player`) is the bots' trick with your A♥ on it;
+`trick=third` is the third trick after two taken, `trick=seven` has East, who
+kept seven trumps, put two cards into the first trick.
+
+PID-307: the trick is Classic's cross around the trump mark, each played card
+`TRICK_GAP` (12 dp) clear of the mark, your hand pushed down to the bottom edge
+(rank and suit always showing), and the front rows hold only the current trick:
+a finished trick clears after its hold. A seat's extra cards in one trick lie
+along its axis (sides downward, North and you sideways). Grammar cases
+`table-two-rows-{bidding,second-deal,dealer-throws,you-deal,kill,trick,third,seven,hand-end}`
+run at 844×390, 780×360 (Marcel's TCL) and 640×360, print every card's, seat
+part's and the trump mark's rectangle in dp, and fail when any two are under
+12 dp apart or anything but the hands leaves the screen.
 
 `/table-dev?fixture=details&bidder=east` (PID-272) shows a winning bid of 7,
 count help off, six subtly offset backs at each opponent, and a spade hand with

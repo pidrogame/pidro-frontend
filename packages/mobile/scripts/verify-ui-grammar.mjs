@@ -4,6 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { TRICK_SWEEP_ENABLED } from '../src/game/canvas/animationTiming.ts';
+import { cardSize, TRICK_GAP, TRUMP_MARK } from '../src/game/canvas/layout.ts';
 import { partitionCases, verifyCoverage } from './ui-shards.mjs';
 import {
   assertAccountSurfaceFits,
@@ -1027,33 +1028,44 @@ const allCases = [
     testId: 'seat-south',
     smallTable,
   })),
-  // PID-305: landscape phones lay each seat out in two rows, its hand along
-  // the edge and its front row inward, where its throws and its played card
-  // land. ironman3001 deals at West, Margaretha Lindqvist holds the bid.
+  // PID-305, PID-307: landscape phones lay the table out as Classic does,
+  // each hand along its edge and the played cards on a cross around the
+  // trump mark, every thing TRICK_GAP from every other. ironman3001 deals at
+  // West, Margaretha Lindqvist holds the bid.
   ...[
     ['bidding', 'fixture=details&dealer=west&bidder=north&phase=bidding', 'bidding-window', {}],
     // The piles hold until captured: a 3 s hold races the still capture.
+    // A throw is backs for everyone, the thrower too (PID-307).
     [
       'second-deal',
       'deal=draw&holdMs=600000',
       'seat-south',
-      { thrown: ['north', 'east', 'south'], faces: { south: 7 } },
+      { thrown: ['north', 'east', 'south'], mark: true },
     ],
-    // PID-306: only the thrower sees their faces; everyone sees killed trumps.
-    ['dealer-throws', 'deal=draw&dealerHoldMs=600000', 'seat-south', { thrown: ['west'] }],
+    // PID-306: only the dealer sees their own throw; everyone sees killed trumps.
+    [
+      'dealer-throws',
+      'deal=draw&dealerHoldMs=600000',
+      'seat-south',
+      { thrown: ['west'], mark: true },
+    ],
     [
       'you-deal',
       'deal=draw&you=deal&dealerHoldMs=600000',
       'seat-south',
-      { thrown: ['south'], faces: { south: 2 } },
+      { thrown: ['south'], faces: { south: 2 }, mark: true },
     ],
     [
       'kill',
       'deal=draw&kill=1&holdMs=100&dealerHoldMs=100&cardMs=10',
       'seat-south',
-      { killed: ['east'] },
+      { killed: ['east'], mark: true },
     ],
-    ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4 }],
+    ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
+    // Two tricks taken: only the third's four cards lie on the table.
+    ['third', 'phase=playing&role=player&trick=third', 'seat-south', { played: 4, mark: true }],
+    // East kept seven trumps and put two cards into the first trick.
+    ['seven', 'phase=playing&role=player&trick=seven', 'seat-south', { played: 5, mark: true }],
     ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
   ].map(([name, query, testId, twoRows]) => ({
     name: `table-two-rows-${name}`,
@@ -4060,6 +4072,12 @@ async function assertBiddingRevealSequence(page, viewport) {
   await biddingWindow.waitFor({ state: 'visible', timeout: 20_000 });
 }
 
+// PID-307: a landscape phone (pickProfile's phone-landscape) shows only the
+// trick on the table: a finished one clears once its hold is over. Every
+// other table keeps the hand's tricks, as PID-279 left them.
+const clearsTricks = (viewport) =>
+  viewport.width > viewport.height && Math.min(viewport.width, viewport.height) < 600;
+
 async function assertPlayedCardPersistence(page, viewport) {
   const fourCards = page.getByTestId('rendered-played-card-count-4').first();
   await fourCards.waitFor({ state: 'attached', timeout: 20_000 });
@@ -4072,7 +4090,7 @@ async function assertPlayedCardPersistence(page, viewport) {
   }
 }
 
-async function assertPlayMotion(page, position) {
+async function assertPlayMotion(page, position, viewport) {
   await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
   await page.waitForTimeout(1500);
   const read = () =>
@@ -4139,10 +4157,13 @@ async function assertPlayMotion(page, position) {
   assert.ok(heldMs >= 1450, `the 1500ms trick hold lasted only ${heldMs.toFixed(0)}ms`);
   console.log(`play hold ${position}: ${heldMs.toFixed(0)}ms, no intervening seat light`);
   assert.equal(hold.at(-1).lit, 'south', 'the server-selected leader did not light after the hold');
-  assert.equal(await page.getByTestId('rendered-played-card-count-4').count(), 1);
+  // The hand's tricks stay, except on landscape phones, which clear the trick after its hold.
+  await page
+    .getByTestId(`rendered-played-card-count-${clearsTricks(viewport) ? 0 : 4}`)
+    .waitFor({ state: 'attached', timeout: 2_000 });
 }
 
-async function assertCardCollection(page, winner, reduced) {
+async function assertCardCollection(page, winner, reduced, viewport) {
   await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
   await page.waitForTimeout(1500);
   const before = JSON.parse(await page.getByTestId('play-presentation').getAttribute('aria-label'));
@@ -4182,7 +4203,12 @@ async function assertCardCollection(page, winner, reduced) {
   }
   assert.equal(frames.at(-1).sprites.filter((s) => s.kind === 'hand').length, 5);
   const played = frames.at(-1).sprites.filter((s) => s.kind === 'played');
-  assert.equal(played.length, 4, 'collection must retain the server history slots');
+  // Landscape phones clear the trick once its hold is over (PID-307).
+  assert.equal(
+    played.length,
+    clearsTricks(viewport) ? 0 : 4,
+    'collection must retain the server history slots'
+  );
   assert.ok(
     played.every((s) => s.opacity === 1),
     'completed trick faded before the server removed its history'
@@ -4762,13 +4788,22 @@ async function assertSmallTable(page, testCase, viewport) {
   assert.equal(await page.getByTestId('hand-history').count(), 0, 'the log replaces the panel');
 }
 
-// PID-305: on landscape phones nothing on a seat's two rows touches another
-// thing: no avatar (badges included) touches another avatar, a hand row (the
-// backs, your faces), a front row (thrown or played cards) or the bid window
-// or hand result; no hand row touches a front row; no two front rows touch.
+// PID-305, PID-307: landscape phones lay the table out as Classic does. Every
+// seat (its badges included), hand row (the backs, your faces), front row
+// (thrown, killed or played cards) and the trump mark keeps TRICK_GAP from
+// every other; the table of their rectangles prints in dp. Seats, front rows
+// and the mark stay on screen; hands may bleed past their edge, but yours
+// always shows its rank and suit. The bid window and hand result touch none.
 async function assertTwoRows(page, testCase, viewport) {
   if (!testCase.twoRows) return;
-  const { thrown = [], played = 0, result = false, faces = {}, killed = [] } = testCase.twoRows;
+  const {
+    thrown = [],
+    played = 0,
+    result = false,
+    faces = {},
+    killed = [],
+    mark = false,
+  } = testCase.twoRows;
   const rels = ['north', 'east', 'south', 'west'];
   const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
   const union = (label, boxes) => {
@@ -4817,13 +4852,15 @@ async function assertTwoRows(page, testCase, viewport) {
   const handRows = [];
   const fronts = [];
   for (const rel of rels) {
-    const parts = [await getStableBox(page.getByTestId(`seat-${rel}`).first(), page)];
-    for (const badge of ['dealer', 'bid', 'bot']) {
+    // A seat is its avatar and label, and each badge on the avatar's corners.
+    const box = await getStableBox(page.getByTestId(`seat-${rel}`).first(), page);
+    const seat = [named(`${rel}'s seat`, box)];
+    for (const badge of ['dealer', 'bid', 'bot', 'level', 'pin']) {
       const node = page.getByTestId(`seat-${rel}-${badge}`);
-      if (await node.count()) parts.push(await node.first().boundingBox());
+      const part = (await node.count()) ? await node.first().boundingBox() : null;
+      if (part) seat.push(named(`${rel}'s ${badge}`, part));
     }
-    const seat = union(`seat-${rel}`, parts.filter(Boolean));
-    assertInsideViewport(`${testCase.name} ${seat.label}`, seat, viewport);
+    for (const part of seat) assertInsideViewport(`${testCase.name} ${part.label}`, part, viewport);
     seats.push(seat);
     if (rel !== 'south') {
       const backs = await images(`seat-${rel}-cards`);
@@ -4840,44 +4877,89 @@ async function assertTwoRows(page, testCase, viewport) {
       fronts.push(row);
     }
   }
+  // Only the trick on the table (PID-307): a seat that kept seven trumps may
+  // put two cards into it, every other seat one.
   assert.equal(
     fronts.length,
-    Math.max(thrown.length + killed.length, played),
+    Math.max(thrown.length + killed.length, Math.min(played, 4)),
     `${testCase.name}: front rows`
   );
   const hand = sprites.filter((s) => s.kind === 'hand').map(spriteBox);
   if (hand.length) {
-    // Playable cards rise out of the row: the hand is where they rest too.
+    const row = union('your hand', hand);
+    // Pushed down to the bottom edge, past it on short phones, but its rank
+    // and suit (the top 58% of a card) and a 44pt tap target always show.
     const rest = await page.getByTestId('player-hand-top').boundingBox();
-    hand.push({ ...hand[0], y: rest.y });
-    handRows.push(union('your hand', hand));
+    const cardH = cardSize(Math.min(viewport.width, viewport.height)) * (110 / 78);
+    assert.ok(
+      viewport.height - rest.y >= Math.max(44, cardH * 0.58) - 0.01,
+      `${testCase.name}: your hand shows ${viewport.height - rest.y}pt`
+    );
+    handRows.push({ ...row, height: Math.min(row.height, viewport.height - row.y) });
   }
+  // Each thing is one or more rectangles: a seat's badges apart from it.
+  const table = [...seats, ...[...handRows, ...fronts].map((b) => [b])];
+  if (mark) {
+    const center = await page.getByTestId('table-trick-center').boundingBox();
+    const size = cardSize(Math.min(viewport.width, viewport.height)) * TRUMP_MARK;
+    const markBox = {
+      label: 'the trump mark',
+      x: center.x - size / 2,
+      y: center.y - size / 2,
+      width: size,
+      height: size,
+    };
+    assertInsideViewport(`${testCase.name} the trump mark`, markBox, viewport);
+    table.push([markBox]);
+  }
+  const gap = (a, b) =>
+    Math.max(
+      b.x - (a.x + a.width),
+      a.x - (b.x + b.width),
+      b.y - (a.y + a.height),
+      a.y - (b.y + b.height)
+    );
+  // Every rectangle of one thing against every rectangle of every other.
+  const pairs = [
+    ...table.flatMap((a, i) =>
+      table.slice(i + 1).flatMap((b) => a.flatMap((pa) => b.map((pb) => [pa, pb, gap(pa, pb)])))
+    ),
+  ];
+  const closest = pairs.reduce((min, pair) => (pair[2] < min[2] ? pair : min));
+  const dp = (v) => v.toFixed(1).padStart(6);
+  console.log(
+    [
+      `two rows ${testCase.name} ${viewport.name} (${viewport.width}×${viewport.height}), in dp:`,
+      ...table
+        .flat()
+        .map(
+          (b) => `  ${b.label.padEnd(20)} x${dp(b.x)} y${dp(b.y)} w${dp(b.width)} h${dp(b.height)}`
+        ),
+      `  smallest gap ${closest[2].toFixed(1)}: ${closest[0].label} – ${closest[1].label}`,
+    ].join('\n')
+  );
+  for (const [a, b, apart] of pairs)
+    assert.ok(
+      apart >= TRICK_GAP - 0.05,
+      `${testCase.name}: ${a.label} and ${b.label} are ${apart.toFixed(1)}pt apart in ${viewport.name}, under ${TRICK_GAP}: ${JSON.stringify({ a, b })}`
+    );
   const windows = [];
   for (const id of ['bidding-window', 'trump-picker', 'hand-result-panel']) {
     const node = page.getByTestId(id);
     if (await node.count()) windows.push(named(id, await getStableBox(node.first(), page)));
   }
   if (result) assert.equal(windows.length, 1, `${testCase.name}: the hand result shows`);
-  const apart = (a, b) =>
-    a.x + a.width <= b.x + 0.5 ||
-    b.x + b.width <= a.x + 0.5 ||
-    a.y + a.height <= b.y + 0.5 ||
-    b.y + b.height <= a.y + 0.5;
-  const check = (as, bs) => {
-    for (const [i, a] of as.entries()) {
-      for (const b of as === bs ? bs.slice(i + 1) : bs) {
-        assert.ok(
-          apart(a, b),
-          `${testCase.name}: ${a.label} overlaps ${b.label} in ${viewport.name}: ${JSON.stringify({ a, b })}`
-        );
-      }
-    }
-  };
-  check(seats, seats);
   // The hand's result dims the seats under it on purpose (PID-236); it only keeps off the hands.
-  check(seats, [...handRows, ...fronts, ...windows.filter((w) => w.label !== 'hand-result-panel')]);
-  check(handRows, [...fronts, ...windows]);
-  check(fronts, fronts);
+  for (const w of windows)
+    for (const b of [
+      ...handRows,
+      ...fronts,
+      ...(w.label === 'hand-result-panel' ? [] : seats.flat()),
+    ])
+      assert.ok(
+        gap(w, b) >= 0,
+        `${testCase.name}: ${w.label} overlaps ${b.label} in ${viewport.name}`
+      );
   // Landscape phones show no bid line or Last trick; the score panel opens the log.
   assert.equal(await page.getByTestId('last-trick').count(), 0, 'landscape phones: no Last trick');
   assert.equal(
@@ -4890,14 +4972,18 @@ async function assertTwoRows(page, testCase, viewport) {
 // Folded backs stay in their seat's hand area, never on any Skia played card,
 // including the retained history. Read actual sprite transforms, not DOM proxies.
 async function assertFoldGeometry(page, testCase, viewport) {
-  const expected = testCase.playedCount ?? (testCase.countHelp ? 8 : 0);
+  // Landscape phones show only the trick being played (PID-307).
+  const expected =
+    clearsTricks(viewport) && (testCase.completedFold || !testCase.playedCount)
+      ? 0
+      : (testCase.playedCount ?? (testCase.countHelp ? 8 : 0));
   await page.getByTestId(`rendered-played-card-count-${expected}`).waitFor();
   await page.waitForTimeout(450);
   const played = await page.evaluate(() =>
     window.__pidroCardMotion().filter((s) => s.kind === 'played')
   );
   assert.equal(played.length, expected, 'The overlap check must see every played card');
-  if (testCase.playedCount) {
+  if (testCase.playedCount && expected) {
     assert.ok(played.some((s) => s.key.endsWith('north-hearts_6')));
     const seat = Object.keys(testCase.fold)[0];
     assert.ok(
@@ -5600,7 +5686,8 @@ async function main() {
           return ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(
             viewport.name
           );
-        if (testCase.twoRows) return ['landscape', 'android-landscape'].includes(viewport.name);
+        if (testCase.twoRows)
+          return ['landscape', 'android-landscape', 'small-landscape'].includes(viewport.name);
         if (testCase.newTableFixture)
           return [
             'portrait',
@@ -5946,10 +6033,15 @@ async function main() {
                 };
               });
             }
-            await assertPlayMotion(page, testCase.playPosition);
+            await assertPlayMotion(page, testCase.playPosition, caseViewport);
           }
           if (testCase.sweepWinner) {
-            await assertCardCollection(page, testCase.sweepWinner, testCase.reducedMotion);
+            await assertCardCollection(
+              page,
+              testCase.sweepWinner,
+              testCase.reducedMotion,
+              caseViewport
+            );
           }
           if (testCase.verifyDealerCutCards) {
             await assertDealerCutCards(page, viewport);

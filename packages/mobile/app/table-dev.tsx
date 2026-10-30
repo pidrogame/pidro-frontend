@@ -135,6 +135,38 @@ const BOT_TRICK = [
   { player: 'east', card: heart(4) },
 ];
 const BOT_TRICK_HAND: Card[] = [heart(14), heart(10), heart(5), heart(2)];
+// PID-307: `trick=third` has two tricks taken and the third with all four
+// cards down; `trick=seven` has East, who kept seven trumps, put two cards
+// into the first trick. Each seat shows only the trick on the table.
+const play = (player: Position, rank: number) => ({ player, card: heart(rank) });
+const BOT_TRICKS_TAKEN = [
+  {
+    cards: [...BOT_TRICK, { player: 'south', card: BOT_TRICK_HAND[0] }],
+    winner: 'south',
+    points: 1,
+    two_of_trump: null,
+  },
+  {
+    cards: [play('south', 10), play('west', 7), play('north', 8), play('east', 3)],
+    winner: 'south',
+    points: 1,
+    two_of_trump: null,
+  },
+];
+const TRICKS: Record<string, { taken: typeof BOT_TRICKS_TAKEN; current: unknown[]; hand: Card[] }> =
+  {
+    full: { taken: [], current: [...BOT_TRICK, play('south', 14)], hand: BOT_TRICK_HAND.slice(1) },
+    third: {
+      taken: BOT_TRICKS_TAKEN,
+      current: [play('south', 5), play('west', 12), play('north', 6), play('east', 11)],
+      hand: [heart(2)],
+    },
+    seven: {
+      taken: [],
+      current: [...BOT_TRICK, play('east', 3), play('south', 14)],
+      hand: BOT_TRICK_HAND.slice(1),
+    },
+  };
 // `invitation=partner|opponent|rules`: in a game with bots, Bertil holds a seat
 // for you (PID-258); `rules` is an older server that does not say as what.
 const BERTIL: SeatInvitation = {
@@ -605,8 +637,8 @@ function TableDevHarness() {
             connected={params.connection !== 'lost'}
             bidRound={BID_ROUNDS[params.bids ?? ''] ?? null}
             outPlayers={OUT_PLAYERS[params.out as keyof typeof OUT_PLAYERS] ?? null}
-            botTrick={params.trick === 'bots' || params.trick === 'full'}
-            fullTrick={params.trick === 'full'}
+            botTrick={params.trick === 'bots' || !!TRICKS[params.trick ?? '']}
+            trick={TRICKS[params.trick ?? '']}
             botCrew={fixture === 'bot-crew'}
             botTurn={params.botTurn}
             botHand={Number(params.botHand) || 4}
@@ -850,7 +882,7 @@ function RolePreview({
   bidder = 'east',
   longNames = false,
   botTrick = false,
-  fullTrick = false,
+  trick,
   botCrew = false,
   botTurn = 'west',
   botHand = 4,
@@ -878,8 +910,8 @@ function RolePreview({
   /** `names=long`: ironman3001 at West and a long North name. */
   longNames?: boolean;
   botTrick?: boolean;
-  /** `trick=full` (PID-305): you have played A♥ to the bots' trick, all four cards down. */
-  fullTrick?: boolean;
+  /** `trick=full` (PID-305): you have played A♥ to the bots' trick, all four cards down; `third`, `seven` (PID-307). */
+  trick?: (typeof TRICKS)[string];
   botCrew?: boolean;
   botTurn?: Position;
   botHand?: number;
@@ -1051,12 +1083,11 @@ function RolePreview({
           north: { hand: 5 },
           east: { hand: 5 },
           west: { hand: 5 },
-          south: { hand: fullTrick ? BOT_TRICK_HAND.slice(1) : BOT_TRICK_HAND },
+          south: { hand: trick?.hand ?? BOT_TRICK_HAND },
         },
         highest_bid: { position: 'east', amount: 6 },
-        current_trick: fullTrick
-          ? [...BOT_TRICK, { player: 'south', card: BOT_TRICK_HAND[0] }]
-          : BOT_TRICK,
+        tricks: trick?.taken ?? [],
+        current_trick: trick?.current ?? BOT_TRICK,
       }),
       ...(details && {
         highest_bid: { position: bidder, amount: 7 },
@@ -1170,7 +1201,7 @@ function RolePreview({
     details,
     bidder,
     botTrick,
-    fullTrick,
+    trick,
     botCrew,
     botTurn,
     botHand,
