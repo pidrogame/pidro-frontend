@@ -1,9 +1,10 @@
 /**
  * Release gate: refuse to ship a commit that CI hasn't proven.
  *
- * Checks that the working tree is clean, HEAD is on main and pushed, and the
- * Frontend CI's aggregate for HEAD (quality, visuals, game and account e2e) is green —
- * then hands off to EAS:
+ * Checks that the working tree is clean, HEAD is on main and pushed, and a full
+ * Frontend CI run for HEAD (quality, every visual, game and account e2e) is green —
+ * a push that ran only what it touched does not count; start the release test from
+ * Actions → Frontend CI → Run workflow — then hands off to EAS:
  *
  *   node scripts/ship.mjs ota     # eas update  --channel production --environment production
  *   node scripts/ship.mjs build   # eas build   --platform ios --profile production
@@ -24,7 +25,7 @@ if (!['ota', 'build'].includes(mode)) {
   process.exit(1);
 }
 
-const REQUIRED_CHECKS = ['Frontend ready'];
+const REQUIRED_CHECKS = ['Frontend ready (full)'];
 
 function sh(cmd) {
   return execSync(cmd, { encoding: 'utf8' }).trim();
@@ -58,7 +59,10 @@ if (skipGate) {
     );
     const relevant = REQUIRED_CHECKS.map((name) => ({
       name,
-      run: checks.find((check) => check.name === name),
+      // A push and a release test can both run everything on one commit; one green is enough.
+      run: checks
+        .filter((check) => check.name === name)
+        .sort((a, b) => (b.conclusion === 'success') - (a.conclusion === 'success'))[0],
     }));
 
     const missing = relevant.filter(({ run }) => !run);
@@ -90,15 +94,7 @@ const command =
   mode === 'ota'
     ? [
         'eas',
-        [
-          'update',
-          '--channel',
-          'production',
-          '--message',
-          subject,
-          '--environment',
-          'production',
-        ],
+        ['update', '--channel', 'production', '--message', subject, '--environment', 'production'],
       ]
     : ['eas', ['build', '--platform', 'ios', '--profile', 'production']];
 

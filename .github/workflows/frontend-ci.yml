@@ -4,12 +4,21 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The release test: Actions → Frontend CI → Run workflow. It never publishes a beta
+  # update; beta-update.yml publishes green pushes only.
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run everything (every case, every viewport, Game e2e, all account journeys)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
+# A release test never cancels a push's run, or the other way round.
 concurrency:
-  group: frontend-ci-${{ github.ref }}
+  group: frontend-ci-${{ github.event_name == 'workflow_dispatch' && 'release-' || '' }}${{ github.ref }}
   cancel-in-progress: true
 
 # Faster runners: install the Blacksmith GitHub app (blacksmith.sh) on this
@@ -18,6 +27,65 @@ concurrency:
 # Unset the variable to fall back to GitHub-hosted runners.
 
 jobs:
+  # What this push runs (scripts/ci-affected.mjs): the changes since the last green
+  # push on main, mapped to UI cases and e2e suites. Anything unclear runs everything.
+  select:
+    name: Select checks
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      full: ${{ steps.select.outputs.full }}
+      ui: ${{ steps.select.outputs.ui }}
+      ui_cases: ${{ steps.select.outputs.ui_cases }}
+      shards: ${{ steps.select.outputs.shards }}
+      game: ${{ steps.select.outputs.game }}
+      accounts: ${{ steps.select.outputs.accounts }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.6
+
+      - name: Cache bun packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+
+      - name: Install workspace dependencies
+        run: bun install --frozen-lockfile
+
+      # A push is measured from the last green push on main, not from the previous push:
+      # a newer push cancels an older run, and a red main has not shipped its changes yet.
+      - name: Pick what this run checks
+        id: select
+        working-directory: packages/mobile
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          FULL: ${{ inputs.full }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          case "$EVENT" in
+            push)
+              base=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "Frontend CI" --branch main \
+                --event push --status success --limit 1 --json headSha -q '.[0].headSha' || true) ;;
+            pull_request) base=$PR_BASE ;;
+            workflow_dispatch)
+              if [ "$FULL" != false ]; then base=--full; else base=$(git rev-parse HEAD~1); fi ;;
+            *) base= ;;
+          esac
+          node scripts/ci-affected.mjs "$base" "$GITHUB_SHA"
+
   integration-backend:
     name: Resolve integration backend
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
@@ -86,43 +154,19 @@ jobs:
             exit 1
           fi
 
-  # Balance the full viewport/case matrix across ten jobs by recorded duration
-  # (scripts/ui-case-costs.json). The aggregate verifies exact coverage before
-  # comparing the merged captures.
+  # Balance the selected viewport/case matrix across up to ten jobs by recorded duration
+  # (scripts/ui-case-costs.json), about forty screens each, plus the UI suites the change
+  # touches. The aggregate verifies exact coverage before comparing the merged captures.
   ui-grammar-shard:
     name: UI grammar (${{ matrix.shard }})
+    needs: select
+    if: needs.select.outputs.ui == 'true'
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - shard: matrix-1
-            partition: 1/10
-          - shard: matrix-2
-            partition: 2/10
-          - shard: matrix-3
-            partition: 3/10
-          - shard: matrix-4
-            partition: 4/10
-          - shard: matrix-5
-            partition: 5/10
-          - shard: matrix-6
-            partition: 6/10
-          - shard: matrix-7
-            partition: 7/10
-          - shard: matrix-8
-            partition: 8/10
-          - shard: matrix-9
-            partition: 9/10
-          - shard: matrix-10
-            partition: 10/10
-          - shard: table-behavior
-            partition: ''
-          - shard: lobby-and-creation
-            partition: ''
-          - shard: seats-and-game-over
-            partition: ''
+        include: ${{ fromJSON(needs.select.outputs.shards) }}
 
     steps:
       - name: Check out repository
@@ -172,6 +216,7 @@ jobs:
           NODE_OPTIONS: --max-old-space-size=8192 --require ./scripts/tailwind-v3-resolve.cjs
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_PARTITION: ${{ matrix.partition }}
+          UI_CASES: ${{ needs.select.outputs.ui_cases }}
           UI_REPORT_PATH: /tmp/ui-reports/${{ matrix.shard }}.json
           UI_SHARD: ${{ matrix.shard }}
         run: |
@@ -262,8 +307,9 @@ jobs:
 
   ui-grammar:
     name: UI grammar
-    needs: ui-grammar-shard
-    if: ${{ !cancelled() }}
+    needs: [select, ui-grammar-shard]
+    # Skipped only when the selection ran and chose nothing visual.
+    if: ${{ !cancelled() && needs.select.outputs.ui != 'false' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
 
@@ -292,12 +338,13 @@ jobs:
           path: /tmp/ui-grammar-screens
           merge-multiple: true
 
-      # Keep this artifact capture-only: the baseline updater downloads it verbatim.
+      # Keep this artifact capture-only: the baseline updater downloads it verbatim, and
+      # overlays a partial run's captures instead of replacing every baseline.
       - name: Upload UI grammar screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ui-grammar-screenshots
+          name: ui-grammar-screenshots${{ needs.select.outputs.full != 'true' && '-partial' || '' }}
           path: /tmp/ui-grammar-screens/
           if-no-files-found: ignore
           retention-days: 14
@@ -315,17 +362,20 @@ jobs:
           path: /tmp/ui-reports
           merge-multiple: true
 
+      # Every selected case exactly once; on a full run that is the complete inventory.
       - name: Require the complete visual inventory
         shell: bash
         working-directory: packages/mobile
         env:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
+          UI_CASES: ${{ needs.select.outputs.ui_cases }}
         run: node scripts/verify-ui-grammar.mjs --verify-coverage /tmp/ui-reports | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Compare against visual baselines
         working-directory: packages/mobile
         env:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
+          UI_DIFF_PARTIAL: ${{ needs.select.outputs.full != 'true' && '1' || '' }}
         run: bun run test:ui:diff
 
       - name: Upload visual diffs
@@ -339,21 +389,23 @@ jobs:
 
   game-e2e:
     name: Game e2e
-    needs: integration-backend
+    needs: [select, integration-backend]
+    if: needs.select.outputs.game == 'true'
     uses: ./.github/workflows/game-e2e.yml
     with:
       backend-sha: ${{ needs.integration-backend.outputs.sha }}
 
   account-e2e-shards:
     name: Account shards
-    needs: integration-backend
+    needs: [select, integration-backend]
+    if: needs.select.outputs.accounts == 'true'
     uses: ./.github/workflows/account-e2e.yml
     with:
       backend-sha: ${{ needs.integration-backend.outputs.sha }}
 
   account-e2e:
     name: Account e2e
-    needs: account-e2e-shards
+    needs: [select, account-e2e-shards]
     if: ${{ !cancelled() }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
@@ -361,20 +413,31 @@ jobs:
       - name: Require every account shard and expiry check to pass
         env:
           RESULT: ${{ needs.account-e2e-shards.result }}
+          SELECTED: ${{ needs.select.outputs.accounts }}
         run: |
-          echo "Account journeys: $RESULT"
+          echo "Account journeys: $RESULT (selected: ${SELECTED:-unknown})"
+          if [ "$SELECTED" = false ] && [ "$RESULT" = skipped ]; then exit 0; fi
           test "$RESULT" = success
 
   ready:
-    name: Frontend ready
-    needs: [quality, ui-grammar, game-e2e, account-e2e]
+    # ship.mjs releases to production only on a run that checked everything.
+    name: ${{ needs.select.outputs.full == 'true' && 'Frontend ready (full)' || 'Frontend ready' }}
+    needs: [select, quality, ui-grammar, game-e2e, account-e2e]
     if: ${{ !cancelled() }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
+      # A check may be skipped only because the selection said so; anything else fails.
       - name: Require all regression checks
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          echo "$RESULTS" | jq -e 'all(.[]; .result == "success")'
+          echo "$RESULTS" | jq -e '
+            .select.outputs as $selected
+            | .select.result == "success"
+            and all(.quality, .["account-e2e"]; .result == "success")
+            and (.["ui-grammar"].result == "success"
+              or (.["ui-grammar"].result == "skipped" and $selected.ui == "false"))
+            and (.["game-e2e"].result == "success"
+              or (.["game-e2e"].result == "skipped" and $selected.game == "false"))'

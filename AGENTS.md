@@ -15,6 +15,9 @@ Trunk-based: no pull requests.
    `main`, the Beta update workflow publishes that commit over the air to beta testers,
    or says in its run summary that a new store build is needed (native change).
    Watch `main` until it is green; if you turned it red, fix forward right away.
+   A push runs only the checks its change touches (`packages/mobile/scripts/ci-affected.mjs`;
+   the "Select checks" summary says why). The full release test is Actions → Frontend CI →
+   Run workflow; it runs everything and never publishes.
 4. **Roll back** with `node scripts/rollback-ota.mjs` from `packages/mobile`.
    When to roll back and when to fix forward: [docs/shipping.md](docs/shipping.md).
 

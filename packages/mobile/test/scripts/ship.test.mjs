@@ -55,7 +55,7 @@ function gate(checks, { wait = false, nextChecks } = {}) {
   return { status: result.status, output: result.stdout + result.stderr };
 }
 
-const ready = { name: 'Frontend ready', status: 'completed', conclusion: 'success' };
+const ready = { name: 'Frontend ready (full)', status: 'completed', conclusion: 'success' };
 
 describe('shipping requires the complete regression result', () => {
   test('the old three green checks cannot release without account readiness', () => {
@@ -64,6 +64,16 @@ describe('shipping requires the complete regression result', () => {
     );
     expect(result.status).toBe(1);
     expect(result.output).toContain('Frontend ready');
+  });
+
+  test('a push that ran only what it touched cannot release', () => {
+    const result = gate([{ ...ready, name: 'Frontend ready' }]);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain('Frontend ready (full)');
+  });
+
+  test('one green full run is enough when another on the same commit failed', () => {
+    expect(gate([{ ...ready, conclusion: 'failure' }, ready]).status).toBe(0);
   });
 
   for (const conclusion of ['failure', 'cancelled', 'skipped', 'timed_out']) {
