@@ -452,7 +452,7 @@ export function SeatLayer({
             dealerTrail={dealerTrail}
             nameRoom={
               L.sidesUnder && (rel === 'east' || rel === 'west')
-                ? SIDE_SEAT_WIDTH
+                ? (L.sideSeatWidth ?? SIDE_SEAT_WIDTH)
                 : !portrait
                   ? reach(rel)
                   : rel === 'north' || rel === 'south'
@@ -463,7 +463,7 @@ export function SeatLayer({
               tight && rel === 'south'
                 ? { width: size + PidroSpacing.xs * 2 }
                 : L.sidesUnder && (rel === 'east' || rel === 'west')
-                  ? { width: SIDE_SEAT_WIDTH }
+                  ? { width: L.sideSeatWidth ?? SIDE_SEAT_WIDTH }
                   : seatWidth(rel),
               data.out && styles.out,
             ]}

@@ -96,6 +96,10 @@ describe('side stacks and the hand', () => {
     // trick, as Classic does (PID-308).
     const phone = computeLayout(844, 390, { top: 0, bottom: 0, left: 0, right: 0 });
     expect(phone.sidesUnder).toBe(true);
+    // A TCL 5053Y: 780×360 with its nav bar's 50pt on the right still seats them so.
+    const tcl = computeLayout(780, 360, { top: 0, bottom: 0, left: 0, right: 50 });
+    expect(tcl.sidesUnder).toBe(true);
+    expect(tcl.sideSeatWidth).toBeGreaterThanOrEqual(84);
     expect(phone.sides.cy).toBe(phone.trick.cy);
     expect(phone.seats.west.y).toBe(phone.trick.cy);
 
@@ -724,12 +728,12 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
           const eastTop = landscapeSideSeatTop(L, 'east', h);
           seats.west = {
             left: westLeft,
-            right: westLeft + SIDE_SEAT_WIDTH,
+            right: westLeft + L.sideSeatWidth,
             top: westTop,
             bottom: westTop + h,
           };
           seats.east = {
-            left: eastRight - SIDE_SEAT_WIDTH,
+            left: eastRight - L.sideSeatWidth,
             right: eastRight,
             top: eastTop,
             bottom: eastTop + h,

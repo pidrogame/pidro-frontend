@@ -49,6 +49,8 @@ export type TableLayout = {
    * names run under their avatars, beside their backs (PID-308).
    */
   sidesUnder?: boolean;
+  /** How wide those side seats are. */
+  sideSeatWidth?: number;
   /** Vertical center of the east and west card-back stacks. */
   sides: { cy: number };
   seats: Record<RelativePosition, Seat>;
@@ -389,8 +391,15 @@ export function landscapeSideSeatTop(L: TableLayout, rel: 'east' | 'west', seatH
   const half = sideStackReach(L.cardW) / 2;
   return rel === 'west' ? L.sides.cy - half + BADGE_RISE : L.sides.cy + half - seatHeight;
 }
-/** Landscape phones: a side seat's name and line run under its avatar, this wide. */
+/**
+ * Landscape phones: a side seat's name and line run under its avatar, this
+ * wide where there is room, and never narrower than SIDE_SEAT_LEAST (a nav
+ * bar's inset can take the rest, as on a TCL 5053Y).
+ */
 export const SIDE_SEAT_WIDTH = 108;
+const SIDE_SEAT_LEAST = 84;
+/** From a side stack's inner edge to its played card's centre, a full side seat between. */
+const sideSeatReach = (cardH: number) => SIDE_SEAT_GAP + SIDE_SEAT_WIDTH + TRICK_GAP + cardH / 2;
 
 /**
  * The centre of landscape South's seat: level with your hand, on landscape
@@ -836,7 +845,18 @@ export function computeLayout(
           north: { x: cx, y: trickCy - reach },
           south: { x: cx, y: trickCy + reach },
           west: { x: sideSpot(insets.left), y: sideCy },
-          east: { x: width - sideSpot(insets.right), y: sideCy },
+          // A nav bar's inset narrows East's side: its cards come in, short
+          // of your and North's card, to leave its seat room (PID-308).
+          east: {
+            x: Math.max(
+              cx + cardW / 2 + TRICK_GAP + cardH / 2,
+              Math.min(
+                width - sideSpot(insets.right),
+                width - sideStackInner(cardW, insets.right) - sideSeatReach(cardH)
+              )
+            ),
+            y: sideCy,
+          },
         }
       : undefined,
     tight,
@@ -858,9 +878,12 @@ export function computeLayout(
   if (twoRows && L.front) {
     const room = (spot: number, edge: number) =>
       spot - cardH / 2 - TRICK_GAP - sideStackInner(cardW, edge) - SIDE_SEAT_GAP;
-    L.sidesUnder =
-      Math.min(room(L.front.west.x, insets.left), room(width - L.front.east.x, insets.right)) >=
-      SIDE_SEAT_WIDTH;
+    const least = Math.min(
+      room(L.front.west.x, insets.left),
+      room(width - L.front.east.x, insets.right)
+    );
+    L.sidesUnder = least >= SIDE_SEAT_LEAST;
+    L.sideSeatWidth = Math.min(SIDE_SEAT_WIDTH, least);
     if (L.sidesUnder) {
       L.band = { top: trickCy - reach - cardH / 2, bottom: trickCy + reach + cardH / 2 };
       L.sides.cy = trickCy;
