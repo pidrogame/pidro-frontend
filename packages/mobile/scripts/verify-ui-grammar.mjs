@@ -5655,6 +5655,10 @@ async function assertSeatPicker(page, testCase, viewport) {
 }
 
 async function main() {
+  if (process.argv[2] === '--list-cases') {
+    console.log(JSON.stringify(allCases.map(({ name, path }) => ({ name, path }))));
+    return;
+  }
   const cases = selectCases();
   const matrix = selectViewports().flatMap((viewport) =>
     cases

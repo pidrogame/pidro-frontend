@@ -7,6 +7,9 @@
  * from a Mac will flag font/antialiasing noise, so it is wired into CI, not
  * the local loop. Refresh baselines after an intentional visual change with
  * `bun run ui:baselines` (pulls the latest green main run's captures).
+ *
+ * A push that ran only some screens (scripts/ci-affected.mjs) sets UI_DIFF_PARTIAL=1:
+ * the screens it captured are compared, the rest are left to the release test.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -28,6 +31,7 @@ const MAX_DIFF_PERCENT = Number(process.env.UI_DIFF_MAX_PERCENT ?? '2');
 // Screens with ongoing motion at capture time — not stable enough to diff.
 // The kill clears as the first card lands (PID-306): asserted, not diffed.
 const SKIP = new Set(['table-completed-trick', 'table-two-rows-kill']);
+const PARTIAL = process.env.UI_DIFF_PARTIAL === '1';
 
 if (!existsSync(baselineRoot)) {
   console.error(`no baselines at ${baselineRoot} — run \`bun run ui:baselines\` first`);
@@ -40,6 +44,7 @@ if (!existsSync(captureRoot)) {
 
 const failures = [];
 let compared = 0;
+let notCaptured = 0;
 
 for (const viewport of readdirSync(baselineRoot, { withFileTypes: true })) {
   if (!viewport.isDirectory()) continue;
@@ -51,6 +56,10 @@ for (const viewport of readdirSync(baselineRoot, { withFileTypes: true })) {
 
     const capturePath = resolve(captureRoot, viewport.name, file);
     if (!existsSync(capturePath)) {
+      if (PARTIAL) {
+        notCaptured += 1;
+        continue;
+      }
       failures.push(`missing capture for ${label} (screen removed? refresh baselines)`);
       continue;
     }
@@ -89,7 +98,10 @@ for (const viewport of readdirSync(baselineRoot, { withFileTypes: true })) {
   }
 }
 
-console.log(`visual diff: ${compared} screens compared, ${failures.length} drifted`);
+console.log(
+  `visual diff: ${compared} screens compared, ${failures.length} drifted` +
+    (PARTIAL ? `, ${notCaptured} not captured by this run` : '')
+);
 
 if (failures.length) {
   for (const failure of failures) console.error(`  ✗ ${failure}`);

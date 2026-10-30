@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { selectChecks } from '../../scripts/ci-affected.mjs';
 import { partitionCases, verifyCoverage } from '../../scripts/ui-shards.mjs';
 
 describe('visual partitions', () => {
@@ -48,14 +49,8 @@ describe('visual coverage gate', () => {
   });
 });
 
-test("CI's real matrix partitions cover every unfiltered viewport/case exactly once", () => {
+test("the release test's partitions cover every unfiltered viewport/case exactly once", () => {
   const script = fileURLToPath(new URL('../../scripts/verify-ui-grammar.mjs', import.meta.url));
-  const workflow = readFileSync(
-    new URL('../../../../.github/workflows/frontend-ci.yml', import.meta.url),
-    'utf8'
-  );
-  const configured = [...workflow.matchAll(/partition: (\d+\/\d+)/g)].map(([, value]) => value);
-  expect(configured).toEqual(Array.from({ length: 10 }, (_, index) => `${index + 1}/10`));
   const list = (partition) => {
     const result = spawnSync(process.execPath, [script, '--list'], {
       env: { ...process.env, UI_PARTITION: partition, UI_CASES: '', UI_VIEWPORTS: '' },
@@ -65,6 +60,10 @@ test("CI's real matrix partitions cover every unfiltered viewport/case exactly o
     return JSON.parse(result.stdout);
   };
   const expected = list('');
+  const configured = selectChecks({ full: true, cases: [], ids: expected })
+    .shards.map(({ partition }) => partition)
+    .filter(Boolean);
+  expect(configured).toEqual(Array.from({ length: 10 }, (_, index) => `${index + 1}/10`));
   const partitions = configured.map(list);
   expect(partitions.every((items) => items.length > 0)).toBe(true);
   expect(new Set(expected).size).toBe(expected.length);
@@ -85,6 +84,31 @@ test('the actual pixel comparison fails when captures are missing', () => {
     );
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('missing capture for');
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test('a partial run compares only what it captured, and still catches drift there', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'pidro-partial-captures-'));
+  const baselines = fileURLToPath(new URL('../ui-baselines/portrait/', import.meta.url));
+  const compare = () =>
+    spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../scripts/compare-ui-baselines.mjs', import.meta.url))],
+      { env: { ...process.env, UI_SHOT_DIR: directory, UI_DIFF_PARTIAL: '1' }, encoding: 'utf8' }
+    );
+  try {
+    mkdirSync(join(directory, 'portrait'));
+    copyFileSync(join(baselines, 'home.png'), join(directory, 'portrait/home.png'));
+    const same = compare();
+    expect(same.status).toBe(0);
+    expect(same.stdout).toContain('1 screens compared, 0 drifted');
+
+    copyFileSync(join(baselines, 'settings.png'), join(directory, 'portrait/home.png'));
+    const drifted = compare();
+    expect(drifted.status).toBe(1);
+    expect(drifted.stderr).toContain('portrait/home:');
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
