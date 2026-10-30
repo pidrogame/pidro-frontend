@@ -35,7 +35,6 @@ import {
 } from 'react-native-reanimated';
 import type { Card, Suit } from '@/types/game';
 import { trumpsIn } from '@/features/game/trump';
-import { trickOnTable } from '@/features/game/playPresentation';
 import { catchUpPace } from '@/features/game/catchUp';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playSelectionHaptic } from '@/utils/haptics';
@@ -46,13 +45,14 @@ import {
   handScale as handScaleFor,
   handStep,
   playedCardTarget,
+  trailSpot,
   type RelativePosition,
   type TableLayout,
   heldPose,
   HELD_STYLE,
   packSpot,
 } from './layout';
-import type { TableModel } from './tableModel';
+import type { TableCard, TableModel } from './tableModel';
 import type { CardKey, CardTextures } from './cardTextures';
 import { cardKey } from './cardKey';
 import {
@@ -113,6 +113,8 @@ const PRESS_SLOP = 20;
 const PRESS_MAX_MS = 10_000;
 /** A tapped card that has not flown by then was not played; drop it back. */
 const PRESS_UNPLAYED_MS = 700;
+/** A, J, 10, 5 and 2: the cards that score in Pidro. */
+const POINT_RANKS = new Set([14, 11, 10, 5, 2]);
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
 /** The cut's winner stays lit this long before the server deals. */
 const CUT_WINNER_READ_MS = 700;
@@ -185,7 +187,6 @@ export function useCardSprites({
   /* eslint-enable react-hooks/rules-of-hooks */
 
   const [slots, setSlots] = useState<SlotInfo[]>(() => Array(MAX).fill(null));
-  const [cleared, setCleared] = useState(0);
   const reduceMotion = useReducedMotion();
 
   const keyToSlot = useRef<Map<string, number>>(new Map());
@@ -318,13 +319,15 @@ export function useCardSprites({
         : []
     );
 
-    // Landscape phones show only the trick on the table (PID-307), and a
-    // card of yours lifts only into your empty spot, never onto your card
-    // still lying there from the trick just taken.
-    const played = L.front
-      ? trickOnTable(model.playedCards, Date.now(), model.collectAt)
-      : model.playedCards;
-    const spotTaken = !!L.front && (played.south?.length ?? 0) > 0;
+    const played = model.playedCards;
+    const trickNo = (tc: TableCard) => Number(/^trick-(\d+)-/.exec(tc.key)?.[1] ?? -1);
+    const all = REL.flatMap((rel) => played[rel] ?? []);
+    const liveTrick = all.some((tc) => tc.isCurrentTrick)
+      ? Math.max(...all.filter((tc) => tc.isCurrentTrick).map(trickNo))
+      : Math.max(-1, ...all.map(trickNo));
+    // A card of yours lifts only into your empty spot, never onto your card
+    // still lying there from the trick just taken (PID-307).
+    const spotTaken = !!L.front && (played.south ?? []).some((tc) => trickNo(tc) === liveTrick);
 
     model.yourHand.forEach((tc, i) => {
       const s = handSlot(i);
@@ -376,10 +379,25 @@ export function useCardSprites({
         topacity: 1,
       });
     });
+    // Landscape phones (PID-308): the trick being played lies on the cross;
+    // each seat's earlier cards this hand trail behind its card, smaller and
+    // shaded, all still there to be counted. With "Help me keep count" on,
+    // the point cards in the trail keep their light.
     REL.forEach((rel) => {
       const cards = played[rel] ?? [];
+      const live = cards.filter((tc) => trickNo(tc) === liveTrick);
+      const earlier = cards.filter((tc) => trickNo(tc) !== liveTrick);
       cards.forEach((tc, i) => {
-        const target = playedCardTarget(L, rel, i, cards.length);
+        let target = playedCardTarget(L, rel, i, cards.length);
+        let shade = false;
+        if (L.front) {
+          const li = live.indexOf(tc);
+          if (li >= 0) target = playedCardTarget(L, rel, li, live.length);
+          else {
+            target = trailSpot(L, rel, earlier.length - earlier.indexOf(tc));
+            shade = !(model.countHelp && POINT_RANKS.has(tc.card.rank));
+          }
+        }
         const seat = L.seats[rel];
         desired.push({
           key: tc.key,
@@ -394,7 +412,7 @@ export function useCardSprites({
           ox: seat.x,
           oy: seat.y,
           legal: false,
-          blocked: false,
+          blocked: shade,
           previewed: false,
           topacity: 1,
           ownPlay: rel === 'south',
@@ -774,14 +792,8 @@ export function useCardSprites({
     setSlots(nextSlots);
     prevModel.current = model;
     prevLayout.current = L;
-    // A finished trick clears once its hold is over: look again then.
-    const holdLeft = (model.collectAt ?? 0) - Date.now();
-    if (L.front && Number.isFinite(holdLeft) && holdLeft > 0) {
-      const timer = setTimeout(() => setCleared((n) => n + 1), holdLeft + 1);
-      return () => clearTimeout(timer);
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, L, enabled, reduceMotion, previewSuit, cleared]);
+  }, [model, L, enabled, reduceMotion, previewSuit]);
 
   useEffect(() => {
     const cutCount = model ? Object.keys(model.dealerCuts).length : 0;

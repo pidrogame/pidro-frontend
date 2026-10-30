@@ -44,6 +44,11 @@ export type TableLayout = {
    */
   front?: Record<RelativePosition, { x: number; y: number }>;
   band?: { top: number; bottom: number };
+  /**
+   * Landscape phones with room beside the side stacks: East's and West's
+   * names run under their avatars, beside their backs (PID-308).
+   */
+  sidesUnder?: boolean;
   /** Vertical center of the east and west card-back stacks. */
   sides: { cy: number };
   seats: Record<RelativePosition, Seat>;
@@ -191,12 +196,12 @@ export const TRICK_GAP = 12;
 export const TRUMP_MARK = 0.7;
 /**
  * How much of your hand a landscape phone shows at least, where the table is
- * too short for all of it: its rank and suit (the top 58% of the card art),
+ * too short for all of it: its rank, suit and the top of its art,
  * and never less than a 44pt tap target.
  */
-const handShown = (cardH: number) => Math.max(44, cardH * 0.62);
-/** Classic's side cards lie this far out from the trick's center to the screen's edge. */
-const SIDE_REACH = 0.62;
+const handShown = (cardH: number) => Math.max(44, cardH * 0.8);
+/** The least of it: its rank and suit (the top 58% of the card art). */
+const handLeast = (cardH: number) => Math.max(44, cardH * 0.62);
 /** Below a landscape avatar, its level chip; above it, the winning bid's badge. */
 const LEVEL_HANG = 9;
 const BADGE_RISE = 3;
@@ -376,6 +381,18 @@ export const AVATAR_SIZE: Record<Profile, number> = {
 /** Between a landscape avatar and its name. */
 export const seatNameGap = (profile: Profile) => (profile.startsWith('tablet') ? 14 : 10);
 /**
+ * Landscape phones: each side seat sits beside its backs, on the inner side,
+ * West's at their top and East's at their foot, as Classic staggers them,
+ * so neither runs into the scores or your seat; its name runs under it.
+ */
+export function landscapeSideSeatTop(L: TableLayout, rel: 'east' | 'west', seatHeight: number) {
+  const half = sideStackReach(L.cardW) / 2;
+  return rel === 'west' ? L.sides.cy - half + BADGE_RISE : L.sides.cy + half - seatHeight;
+}
+/** Landscape phones: a side seat's name and line run under its avatar, this wide. */
+export const SIDE_SEAT_WIDTH = 108;
+
+/**
  * The centre of landscape South's seat: level with your hand, on landscape
  * phones never so low that its level chip leaves the table (PID-307).
  */
@@ -516,6 +533,28 @@ export function playedCardTarget(
         ? L.trick.cy + L.trick.r
         : L.trick.cy + off * spacing * (rel === 'east' ? -1 : 1);
   return { x, y, rot, scale: pileScale };
+}
+
+/**
+ * Landscape phones (PID-308): a seat's earlier cards this hand trail behind
+ * its played card, smaller: sideways at North and South, down East's and
+ * West's columns, away from the seats above them on narrower tables. `back` counts from the card nearest it (1).
+ */
+export const TRAIL_SCALE = 0.72;
+const TRAIL_NEAR = 0.42;
+const TRAIL_STEP = 0.26;
+/** How far North's or your trail reaches left of its card's centre, five cards long. */
+const trailReach = (cardW: number) =>
+  cardW * (TRAIL_NEAR + 4 * TRAIL_STEP) + (cardW * TRAIL_SCALE) / 2;
+export function trailSpot(L: TableLayout, rel: RelativePosition, back: number) {
+  const spot = playedCardTarget(L, rel, 0, 1);
+  const d = L.cardW * (TRAIL_NEAR + (back - 1) * TRAIL_STEP);
+  return {
+    ...spot,
+    x: spot.x - (rel === 'north' || rel === 'south' ? d : 0),
+    y: spot.y + (rel === 'west' || rel === 'east' ? d : 0),
+    scale: spot.scale * TRAIL_SCALE,
+  };
 }
 
 /** A card in a pile in front of a seat (thrown or killed): a played card's size on landscape phones. */
@@ -683,7 +722,14 @@ export function computeLayout(
   const crossY = crossTop <= crossBottom ? (crossTop + crossBottom) / 2 : crossTop;
   const handTop = crossY + reach + cardH / 2 + TRICK_GAP + held;
   // Shown down to the screen's edge: a home indicator's strip still takes taps.
-  const rise = Math.max(0, handShown(cardH) - (height - handTop));
+  // Up to `handShown` of it where the cross has room to rise; never less than
+  // its rank and suit, even if the cross then rises past North's row.
+  const shown = height - handTop;
+  const rise = Math.max(
+    0,
+    Math.min(handShown(cardH) - shown, crossY - crossTop),
+    handLeast(cardH) - shown
+  );
   const handY = portrait
     ? portraitHandY
     : twoRows
@@ -723,10 +769,15 @@ export function computeLayout(
         )
       : 0;
   const sideCy = portrait ? trickCy + portraitDrop : trickCy + (twoRows ? 0 : LANDSCAPE_SIDE_DROP);
-  // West's and East's spots, in from their edge: Classic's share of the way
-  // out from the middle, clear of their stacks.
+  // West's and East's spots: in toward the trump mark, just clear of the
+  // trail North or you leave in front of you over a hand (PID-308), and of
+  // their stacks.
+  const sidePile = trailReach(cardW);
   const sideSpot = (edge: number) =>
-    Math.max(cx - (cx - edge) * SIDE_REACH, sideStackInner(cardW, edge) + TRICK_GAP + cardH / 2);
+    Math.max(
+      cx - sidePile - TRICK_GAP - cardH / 2,
+      sideStackInner(cardW, edge) + TRICK_GAP + cardH / 2
+    );
   // Played cards leave from here; portrait keeps its historical screen-center origin.
   const sideY = portrait ? cy : sideCy;
 
@@ -800,19 +851,31 @@ export function computeLayout(
           maxWidth: 2 * Math.min(landscapeHandCx - handRoomLeft, handRoomRight - landscapeHandCx),
         },
   };
-  // East's and West's columns: under their seat, above yours. Their backs
-  // hang there too, under their seat, as in Classic.
-  if (twoRows) {
-    L.band = {
-      top:
-        sideSeatTop(L, { tableTop, seatHeight: 0, headerBottom: 0 }) +
-        AVATAR_SIZE[profile] +
-        LEVEL_HANG +
-        TRICK_GAP,
-      bottom: landscapeSouthY(L) - AVATAR_SIZE[profile] / 2 - TRICK_GAP,
-    };
-    // 2pt for a held back's slight tilt and offset (`heldPose`).
-    L.sides.cy = L.band.top + 2 + sideStackReach(cardW) / 2;
+  // Where a side seat fits between its backs and its played cards, the backs
+  // hang centred down their edge, as in Classic, and the played cards run down
+  // a column between North's trail and yours (PID-308). Narrower tables hang
+  // the backs under their seats (PID-307).
+  if (twoRows && L.front) {
+    const room = (spot: number, edge: number) =>
+      spot - cardH / 2 - TRICK_GAP - sideStackInner(cardW, edge) - SIDE_SEAT_GAP;
+    L.sidesUnder =
+      Math.min(room(L.front.west.x, insets.left), room(width - L.front.east.x, insets.right)) >=
+      SIDE_SEAT_WIDTH;
+    if (L.sidesUnder) {
+      L.band = { top: trickCy - reach - cardH / 2, bottom: trickCy + reach + cardH / 2 };
+      L.sides.cy = trickCy;
+    } else {
+      L.band = {
+        top:
+          sideSeatTop(L, { tableTop, seatHeight: 0, headerBottom: 0 }) +
+          AVATAR_SIZE[profile] +
+          LEVEL_HANG +
+          TRICK_GAP,
+        bottom: landscapeSouthY(L) - AVATAR_SIZE[profile] / 2 - TRICK_GAP,
+      };
+      // 2pt for a held back's slight tilt and offset (`heldPose`).
+      L.sides.cy = L.band.top + 2 + sideStackReach(cardW) / 2;
+    }
   }
   return L;
 }

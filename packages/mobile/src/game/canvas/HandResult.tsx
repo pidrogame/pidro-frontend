@@ -17,7 +17,6 @@ import Animated, {
   withDelay,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VictoryConfetti, VictoryRays } from '@/components/game/VictoryConfetti';
 import { TextLink } from '@/components/ui/TextLink';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
@@ -37,7 +36,7 @@ import { SUIT_SYMBOLS } from '@/utils/cards';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playOurPidroHaptic } from '@/game/useGameHaptics';
 import { formatNumber, useTranslation } from '@/i18n';
-import { TABLE_HEADER, headerTop, useTableSize } from './TableChrome';
+import { TABLE_HEADER, headerTop, useTableSize, useTableInsets } from './TableChrome';
 import { computeLayout } from './layout';
 import type { TableModel } from './tableModel';
 import { BoxShadow } from './bakedBlur';
@@ -145,7 +144,7 @@ export function HandResultPanel({
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
   const { width, height } = useTableSize();
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   const L = useMemo(
     () => computeLayout(width, height, insets, topReserve, bottomReserve),
     [width, height, insets, topReserve, bottomReserve]

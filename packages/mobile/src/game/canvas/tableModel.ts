@@ -98,6 +98,8 @@ export type TableModel = {
    * Only with "Help me keep count" on (PID-230); null otherwise.
    */
   winningKey: string | null;
+  /** "Help me keep count" is on. */
+  countHelp: boolean;
   /** What the trick in progress holds for its winner, as the server counts it. */
   trickPoints: number | null;
   /** The card played last in the trick in progress. */
@@ -383,6 +385,7 @@ export function buildTableModel(input: TableModelInput): TableModel {
     legalPlayKeys,
     canPlay: input.canPlay,
     winningKey: input.countHelp ? winningKey : null,
+    countHelp: !!input.countHelp,
     trickPoints,
     latestPlayKey: latestPlay ? ((currentTrick[latestPlay] ?? null)?.key ?? null) : null,
     lastTrick,

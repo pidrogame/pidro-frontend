@@ -9,7 +9,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameCanvas from './GameCanvas';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
 import type { SeatLine } from '@/features/game/seatLine';
@@ -18,7 +17,13 @@ import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
 import { Scoreboard } from './Scoreboard';
 import { handHistory } from './DevOverlays';
 import { TableSettings } from './TableSettings';
-import { TableChromeBars, headerTop, useTableReserves, useTableSize } from './TableChrome';
+import {
+  TableChromeBars,
+  headerTop,
+  useTableReserves,
+  useTableSize,
+  useTableInsets,
+} from './TableChrome';
 import { computeLayout, showsTicker, tickerPlacement } from './layout';
 import { useCardTextures } from './cardTextures';
 import { buildTableModel } from './tableModel';
@@ -373,7 +378,7 @@ export default function GameCanvasDev({
   const { bots } = useLocalSearchParams<{ bots?: string }>();
   const { locale } = useTranslation();
   const textures = useCardTextures();
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   const { width, height } = useTableSize();
   const reserves = useTableReserves();
   const { topReserve, bottomReserve } = reserves;

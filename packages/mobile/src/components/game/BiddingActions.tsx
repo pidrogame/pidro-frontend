@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useTableSize } from '@/game/canvas/TableChrome';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTableSize, useTableInsets } from '@/game/canvas/TableChrome';
 import { pushGameAction } from '@/channels/hooks/useGameChannel';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
@@ -41,7 +40,7 @@ export function BiddingActions({
   const serverState = useGameStore((state) => state.serverState);
   const legalActions = useGameStore((state) => state.legalActions);
   const { width, height } = useTableSize();
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   const landscape = width > height;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<unknown>(null);

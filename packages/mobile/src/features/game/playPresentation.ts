@@ -25,29 +25,6 @@ export function optimisticPlay(model: TableModel, pending: PendingPlay | null, n
   };
 }
 
-const trickOf = (card: TableCard) => Number(/^trick-(\d+)-/.exec(card.key)?.[1] ?? -1);
-
-/**
- * The trick a landscape phone shows (PID-307): the one being played, or the
- * one just finished until its hold is over (`collectAt`; without a clock,
- * until the next trick starts); never an earlier one. The server keeps every
- * trick of the hand; the table does not.
- */
-export function trickOnTable(
-  played: TableModel['playedCards'],
-  now: number,
-  collectAt = Infinity
-): TableModel['playedCards'] {
-  const cards = Object.values(played).flat();
-  const last = Math.max(-1, ...cards.map(trickOf));
-  const shows = cards.some((card) => card.isCurrentTrick)
-    ? (card: TableCard) => card.isCurrentTrick
-    : (card: TableCard) => now < collectAt && trickOf(card) === last;
-  return Object.fromEntries(
-    Object.entries(played).map(([rel, seat]) => [rel, (seat ?? []).filter(shows)])
-  );
-}
-
 /** Never infer the next player or the winner; only delay the server's light. */
 export function turnLight({
   turn,

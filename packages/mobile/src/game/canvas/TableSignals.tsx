@@ -7,7 +7,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useTableSize } from './TableChrome';
+import { useTableInsets, useTableSize } from './TableChrome';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -15,7 +15,6 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PidroText } from '@/components/ui/PidroText';
 import { PidroBevel, PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { PIDRO_POINTS, whosePoints, type PointsSide } from '@/features/game/points';
@@ -46,7 +45,7 @@ type Props = {
 
 export function TableSignals({ model, topReserve = 0, bottomReserve = 0 }: Props) {
   const { width, height } = useTableSize();
-  const { top, bottom, left, right } = useSafeAreaInsets();
+  const { top, bottom, left, right } = useTableInsets();
   const L = useMemo(
     () => computeLayout(width, height, { top, bottom, left, right }, topReserve, bottomReserve),
     [width, height, top, bottom, left, right, topReserve, bottomReserve]

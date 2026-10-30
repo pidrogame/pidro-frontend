@@ -8,7 +8,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type {
   Card,
   GameViewModel,
@@ -27,7 +26,7 @@ import { BiddingActions } from '@/components/game/BiddingActions';
 import { HandSelector } from '@/components/game/HandSelector';
 import type { RematchVote } from '@pidro/shared';
 import { GameOverOverlay } from '@/components/game/GameOverOverlay';
-import { useTableReserves } from './TableChrome';
+import { useTableReserves, useTableInsets } from './TableChrome';
 import { useTranslation } from '@/i18n';
 
 const noop = () => {};
@@ -382,7 +381,7 @@ export function DevOverlays({
   const { t } = useTranslation();
   const router = useRouter();
   const [voted, setVoted] = useState(false);
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   const { topReserve, bottomReserve } = useTableReserves();
   const eastViewer = result === 'east';
   const spectator = result === 'spectator';

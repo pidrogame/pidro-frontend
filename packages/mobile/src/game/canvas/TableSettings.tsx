@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
@@ -9,7 +8,7 @@ import { ActionPill } from '@/components/ui/ActionPill';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroColors, PidroSpacing } from '@/design/tokens';
 import { useSettingsStore } from '@/stores/settings';
-import { headerTop } from './TableChrome';
+import { headerTop, useTableInsets } from './TableChrome';
 import { TableUtilityWindow } from './TableUtilityWindow';
 import { useTranslation } from '@/i18n';
 import { GameProblemReport } from './GameProblemReport';
@@ -30,7 +29,7 @@ export function TableSettings({
   initiallyOpen?: boolean;
 }) {
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
   const [reportOpen, setReportOpen] = useState(false);

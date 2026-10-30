@@ -26,7 +26,6 @@ import {
   type ImageSourcePropType,
   type ImageStyle,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   DEALER_SLIDE_MS,
   PlayerAvatar,
@@ -62,6 +61,8 @@ import {
   seatNameGap,
   sideBackWidth,
   sideSeatTop,
+  landscapeSideSeatTop,
+  SIDE_SEAT_WIDTH,
   sideStackInner,
   SIDE_SEAT_GAP,
   sideStacks,
@@ -70,7 +71,7 @@ import {
   type RelativePosition,
 } from './layout';
 import { viewerOf } from './HandResult';
-import { TABLE_HEADER, useTableSize } from './TableChrome';
+import { TABLE_HEADER, useTableInsets, useTableSize } from './TableChrome';
 import type { TableSeat } from './tableModel';
 import {
   DEAL_PACKET_CARD_STAGGER_MS,
@@ -214,7 +215,7 @@ export function SeatLayer({
     return () => clearTimeout(id);
   }, [sliding]);
   const { width, height } = useTableSize();
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   const { top, bottom, left, right } = insets;
   const L = useMemo(
     () => computeLayout(width, height, { top, bottom, left, right }, topReserve, bottomReserve),
@@ -440,18 +441,30 @@ export function SeatLayer({
           <PlayerAvatar
             testID={`seat-${rel}`}
             size={size}
-            label={besideName ? (rel === 'east' ? 'left' : 'right') : 'below'}
+            label={
+              besideName && !(L.sidesUnder && (rel === 'east' || rel === 'west'))
+                ? rel === 'east'
+                  ? 'left'
+                  : 'right'
+                : 'below'
+            }
             bid={holds != null ? { amount: holds, tone: team } : null}
             dealerTrail={dealerTrail}
             nameRoom={
-              !portrait
-                ? reach(rel)
-                : rel === 'north' || rel === 'south'
-                  ? centerColumn
-                  : sideColumn - PidroSpacing.xs * 2
+              L.sidesUnder && (rel === 'east' || rel === 'west')
+                ? SIDE_SEAT_WIDTH
+                : !portrait
+                  ? reach(rel)
+                  : rel === 'north' || rel === 'south'
+                    ? centerColumn
+                    : sideColumn - PidroSpacing.xs * 2
             }
             style={[
-              tight && rel === 'south' ? { width: size + PidroSpacing.xs * 2 } : seatWidth(rel),
+              tight && rel === 'south'
+                ? { width: size + PidroSpacing.xs * 2 }
+                : L.sidesUnder && (rel === 'east' || rel === 'west')
+                  ? { width: SIDE_SEAT_WIDTH }
+                  : seatWidth(rel),
               data.out && styles.out,
             ]}
             {...seat}
@@ -598,8 +611,11 @@ export function SeatLayer({
         const seatEdge = L.front
           ? sideStackInner(L.cardW, sideEdge) + SIDE_SEAT_GAP
           : sideEdge + sideInset;
+        const seatTop = L.sidesUnder
+          ? { top: landscapeSideSeatTop(L, rel, stackedSeat) }
+          : sideSeatPos;
         const seatPos =
-          rel === 'east' ? { ...sideSeatPos, right: seatEdge } : { ...sideSeatPos, left: seatEdge };
+          rel === 'east' ? { ...seatTop, right: seatEdge } : { ...seatTop, left: seatEdge };
         const backsEdge = rel === 'east' ? { right: backsInset } : { left: backsInset };
         return (
           <View key={rel} style={StyleSheet.absoluteFill} pointerEvents="box-none">

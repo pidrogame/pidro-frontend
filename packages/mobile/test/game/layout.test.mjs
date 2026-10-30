@@ -24,6 +24,10 @@ import {
   pileCardW,
   pileSpot,
   playedCardTarget,
+  trailSpot,
+  TRAIL_SCALE,
+  landscapeSideSeatTop,
+  SIDE_SEAT_WIDTH,
   sideSeatTop,
   sideStackInner,
   SIDE_SEAT_GAP,
@@ -88,10 +92,11 @@ describe('side stacks and the hand', () => {
     expect(landscape.sides.cy).toBeGreaterThan(landscape.trick.cy);
     expect(landscape.seats.east.y).toBe(landscape.sides.cy);
     expect(landscape.seats.west.y).toBe(landscape.sides.cy);
-    // Landscape phones hang them under their seats, as Classic does, and
-    // their played cards leave level with the trick (PID-307).
-    const phone = computeLayout(874, 402, { top: 0, bottom: 21, left: 62, right: 62 });
-    expect(sideStacks(phone).top).toBeCloseTo(phone.band.top + 2);
+    // Landscape phones hang them centred down their edge, level with the
+    // trick, as Classic does (PID-308).
+    const phone = computeLayout(844, 390, { top: 0, bottom: 0, left: 0, right: 0 });
+    expect(phone.sidesUnder).toBe(true);
+    expect(phone.sides.cy).toBe(phone.trick.cy);
     expect(phone.seats.west.y).toBe(phone.trick.cy);
 
     const portrait = computeLayout(402, 874, { top: 62, bottom: 34, left: 0, right: 0 }, 60, 72);
@@ -620,6 +625,18 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
         return { left: card.x - x, right: card.x + x, top: card.y - y, bottom: card.y + y };
       })
     );
+  // Landscape phones: every seat's five earlier cards trailing its own (PID-308).
+  const trailCards = (L) =>
+    L.front
+      ? ['north', 'east', 'south', 'west'].flatMap((rel) =>
+          [1, 2, 3, 4, 5].map((back) => {
+            const card = trailSpot(L, rel, back);
+            const [w, h] = [L.cardW * card.scale, L.cardH * card.scale];
+            const [x, y] = rel === 'east' || rel === 'west' ? [h / 2, w / 2] : [w / 2, h / 2];
+            return { left: card.x - x, right: card.x + x, top: card.y - y, bottom: card.y + y };
+          })
+        )
+      : [];
   // Every seat's pile of `n` thrown cards in its front row (PID-305).
   const frontPiles = (L, n) =>
     ['north', 'east', 'south', 'west'].flatMap((rel) =>
@@ -699,6 +716,25 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
           west: { left: westLeft, right: westLeft + seatW('west'), top: sideTop },
         };
         seats.east.bottom = seats.west.bottom = sideTop + size;
+        // Landscape phones: name and line under the avatar, West's seat at
+        // the top of its backs and East's at their foot (PID-308).
+        if (L.sidesUnder) {
+          const h = size + avatarParts(size).level.height + 2 * 18;
+          const westTop = landscapeSideSeatTop(L, 'west', h);
+          const eastTop = landscapeSideSeatTop(L, 'east', h);
+          seats.west = {
+            left: westLeft,
+            right: westLeft + SIDE_SEAT_WIDTH,
+            top: westTop,
+            bottom: westTop + h,
+          };
+          seats.east = {
+            left: eastRight - SIDE_SEAT_WIDTH,
+            right: eastRight,
+            top: eastTop,
+            bottom: eastTop + h,
+          };
+        }
         for (const seat of Object.values(seats)) {
           expect(seat.left).toBeGreaterThanOrEqual(insets.left);
           expect(seat.right).toBeLessThanOrEqual(width - insets.right);
@@ -711,6 +747,7 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
             ['menu', menu],
             ...playedCards(L).map((card) => ['a played card', card]),
             ...frontPiles(L, n).map((card) => ['a thrown card', card]),
+            ...trailCards(L).map((card) => ['an earlier card', card]),
             ...sideStackBoxes(L, insets).map((stack) => ['a side stack', stack]),
           ],
           `${n} cards`

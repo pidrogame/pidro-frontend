@@ -6,7 +6,11 @@
  * seats North inside the row, between the two (see the Table boards).
  */
 import { Platform, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
-import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  type EdgeInsets,
+  useSafeAreaFrame,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 import { PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { SCORE_PLAQUE_HEIGHT } from './Scoreboard';
 import { utilityDockReserve } from './layout';
@@ -42,6 +46,18 @@ export function useTableSize(): { width: number; height: number } {
   return Platform.OS === 'android' ? frame : window;
 }
 
+/**
+ * The table's safe-area insets. The game hides the status bar, and a landscape
+ * phone's cutout is at its side, yet Android 9 still reports the bar's height
+ * at the top: a TCL 5053Y lost 27pt of felt to it (PID-307). Landscape phones
+ * take no top inset.
+ */
+export function useTableInsets(): EdgeInsets {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useTableSize();
+  return width > height && Math.min(width, height) < 600 ? { ...insets, top: 0 } : insets;
+}
+
 export interface TableReserves {
   landscape: boolean;
   topReserve: number;
@@ -61,7 +77,7 @@ export function useTableReserves({
 }: TableDockHeights = {}): TableReserves {
   const { width, height } = useTableSize();
   bottom ??= utilityDockReserve(height);
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   const landscape = width > height;
   return {
     landscape,
@@ -77,7 +93,7 @@ export function useTableReserves({
 
 /** Portrait-only dock frames. Their contents can own the heights passed above. */
 export function TableChromeBars({ reserves }: { reserves: TableReserves }) {
-  const insets = useSafeAreaInsets();
+  const insets = useTableInsets();
   if (reserves.landscape) return null;
 
   return (
