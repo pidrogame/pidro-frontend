@@ -1062,8 +1062,8 @@ const allCases = [
       { killed: ['east'], mark: true },
     ],
     ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
-    // Two tricks taken: only the third's four cards lie on the table.
-    ['third', 'phase=playing&role=player&trick=third', 'seat-south', { played: 4, mark: true }],
+    // Two tricks taken: all twelve cards stay, the first eight trailing (PID-308).
+    ['third', 'phase=playing&role=player&trick=third', 'seat-south', { played: 12, mark: true }],
     // East kept seven trumps and put two cards into the first trick.
     ['seven', 'phase=playing&role=player&trick=seven', 'seat-south', { played: 5, mark: true }],
     ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
@@ -4072,12 +4072,6 @@ async function assertBiddingRevealSequence(page, viewport) {
   await biddingWindow.waitFor({ state: 'visible', timeout: 20_000 });
 }
 
-// PID-307: a landscape phone (pickProfile's phone-landscape) shows only the
-// trick on the table: a finished one clears once its hold is over. Every
-// other table keeps the hand's tricks, as PID-279 left them.
-const clearsTricks = (viewport) =>
-  viewport.width > viewport.height && Math.min(viewport.width, viewport.height) < 600;
-
 async function assertPlayedCardPersistence(page, viewport) {
   const fourCards = page.getByTestId('rendered-played-card-count-4').first();
   await fourCards.waitFor({ state: 'attached', timeout: 20_000 });
@@ -4157,10 +4151,8 @@ async function assertPlayMotion(page, position, viewport) {
   assert.ok(heldMs >= 1450, `the 1500ms trick hold lasted only ${heldMs.toFixed(0)}ms`);
   console.log(`play hold ${position}: ${heldMs.toFixed(0)}ms, no intervening seat light`);
   assert.equal(hold.at(-1).lit, 'south', 'the server-selected leader did not light after the hold');
-  // The hand's tricks stay, except on landscape phones, which clear the trick after its hold.
-  await page
-    .getByTestId(`rendered-played-card-count-${clearsTricks(viewport) ? 0 : 4}`)
-    .waitFor({ state: 'attached', timeout: 2_000 });
+  // The hand's tricks stay on every table (PID-308).
+  assert.equal(await page.getByTestId('rendered-played-card-count-4').count(), 1);
 }
 
 async function assertCardCollection(page, winner, reduced, viewport) {
@@ -4203,12 +4195,7 @@ async function assertCardCollection(page, winner, reduced, viewport) {
   }
   assert.equal(frames.at(-1).sprites.filter((s) => s.kind === 'hand').length, 5);
   const played = frames.at(-1).sprites.filter((s) => s.kind === 'played');
-  // Landscape phones clear the trick once its hold is over (PID-307).
-  assert.equal(
-    played.length,
-    clearsTricks(viewport) ? 0 : 4,
-    'collection must retain the server history slots'
-  );
+  assert.equal(played.length, 4, 'collection must retain the server history slots');
   assert.ok(
     played.every((s) => s.opacity === 1),
     'completed trick faded before the server removed its history'
@@ -4972,11 +4959,7 @@ async function assertTwoRows(page, testCase, viewport) {
 // Folded backs stay in their seat's hand area, never on any Skia played card,
 // including the retained history. Read actual sprite transforms, not DOM proxies.
 async function assertFoldGeometry(page, testCase, viewport) {
-  // Landscape phones show only the trick being played (PID-307).
-  const expected =
-    clearsTricks(viewport) && (testCase.completedFold || !testCase.playedCount)
-      ? 0
-      : (testCase.playedCount ?? (testCase.countHelp ? 8 : 0));
+  const expected = testCase.playedCount ?? (testCase.countHelp ? 8 : 0);
   await page.getByTestId(`rendered-played-card-count-${expected}`).waitFor();
   await page.waitForTimeout(450);
   const played = await page.evaluate(() =>
@@ -5407,7 +5390,14 @@ async function assertSeatPlacement(page, viewport) {
     }
   }
 
-  if (Math.abs(seats.east.y - seats.west.y) > 2 || seats.east.y <= seats.north.y + 12) {
+  // Roomy landscape phones stagger them as Classic does, names under the
+  // avatar: West at the top of its backs, East at their foot (PID-308).
+  const staggered = !portrait && seats.west.height > 80 && seats.east.height > 80;
+  if (
+    staggered
+      ? seats.west.y <= seats.north.y + 12 || seats.east.y <= seats.west.y
+      : Math.abs(seats.east.y - seats.west.y) > 2 || seats.east.y <= seats.north.y + 12
+  ) {
     throw new Error(
       `opponent seats do not form the intended landscape triangle: north=${JSON.stringify(seats.north)} east=${JSON.stringify(seats.east)} west=${JSON.stringify(seats.west)}`
     );
