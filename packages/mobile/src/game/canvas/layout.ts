@@ -2,7 +2,7 @@
  * Table layout system. Two layers:
  *  1) pickProfile() — discrete archetype from orientation × device class (web = tablet).
  *  2) computeLayout() — fluid positions within a profile (anchored regions + clamped card size).
- * Pure functions of (width, height, insets): recompute on resize or rotate, then tween to the new slots.
+ * Pure functions of (width, height, insets): recompute on resize or rotate, and tween to the new slots.
  */
 import type { RelativePosition } from '@/types/game';
 
