@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useSegments } from 'expo-router';
+import * as Updates from 'expo-updates';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 import { useAuthStore } from '@/stores/auth';
 
@@ -58,8 +59,12 @@ function EnabledAnalyticsTracker() {
     }
     posthog.register({
       app_platform: 'mobile',
+      // The beta and the store app share EAS's production environment, so the
+      // install's update channel is what tells a beta tester apart.
       app_environment:
-        process.env.EXPO_PUBLIC_APP_ENVIRONMENT || (__DEV__ ? 'development' : 'production'),
+        Updates.channel ||
+        process.env.EXPO_PUBLIC_APP_ENVIRONMENT ||
+        (__DEV__ ? 'development' : 'production'),
     });
   }, [posthog, user]);
 
