@@ -42,6 +42,7 @@ import { t, useTranslation } from '@/i18n';
 import { useSeatDecisions } from '@pidro/shared';
 import { TableFeedback, TableSeatDecision, useTableNotices } from '@/components/game/TableFeedback';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
+import { useTableAnalytics } from '@/analytics/useTableAnalytics';
 
 type SkiaTableProps = {
   room: Room;
@@ -208,6 +209,7 @@ export default function GameScreen() {
 
   // Identity snapshots also update direct-link games without a lobby in the stack.
   useLobbyChannel();
+  useTableAnalytics(code);
 
   // Turn timers keep running while a player waits on the others, so the table holds
   // the screen awake while it is focused. Each focus gets its own tag, so a late release
