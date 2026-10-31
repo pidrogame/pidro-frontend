@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { useNetworkState } from 'expo-network';
 import type { InvitePreview } from '@pidro/shared';
+import { captureAnalytics } from '@/analytics/PostHogAnalytics';
 import { invitesApi } from '@/api/invites';
 import { ClassicPlaque } from '@/components/home/ClassicPlaque';
 import { LogoGlow } from '@/components/home/LogoGlow';
@@ -89,6 +90,7 @@ export default function WelcomeScreen() {
       return;
     }
 
+    captureAnalytics('guest_chosen');
     setLaunchState('creatingGuest');
     const session = await continueAsGuest();
     if (!session) {
@@ -237,7 +239,10 @@ export default function WelcomeScreen() {
 
           <ClassicPlaque
             disabled={offline || launchBusy}
-            onPress={() => router.push('/(auth)/claim-classic')}
+            onPress={() => {
+              captureAnalytics('classic_entry_tapped');
+              router.push('/(auth)/claim-classic');
+            }}
           />
 
           <View style={[styles.accountLinks, (offline || launchBusy) && styles.disabled]}>

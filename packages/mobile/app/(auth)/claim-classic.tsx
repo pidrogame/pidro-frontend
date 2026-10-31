@@ -14,6 +14,7 @@ import {
   type ClassicVerification,
 } from '@/api/classic';
 import * as authApi from '@/api/auth';
+import { captureAnalytics } from '@/analytics/PostHogAnalytics';
 import { profileApi } from '@/api/profile';
 import { AuthProviderButtons } from '@/components/auth/AuthProviderButtons';
 import {
@@ -42,6 +43,7 @@ import {
   type LoginField,
 } from '@/features/auth/classicClaimForm';
 import { runGuestSave } from '@/features/auth/saveGuest';
+import { claimFailure } from '@/features/analytics';
 import { storedAgeTerms } from '@/features/onboarding/ageTerms';
 import { authenticatedEntryDestination } from '@/navigation/initialRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
@@ -187,6 +189,12 @@ export default function ClaimClassicScreen() {
     setCanSignIn(false);
   }, []);
 
+  // A provider sign-in that found a Classic account starts the claim here.
+  useEffect(() => {
+    if (providerHandoff && !providerHandoff.verification.already_claimed)
+      captureAnalytics('claim_started', { method: providerHandoff.method });
+  }, [providerHandoff]);
+
   // Only a guest who played loses something by signing in, so only they are told.
   useEffect(() => {
     if (fixture || !alreadyClaimed || !guestId) return;
@@ -241,6 +249,7 @@ export default function ClaimClassicScreen() {
   const reportRequestError = useCallback(
     (requestError: unknown, fallback: TranslationKey, provider?: 'apple' | 'facebook') => {
       const info = apiErrorInfo(requestError);
+      captureAnalytics('claim_failed', claimFailure(provider ?? method ?? 'password', info.code));
       if (fallback === 'auth.classic_claim_failed') setStep('details');
       setError(null);
       setRequestFailure(null);
@@ -280,7 +289,7 @@ export default function ClaimClassicScreen() {
         setRequestFailure({ error: requestError, fallback });
       }
     },
-    [form, user]
+    [form, method, user]
   );
 
   const verifyPassword = useCallback(async () => {
@@ -313,6 +322,7 @@ export default function ClaimClassicScreen() {
   const verifyProvider = useCallback(
     async (provider: 'apple' | 'facebook') => {
       if (busy || fixture) return;
+      captureAnalytics('claim_started', { method: provider });
       setBusy(true);
       setError(null);
       setRequestFailure(null);
@@ -320,6 +330,7 @@ export default function ClaimClassicScreen() {
         const credential = await requestNativeSocialCredential(provider);
         if (credential.status === 'cancelled') return;
         if (credential.status === 'failure') {
+          captureAnalytics('claim_failed', claimFailure(provider, 'PROVIDER_FAILED'));
           setError(credential.messageKey ?? 'auth.social_failed');
           setErrorProvider(provider === 'apple' ? 'Apple' : 'Facebook');
           return;
@@ -406,6 +417,10 @@ export default function ClaimClassicScreen() {
           if (refusal && !saved.error.uncertain) {
             reportRequestError(refusal, 'auth.classic_claim_failed');
           } else {
+            captureAnalytics(
+              'claim_failed',
+              claimFailure(method, saved.error.uncertain ? 'SAVE_UNCERTAIN' : 'SAVE_FAILED')
+            );
             setError(saved.error.uncertain ? 'auth.save_uncertain' : 'auth.save_failed');
           }
           return;
@@ -417,6 +432,7 @@ export default function ClaimClassicScreen() {
       }
       const claimed = useAuthStore.getState().user;
       if (!claimed) return;
+      captureAnalytics('claim_succeeded', { method });
       const pendingInvite = usePendingInviteStore.getState().pendingInvite;
       const destination = authenticatedEntryDestination(
         pendingInvite,
@@ -647,7 +663,10 @@ export default function ClaimClassicScreen() {
                 label={t('auth.classic_credentials')}
                 material="glass"
                 disabled={busy}
-                onPress={() => setMethod('password')}
+                onPress={() => {
+                  captureAnalytics('claim_started', { method: 'password' });
+                  setMethod('password');
+                }}
               />
             </>
           )

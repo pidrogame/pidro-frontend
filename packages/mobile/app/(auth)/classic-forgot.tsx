@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Keyboard, StyleSheet, TextInput } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { captureAnalytics } from '@/analytics/PostHogAnalytics';
 import { classicApi } from '@/api/classic';
 import {
   AuthFlowButton,
@@ -73,6 +74,10 @@ export default function ClassicForgotScreen() {
     inFlight.current = false;
     setBusy(false);
   }, []);
+
+  useEffect(() => {
+    if (!fixture) captureAnalytics('classic_forgot_started');
+  }, [fixture]);
 
   useFocusEffect(
     useCallback(() => {
