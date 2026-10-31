@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The account journeys as CI runs them (frontend-ci.yml, account-e2e-weekly.yml): the backend, the
 # old web client and Expo web. CI selects journeys or expiry; local runs default to both.
+# E2E_SPECS (space-separated spec paths) runs only those journeys, on the phone, unsharded.
 # Expiry uses lifetimes of a second for journeys tagged @second-run. The backend never puts reset
 # tokens in its answer (PASSWORD_RESET_DEBUG_TOKENS=false).
 # Expects the backend checked out and compiled in $BACKEND_DIR, and Postgres up.
@@ -9,6 +10,7 @@ cd "$(dirname "$0")/.."
 backend=${BACKEND_DIR:-../../backend}
 suite=${E2E_SUITE:-all}
 shard=${E2E_SHARD:-}
+specs=${E2E_SPECS:-}
 case "$suite" in
   all|journeys|expiry) ;;
   *) echo "E2E_SUITE must be all, journeys or expiry" >&2; exit 1 ;;
@@ -19,6 +21,10 @@ if [ -n "$shard" ]; then
     echo "E2E_SHARD must be current/total with 1 <= current <= total, for journeys only" >&2
     exit 1
   fi
+fi
+if [ -n "$specs" ] && { [ "$suite" != journeys ] || [ -n "$shard" ]; }; then
+  echo "E2E_SPECS needs E2E_SUITE=journeys and no E2E_SHARD" >&2
+  exit 1
 fi
 backend_pid=
 
@@ -90,6 +96,10 @@ second=0
 if [ "$suite" != expiry ]; then
   if [ -n "$shard" ]; then
     bun run e2e:accounts --shard "$shard" || first=$?
+  elif [ -n "$specs" ]; then
+    # A table push: the flows through the table, on the phone; UI grammar checks its layouts.
+    # shellcheck disable=SC2086 # one argument per spec
+    bun run e2e:accounts --project=phone $specs || first=$?
   else
     bun run e2e:accounts || first=$?
   fi
@@ -107,7 +117,7 @@ if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   {
     echo '### Account journeys'
     echo
-    echo "Suite: $suite${shard:+ ($shard)}"
+    echo "Suite: $suite${shard:+ ($shard)}${specs:+ (only the journeys that play through the table)}"
     echo
     # Every integration job in a workflow receives the same resolved backend SHA.
     git -C "$backend" log -1 --format='Backend: [%h](https://github.com/marcelfahle/pidro-backend/commit/%H) %s (%cd)' --date=iso

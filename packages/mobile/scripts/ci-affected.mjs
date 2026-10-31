@@ -9,14 +9,27 @@
  * In CI it also writes the selection to $GITHUB_OUTPUT and why to $GITHUB_STEP_SUMMARY.
  */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // What each part of the app draws (UI grammar case routes; /ui-dev cases by their state)
-// and the UI suites that drive it.
+// and the UI suites that drive it. A push that touches only the table runs its cases on
+// one viewport per layout profile computeLayout() branches on: the phone, the tight
+// phone, the two-row landscape phone at its narrowest and as Marcel's TCL, and a tablet.
+// The release test runs every viewport.
 const AREAS = {
-  table: { screens: ['/table-dev', '/game/*'], suites: ['table-behavior', 'seats-and-game-over'] },
+  table: {
+    screens: ['/table-dev', '/game/*'],
+    suites: ['table-behavior', 'seats-and-game-over'],
+    viewports: [
+      'portrait',
+      'compact-portrait',
+      'small-landscape',
+      'android-landscape',
+      'tablet-landscape',
+    ],
+  },
   lobby: {
     screens: [
       '/lobby',
@@ -41,7 +54,8 @@ const AREAS = {
 // Changed file → what it runs. Paths inside packages/mobile drop that prefix. The first
 // row a file matches wins; a file no row claims runs everything. Rows follow what the
 // routes really import: most of src/game is also imported by app/lobby.tsx and
-// app/new-table.tsx, so the table also draws the lobby.
+// app/new-table.tsx, which the smoke set's lobby screen covers on a table push, and
+// `accounts: 'table'` runs the journeys that play through the table (tableJourneys).
 const MAP = [
   {
     rule: 'docs and unit tests',
@@ -86,11 +100,10 @@ const MAP = [
     ],
   },
   {
-    // Account journeys leave, join and pick seats at /game/:code too.
     rule: 'table',
-    areas: ['table', 'lobby'],
+    areas: ['table'],
     game: true,
-    accounts: true,
+    accounts: 'table',
     files: [
       'app/game/**',
       'app/{table-dev,report-dev}.tsx',
@@ -165,7 +178,8 @@ const MAP = [
 ];
 
 // One table, one lobby, one home and one auth screen, each on its usual viewports
-// (portrait and landscape among them), whenever anything visual runs.
+// (portrait and landscape among them; a table push keeps only the table's), whenever
+// anything visual runs.
 export const SMOKE = ['table-playing', 'lobby-list', 'home', 'login'];
 const SUITES = ['table-behavior', 'lobby-and-creation', 'seats-and-game-over'];
 const SCREENS_PER_SHARD = 40;
@@ -187,12 +201,24 @@ const screenOf = ({ path }) => {
   return `/ui-dev?state=${new URLSearchParams(query).get('state') ?? 'components'}`;
 };
 
+// The account journeys that reach /game/:code or /table-dev, read from the specs so a
+// new one joins by itself.
+export const tableJourneys = (dir = resolve(mobileRoot, 'e2e/specs')) =>
+  readdirSync(dir)
+    .filter((name) => name.endsWith('.spec.ts'))
+    .filter((name) =>
+      /game\\?\/|game-table|waiting-table|support\/game|table-dev/.test(
+        readFileSync(resolve(dir, name), 'utf8')
+      )
+    )
+    .map((name) => `specs/${name}`);
+
 /**
  * base: the commit the change is measured from; files: paths changed since then
  * (repo-relative); cases: [{ name, path }] from verify-ui-grammar --list-cases;
- * ids: every viewport/case id from verify-ui-grammar --list.
+ * ids: every viewport/case id from verify-ui-grammar --list; journeys: tableJourneys().
  */
-export function selectChecks({ base, files, cases, ids, full = false }) {
+export function selectChecks({ base, files, cases, ids, journeys = [], full = false }) {
   const reasons = [];
   let all = full;
   if (full) reasons.push({ file: '(release test)', rule: 'everything' });
@@ -203,6 +229,7 @@ export function selectChecks({ base, files, cases, ids, full = false }) {
   const areas = new Set();
   let game = false;
   let accounts = false;
+  let journeysOnly = true;
   for (const file of all ? [] : files) {
     const path = file.replace(/^packages\/mobile\//, '');
     const row = MAP.find(({ files: patterns }) => matches(patterns, path));
@@ -212,6 +239,7 @@ export function selectChecks({ base, files, cases, ids, full = false }) {
       row.areas?.forEach((area) => areas.add(area));
       game ||= Boolean(row.game);
       accounts ||= Boolean(row.accounts);
+      if (row.accounts === true) journeysOnly = false;
     }
   }
   if (all) {
@@ -223,6 +251,8 @@ export function selectChecks({ base, files, cases, ids, full = false }) {
       shards: shardsFor(ids.length, SUITES),
       game: true,
       accounts: true,
+      viewports: null,
+      journeys: null,
     };
   }
 
@@ -231,7 +261,13 @@ export function selectChecks({ base, files, cases, ids, full = false }) {
     cases.filter((testCase) => matches(screens, screenOf(testCase))).map(({ name }) => name)
   );
   if (areas.size) SMOKE.forEach((name) => selected.add(name));
-  const count = ids.filter((id) => selected.has(id.slice(id.indexOf('/') + 1))).length;
+  // Narrow only when every area drawn has its own viewports; anything else runs them all.
+  const narrow = areas.size > 0 && [...areas].every((area) => AREAS[area].viewports);
+  const viewports = narrow ? [...areas].flatMap((area) => AREAS[area].viewports) : null;
+  const count = ids.filter((id) => {
+    const [viewport, name] = [id.slice(0, id.indexOf('/')), id.slice(id.indexOf('/') + 1)];
+    return selected.has(name) && (!viewports || viewports.includes(viewport));
+  }).length;
   const suites = SUITES.filter((suite) =>
     [...areas].some((area) => AREAS[area].suites?.includes(suite))
   );
@@ -244,6 +280,9 @@ export function selectChecks({ base, files, cases, ids, full = false }) {
     shards: shardsFor(count, suites),
     game,
     accounts,
+    viewports,
+    // No list to narrow to runs every journey.
+    journeys: accounts && journeysOnly && journeys.length ? journeys : null,
   };
 }
 
@@ -263,7 +302,7 @@ function summarize(selection, base) {
   const visual = selection.full
     ? `all ${selection.screens} screens`
     : selection.cases.length
-      ? `${selection.cases.length} cases, ${selection.screens} screens (${selection.areas.join(', ')} + smoke)`
+      ? `${selection.cases.length} cases, ${selection.screens} screens (${selection.areas.join(', ')} + smoke) on ${selection.viewports ? selection.viewports.join(', ') : 'every viewport'}`
       : 'nothing visual';
   const matrix = selection.shards.filter(({ partition }) => partition).length;
   const suites = selection.shards.filter(({ partition }) => !partition).map(({ shard }) => shard);
@@ -274,7 +313,7 @@ function summarize(selection, base) {
     '',
     `- **UI grammar:** ${visual}; ${matrix} matrix shard(s)${suites.length ? `, ${suites.join(', ')}` : ''}`,
     `- **Game e2e:** ${yes(selection.game)}`,
-    `- **Account journeys:** ${yes(selection.accounts)}`,
+    `- **Account journeys:** ${yes(selection.accounts)}${selection.journeys ? `, the ${selection.journeys.length} that play through the table` : ''}`,
     '- **Mobile quality:** runs',
     '',
     '| Changed file | Rule |',
@@ -291,7 +330,13 @@ export const listGrammar = (flag) =>
     execFileSync(process.execPath, ['scripts/verify-ui-grammar.mjs', flag], {
       cwd: mobileRoot,
       encoding: 'utf8',
-      env: { ...process.env, UI_CASES: '', UI_VIEWPORTS: '', UI_PARTITION: '' },
+      env: {
+        ...process.env,
+        NODE_NO_WARNINGS: '1',
+        UI_CASES: '',
+        UI_VIEWPORTS: '',
+        UI_PARTITION: '',
+      },
       stdio: ['ignore', 'pipe', 'inherit'],
     })
   );
@@ -315,6 +360,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     files: full || !base ? [] : changedFiles(base, head),
     cases: listGrammar('--list-cases'),
     ids: listGrammar('--list'),
+    journeys: tableJourneys(),
     full,
   });
   const summary = summarize(selection, base);
@@ -327,8 +373,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         `ui=${selection.shards.length > 0}`,
         `ui_cases=${selection.full ? '' : selection.cases.join(',')}`,
         `shards=${JSON.stringify(selection.shards)}`,
+        `ui_viewports=${selection.viewports?.join(',') ?? ''}`,
         `game=${selection.game}`,
         `accounts=${selection.accounts}`,
+        `account_specs=${selection.journeys?.join(' ') ?? ''}`,
         '',
       ].join('\n')
     );

@@ -12,6 +12,10 @@ on:
       retention-days:
         type: number
         default: 14
+      specs:
+        description: Only these journeys (space-separated spec paths), in one job; empty runs them all
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -26,22 +30,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: shard-1
-            suite: journeys
-            shard: 1/4
-          - name: shard-2
-            suite: journeys
-            shard: 2/4
-          - name: shard-3
-            suite: journeys
-            shard: 3/4
-          - name: shard-4
-            suite: journeys
-            shard: 4/4
-          - name: expiry
-            suite: expiry
-            shard: ''
+        include: ${{ fromJSON(inputs.specs == '' && '[{"name":"shard-1","suite":"journeys","shard":"1/4"},{"name":"shard-2","suite":"journeys","shard":"2/4"},{"name":"shard-3","suite":"journeys","shard":"3/4"},{"name":"shard-4","suite":"journeys","shard":"4/4"},{"name":"expiry","suite":"expiry","shard":""}]' || '[{"name":"table","suite":"journeys","shard":""}]') }}
 
     services:
       postgres:
@@ -135,6 +124,7 @@ jobs:
           BACKEND_DIR: ${{ github.workspace }}/backend
           E2E_SUITE: ${{ matrix.suite }}
           E2E_SHARD: ${{ matrix.shard }}
+          E2E_SPECS: ${{ inputs.specs }}
         run: e2e/ci.sh
 
       - name: Upload videos, traces and report

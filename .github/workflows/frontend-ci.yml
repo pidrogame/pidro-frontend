@@ -40,9 +40,11 @@ jobs:
       full: ${{ steps.select.outputs.full }}
       ui: ${{ steps.select.outputs.ui }}
       ui_cases: ${{ steps.select.outputs.ui_cases }}
+      ui_viewports: ${{ steps.select.outputs.ui_viewports }}
       shards: ${{ steps.select.outputs.shards }}
       game: ${{ steps.select.outputs.game }}
       accounts: ${{ steps.select.outputs.accounts }}
+      account_specs: ${{ steps.select.outputs.account_specs }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -217,6 +219,7 @@ jobs:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_PARTITION: ${{ matrix.partition }}
           UI_CASES: ${{ needs.select.outputs.ui_cases }}
+          UI_VIEWPORTS: ${{ needs.select.outputs.ui_viewports }}
           UI_REPORT_PATH: /tmp/ui-reports/${{ matrix.shard }}.json
           UI_SHARD: ${{ matrix.shard }}
         run: |
@@ -369,6 +372,7 @@ jobs:
         env:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_CASES: ${{ needs.select.outputs.ui_cases }}
+          UI_VIEWPORTS: ${{ needs.select.outputs.ui_viewports }}
         run: node scripts/verify-ui-grammar.mjs --verify-coverage /tmp/ui-reports | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Compare against visual baselines
@@ -402,6 +406,8 @@ jobs:
     uses: ./.github/workflows/account-e2e.yml
     with:
       backend-sha: ${{ needs.integration-backend.outputs.sha }}
+      # Empty runs every journey; a table push names the ones that play through the table.
+      specs: ${{ needs.select.outputs.account_specs }}
 
   account-e2e:
     name: Account e2e
