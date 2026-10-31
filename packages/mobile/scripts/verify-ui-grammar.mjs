@@ -1064,6 +1064,8 @@ const allCases = [
     ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
     // Two tricks taken: all twelve cards stay, the first eight trailing (PID-308).
     ['third', 'phase=playing&role=player&trick=third', 'seat-south', { played: 12, mark: true }],
+    // East has led the third: the others' cards wait on the cross, shaded (PID-308).
+    ['turning', 'phase=playing&role=player&trick=turning', 'seat-south', { played: 9, mark: true }],
     // East kept seven trumps and put two cards into the first trick.
     ['seven', 'phase=playing&role=player&trick=seven', 'seat-south', { played: 5, mark: true }],
     ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],

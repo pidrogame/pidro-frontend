@@ -25,6 +25,7 @@ import {
   pileSpot,
   playedCardTarget,
   trailSpot,
+  trickOnCross,
   TRAIL_SCALE,
   landscapeSideSeatTop,
   SIDE_SEAT_WIDTH,
@@ -568,6 +569,33 @@ describe('landscape phones lay the trick out as Classic’s cross', () => {
       });
     }
   }
+});
+
+describe('a played card waits on the cross for its seat’s next card (PID-308)', () => {
+  it('stays through the next trick until that seat plays', () => {
+    expect(trickOnCross([0, 1], 2, false, false)).toBe(1);
+    expect(trickOnCross([0, 1, 2], 2, false, false)).toBe(2);
+  });
+
+  it('your card waits too, and clears when you can play', () => {
+    expect(trickOnCross([0, 1], 2, true, false)).toBe(1);
+    expect(trickOnCross([0, 1], 2, true, true)).toBe(2);
+  });
+
+  it('a seat that is out keeps its last card there', () => {
+    expect(trickOnCross([0], 3, false, false)).toBe(0);
+  });
+
+  it('West’s card lies as its trail does: it never turns on the way', () => {
+    for (const [width, height] of [
+      [640, 360],
+      [780, 360],
+      [844, 390],
+    ]) {
+      const L = computeLayout(width, height, { top: 0, bottom: 0, left: 0, right: 0 });
+      expect(trailSpot(L, 'west', 1).rot).toBe(playedCardTarget(L, 'west', 0, 1).rot);
+    }
+  });
 });
 
 describe('the bid grid sits on the trick, 18pt clear of your hand', () => {

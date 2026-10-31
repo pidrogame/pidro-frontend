@@ -513,7 +513,15 @@ export function playedCardTarget(
   const off = index - (count - 1) / 2;
   // Side cards face their owner: the card's top edge points at the table
   // center (east top→left, west top→right), matching the seat rot below.
-  const rot = rel === 'east' ? -Math.PI / 2 : rel === 'west' ? Math.PI / 2 : 0;
+  // Landscape phones whose West trail steps down lay West's cards as East's, so
+  // each index shows down the trail and no card turns on its way there (PID-308).
+  const westAsEast = !!L.front && !L.sidesUnder;
+  const rot =
+    rel === 'east' || (rel === 'west' && westAsEast)
+      ? -Math.PI / 2
+      : rel === 'west'
+        ? Math.PI / 2
+        : 0;
   // Landscape phones: the card lands on its seat's spot of the cross. More
   // than one card in a trick (a seat that kept seven trumps) overlaps along
   // the seat's axis, as in Classic: sideways at North and South, down the
@@ -558,10 +566,9 @@ const trailReach = (cardW: number) =>
   cardW * (TRAIL_NEAR + 4 * TRAIL_STEP) + (cardW * TRAIL_SCALE) / 2;
 export function trailSpot(L: TableLayout, rel: RelativePosition, back: number, count = 5) {
   const spot = playedCardTarget(L, rel, 0, 1);
-  // A side card's index lies toward the top at West and the foot at East: its
-  // trail steps that way, closing up to stay in its column. On narrower tables
-  // West's seat sits right above its card, so its trail turns the other way
-  // round and steps down, as East's does (PID-308).
+  // A side card's index lies at the foot at East, and at West too unless West's
+  // seat leaves it room above: the trail steps toward the index, closing up to
+  // stay in its column (PID-308).
   const side = rel === 'west' || rel === 'east';
   const up = rel === 'west' && !!L.sidesUnder;
   const room =
@@ -576,9 +583,24 @@ export function trailSpot(L: TableLayout, rel: RelativePosition, back: number, c
     ...spot,
     x: spot.x - (side ? 0 : d),
     y: spot.y + (!side ? 0 : up ? -d : d),
-    rot: rel === 'west' && !up ? spot.rot + Math.PI : spot.rot,
     scale: spot.scale * TRAIL_SCALE,
   };
+}
+
+/**
+ * Which of a seat's tricks lies on the cross on landscape phones: its latest,
+ * until that seat's next card takes the spot, so a card moves only when it must.
+ * Your own card clears as soon as you can play, for your cards to lift into the
+ * empty spot (PID-307, PID-308).
+ */
+export function trickOnCross(
+  seatTricks: number[],
+  liveTrick: number,
+  yours: boolean,
+  canPlay: boolean
+) {
+  if (yours && canPlay) return liveTrick;
+  return Math.max(-1, ...seatTricks);
 }
 
 /** A card in a pile in front of a seat (thrown or killed): a played card's size on landscape phones. */

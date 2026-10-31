@@ -12,6 +12,8 @@ const FIXTURE_INSETS: Record<string, EdgeInsets> = {
   'android-gesture': { top: 24, bottom: 24, left: 0, right: 0 },
   // A TCL 5053Y on its side (Android 9): the hidden status bar still reported, the nav bar right.
   'android-landscape': { top: 24, bottom: 0, left: 0, right: 50 },
+  // The same phone turned the other way: the nav bar left.
+  'android-landscape-left': { top: 27, bottom: 0, left: 48, right: 0 },
   none: { top: 0, bottom: 0, left: 0, right: 0 },
 };
 

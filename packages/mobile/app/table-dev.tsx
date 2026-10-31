@@ -136,7 +136,8 @@ const BOT_TRICK = [
 ];
 const BOT_TRICK_HAND: Card[] = [heart(14), heart(10), heart(5), heart(2)];
 // PID-307: `trick=third` has two tricks taken and the third with all four
-// cards down; `trick=seven` has East, who kept seven trumps, put two cards
+// cards down; `trick=turning` has only East's card in the third (PID-308);
+// `trick=seven` has East, who kept seven trumps, put two cards
 // into the first trick. Each seat shows only the trick on the table.
 const play = (player: Position, rank: number) => ({ player, card: heart(rank) });
 const BOT_TRICKS_TAKEN = [
@@ -161,6 +162,7 @@ const TRICKS: Record<string, { taken: typeof BOT_TRICKS_TAKEN; current: unknown[
       current: [play('south', 5), play('west', 12), play('north', 6), play('east', 11)],
       hand: [heart(2)],
     },
+    turning: { taken: BOT_TRICKS_TAKEN, current: [play('east', 11)], hand: [heart(5), heart(2)] },
     seven: {
       taken: [],
       current: [...BOT_TRICK, play('east', 3), play('south', 14)],
