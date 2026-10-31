@@ -101,6 +101,10 @@ describe('side stacks and the hand', () => {
     const tcl = computeLayout(780, 360, { top: 0, bottom: 0, left: 0, right: 50 });
     expect(tcl.sidesUnder).toBe(true);
     expect(tcl.sideSeatWidth).toBeGreaterThanOrEqual(76);
+    // Turned the other way, its nav bar on the left, it seats them the same.
+    const turned = computeLayout(780, 360, { top: 27, bottom: 0, left: 48, right: 0 });
+    expect(turned.sidesUnder).toBe(true);
+    expect(turned.sideSeatWidth).toBeGreaterThanOrEqual(76);
     expect(phone.sides.cy).toBe(phone.trick.cy);
     expect(phone.seats.west.y).toBe(phone.trick.cy);
 
@@ -584,6 +588,18 @@ describe('a played card waits on the cross for its seat’s next card (PID-308)'
 
   it('a seat that is out keeps its last card there', () => {
     expect(trickOnCross([0], 3, false, false)).toBe(0);
+  });
+
+  it('on a TCL either way round West’s card lies toward the table, its trail stepping up', () => {
+    for (const insets of [
+      { top: 27, bottom: 0, left: 48, right: 0 },
+      { top: 24, bottom: 0, left: 0, right: 50 },
+    ]) {
+      const L = computeLayout(780, 360, insets);
+      const card = playedCardTarget(L, 'west', 0, 1);
+      expect(card.rot).toBe(Math.PI / 2);
+      expect(trailSpot(L, 'west', 1).y).toBeLessThan(card.y);
+    }
   });
 
   it('West’s card lies as its trail does: it never turns on the way', () => {

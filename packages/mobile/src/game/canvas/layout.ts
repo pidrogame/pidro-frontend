@@ -881,9 +881,18 @@ export function computeLayout(
       ? {
           north: { x: cx, y: trickCy - reach },
           south: { x: cx, y: trickCy + reach },
-          west: { x: sideSpot(insets.left), y: sideCy },
-          // A nav bar's inset narrows East's side: its cards come in, short
-          // of North's and your widest pile, to leave its seat room (PID-308).
+          // A nav bar's inset narrows a side: its cards come in, short of
+          // North's and your widest pile, to leave its seat room (PID-308).
+          west: {
+            x: Math.min(
+              cx - (cardW * FRONT_PILE_SPAN) / 2 - TRICK_GAP - cardH / 2,
+              Math.max(
+                sideSpot(insets.left),
+                sideStackInner(cardW, insets.left) + sideSeatReach(cardH)
+              )
+            ),
+            y: sideCy,
+          },
           east: {
             x: Math.max(
               cx + (cardW * FRONT_PILE_SPAN) / 2 + TRICK_GAP + cardH / 2,
