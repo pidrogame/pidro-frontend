@@ -382,25 +382,32 @@ export function useCardSprites({
     });
     // Landscape phones (PID-308): each seat's latest card lies on the cross; its
     // earlier cards this hand trail behind it, smaller and shaded, all still
-    // there to be counted. With "Help me keep count" on, the point cards in the
-    // trail keep their light. A card from an earlier trick waits on the cross
-    // for its seat's next card, always shaded: bright means this trick.
+    // there to be counted. A card from an earlier trick waits on the cross for
+    // its seat's next card, shaded too. With "Help me keep count" on, point cards
+    // keep their light wherever they lie.
     REL.forEach((rel) => {
       const cards = played[rel] ?? [];
-      const onCross = trickOnCross(cards.map(trickNo), liveTrick, rel === 'south', model.canPlay);
+      const onCross = trickOnCross(
+        cards.map(trickNo),
+        liveTrick,
+        rel === 'south',
+        model.canPlay,
+        !!model.seats[rel]?.out
+      );
       const live = cards.filter((tc) => trickNo(tc) === onCross);
       const earlier = cards.filter((tc) => trickNo(tc) !== onCross);
       cards.forEach((tc, i) => {
         let target = playedCardTarget(L, rel, i, cards.length);
+        const counted = model.countHelp && POINT_RANKS.has(tc.card.rank);
         let shade = false;
         if (L.front) {
           const li = live.indexOf(tc);
           if (li >= 0) {
             target = playedCardTarget(L, rel, li, live.length);
-            shade = onCross !== liveTrick;
+            shade = onCross !== liveTrick && !counted;
           } else {
             target = trailSpot(L, rel, earlier.length - earlier.indexOf(tc), earlier.length);
-            shade = !(model.countHelp && POINT_RANKS.has(tc.card.rank));
+            shade = !counted;
           }
         }
         const seat = L.seats[rel];

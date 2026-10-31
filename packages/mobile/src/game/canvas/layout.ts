@@ -591,15 +591,17 @@ export function trailSpot(L: TableLayout, rel: RelativePosition, back: number, c
  * Which of a seat's tricks lies on the cross on landscape phones: its latest,
  * until that seat's next card takes the spot, so a card moves only when it must.
  * Your own card clears as soon as you can play, for your cards to lift into the
- * empty spot (PID-307, PID-308).
+ * empty spot (PID-307, PID-308). A seat that is out has no next card, so its
+ * last one clears when the next trick starts.
  */
 export function trickOnCross(
   seatTricks: number[],
   liveTrick: number,
   yours: boolean,
-  canPlay: boolean
+  canPlay: boolean,
+  out = false
 ) {
-  if (yours && canPlay) return liveTrick;
+  if ((yours && canPlay) || out) return liveTrick;
   return Math.max(-1, ...seatTricks);
 }
 

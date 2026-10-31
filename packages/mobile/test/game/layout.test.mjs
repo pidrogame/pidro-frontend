@@ -586,8 +586,9 @@ describe('a played card waits on the cross for its seat’s next card (PID-308)'
     expect(trickOnCross([0, 1], 2, true, true)).toBe(2);
   });
 
-  it('a seat that is out keeps its last card there', () => {
-    expect(trickOnCross([0], 3, false, false)).toBe(0);
+  it('a seat that is out keeps its last card until the next trick starts', () => {
+    expect(trickOnCross([0, 1], 1, false, false, true)).toBe(1);
+    expect(trickOnCross([0, 1], 2, false, false, true)).toBe(2);
   });
 
   it('on a TCL either way round West’s card lies toward the table, its trail stepping up', () => {
