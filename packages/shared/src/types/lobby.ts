@@ -60,6 +60,8 @@ export interface ReadinessSnapshot {
       bot_profile?: BotProfile | null;
       /** A bot keeping a player's seat until they come back. */
       has_reservation?: boolean;
+      /** Reads typed table talk (PID-318): an adult account. Only the table's channel says. */
+      reads_typed?: boolean;
       held_for?: HeldPlayer | null;
       min_games?: number;
       password?: boolean;
