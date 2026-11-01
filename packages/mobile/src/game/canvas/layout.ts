@@ -670,6 +670,13 @@ export function handScale(profile: Profile): number {
   return profile === 'tablet-landscape' ? 0.9 : 1;
 }
 
+/** Right edge of an n-card hand: talk's landscape corner starts past it (PID-328). */
+export function handRight(L: TableLayout, n: number): number {
+  return (
+    handLeft(L, n) + (Math.max(1, n) - 1) * handStep(L, n) + L.cardW * handScale(L.profile) * 1.03
+  );
+}
+
 /** Left edge of an n-card hand, a lifted (playable) card included. */
 export function handLeft(L: TableLayout, n: number): number {
   const half = (Math.max(1, n) - 1) / 2;

@@ -24,6 +24,7 @@ import {
   PidroRadii,
   PidroSpacing,
 } from '@/design/tokens';
+import { OFFER_MS, type Offer } from '@/features/game/offers';
 import {
   isCoin,
   talkKey,
@@ -44,6 +45,10 @@ const GLYPH: Record<Coin, IconName> = {
 };
 /** The band's one row: a word, a coin and the speech button are all this tall. */
 export const TALK_ROW = 52;
+const GAP = PidroSpacing.xs;
+/** Chat-Land's word card, and the narrowest that still holds "Nice trick!" on one line. */
+const CORNER_WORD = 132;
+const MIN_WORD = 108;
 
 /** What a word or a face reads as, in this player's language. */
 export const talkText = (said: Pick<Said, 'item' | 'text'>) =>
@@ -275,7 +280,119 @@ const TAIL: Record<SaidAt, ViewStyle> = {
   below: { top: -5, left: 17 },
 };
 
+/**
+ * What the game offers to say (PID-328): a word card and up to two coins in
+ * place of the band's line, a thin gold line running down for six seconds,
+ * the speech button still at the end. On your turn it stays but dims.
+ */
+export function TalkOffer({
+  offer,
+  place,
+  dim,
+  hold,
+  onSend,
+  onOpen,
+  room = Infinity,
+}: {
+  offer: Offer;
+  place: TalkPlace;
+  dim: boolean;
+  /** The corner's width free right of your hand: the row drops what does not fit. */
+  room?: number;
+  /** Fixtures hold the gold line still for a screenshot. */
+  hold?: boolean;
+  onSend: (item: TalkItem) => void;
+  onOpen: () => void;
+}) {
+  useTranslation();
+  const reduceMotion = useReducedMotion();
+  const left = useSharedValue(1);
+  useEffect(() => {
+    left.set(1);
+    if (!reduceMotion && !hold)
+      left.set(withTiming(0, { duration: OFFER_MS, easing: Easing.linear }));
+  }, [offer, left, reduceMotion, hold]);
+  const drain = useAnimatedStyle(() => ({ transform: [{ scaleX: left.value }] }));
+  // Landscape keeps one coin (Chat-Land), then gives up coin, button and card as room runs out.
+  const corner = place === 'corner';
+  const fits = (width: number) => !corner || room >= width;
+  const cardWidth = corner ? Math.min(CORNER_WORD, room) : undefined;
+  const speech = fits(CORNER_WORD + GAP + TALK_ROW) ? (
+    <TalkSpeech label={t('talk.say_else')} onPress={onOpen} />
+  ) : null;
+  const shownCoins = corner
+    ? fits(CORNER_WORD + 2 * (GAP + TALK_ROW))
+      ? offer.coins.slice(0, 1)
+      : []
+    : offer.coins;
+  if (corner && room < MIN_WORD) return <TalkSpeech label={t('talk.say')} onPress={onOpen} />;
+  const coins = shownCoins.map((item) => (
+    <TalkCoin
+      key={item}
+      item={item}
+      size={place === 'column' ? 56 : TALK_ROW}
+      onPress={() => onSend(item)}
+    />
+  ));
+  const words = (corner ? offer.words.slice(0, 1) : offer.words).map((item) => (
+    <TalkWord
+      key={item}
+      item={item}
+      onPress={() => onSend(item)}
+      big
+      style={
+        place === 'band'
+          ? styles.offerWord
+          : corner
+            ? [styles.cornerWord, { width: cardWidth }]
+            : null
+      }
+    />
+  ));
+  return (
+    <View
+      testID="talk-offer"
+      accessibilityLiveRegion="polite"
+      style={[place === 'column' ? styles.column : null, dim && styles.dim]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.drain, place !== 'band' && styles.drainTight, drain]}
+      />
+      {place === 'column' ? (
+        <>
+          {words}
+          <View style={styles.offerRow}>
+            {coins}
+            {speech}
+          </View>
+        </>
+      ) : (
+        <View style={styles.offerRow}>
+          {words}
+          {coins}
+          {speech}
+        </View>
+      )}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  dim: { opacity: 0.6 },
+  column: { gap: 10 },
+  offerRow: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
+  offerWord: { flex: 1, minHeight: TALK_ROW },
+  cornerWord: { minHeight: TALK_ROW },
+  drain: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: -8,
+    height: 2,
+    backgroundColor: PidroBevel.rim,
+    transformOrigin: 'left',
+  },
+  drainTight: { top: -6 },
   round: { borderRadius: PidroRadii.full },
   coinRim: {
     padding: 2,

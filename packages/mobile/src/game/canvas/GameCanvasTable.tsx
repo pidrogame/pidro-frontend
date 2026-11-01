@@ -58,14 +58,21 @@ import {
 } from './TableChrome';
 import { TableSignals, scoreGlow, tablePidro } from './TableSignals';
 import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
-import { computeLayout, showsTicker, tickerPlacement, trumpPicker, type HeldStyle } from './layout';
+import {
+  computeLayout,
+  handRight,
+  showsTicker,
+  tickerPlacement,
+  trumpPicker,
+  type HeldStyle,
+} from './layout';
 import { RuleSetChip } from '@/components/rules/RuleSet';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
 import { PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { t, useTranslation } from '@/i18n';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
-import { TalkBand, TalkLanding, type TalkPlace } from '@/components/game/TableTalk';
+import { TalkBand, TalkLanding, TalkOffer, type TalkPlace } from '@/components/game/TableTalk';
 import { TalkSheet } from '@/components/game/TalkSheet';
 import { talkTable, type Said } from '@/features/game/talk';
 import { useTableTalk, type TalkFixture } from '@/game/useTableTalk';
@@ -546,19 +553,26 @@ export function GameCanvasTable({
   // Table talk (PID-114): only where two or more people sit, and never under game over.
   const players = viewModel?.players ?? [];
   const me = players.find((player) => player.isYou);
+  const talking =
+    !isSpectator &&
+    !!youPositionAbs &&
+    talkTable(readiness?.seats) &&
+    !(isGameOver && roomFinished);
+  const hand = serverState?.hand_number ?? serverState?.round_number ?? 0;
   const talk = useTableTalk(
     {
       seat: youPositionAbs,
       userId: me?.playerId ?? null,
       game: serverState?.game_instance_id,
     },
+    {
+      hand,
+      trick: `${hand}:${serverState?.tricks?.length ?? 0}`,
+      bidding: controller.phase === 'bidding',
+      shown: talking,
+    },
     talkFixture
   );
-  const talking =
-    !isSpectator &&
-    !!youPositionAbs &&
-    talkTable(readiness?.seats) &&
-    !(isGameOver && roomFinished);
   // A sheet left open when talk stops (game over, a seat to a bot) must not reopen later.
   if (!talking && talk.sheet) talk.open(null);
   const talkPlace: TalkPlace = layout.profile.startsWith('tablet')
@@ -678,12 +692,29 @@ export function GameCanvasTable({
                     bottom: insets.bottom + PidroSpacing.xs,
                   },
           ]}>
-          <TalkBand
-            place={talkPlace}
-            line={talk.line}
-            lineName={talk.line ? who(talk.line).name : ''}
-            onOpen={() => talk.open(talk.line ? 'log' : 'words')}
-          />
+          {talk.offer ? (
+            <TalkOffer
+              offer={talk.offer}
+              place={talkPlace}
+              dim={isYourTurn}
+              hold={!!talkFixture}
+              room={
+                width -
+                insets.right -
+                PidroSpacing.sm * 2 -
+                handRight(layout, model.yourHand.length)
+              }
+              onSend={talk.send}
+              onOpen={() => talk.open('words')}
+            />
+          ) : (
+            <TalkBand
+              place={talkPlace}
+              line={talk.line}
+              lineName={talk.line ? who(talk.line).name : ''}
+              onOpen={() => talk.open(talk.line ? 'log' : 'words')}
+            />
+          )}
         </View>
       ) : null}
       {talking ? (

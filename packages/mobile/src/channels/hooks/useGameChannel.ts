@@ -30,10 +30,10 @@ let globalGameChannel: Channel | null = null;
 let notifySeatEvent: ((event: SeatEvent) => void) | undefined;
 let gameRefCount = 0;
 let currentTopic: string | null = null;
-const talkListeners = new Set<(payload: unknown) => void>();
+const talkListeners = new Set<(event: 'talk' | 'moment', payload: unknown) => void>();
 
-/** Table talk (PID-114): the table listens while it shows. */
-export function onTableTalk(listener: (payload: unknown) => void) {
+/** Table talk (PID-114) and the moments it answers (PID-328): the table listens while it shows. */
+export function onTableTalk(listener: (event: 'talk' | 'moment', payload: unknown) => void) {
   talkListeners.add(listener);
   return () => {
     talkListeners.delete(listener);
@@ -574,7 +574,11 @@ export const useGameChannel = ({
       }
 
       onCurrent('talk', (payload: unknown) => {
-        talkListeners.forEach((listener) => listener(payload));
+        talkListeners.forEach((listener) => listener('talk', payload));
+      });
+
+      onCurrent('moment', (payload: unknown) => {
+        talkListeners.forEach((listener) => listener('moment', payload));
       });
 
       onCurrent('progression_summary', (payload: unknown) => {
