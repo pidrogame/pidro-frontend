@@ -26,6 +26,13 @@ export const talkCases = [
   'send',
   'sv-quiet',
   'sv-sheet',
+  // PID-328: what the band offers.
+  'offer',
+  'offer-turn',
+  'offer-tap',
+  'reply',
+  'start',
+  'sv-offer',
 ].map((state) => `table-talk-${state}`);
 const friendSheetCases = [
   'partner',
@@ -188,7 +195,12 @@ export const UI_VIEWPORTS = [
     width: 360,
     height: 780,
     safeArea: 'android',
-    cases: ['table-small-west-deals', 'table-small-north-bid', 'table-small-your-turn'],
+    cases: [
+      'table-small-west-deals',
+      'table-small-north-bid',
+      'table-small-your-turn',
+      ...talkCases,
+    ],
   },
   {
     name: 'compact-portrait',
@@ -229,6 +241,7 @@ export const UI_VIEWPORTS = [
     width: 640,
     height: 360,
     cases: [
+      ...talkCases,
       'table-bidding',
       'table-playing',
       'table-completed-trick',

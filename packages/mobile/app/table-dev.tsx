@@ -45,6 +45,7 @@ import { secondDealDurationMs } from '@/game/canvas/animationTiming';
 import type { HeldStyle } from '@/game/canvas/layout';
 import type { TalkFixture } from '@/game/useTableTalk';
 import type { TalkItem } from '@/features/game/talk';
+import { momentOffer, replyOffer } from '@/features/game/offers';
 
 // `bids=`: a hand's bids landing one by one against three bots.
 const BID_ROUNDS: Record<string, { dealer: Position; bids: ServerBid[] }> = {
@@ -385,6 +386,14 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
   },
   'talk-line': { line: said('north', 'word_thanks') },
   'talk-sheet': { sheet: 'words' },
+  // PID-328: what the band offers.
+  'talk-offer': { offer: momentOffer('partner_trick') },
+  'talk-offer-turn': { offer: momentOffer('partner_trick') },
+  'talk-start': { offer: momentOffer('start') },
+  'talk-reply': {
+    landed: [said('west', 'word_well')],
+    offer: replyOffer({ item: 'word_well' }),
+  },
   'talk-log': {
     sheet: 'log',
     line: said('north', 'word_thanks'),
@@ -735,6 +744,7 @@ function TableDevHarness() {
             loading={params.loading ? Number(params.loading) : undefined}
             dealerLate={fixture === 'dealer-late' ? Number(params.late) || 0 : undefined}
             talk={TALK_FIXTURES[fixture ?? '']}
+            talkTurn={!TALK_FIXTURES[fixture ?? '']?.offer || fixture?.endsWith('-turn')}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -966,6 +976,7 @@ function RolePreview({
   loading,
   dealerLate,
   talk,
+  talkTurn = true,
 }: {
   role: 'player' | 'spectator';
   phase: string;
@@ -999,6 +1010,8 @@ function RolePreview({
   dealerLate?: number;
   /** `fixture=talk-*`: table talk as it stands (PID-114). */
   talk?: TalkFixture;
+  /** `fixture=talk-*-turn`: your turn while the band offers (PID-328); otherwise West's. */
+  talkTurn?: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
@@ -1100,7 +1113,9 @@ function RolePreview({
             ? bidRound.bids[0].position
             : botCrew
               ? botTurn
-              : 'south',
+              : talkTurn
+                ? 'south'
+                : 'west',
       trump: previewPhase === 'playing' || previewPhase === 'second_deal' ? 'spades' : null,
       dealer: dealerPosition,
       scores: {
@@ -1168,6 +1183,15 @@ function RolePreview({
         highest_bid: { position: 'east', amount: 6 },
         tricks: trick?.taken ?? [],
         current_trick: trick?.current ?? BOT_TRICK,
+      }),
+      // Talk is a playing table: six cards each, as after the second deal.
+      ...(talk && {
+        players: {
+          north: { hand: 6 },
+          east: { hand: 6 },
+          west: { hand: 6 },
+          south: { hand: DETAILS_HAND },
+        },
       }),
       ...(details && {
         highest_bid: { position: bidder, amount: 7 },
@@ -1248,7 +1272,7 @@ function RolePreview({
       store.setTurnTimer({
         timerId: 1,
         scope: 'seat',
-        position: 'south',
+        position: talkTurn ? 'south' : 'west',
         phase: 'playing',
         durationMs: 30_000,
         transitionDelayMs: 0,
@@ -1288,6 +1312,7 @@ function RolePreview({
     tableRoom,
     scoreHistory,
     talk,
+    talkTurn,
   ]);
 
   // The dealer cut as the server times it: the cut, then the deal 3 s later.

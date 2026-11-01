@@ -94,7 +94,13 @@ word at your seat, `coin` a coin at North and East and a word at West, `line` th
 line after a landing fades, `sheet` the hand of words, `log` what was said this game. A tap
 in a fixture lands at once and sends nothing. `table-talk-*` checks the band under your seat,
 landings clear of every seat's cards, a sheet with no scrolling and one tap that sends and
-closes it, at 390×844, 375×667, 844×390 and 768×1024.
+closes it, at 390×844, 375×667, 844×390, 640×360 and both iPad sizes.
+
+What the band offers (PID-328) is `fixture=talk-offer` (your partner's trick: Nice trick!,
+heart, thumb), `talk-offer-turn` (the same on your turn, dimmed), `talk-reply` (Antti said
+Well played: Thanks!, heart) and `talk-start` (Hello!, Good luck). In a fixture the gold line
+holds still and the offer stays. Landscape phones keep the card, one coin and the speech button
+right of your hand, and drop the coin, then the button, where the hand leaves less room.
 
 Friends locale previews use `/ui-dev?state=friends&fixture=added-you&locale=sv`
 or `/ui-dev?state=friends-add&fixture=results&locale=sv`. They reuse the actual
@@ -712,17 +718,17 @@ The Tell us sheet open in one state, or the question card on Home. The fixture s
 only where it starts; Send, the answers and the next question go to the server
 (`POST /api/v1/feedback`, `GET /api/v1/feedback/ask`), which the UI-grammar cases route.
 
-| `state`  | Shows                                                                     |
-| -------- | ------------------------------------------------------------------------- |
-| `open`   | Sheet, empty card, the reply line or "Want an answer?", Send off           |
-| `typing` | Sheet with words on the card, Send on                                      |
-| `chip`   | Sheet opened from the question card: "About your last game" on the card    |
-| `sent`   | "Thanks. We read every one." and Done                                      |
-| `failed` | Words back on the card, the alert, Try again and "Use my mail app"         |
-| `limit`  | The limit alert and a disabled "Send tomorrow"                             |
-| `guest`  | The email field folded down with an address typed (use with a guest)       |
-| `pace`   | Home's question card: Pace in your last game                              |
-| `old`    | Home's question card: Compared to the old Pidro                           |
+| `state`  | Shows                                                                   |
+| -------- | ----------------------------------------------------------------------- |
+| `open`   | Sheet, empty card, the reply line or "Want an answer?", Send off        |
+| `typing` | Sheet with words on the card, Send on                                   |
+| `chip`   | Sheet opened from the question card: "About your last game" on the card |
+| `sent`   | "Thanks. We read every one." and Done                                   |
+| `failed` | Words back on the card, the alert, Try again and "Use my mail app"      |
+| `limit`  | The limit alert and a disabled "Send tomorrow"                          |
+| `guest`  | The email field folded down with an address typed (use with a guest)    |
+| `pace`   | Home's question card: Pace in your last game                            |
+| `old`    | Home's question card: Compared to the old Pidro                         |
 
 testIDs `feedback-sheet`, `feedback-body`, `feedback-email`, `feedback-send`,
 `feedback-ask`, `home-tell`, `settings-tell`. UI grammar: the `tell-*` cases at

@@ -371,7 +371,7 @@ const allCases = [
   ...talkCases.map((name) => {
     const state = name.replace('table-talk-', '');
     const locale = state.startsWith('sv-') ? 'sv' : 'en';
-    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet')}`;
+    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer')}`;
     return {
       name,
       path: `/table-dev?fixture=${fixture}&locale=${locale}`,
@@ -4508,6 +4508,47 @@ const overlaps = (a, b) =>
   a.y < b.y + b.height - 1 &&
   b.y < a.y + a.height - 1;
 
+const OFFER_WORDS = {
+  offer: { en: 'Nice trick!', sv: 'Snyggt stick!' },
+  'offer-turn': { en: 'Nice trick!' },
+  'offer-tap': { en: 'Nice trick!' },
+  reply: { en: 'Thanks!' },
+  start: { en: 'Hello!' },
+};
+
+/**
+ * What the band offers (PID-328): a word card where the band's line was, clear
+ * of your seat (and in landscape of your hand), dimmed but kept on your turn,
+ * and one tap says it and puts the band back.
+ */
+async function assertTalkOffer(page, testCase, viewport, landscape) {
+  const word = OFFER_WORDS[testCase.talk]?.[testCase.locale];
+  if (!word) return false;
+  const offer = page.getByTestId('talk-offer');
+  await offer.waitFor();
+  const card = offer.getByRole('button', { name: word, exact: true });
+  await card.waitFor();
+  const box = await getStableBox(offer, page);
+  assertInsideViewport('talk offer', box, viewport);
+  const you = await getStableBox(page.getByTestId('seat-south'), page);
+  assert.ok(!overlaps(box, you), 'the offer keeps clear of your seat');
+  if (!landscape && viewport.width < 600)
+    assert.ok(box.y >= you.y + you.height, 'the offer sits in the band, under your seat');
+  assert.equal(
+    await offer.evaluate((node) => Number(getComputedStyle(node).opacity)),
+    testCase.talk === 'offer-turn' ? 0.6 : 1,
+    'on your turn the offer dims, and only then'
+  );
+  if (testCase.talk === 'offer-tap') {
+    await card.click();
+    await offer.waitFor({ state: 'detached' });
+    await page.getByTestId('talk-landed').getByText(word).waitFor();
+  }
+  await waitForScreenshotReady(page);
+  await assertMinimumTouchTargets(page, testCase.name, viewport);
+  return true;
+}
+
 /**
  * Table talk (PID-114). The band sits under your seat and never moves the table,
  * a landing stays clear of every seat's cards, the hand of words fits without
@@ -4517,6 +4558,7 @@ async function assertTalk(page, testCase, viewport) {
   if (!testCase.talk) return;
   // Phones on their side keep a speech button in the corner; an iPad keeps the band beside the hand.
   const landscape = viewport.width > viewport.height && viewport.height < 600;
+  if (await assertTalkOffer(page, testCase, viewport, landscape)) return;
   // The table's own; the log's sheet holds a second band.
   const opener = page.getByTestId(landscape ? 'talk-speech' : 'talk-band').first();
   await opener.waitFor();

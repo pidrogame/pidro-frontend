@@ -560,6 +560,7 @@ async function stageThreeTableTalk() {
   });
   const video = { dir: resolve(artifactDir, 'talk'), size: { width: 390, height: 844 } };
   const pages = [];
+  let keepSeats;
   try {
     for (const name of [speaker, listener]) {
       const context = await browser.newContext({
@@ -573,12 +574,40 @@ async function stageThreeTableTalk() {
       pages.push(page);
     }
     const [said, heard] = pages;
+    // Neither seat plays a card; the server sends an idle player away now and
+    // then. Come back each time, as the guest in stage 2 does.
+    keepSeats = setInterval(() => {
+      for (const page of pages)
+        void page
+          .getByTestId('game-away-window')
+          .isVisible()
+          .then((away) =>
+            away
+              ? page.getByRole('button', { name: "I'm back" }).click({ timeout: 3_000 })
+              : undefined
+          )
+          .catch(() => {});
+    }, 500);
     await confirmInitialTable(pages, '[data-testid="game-table"]');
     for (const page of pages)
       await page.getByTestId('talk-band').first().waitFor({ timeout: 30_000 });
     log('both players see the band: two people at the table');
 
-    await said.getByTestId('talk-band').first().click();
+    // Nobody plays here, so "time ran out" notices keep landing in the band's
+    // slot. A player taps one away first; so does this.
+    const tap = async (target) => {
+      for (let attempt = 1; ; attempt += 1) {
+        const notice = target.page().getByTestId('table-feedback');
+        if (await notice.isVisible().catch(() => false)) await notice.click().catch(() => {});
+        try {
+          return await target.click({ timeout: 2_000 });
+        } catch (error) {
+          if (attempt >= 8) throw error;
+        }
+      }
+    };
+
+    await tap(said.getByTestId('talk-band').first());
     await said.getByTestId('talk-sheet-words').waitFor();
     await said.getByTestId('talk-word_nice').click();
     await said.getByTestId('talk-sheet-words').waitFor({ state: 'detached' });
@@ -611,15 +640,61 @@ async function stageThreeTableTalk() {
       throw new Error(`the word landed by ${nearest?.label}, not by ${speaker}`);
     log(`the word landed at ${speaker}'s seat on ${listener}'s phone`);
 
-    // It fades after about three seconds and the band keeps it.
+    // It fades after about three seconds and the band keeps it, unless an
+    // offer stands in the band's place (bots finish tricks fast here).
     await heard
       .getByTestId('talk-band')
       .first()
       .getByText('Nice trick!')
+      .or(heard.getByTestId('talk-offer'))
+      .first()
       .waitFor({ timeout: 8_000 });
     await heard.screenshot({ path: resolve(artifactDir, 'talk-last-line.png') });
-    log('stage 3 passed: a word sent from one phone landed on the other and stayed as its line');
+    log('a word sent from one phone landed on the other and stayed in its band');
+
+    // PID-328: praise is answered. Offers wait out bidding, take one trick at a
+    // time and stop for a hand after three are ignored, so say it again until
+    // the other phone offers Thanks!.
+    let answered = false;
+    for (let attempt = 1; attempt <= 12 && !answered; attempt += 1) {
+      // The band, or the speech button beside an offer standing in its place.
+      const opener = said
+        .getByTestId('talk-band')
+        .or(said.getByTestId('talk-offer').getByTestId('talk-speech'))
+        .first();
+      if (!(await opener.isVisible().catch(() => false))) {
+        await said.waitForTimeout(2_000);
+        continue;
+      }
+      await tap(opener);
+      await said.getByTestId('talk-word_well').click({ timeout: 5_000 });
+      const thanks = heard
+        .getByTestId('talk-offer')
+        .getByRole('button', { name: 'Thanks!', exact: true });
+      if (
+        !(await thanks.waitFor({ timeout: 4_000 }).then(
+          () => true,
+          () => false
+        ))
+      ) {
+        log(`no Thanks! offered yet (attempt ${attempt}); saying it again`);
+        await said.waitForTimeout(2_500);
+        continue;
+      }
+      await heard.screenshot({ path: resolve(artifactDir, 'talk-offer.png') });
+      await tap(thanks);
+      await said
+        .getByTestId('talk-landed')
+        .filter({ hasText: 'Thanks!' })
+        .waitFor({ timeout: 10_000 });
+      await said.screenshot({ path: resolve(artifactDir, 'talk-reply-landed.png') });
+      answered = true;
+    }
+    if (!answered) throw new Error('the other phone never offered Thanks! to Well played');
+    log('stage 3 passed: one tap on the offered Thanks! came back to the first phone');
   } finally {
+    clearInterval(keepSeats);
+    for (const page of pages) await page.context().close();
     await browser.close();
   }
 }
@@ -633,7 +708,7 @@ function writeStepSummary(result, elapsedSeconds) {
     '',
     `- UI milestones captured: ${result.milestones.join(', ')}`,
     `- Page errors during the UI game: ${result.pageErrors}`,
-    '- Table talk: two players, a word sent from one phone landed at its seat on the other (`talk/`, `talk-*.png`).',
+    '- Table talk: two players, a word sent from one phone landed at its seat on the other, and the Thanks! it offered came back (`talk/`, `talk-*.png`).',
     '- Video + screenshots: see the `game-e2e-artifacts` artifact on this run.',
     '',
   ];
