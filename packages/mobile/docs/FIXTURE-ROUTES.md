@@ -577,6 +577,9 @@ and the post-game `KeepProgressPrompt`. Deliberately outside the auth guard. tes
 
 The real claim screen with deterministic presentation states and no backend mutation. States:
 `method` shows the three sign-in choices; `login` shows only Classic credentials;
+`login-wrong-twice` is the same step after two wrong passwords for ThunderThor88 (PID-312):
+the offer to email a code sits above the password field (in the side column in landscape,
+taking the heading's room on a phone), with "Email me a code" opening Classic forgot;
 `preview` asks "Is this you?" with the Classic name and games/level/since;
 `social` is the same card after a Facebook verification that offers the Classic
 username (PID-301): signed out, "Yes, that's me" claims without a details step
@@ -657,7 +660,7 @@ the missing Swedish first screen/profile and recovery states are added. Run from
 
 ```sh
 export UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait
-export UI_CASES=photo-profile-en,photo-empty-en,photo-profile-sv,photo-present-sv,news-welcome-en,news-welcome-sv,welcome,welcome-sv,classic-method,classic-preview,classic-guest,classic-fresh,classic-rename,classic-conflict,classic-conflict-fresh,classic-conflict-guest,classic-conflict-guest-apple,classic-login,classic-password,classic-password-guest,locale-sv-classic-method,locale-sv-classic-login,locale-sv-classic-preview,locale-sv-classic-password,locale-sv-classic-rename,locale-sv-classic-already-claimed,classic-rename-fresh,classic-details-en,classic-rename-details-en,classic-taken-en,classic-details-sv,classic-rename-details-sv,classic-taken-sv,classic-forgot,classic-code,classic-code-invalid,classic-help,classic-not-found-en,classic-unavailable-en,classic-help-sent-en,classic-forgot-sv,classic-code-sv,classic-code-invalid-sv,classic-not-found-sv,classic-unavailable-sv,classic-help-sv,classic-help-sent-sv,forgot-password,forgot-password-sv
+export UI_CASES=photo-profile-en,photo-empty-en,photo-profile-sv,photo-present-sv,news-welcome-en,news-welcome-sv,welcome,welcome-sv,classic-method,classic-preview,classic-guest,classic-fresh,classic-rename,classic-conflict,classic-conflict-fresh,classic-conflict-guest,classic-conflict-guest-apple,classic-login,classic-login-wrong-twice,classic-password,classic-password-guest,locale-sv-classic-method,locale-sv-classic-login,locale-sv-classic-login-wrong-twice,locale-sv-classic-preview,locale-sv-classic-password,locale-sv-classic-rename,locale-sv-classic-already-claimed,classic-rename-fresh,classic-details-en,classic-rename-details-en,classic-taken-en,classic-details-sv,classic-rename-details-sv,classic-taken-sv,classic-forgot,classic-code,classic-code-invalid,classic-help,classic-not-found-en,classic-unavailable-en,classic-help-sent-en,classic-forgot-sv,classic-code-sv,classic-code-invalid-sv,classic-not-found-sv,classic-unavailable-sv,classic-help-sv,classic-help-sent-sv,forgot-password,forgot-password-sv
 node scripts/verify-ui-grammar.mjs --list
 node scripts/verify-ui-grammar.mjs
 ```

@@ -198,6 +198,9 @@ export const en = {
   "auth.claim_name_stays": "Your name stays %{name}.",
   "auth.enter_classic_password": "Enter the password you use in Pidro today.",
   "auth.classic_verify": "Find my account",
+  "auth.code_offer":
+    "Still not working? We can email you a code. A code from us goes on its own screen, not in this box.",
+  "auth.code_offer_link": "Email me a code",
   "auth.classic_credentials": "Username and password",
   "auth.classic_found": "Is this you?",
   "auth.already_in_pidro": "Already in Pidro",
@@ -447,6 +450,9 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.claim_name_stays": "Ditt namn förblir %{name}.",
   "auth.enter_classic_password": "Ange lösenordet du använder i Pidro i dag.",
   "auth.classic_verify": "Hitta mitt konto",
+  "auth.code_offer":
+    "Fungerar det inte? Vi kan mejla dig en kod. En kod från oss skrivs på en egen sida, inte i den här rutan.",
+  "auth.code_offer_link": "Mejla mig en kod",
   "auth.classic_credentials": "Namn och lösenord",
   "auth.classic_found": "Är det här du?",
   "auth.already_in_pidro": "Redan i Pidro",

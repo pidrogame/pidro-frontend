@@ -42,6 +42,16 @@ export class ClaimClassicScreen extends Screen {
     return answered;
   }
 
+  /** Tries another password for the login already typed, as a player retrying would. */
+  async retryPassword(password: string) {
+    await this.field('Password').fill(password);
+    const answered = this.page.waitForResponse((response) =>
+      response.url().includes('/api/v1/classic/verify')
+    );
+    await this.button('Find my account').click();
+    return answered;
+  }
+
   /** Explicitly accepts the preview, opening details or claiming directly. */
   async confirmIdentity() {
     await this.button("Yes, that's me").click();

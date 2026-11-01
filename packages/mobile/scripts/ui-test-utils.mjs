@@ -63,6 +63,7 @@ const backgroundCases = [
 const classicClaimCases = [
   'classic-method',
   'classic-login',
+  'classic-login-wrong-twice',
   'classic-preview',
   'classic-fresh',
   'classic-social',

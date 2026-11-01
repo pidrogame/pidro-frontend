@@ -621,6 +621,12 @@ const allCases = [
     path: '/(auth)/claim-classic?fixture=login',
     testId: 'claim-classic-screen',
   },
+  // PID-312: after two wrong passwords, the emailed-code offer above the password field.
+  {
+    name: 'classic-login-wrong-twice',
+    path: '/(auth)/claim-classic?fixture=login-wrong-twice',
+    testId: 'claim-classic-screen',
+  },
   {
     name: 'classic-password',
     path: '/(auth)/claim-classic?fixture=password',
@@ -635,7 +641,15 @@ const allCases = [
     authFixture: guestAuthFixture,
     classicPassword: true,
   },
-  ...['method', 'login', 'preview', 'password', 'rename', 'already-claimed'].map((fixture) => ({
+  ...[
+    'method',
+    'login',
+    'login-wrong-twice',
+    'preview',
+    'password',
+    'rename',
+    'already-claimed',
+  ].map((fixture) => ({
     name: `locale-sv-classic-${fixture}`,
     path: `/ui-dev?state=claim-classic&fixture=${fixture}&locale=sv&language=sv`,
     testId: 'claim-classic-screen',
@@ -2320,6 +2334,11 @@ async function assertClassicLogin(page, testCase, viewport) {
       testCase.path.includes('rename-details') ? 4 : 3,
       'every missing/refused value remains editable'
     );
+  }
+  if (testCase.path.includes('fixture=login-wrong-twice')) {
+    await screen
+      .getByRole('link', { name: sv ? 'Mejla mig en kod' : 'Email me a code', exact: true })
+      .waitFor();
   }
   if (testCase.path.includes('fixture=code')) {
     await screen

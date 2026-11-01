@@ -68,6 +68,7 @@ type Fixture =
   | 'preview'
   | 'social'
   | 'login'
+  | 'login-wrong-twice'
   | 'password'
   | 'rename'
   | 'already-claimed'
@@ -111,7 +112,8 @@ export default function ClaimClassicScreen() {
   const setSession = useAuthStore((state) => state.setSession);
   const [providerHandoff] = useState(takePendingClassicClaim);
   const fixtureVerification = useMemo(() => {
-    if (!fixture || fixture === 'method' || fixture === 'login') return null;
+    if (!fixture || fixture === 'method' || fixture === 'login' || fixture === 'login-wrong-twice')
+      return null;
     return {
       ...FIXTURE_PREVIEW,
       classic: {
@@ -135,7 +137,7 @@ export default function ClaimClassicScreen() {
     providerHandoff?.method ??
       (fixture === 'social'
         ? 'facebook'
-        : fixtureVerification || fixture === 'login'
+        : fixtureVerification || fixture === 'login' || fixture === 'login-wrong-twice'
           ? 'password'
           : null)
   );
@@ -147,7 +149,10 @@ export default function ClaimClassicScreen() {
       ? 'details'
       : 'check'
   );
-  const [login, setLogin] = useState('');
+  const [login, setLogin] = useState(fixture === 'login-wrong-twice' ? 'ThunderThor88' : '');
+  // Wrong passwords in a row for this login; from the second, the screen offers an emailed
+  // code, since a player holding one may be typing it into the password box.
+  const [wrongPasswords, setWrongPasswords] = useState(fixture === 'login-wrong-twice' ? 2 : 0);
   // The Classic login the shown verification came from; a recovery or provider has none.
   const [verifiedLogin, setVerifiedLogin] = useState(
     fixture === 'already-claimed' ? 'ThunderThor88' : ''
@@ -210,6 +215,15 @@ export default function ClaimClassicScreen() {
     };
   }, [alreadyClaimed, fixture, guestId]);
 
+  const openCodeFlow = useCallback(
+    () =>
+      router.push({
+        pathname: '/(auth)/classic-forgot',
+        params: { login: login.trim(), returnTo: 'claim' },
+      }),
+    [login, router]
+  );
+
   const signIn = useCallback(
     (email?: string) =>
       router.replace({ pathname: '/(auth)/login', params: email ? { email } : {} }),
@@ -221,6 +235,7 @@ export default function ClaimClassicScreen() {
       setMethod(nextMethod);
       setVerification(result);
       setVerifiedLogin(verifiedAs);
+      setWrongPasswords(0);
       setGuestGames(0);
       setStep('check');
       setDisplayName(result.classic.name_allowed ? (result.classic.name ?? '') : '');
@@ -313,6 +328,8 @@ export default function ClaimClassicScreen() {
       });
       finishVerification(result, 'password', login.trim());
     } catch (requestError) {
+      if (apiErrorInfo(requestError).code === 'INVALID_CREDENTIALS')
+        setWrongPasswords((count) => count + 1);
       reportRequestError(requestError, 'auth.classic_verify_failed');
     } finally {
       setBusy(false);
@@ -476,6 +493,7 @@ export default function ClaimClassicScreen() {
     if (busy) return;
     setVerification(null);
     setVerifiedLogin('');
+    setWrongPasswords(0);
     setMethod(null);
     setStep('check');
     setFields({});
@@ -502,6 +520,22 @@ export default function ClaimClassicScreen() {
   useHardwareBack(focused, onBack);
 
   const details = verification && !alreadyClaimed && step === 'details';
+  const failure = requestFailure
+    ? localizedError(requestFailure.error, requestFailure.fallback)
+    : error
+      ? t(error, { provider: errorProvider })
+      : null;
+  // From the second wrong password, the offer of an emailed code says it failed; any other
+  // failure shows instead. On a phone it takes the heading's room, and in landscape it sits
+  // in the side column: the window has none.
+  const offersCode =
+    !verification &&
+    method === 'password' &&
+    wrongPasswords >= 2 &&
+    (!failure ||
+      (requestFailure !== null &&
+        apiErrorInfo(requestFailure.error).code === 'INVALID_CREDENTIALS'));
+  const notice = offersCode ? null : failure;
   const fieldCount =
     Object.values(form.asks).filter(Boolean).length +
     (verification && !verification.classic.name_allowed ? 1 : 0);
@@ -521,18 +555,29 @@ export default function ClaimClassicScreen() {
             : claimNeedsDetails(form, true)
               ? 'auth.create_your_account'
               : 'auth.classic_found';
-  const notice = requestFailure
-    ? localizedError(requestFailure.error, requestFailure.fallback)
-    : error
-      ? t(error, { provider: errorProvider })
-      : null;
+  // Keyed by the count, so each further wrong password announces it again.
+  const codeOffer = offersCode ? (
+    <AuthFlowNotice
+      key={wrongPasswords}
+      tone="info"
+      action={
+        <TextLink
+          label={t('auth.code_offer_link')}
+          size={metrics.link}
+          disabled={busy}
+          onPress={openCodeFlow}
+        />
+      }>
+      {t('auth.code_offer')}
+    </AuthFlowNotice>
+  ) : null;
 
   return (
     <AuthFlowScreen
       testID="claim-classic-screen"
       headerTitle={t('auth.classic')}
       onBack={onBack}
-      title={t(title)}
+      title={offersCode && layout !== 'tablet' ? undefined : t(title)}
       body={
         details
           ? !verification.classic.name_allowed
@@ -549,15 +594,22 @@ export default function ClaimClassicScreen() {
       }
       aside={
         !verification ? (
-          <TextLink
-            label={t(method === 'password' ? 'auth.claim_other_method' : 'auth.claim_help')}
-            size={metrics.link}
-            style={styles.centerLink}
-            disabled={busy}
-            onPress={
-              method === 'password' ? resetVerification : () => router.push('/(auth)/classic-help')
-            }
-          />
+          <>
+            {layout === 'landscape' && codeOffer ? (
+              <View style={styles.sideNotice}>{codeOffer}</View>
+            ) : null}
+            <TextLink
+              label={t(method === 'password' ? 'auth.claim_other_method' : 'auth.claim_help')}
+              size={metrics.link}
+              style={styles.centerLink}
+              disabled={busy}
+              onPress={
+                method === 'password'
+                  ? resetVerification
+                  : () => router.push('/(auth)/classic-help')
+              }
+            />
+          </>
         ) : claimed ? (
           <View style={layout === 'landscape' ? styles.sideLinks : styles.links}>
             {claimed.forgot ? (
@@ -610,9 +662,11 @@ export default function ClaimClassicScreen() {
                 autoCorrect={false}
                 onChangeText={(value) => {
                   setLogin(value);
+                  setWrongPasswords(0);
                   clearField('login');
                 }}
               />
+              {layout === 'landscape' ? null : codeOffer}
               <Input
                 label={t('auth.password')}
                 value={classicPassword}
@@ -637,12 +691,7 @@ export default function ClaimClassicScreen() {
                 size={metrics.link}
                 style={styles.forgot}
                 disabled={busy}
-                onPress={() =>
-                  router.push({
-                    pathname: '/(auth)/classic-forgot',
-                    params: { login: login.trim(), returnTo: 'claim' },
-                  })
-                }
+                onPress={openCodeFlow}
               />
               <AuthFlowButton
                 testID="classic-forward"
@@ -888,6 +937,12 @@ const styles = StyleSheet.create({
   },
   sideLinks: {
     alignItems: 'flex-start',
+  },
+  // Undoes the side column's link inset, so the notice lines up with the heading.
+  sideNotice: {
+    alignSelf: 'stretch',
+    marginLeft: 12,
+    marginBottom: PidroSpacing.xs,
   },
   forgot: {
     width: '100%',
