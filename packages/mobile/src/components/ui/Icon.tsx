@@ -43,7 +43,11 @@ export type IconName =
   | 'enter'
   | 'share'
   | 'clock'
-  | 'chat';
+  | 'chat'
+  | 'heart'
+  | 'thumb'
+  | 'laugh'
+  | 'oops';
 
 const ICONS: Record<IconName, { path: string; mode: 'fill' | 'stroke' }> = {
   home: { path: 'M3 11l9-8 9 8M5 9v12h5v-7h4v7h5V9', mode: 'stroke' },
@@ -111,6 +115,23 @@ const ICONS: Record<IconName, { path: string; mode: 'fill' | 'stroke' }> = {
     mode: 'stroke',
   },
   clock: { path: 'M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0M12 7.5V12l3 2', mode: 'stroke' },
+  // Table talk's faces (PID-114); `star` is their wow.
+  heart: {
+    path: 'M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11z',
+    mode: 'fill',
+  },
+  thumb: {
+    path: 'M7 11v9H4v-9zM7 11l4-8c1.4 0 2.4 1 2.4 2.4V9h5.2c1.1 0 1.9 1 1.7 2.1l-1.3 7c-.2 1-1 1.9-2 1.9H7',
+    mode: 'stroke',
+  },
+  laugh: {
+    path: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M7.5 9.5l2 1.3-2 1.2M16.5 9.5l-2 1.3 2 1.2M7.5 14.5h9a4.5 4.5 0 0 1-9 0z',
+    mode: 'stroke',
+  },
+  oops: {
+    path: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0M8.5 9.5v1M15.5 9.5v1M14 15.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0',
+    mode: 'stroke',
+  },
   'arrow-left': { path: 'M19 12H5m7-7-7 7 7 7', mode: 'stroke' },
   star: {
     path: 'M12 2l2.4 5.7 6.1.5-4.6 4 1.4 6L12 15l-5.3 3.2 1.4-6-4.6-4 6.1-.5z',
