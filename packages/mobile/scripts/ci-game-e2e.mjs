@@ -607,7 +607,7 @@ async function stageThreeTableTalk() {
     // A "time ran out" notice can still sit in the band's slot. Under one,
     // press the control itself, as a screen reader does.
     const tap = async (target) => {
-      await target.waitFor();
+      await target.waitFor({ timeout: 5_000 });
       await target
         .click({ timeout: 1_500 })
         .catch(() => target.evaluate((node) => node.click(), undefined, { timeout: 2_000 }));
@@ -677,6 +677,8 @@ async function stageThreeTableTalk() {
     // time and stop for a hand after three are ignored, so say it again until
     // the other phone offers Thanks!.
     let answered = false;
+    const ok = () => true;
+    const lost = () => false;
     const until = Date.now() + 120_000;
     for (let attempt = 1; Date.now() < until && !answered; attempt += 1) {
       if (
@@ -705,8 +707,6 @@ async function stageThreeTableTalk() {
       await heard.screenshot({ path: resolve(artifactDir, 'talk-offer.png') });
       // CI pacing ends a hand in seconds: an offer can go before the tap, and
       // game over can cover the landing. Either way, say it again.
-      const ok = () => true;
-      const lost = () => false;
       if (!(await tap(thanks).then(ok, lost))) {
         log(`the offer went before the tap (attempt ${attempt}); saying it again`);
         continue;
@@ -721,7 +721,44 @@ async function stageThreeTableTalk() {
     }
     if (!answered)
       throw new Error('no offered Thanks! came back to Well played within two minutes');
-    log('stage 3 passed: one tap on the offered Thanks! came back to the first phone');
+    log('one tap on the offered Thanks! came back to the first phone');
+
+    // PID-318: both are adults, so both read typed talk. What one types lands
+    // at their seat on the other phone.
+    const typed = `Nice five ${suffix}`;
+    let landedTyped = false;
+    for (let attempt = 1; attempt <= 8 && !landedTyped; attempt += 1) {
+      if (!(await opener(said).isVisible().catch(lost))) {
+        await said.waitForTimeout(2_000);
+        continue;
+      }
+      // Your turn coming closes the box, as it should; then type it again.
+      const typedIt = async () => {
+        await tap(opener(said));
+        const typing = said.getByTestId('talk-sheet-typing');
+        const words = said.getByTestId('talk-sheet-words');
+        const talkLog = said.getByTestId('talk-sheet-log');
+        await typing.or(words).or(talkLog).first().waitFor({ timeout: 5_000 });
+        if (await talkLog.isVisible()) await tap(talkLog.getByTestId('talk-band'));
+        if (!(await typing.isVisible())) await tap(words.getByTestId('talk-type'));
+        await typing.locator('input').fill(typed, { timeout: 3_000 });
+        await tap(typing.getByTestId('talk-say'));
+      };
+      if (!(await typedIt().then(ok, lost))) {
+        log(`the box closed before Send (attempt ${attempt}); typing it again`);
+        await said.keyboard.press('Escape').catch(lost);
+        continue;
+      }
+      landedTyped = await heard
+        .getByTestId('talk-landed')
+        .filter({ hasText: typed })
+        .waitFor({ timeout: 10_000 })
+        .then(ok, lost);
+      if (!landedTyped) log(`the typed line was covered (attempt ${attempt}); typing it again`);
+    }
+    if (!landedTyped) throw new Error('a typed line never landed on the other phone');
+    await heard.screenshot({ path: resolve(artifactDir, 'talk-typed.png') });
+    log('stage 3 passed: a typed line landed at its seat on the other phone too');
   } finally {
     clearInterval(keepSeats);
     killChildren();
@@ -739,7 +776,7 @@ function writeStepSummary(result, elapsedSeconds) {
     '',
     `- UI milestones captured: ${result.milestones.join(', ')}`,
     `- Page errors during the UI game: ${result.pageErrors}`,
-    '- Table talk: two players, a word sent from one phone landed at its seat on the other, and the Thanks! it offered came back (`talk/`, `talk-*.png`).',
+    '- Table talk: two players, a word sent from one phone landed at its seat on the other, the Thanks! it offered came back, and a typed line landed too (`talk/`, `talk-*.png`).',
     '- Video + screenshots: see the `game-e2e-artifacts` artifact on this run.',
     '',
   ];

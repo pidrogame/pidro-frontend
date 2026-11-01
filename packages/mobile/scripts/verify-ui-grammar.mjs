@@ -371,7 +371,7 @@ const allCases = [
   ...talkCases.map((name) => {
     const state = name.replace('table-talk-', '');
     const locale = state.startsWith('sv-') ? 'sv' : 'en';
-    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer').replace('face-tap', 'coin').replace('reported', 'report')}`;
+    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer').replace('face-tap', 'coin').replace('reported', 'report').replace('say', 'typing')}`;
     return {
       name,
       path: `/table-dev?fixture=${fixture}&locale=${locale}`,
@@ -4632,6 +4632,69 @@ async function assertTalkPerson(page, testCase, viewport) {
   return true;
 }
 
+const DRAFT = 'Nice one with that five';
+
+/**
+ * Typing (PID-318): an adult gets the box under the words, a guest the account
+ * line, a 13 to 17 nothing; the box says who will not see it, Send sends and
+ * closes, refused words stay with "Try other words", and your turn closes the
+ * box with the words waiting in the band.
+ */
+async function assertTalkTyping(page, testCase, viewport, landscape) {
+  const state = testCase.talk;
+  const sv = testCase.locale === 'sv';
+  if (['type', 'guest', 'teen'].includes(state)) {
+    const sheet = page.getByTestId('talk-sheet-words');
+    await sheet.waitFor();
+    await assertTalkSheetFits(sheet, page, viewport);
+    const type = sheet.getByTestId('talk-type');
+    const account = sheet.getByTestId('talk-account');
+    assert.equal(await type.count(), state === 'type' ? 1 : 0, 'only an adult may type');
+    assert.equal(await account.count(), state === 'guest' ? 1 : 0, 'a guest is asked to sign up');
+    if (state === 'type')
+      await type.getByText(sv ? 'Skriv ett meddelande' : 'Type a message').waitFor();
+    if (state === 'guest') await account.getByText('Make a free account').waitFor();
+    if (state === 'teen')
+      assert.equal(await sheet.getByText(/type|account/i).count(), 0, 'nothing about typing');
+  } else if (['typing', 'filtered', 'say'].includes(state)) {
+    const sheet = page.getByTestId('talk-sheet-typing');
+    await sheet.waitFor();
+    await assertTalkSheetFits(sheet, page, viewport);
+    const box = sheet.locator('input');
+    assert.equal(await box.inputValue(), DRAFT, 'the draft is in the box');
+    assert.equal(await box.getAttribute('maxlength'), '80', 'eighty characters');
+    await sheet
+      .getByTestId('talk-unread')
+      .getByText(sv ? /utom Antti/ : /except Antti/)
+      .waitFor();
+    if (state === 'filtered') {
+      await sheet.getByTestId('talk-say').click();
+      await sheet.getByText('Try other words').waitFor();
+      assert.equal(await box.inputValue(), DRAFT, 'refused words stay in the box');
+    }
+    if (state === 'say') {
+      await sheet.getByTestId('talk-say').click();
+      await sheet.waitFor({ state: 'detached' });
+      await page.getByTestId('talk-landed').getByText(DRAFT).waitFor();
+    }
+  } else if (state === 'typing-turn') {
+    // Your turn closed the box; the words wait in the band, or in a corner's speech button.
+    assert.equal(await page.getByTestId('talk-sheet-typing').count(), 0, 'the box closed');
+    if (landscape) {
+      const speech = page.getByTestId('talk-speech');
+      await speech.waitFor();
+      assert.equal(await speech.getAttribute('aria-label'), `Your turn first. ${DRAFT}`);
+    } else {
+      const band = page.getByTestId('talk-band').first();
+      await band.getByText('Your turn first.').waitFor();
+      await band.getByText(DRAFT).waitFor();
+    }
+  } else return false;
+  await waitForScreenshotReady(page);
+  await assertMinimumTouchTargets(page, testCase.name, viewport);
+  return true;
+}
+
 /**
  * Table talk (PID-114). The band sits under your seat and never moves the table,
  * a landing stays clear of every seat's cards, the hand of words fits without
@@ -4643,6 +4706,7 @@ async function assertTalk(page, testCase, viewport) {
   const landscape = viewport.width > viewport.height && viewport.height < 600;
   if (await assertTalkOffer(page, testCase, viewport, landscape)) return;
   if (await assertTalkPerson(page, testCase, viewport)) return;
+  if (await assertTalkTyping(page, testCase, viewport, landscape)) return;
   // The table's own; the log's sheet holds a second band.
   const opener = page.getByTestId(landscape ? 'talk-speech' : 'talk-band').first();
   await opener.waitFor();

@@ -41,6 +41,16 @@ export const talkCases = [
   'quieted',
   'face-tap',
   'sv-person',
+  // PID-318: typing.
+  'type',
+  'guest',
+  'teen',
+  'typing',
+  'typing-turn',
+  'filtered',
+  'say',
+  'sv-type',
+  'sv-typing',
 ].map((state) => `table-talk-${state}`);
 const friendSheetCases = [
   'partner',

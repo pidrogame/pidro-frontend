@@ -108,6 +108,12 @@ choice thanks you and sends nothing in a fixture) and `talk-quieted` (Antti is q
 Well played neither lands nor stays as the line). `table-talk-face-tap` starts from
 `talk-coin`, taps your own face for your profile, then Antti's, and quiets him.
 
+Typing (PID-318) is `fixture=talk-type` (an adult's words, with the Type a message box),
+`talk-guest` (Want to type? Make a free account), `talk-teen` (nothing about typing),
+`talk-typing` (the box, a draft in it, and who will not see it: Antti), `talk-typing-turn`
+(your turn closed the box; the draft waits in the band) and `talk-filtered` (Send is refused:
+Try other words, and the draft stays). Everyone but Antti reads typed talk in these fixtures.
+
 Friends locale previews use `/ui-dev?state=friends&fixture=added-you&locale=sv`
 or `/ui-dev?state=friends-add&fixture=results&locale=sv`. They reuse the actual
 screens and existing fixture data; `/friends` and `/friends-add` ignore locale

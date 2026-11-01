@@ -355,8 +355,11 @@ const TALK_ROOM: Room = {
   })),
 };
 
-/** The server counts a talk table from these: four people sit at TALK_ROOM. */
-const TALK_READINESS: ReadinessSnapshot = {
+/**
+ * The server counts a talk table from these: four people sit at TALK_ROOM. All
+ * but Antti read typed talk (PID-318), you too unless `youType` says no.
+ */
+const talkReadiness = (youType: boolean): ReadinessSnapshot => ({
   room_id: 'talk',
   ready_players: [],
   ready_epoch: 1,
@@ -371,10 +374,11 @@ const TALK_READINESS: ReadinessSnapshot = {
         status: 'ready',
         user_id: seat.player!.id,
         username: seat.player!.username,
+        reads_typed: seat.position === 'south' ? youType : seat.position !== 'west',
       },
     ])
   ) as ReadinessSnapshot['seats'],
-};
+});
 
 const said = (seat: Position, item: TalkItem) => ({ seat, userId: `p-${seat}`, item });
 /** Each talk state, held still for a screenshot. */
@@ -403,6 +407,13 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
     landed: [said('west', 'word_well'), said('north', 'coin_heart')],
     line: said('west', 'word_well'),
   },
+  // PID-318: typing, for those who read typed talk.
+  'talk-type': { sheet: 'words' },
+  'talk-guest': { sheet: 'words' },
+  'talk-teen': { sheet: 'words' },
+  'talk-typing': { sheet: 'typing', draft: 'Nice one with that five' },
+  'talk-typing-turn': { sheet: 'typing', draft: 'Nice one with that five' },
+  'talk-filtered': { sheet: 'typing', draft: 'Nice one with that five', filtered: true },
   'talk-log': {
     sheet: 'log',
     line: said('north', 'word_thanks'),
@@ -753,8 +764,12 @@ function TableDevHarness() {
             loading={params.loading ? Number(params.loading) : undefined}
             dealerLate={fixture === 'dealer-late' ? Number(params.late) || 0 : undefined}
             talk={TALK_FIXTURES[fixture ?? '']}
-            talkTurn={!TALK_FIXTURES[fixture ?? '']?.offer || fixture?.endsWith('-turn')}
-            talkGuest={fixture === 'talk-person-guest'}
+            talkTurn={
+              fixture?.endsWith('-turn') ||
+              !(TALK_FIXTURES[fixture ?? '']?.offer || TALK_FIXTURES[fixture ?? '']?.draft)
+            }
+            talkGuest={fixture === 'talk-person-guest' || fixture === 'talk-guest'}
+            talkTeen={fixture === 'talk-teen'}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -988,6 +1003,7 @@ function RolePreview({
   talk,
   talkTurn = true,
   talkGuest,
+  talkTeen,
 }: {
   role: 'player' | 'spectator';
   phase: string;
@@ -1025,6 +1041,8 @@ function RolePreview({
   talkTurn?: boolean;
   /** `fixture=talk-person-guest`: a guest has no Block (PID-329). */
   talkGuest?: boolean;
+  /** `fixture=talk-teen`: a 13 to 17 sees nothing about typing (PID-318). */
+  talkTeen?: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
@@ -1084,7 +1102,8 @@ function RolePreview({
     store.setRole(role);
     store.setYouPosition('south');
     store.setChannelStatus(connected);
-    if (talk) store.setReadiness(TALK_READINESS);
+    // A guest or a 13 to 17 does not read typed talk.
+    if (talk) store.setReadiness(talkReadiness(!talkGuest && !talkTeen));
     if (botCrew) {
       store.applySeatLifecycle({
         room_id: 'bot-crew',
@@ -1326,6 +1345,8 @@ function RolePreview({
     scoreHistory,
     talk,
     talkTurn,
+    talkGuest,
+    talkTeen,
   ]);
 
   // The dealer cut as the server times it: the cut, then the deal 3 s later.
@@ -1584,6 +1605,8 @@ function RolePreview({
           loading={loading}
           talkFixture={talk}
           guest={talkGuest}
+          // The account sheet is the game screen's; here the link only shows.
+          onSaveGuest={talkGuest ? () => undefined : undefined}
         />
       ) : (
         <Loading />
