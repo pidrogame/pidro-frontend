@@ -4547,7 +4547,9 @@ async function assertTalkOffer(page, testCase, viewport, landscape) {
   await card.waitFor();
   // An offer's faces are TalkCoin's plain emoji, nothing gold.
   const offered = await offer.locator('[data-testid^="talk-coin_"]').all();
-  if (!landscape) assert.ok(offered.length > 0, 'the offer holds a face');
+  // Nice trick! brings heart and thumb; Hello and Thanks come alone.
+  if (!landscape && testCase.talk.includes('offer'))
+    assert.ok(offered.length > 0, 'the offer holds a face');
   for (const face of offered) {
     assert.match(await face.innerText(), /^(👍|❤️|😂|😅|😮)$/u, 'an offered face is an emoji');
     assert.equal(
