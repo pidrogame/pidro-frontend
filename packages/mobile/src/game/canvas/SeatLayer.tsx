@@ -169,7 +169,7 @@ type Props = {
   held?: HeldStyle;
   bid?: { seat: RelativePosition | undefined; amount: number };
   /** What each seat just said (PID-114), drawn where its ring is. */
-  said?: Partial<Record<RelativePosition, (at: SaidAt) => ReactNode>>;
+  said?: Partial<Record<RelativePosition, (at: SaidAt, ring: number) => ReactNode>>;
 };
 
 /** Where a seat's talk lands against its avatar ring. */
@@ -527,7 +527,8 @@ export function SeatLayer({
                     ? 'below'
                     : rel === 'north' && tight
                       ? 'besideStart'
-                      : 'besideEnd'
+                      : 'besideEnd',
+              size
             )
           : null;
         // Always this wrapper, so a landing never remounts the avatar.
