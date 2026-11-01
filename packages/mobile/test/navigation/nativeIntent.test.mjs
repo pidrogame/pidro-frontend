@@ -106,7 +106,7 @@ describe('native invite intent', () => {
   // the startup or invite lists sends a plain launch to +not-found (the 3.1/3.2
   // Beta did exactly that), so check all variants from app.config.js.
   it.each(['production', 'development', 'beta'])(
-    'starts the %s variant normally and accepts its invite links',
+    'starts the %s variant normally and accepts its invite and player links',
     (variant) => {
       process.env.APP_VARIANT = variant;
       delete require.cache[configPath];
@@ -114,6 +114,7 @@ describe('native invite intent', () => {
 
       expect(redirectSystemPath({ path: `${scheme}://` })).toBe('/');
       expect(redirectSystemPath({ path: `${scheme}://j/7KQ4M2XB` })).toBe('/join/7KQ4M2XB');
+      expect(redirectSystemPath({ path: `${scheme}://play/bertil` })).toBe('/play/bertil');
     }
   );
 });

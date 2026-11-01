@@ -27,6 +27,7 @@ import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Toast } from '@/components/ui/Toast';
 import { PidroBevel, PidroFonts, PidroSpacing } from '@/design/tokens';
 import {
+  APP_INSTALL_URL,
   classicFriendsMessage,
   friendAction,
   friendLinkMessage,
@@ -153,7 +154,7 @@ export default function FriendsScreen() {
             setShareError(false);
             try {
               await Share.share({
-                message: t('friends.share_app_message', { url: 'https://www.pidro.online/' }),
+                message: t('friends.share_app_message', { url: APP_INSTALL_URL }),
               });
             } catch {
               setShareError(true);

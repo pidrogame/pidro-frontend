@@ -126,8 +126,11 @@ export type FriendEntry = Omit<FriendPlayer, 'presence'> & {
 /** Where the entry stands with you: as `FriendResult.relation`, plus a friend made just now. */
 export type FriendRelation = FriendResult['relation'] | 'new_friend';
 
+/** Where a friend installs the new Pidro; the bare site only offers Classic. */
+export const APP_INSTALL_URL = 'https://www.pidro.online/beta';
+
 export function friendLinkMessage(slug?: string | null) {
-  const url = slug ? `https://pidro.online/play/${slug}` : 'https://pidro.online';
+  const url = slug ? `https://pidro.online/play/${slug}` : APP_INSTALL_URL;
   return { url, message: t('friends.share_link_message', { url }) };
 }
 

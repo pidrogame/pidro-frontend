@@ -353,15 +353,15 @@ describe('Friends presentation', () => {
     ).toBe('At a table · partner seat free');
   });
 
-  test('your link message uses your slug, with an app-home fallback and the current language', () => {
+  test('your link message uses your slug, with the app install page as fallback and the current language', () => {
     expect(friendLinkMessage('sanna-7KQ')).toEqual({
       url: 'https://pidro.online/play/sanna-7KQ',
       message: 'Come play Pidro with me: https://pidro.online/play/sanna-7KQ',
     });
     for (const slug of [undefined, null, ''])
       expect(friendLinkMessage(slug)).toEqual({
-        url: 'https://pidro.online',
-        message: 'Come play Pidro with me: https://pidro.online',
+        url: 'https://www.pidro.online/beta',
+        message: 'Come play Pidro with me: https://www.pidro.online/beta',
       });
     setLocale('sv');
     expect(friendLinkMessage('pekka').message).toBe(

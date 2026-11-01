@@ -3009,8 +3009,8 @@ async function assertFriendsPresentation(page, name) {
     assert.equal(
       await page.evaluate(() => window.__appShare.text),
       swedish
-        ? 'Kom och spela Pidro med mig 🃏 https://www.pidro.online/'
-        : 'Come play Pidro with me 🃏 https://www.pidro.online/'
+        ? 'Kom och spela Pidro med mig 🃏 https://www.pidro.online/beta'
+        : 'Come play Pidro with me 🃏 https://www.pidro.online/beta'
     );
     assert.equal(await footer.getByRole('alert').count(), 0);
     // Send your link comes last, below the Classic card, and shares the player's own link.
@@ -3025,8 +3025,8 @@ async function assertFriendsPresentation(page, name) {
     assert.equal(
       await page.evaluate(() => window.__appShare.text),
       swedish
-        ? 'Kom och spela Pidro med mig: https://pidro.online'
-        : 'Come play Pidro with me: https://pidro.online'
+        ? 'Kom och spela Pidro med mig: https://www.pidro.online/beta'
+        : 'Come play Pidro with me: https://www.pidro.online/beta'
     );
   } else if (name !== 'friends-all' && name !== 'friends-empty') {
     assert.equal(await page.getByTestId('friends-classic-count').count(), 0);
@@ -3201,8 +3201,8 @@ async function assertFriendsPresentation(page, name) {
       assert.equal(
         await page.evaluate(() => window.__friendShare.text),
         swedish
-          ? 'Kom och spela Pidro med mig: https://pidro.online'
-          : 'Come play Pidro with me: https://pidro.online'
+          ? 'Kom och spela Pidro med mig: https://www.pidro.online/beta'
+          : 'Come play Pidro with me: https://www.pidro.online/beta'
       );
     }
   }
