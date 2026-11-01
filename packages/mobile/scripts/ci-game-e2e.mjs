@@ -574,8 +574,7 @@ async function stageThreeTableTalk() {
       pages.push(page);
     }
     const [said, heard] = pages;
-    // Neither seat plays a card; the server sends an idle player away now and
-    // then. Come back each time, as the guest in stage 2 does.
+    // Should a seat still be sent away now and then, come back.
     keepSeats = setInterval(() => {
       for (const page of pages)
         void page
@@ -589,27 +588,49 @@ async function stageThreeTableTalk() {
           .catch(() => {});
     }, 500);
     await confirmInitialTable(pages, '[data-testid="game-table"]');
+    // Once both phones are at the table, both people play their turns over the
+    // protocol while the phones talk: a seat that only times out is sent away,
+    // and then the table has one person and no band.
+    for (const name of [speaker, listener])
+      runAutoplayer(
+        [
+          ...['--room', roomCode, '--user', name, '--password', password, '--max-minutes', '6'],
+          // CI pacing ends a game in under a minute: a rematch keeps the table going.
+          ...['--rematch', 'now', '--rematch-linger-ms', '300000'],
+        ],
+        `talk-${name.slice(-1)}`
+      ).catch(() => {});
     for (const page of pages)
       await page.getByTestId('talk-band').first().waitFor({ timeout: 30_000 });
     log('both players see the band: two people at the table');
 
-    // Nobody plays here, so "time ran out" notices keep landing in the band's
-    // slot. A player taps one away first; so does this.
+    // A "time ran out" notice can still sit in the band's slot. Under one,
+    // press the control itself, as a screen reader does.
     const tap = async (target) => {
-      for (let attempt = 1; ; attempt += 1) {
-        const notice = target.page().getByTestId('table-feedback');
-        if (await notice.isVisible().catch(() => false)) await notice.click().catch(() => {});
-        try {
-          return await target.click({ timeout: 2_000 });
-        } catch (error) {
-          if (attempt >= 8) throw error;
-        }
-      }
+      await target.waitFor();
+      await target
+        .click({ timeout: 1_500 })
+        .catch(() => target.evaluate((node) => node.click(), undefined, { timeout: 2_000 }));
+    };
+    // The band, or the speech button beside an offer standing in its place.
+    const opener = (page) =>
+      page
+        .getByTestId('talk-band')
+        .or(page.getByTestId('talk-offer').getByTestId('talk-speech'))
+        .first();
+    // A band holding a last line opens the log first; its own row opens the words.
+    const sayFrom = async (page) => {
+      await tap(opener(page));
+      const log = page.getByTestId('talk-sheet-log');
+      const words = page.getByTestId('talk-sheet-words');
+      await log.or(words).first().waitFor();
+      if (await log.isVisible()) await tap(log.getByTestId('talk-band'));
+      await words.waitFor();
+      return words;
     };
 
-    await tap(said.getByTestId('talk-band').first());
-    await said.getByTestId('talk-sheet-words').waitFor();
-    await said.getByTestId('talk-word_nice').click();
+    const words = await sayFrom(said);
+    await words.getByTestId('talk-word_nice').click();
     await said.getByTestId('talk-sheet-words').waitFor({ state: 'detached' });
     await said.getByTestId('talk-landed').getByText('Nice trick!').waitFor({ timeout: 10_000 });
 
@@ -656,18 +677,18 @@ async function stageThreeTableTalk() {
     // time and stop for a hand after three are ignored, so say it again until
     // the other phone offers Thanks!.
     let answered = false;
-    for (let attempt = 1; attempt <= 12 && !answered; attempt += 1) {
-      // The band, or the speech button beside an offer standing in its place.
-      const opener = said
-        .getByTestId('talk-band')
-        .or(said.getByTestId('talk-offer').getByTestId('talk-speech'))
-        .first();
-      if (!(await opener.isVisible().catch(() => false))) {
+    const until = Date.now() + 120_000;
+    for (let attempt = 1; Date.now() < until && !answered; attempt += 1) {
+      if (
+        !(await opener(said)
+          .isVisible()
+          .catch(() => false))
+      ) {
         await said.waitForTimeout(2_000);
         continue;
       }
-      await tap(opener);
-      await said.getByTestId('talk-word_well').click({ timeout: 5_000 });
+      const sheet = await sayFrom(said);
+      await sheet.getByTestId('talk-word_well').click({ timeout: 5_000 });
       const thanks = heard
         .getByTestId('talk-offer')
         .getByRole('button', { name: 'Thanks!', exact: true });
@@ -682,18 +703,28 @@ async function stageThreeTableTalk() {
         continue;
       }
       await heard.screenshot({ path: resolve(artifactDir, 'talk-offer.png') });
-      await tap(thanks);
-      await said
-        .getByTestId('talk-landed')
-        .filter({ hasText: 'Thanks!' })
-        .waitFor({ timeout: 10_000 });
+      // CI pacing ends a hand in seconds: an offer can go before the tap, and
+      // game over can cover the landing. Either way, say it again.
+      const ok = () => true;
+      const lost = () => false;
+      if (!(await tap(thanks).then(ok, lost))) {
+        log(`the offer went before the tap (attempt ${attempt}); saying it again`);
+        continue;
+      }
+      const back = said.getByTestId('talk-landed').filter({ hasText: 'Thanks!' });
+      if (!(await back.waitFor({ timeout: 10_000 }).then(ok, lost))) {
+        log(`Thanks! was covered before it landed (attempt ${attempt}); saying it again`);
+        continue;
+      }
       await said.screenshot({ path: resolve(artifactDir, 'talk-reply-landed.png') });
       answered = true;
     }
-    if (!answered) throw new Error('the other phone never offered Thanks! to Well played');
+    if (!answered)
+      throw new Error('no offered Thanks! came back to Well played within two minutes');
     log('stage 3 passed: one tap on the offered Thanks! came back to the first phone');
   } finally {
     clearInterval(keepSeats);
+    killChildren();
     for (const page of pages) await page.context().close();
     await browser.close();
   }
