@@ -47,6 +47,7 @@ import { bidSeatLine, bidsShown } from '@/features/game/bidding';
 import { isSoloTable, loneTrumpHolder } from '@/features/game/tableHelp';
 import { waitsForContinue } from '@/features/game/handResult';
 import { useSettingsStore } from '@/stores/settings';
+import { blockPlayer } from '@/stores/friends';
 import { LastTrick, type LastTrickView } from './LastTrick';
 
 import {
@@ -580,6 +581,16 @@ export function GameCanvasTable({
     : width > height
       ? 'corner'
       : 'band';
+  // At a talk table a person's face offers Quiet, Report and Block (PID-329).
+  const onFace = (playerId: string | null, persona?: BotPersona | null) => {
+    const player = players.find((candidate) => candidate.playerId === playerId);
+    if (talking && playerId && !persona && player && !player.isYou && !player.bot_persona)
+      return talk.open('person', playerId);
+    openProfile(playerId, persona);
+  };
+  const faced = players.find((player) => player.playerId === talk.person);
+  // Someone who left the table takes their sheet with them.
+  if (!faced && (talk.sheet === 'person' || talk.sheet === 'report')) talk.open(null);
   // The speaker as they sat when they said it, not whoever sits there now.
   const who = (said: Said) => {
     const player =
@@ -634,7 +645,7 @@ export function GameCanvasTable({
         bottomReserve={bottomReserve}
         statusByRel={statusByRel}
         players={viewModel?.players ?? []}
-        onProfile={openProfile}
+        onProfile={onFace}
         quiet={handResult.result != null}
         secondDeal={model.secondDealShow}
         killed={model.killed}
@@ -724,6 +735,28 @@ export function GameCanvasTable({
           who={who}
           onSend={talk.send}
           onOpen={talk.open}
+          person={
+            faced?.playerId
+              ? {
+                  name: faced.username ?? t('social.player'),
+                  avatar: faced.avatar_url,
+                  quiet: talk.quiet.includes(faced.playerId),
+                  // Block needs an account.
+                  canBlock: !guest,
+                }
+              : undefined
+          }
+          onHush={() => talk.person && talk.hush(talk.person)}
+          onReport={(reason) =>
+            talk.person ? talk.report(talk.person, reason) : Promise.resolve()
+          }
+          onBlock={async () => {
+            const blocked = talk.person;
+            if (!blocked) return;
+            if (!(__DEV__ && talkFixture)) await blockPlayer(blocked);
+            // Blocked is quiet too, for the rest of this game.
+            if (!talk.quiet.includes(blocked)) talk.hush(blocked);
+          }}
         />
       ) : null}
       {!isGameOver && handResult.result ? (

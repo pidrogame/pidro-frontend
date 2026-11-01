@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onTableTalk, pushGameAction } from '@/channels/hooks/useGameChannel';
 import {
   land,
@@ -22,7 +22,8 @@ import {
 } from '@/features/game/offers';
 import { playActionHaptic } from './useGameHaptics';
 
-export type TalkSheet = 'words' | 'log';
+/** The hand of words, the game's log, or a face tapped at the table (PID-329). */
+export type TalkSheet = 'words' | 'log' | 'person' | 'report' | 'reported';
 
 export interface TableTalk {
   /** What each seat shows right now. */
@@ -32,11 +33,19 @@ export interface TableTalk {
   /** What was said this game, on this device only. */
   log: Said[];
   sheet: TalkSheet | null;
+  /** Whose face was tapped, for the person and report sheets. */
+  person: string | null;
   /** What the band offers to say now (PID-328), for six seconds. */
   offer: Offer | null;
-  open: (sheet: TalkSheet | null) => void;
+  /** Who you quieted this game (PID-329), by person, not seat. */
+  quiet: string[];
+  open: (sheet: TalkSheet | null, person?: string) => void;
   send: (item: TalkItem) => void;
+  hush: (userId: string) => void;
+  report: (userId: string, reason: ReportReason) => Promise<void>;
 }
+
+export type ReportReason = 'rude' | 'bothering' | 'other';
 
 /** Where the game is, for how often the band offers. */
 export interface TalkAt {
@@ -54,7 +63,9 @@ export interface TalkFixture {
   line?: Said | null;
   log?: Said[];
   sheet?: TalkSheet | null;
+  person?: string;
   offer?: Offer | null;
+  quiet?: string[];
 }
 
 /**
@@ -74,13 +85,21 @@ export function useTableTalk(
   );
   const [line, setLine] = useState<Said | null>(fixture?.line ?? null);
   const [log, setLog] = useState<Said[]>(fixture?.log ?? []);
-  const [sheet, open] = useState<TalkSheet | null>(fixture?.sheet ?? null);
+  const [sheet, setSheet] = useState<TalkSheet | null>(fixture?.sheet ?? null);
+  const [person, setPerson] = useState<string | null>(fixture?.person ?? null);
+  const open = useCallback((next: TalkSheet | null, who?: string) => {
+    setSheet(next);
+    if (who) setPerson(who);
+  }, []);
   const [offer, setOffer] = useState<Offer | null>(fixture?.offer ?? null);
+  const [quiet, setQuiet] = useState<string[]>(fixture?.quiet ?? []);
+  const quietRef = useRef(quiet);
   const pace = useRef(FRESH_PACE);
   const where = useRef({ ...at, offered: false });
   const offerTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     where.current = { ...at, offered: offer != null };
+    quietRef.current = quiet;
   });
   // Held on this device, gone with the game: a rematch starts a clean log.
   const [game, setGame] = useState(you.game);
@@ -91,6 +110,7 @@ export function useTableTalk(
     setLog([]);
     open(null);
     setOffer(null);
+    setQuiet([]);
   }
   const key = useRef(100);
   const timers = useRef<Partial<Record<Position, ReturnType<typeof setTimeout>>>>({});
@@ -107,7 +127,8 @@ export function useTableTalk(
         delete next[said.seat];
         return next;
       });
-      setLine(said);
+      // Someone quieted while their word was landing does not become the line.
+      if (!quietRef.current.includes(said.userId)) setLine(said);
     }, landingMs(said));
   }, []);
 
@@ -144,7 +165,7 @@ export function useTableTalk(
     return onTableTalk((event, payload) => {
       if (event === 'moment') return offerNow(momentOffer((payload as { id?: unknown })?.id));
       const said = saidFrom(payload);
-      if (!said) return;
+      if (!said || quietRef.current.includes(said.userId)) return;
       show(said);
       // The other three may answer what someone said.
       if (said.userId !== you.userId) offerNow(replyOffer(said));
@@ -166,8 +187,48 @@ export function useTableTalk(
       // A send that fails says nothing: the server broadcast nothing.
       pushGameAction('talk', { item }).catch(() => undefined);
     },
-    [fixture, show, you.seat, you.userId]
+    [fixture, open, show, you.seat, you.userId]
   );
 
-  return { landed, line, log, sheet, offer, open, send };
+  const hush = useCallback((userId: string) => {
+    // What the band offers may answer them; it goes too.
+    clearTimeout(offerTimer.current);
+    setOffer(null);
+    setQuiet((previous) =>
+      previous.includes(userId) ? previous.filter((id) => id !== userId) : [...previous, userId]
+    );
+  }, []);
+  // Reported once is reported: the server's "already" is a thanks too.
+  const report = useCallback(
+    (userId: string, reason: ReportReason) =>
+      __DEV__ && fixture
+        ? Promise.resolve()
+        : pushGameAction('report', { user_id: userId, reason }).catch((error: unknown) => {
+            if ((error as { error?: string } | null)?.error !== 'already_reported') throw error;
+          }),
+    [fixture]
+  );
+
+  // Quiet hides what they said too, for as long as they are quiet.
+  const heard = (said: Said) => !quiet.includes(said.userId);
+  const shown = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(landed).filter(([, landing]) => !quiet.includes(landing.userId))
+      ) as typeof landed,
+    [landed, quiet]
+  );
+  return {
+    landed: shown,
+    line: line && heard(line) ? line : null,
+    log: log.filter(heard),
+    sheet,
+    person,
+    offer,
+    quiet,
+    open,
+    send,
+    hush,
+    report,
+  };
 }
