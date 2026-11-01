@@ -64,6 +64,17 @@ export {
   type ProfileIdentity,
 } from './profile';
 export {
+  createFeedbackApi,
+  type FeedbackAnswer,
+  type FeedbackApi,
+  type FeedbackAsk,
+  type FeedbackAskKind,
+  type FeedbackNoteDetails,
+  type FeedbackRequest,
+  type OldPidroAnswer,
+  type PaceAnswer,
+} from './feedback';
+export {
   type CreateRoomResponse,
   createLobbyApi,
   type GetRoomResponse,
