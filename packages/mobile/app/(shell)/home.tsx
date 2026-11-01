@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SeatInvitations } from '@/components/invites/SeatInvitations';
 import { friendNoticeFixture } from '@/features/friends/fixtures';
@@ -10,6 +10,8 @@ import { publicPlayerName, type ProfileIdentity } from '@pidro/shared';
 import { lobbyApi } from '@/api/lobby';
 import { useLobbyChannel } from '@/channels/hooks/useLobbyChannel';
 import { AuthSheet, type AuthSheetReason } from '@/components/auth/AuthSheet';
+import { FeedbackAsk } from '@/components/feedback/FeedbackAsk';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { ClassicPlaque } from '@/components/home/ClassicPlaque';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { LogoGlow } from '@/components/home/LogoGlow';
@@ -29,6 +31,7 @@ import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tok
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useWaitingCount } from '@/hooks/useWaitingCount';
 import { TABLE_UNKNOWN_ERROR, useQuickGame } from '@/hooks/useQuickGame';
+import { tellFixture } from '@/features/feedback';
 import { useAuthStore } from '@/stores/auth';
 import { useFriendsStore } from '@/stores/friends';
 import { useLobbyStore } from '@/stores/lobby';
@@ -63,6 +66,10 @@ export default function HomeScreen() {
   const setStats = useLobbyStore((state) => state.setStats);
   const router = useRouter();
   const [accountSheetReason, setAccountSheetReason] = useState<AuthSheetReason | null>(null);
+  const tell = useMemo(() => tellFixture(fixture), [fixture]);
+  const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
+  // Opened from the question about the last game, the note says so.
+  const [tellChip, setTellChip] = useState(false);
   const [identity, setIdentity] = useState<ProfileIdentity | null>(null);
   const [lobbyCountState, setLobbyCountState] = useState<LobbyCountState>('loading');
   const refreshIdentity = useProfileIdentity();
@@ -164,7 +171,11 @@ export default function HomeScreen() {
             </PidroText>
             {identityMeta ? (
               <View style={styles.identityMeta}>
-                <PidroText role="metadata" tone="soft" style={tablet && styles.identityMetaTablet}>
+                <PidroText
+                  role="metadata"
+                  tone="soft"
+                  numberOfLines={1}
+                  style={[styles.identityMetaText, tablet && styles.identityMetaTablet]}>
                   {identityMeta}
                 </PidroText>
                 {guest ? (
@@ -174,24 +185,35 @@ export default function HomeScreen() {
             ) : null}
           </View>
         </PressableFX>
-        {guest ? (
-          <View style={styles.identityMeta}>
-            <BevelButton
-              label={t('social.friends')}
-              material="glass"
-              size="sm"
-              onPress={() => router.push('/friends')}
-            />
-            <BevelButton
-              accessibilityLabel={t('social.settings')}
-              material="glass"
-              size="icon"
-              onPress={() => router.push('/settings')}
-              style={tablet && styles.settingsTablet}>
-              <Icon name="settings" size={tablet ? 22 : 20} />
-            </BevelButton>
-          </View>
-        ) : null}
+        <View style={styles.identityMeta}>
+          {guest ? (
+            <>
+              <BevelButton
+                label={t('social.friends')}
+                material="glass"
+                size="sm"
+                onPress={() => router.push('/friends')}
+              />
+              <BevelButton
+                accessibilityLabel={t('social.settings')}
+                material="glass"
+                size="icon"
+                onPress={() => router.push('/settings')}
+                style={tablet && styles.settingsTablet}>
+                <Icon name="settings" size={tablet ? 22 : 20} />
+              </BevelButton>
+            </>
+          ) : null}
+          <BevelButton
+            testID="home-tell"
+            accessibilityLabel={t('tell.door')}
+            material="glass"
+            size="icon"
+            onPress={() => setTellOpen(true)}
+            style={tablet && styles.settingsTablet}>
+            <Icon name="chat" size={tablet ? 22 : 20} />
+          </BevelButton>
+        </View>
       </View>
     </StillLayer>
   );
@@ -209,7 +231,17 @@ export default function HomeScreen() {
       <View pointerEvents="none">
         <PidroLogo size="hero" width={tablet ? 440 : compactLandscape ? 270 : 280} />
       </View>
-      <UpdateNoticeSlot style={compactLandscape && styles.noticeLandscape} />
+      <UpdateNoticeSlot style={compactLandscape && styles.noticeLandscape}>
+        {user && !guest ? (
+          <FeedbackAsk
+            fixture={tell?.ask}
+            onMore={() => {
+              setTellChip(true);
+              setTellOpen(true);
+            }}
+          />
+        ) : null}
+      </UpdateNoticeSlot>
     </View>
   );
 
@@ -370,6 +402,15 @@ export default function HomeScreen() {
           router.push('/join-code');
         }}
       />
+      <FeedbackSheet
+        open={tellOpen}
+        chip={tellChip}
+        fixture={tell?.sheet}
+        onClose={() => {
+          setTellOpen(false);
+          setTellChip(false);
+        }}
+      />
     </Background>
   );
 }
@@ -415,6 +456,7 @@ const styles = StyleSheet.create({
   playerName: { fontSize: 17, lineHeight: 22, fontWeight: '800', color: PidroColors.text },
   playerNameTablet: { fontSize: 20, lineHeight: 26 },
   identityMeta: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xxs },
+  identityMetaText: { flexShrink: 1 },
   identityMetaTablet: { fontSize: 14, lineHeight: 18 },
   settingsTablet: { width: 48, minHeight: 48 },
   logoStage: {

@@ -202,6 +202,33 @@ export const PidroBevel = {
 } as const;
 
 /**
+ * Tell us (PID-316): the note is a card's white paper with dark ink, ringed
+ * gold while you write; sent, it turns over to the blue back. The pace row
+ * is a carved track whose chosen answer lights gold.
+ */
+export const PidroNote = {
+  face: '#fbfbf7',
+  edge: 'rgba(0, 0, 0, 0.25)',
+  ink: '#0d2238',
+  placeholder: '#566676',
+  chip: '#e6edf3',
+  chipInk: '#0A2340',
+  shadow: '0px 8px 22px rgba(0,0,0,0.45)',
+  focusShadow:
+    '0px 0px 0px 3px #FFD447, 0px 0px 26px rgba(255,212,71,0.55), 0px 8px 22px rgba(0,0,0,0.45)',
+  backEdge: '#eef6fb',
+  backGradient:
+    'radial-gradient(ellipse at 70% -10%, rgba(255,255,255,0.34) 0%, rgba(255,255,255,0) 46%), linear-gradient(180deg, #2670ad 0%, #17568f 55%, #0f4274 100%)',
+  backShadow: 'inset 0px 0px 0px 2px #46b6e6, 0px 8px 22px rgba(0,0,0,0.45)',
+  disc: 'rgba(18, 74, 119, 0.7)',
+  rowBorder: 'rgba(139, 234, 255, 0.45)',
+  track: '#08243d',
+  choiceOn: 'rgba(107, 73, 11, 0.6)',
+  choiceOnRing: 'inset 0px 0px 0px 1.5px #E2AF45',
+  choiceOff: 'rgba(239, 249, 255, 0.72)',
+} as const;
+
+/**
  * Game over (PID-237): the win's light and paper, the race line, the chips.
  * Celebration may go loud, but only from here.
  */

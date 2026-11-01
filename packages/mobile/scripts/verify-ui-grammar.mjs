@@ -58,6 +58,96 @@ const ageGateFixture = JSON.stringify({
   version: 0,
 });
 
+// PID-316: Tell us. Bengt has an account email to answer at; the guest does not.
+const tellAuthFixture = JSON.stringify({
+  state: {
+    accessToken: 'ui-grammar-token',
+    refreshToken: null,
+    user: {
+      id: 'ui-grammar-user',
+      username: 'Bengt',
+      email: 'bengt@example.com',
+      age_band: '18_plus',
+    },
+  },
+  version: 0,
+});
+const TELL_VIEWPORTS = ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'];
+const TELL_WORDS = 'The bid buttons are small on my phone. Otherwise lovely to have the game back.';
+const tellCases = [
+  { name: 'tell-home', path: '/home', testId: 'home-screen', tell: 'home' },
+  {
+    name: 'tell-home-guest',
+    path: '/home',
+    testId: 'home-screen',
+    tell: 'home',
+    authFixture: guestAuthFixture,
+    tellViewports: [...TELL_VIEWPORTS, 'compact-portrait'],
+  },
+  ...['open', 'typing', 'chip', 'sent', 'failed', 'limit'].map((state) => ({
+    name: `tell-${state}`,
+    path: `/home?fixture=tell-${state}`,
+    testId: 'feedback-sheet',
+    tell: state,
+  })),
+  {
+    name: 'tell-guest',
+    path: '/settings?fixture=tell-guest',
+    testId: 'feedback-sheet',
+    tell: 'guest',
+    authFixture: guestAuthFixture,
+  },
+  // The keyboard takes this much of the screen: the card gives way, Send stays.
+  {
+    name: 'tell-keyboard',
+    path: '/home?fixture=tell-typing',
+    testId: 'feedback-sheet',
+    tell: 'typing',
+    tellViewports: ['small-portrait', 'landscape', 'tablet-portrait'],
+    viewports: {
+      'small-portrait': { height: 667 - 260 },
+      landscape: { height: 390 - 209 },
+      'tablet-portrait': { height: 1024 - 398 },
+    },
+  },
+  { name: 'tell-pace', path: '/home?fixture=tell-pace', testId: 'feedback-ask', tell: 'pace' },
+  { name: 'tell-old', path: '/home?fixture=tell-old', testId: 'feedback-ask', tell: 'old' },
+  {
+    name: 'tell-notice-wins',
+    path: '/home?fixture=update-notice',
+    testId: 'update-notice',
+    tell: 'notice',
+    tellViewports: ['portrait'],
+  },
+  {
+    name: 'tell-send',
+    path: '/home?fixture=tell-typing',
+    testId: 'feedback-sheet',
+    tell: 'send',
+    tellViewports: ['portrait'],
+  },
+  {
+    name: 'tell-send-fails',
+    path: '/home?fixture=tell-typing',
+    testId: 'feedback-sheet',
+    tell: 'send-fails',
+    tellViewports: ['portrait'],
+  },
+  ...['home', 'open', 'typing', 'sent', 'failed', 'limit', 'pace', 'old'].map((state) => ({
+    name: `tell-${state}-sv`,
+    path: state === 'home' ? '/home' : `/home?fixture=tell-${state}`,
+    testId:
+      state === 'home'
+        ? 'home-screen'
+        : ['pace', 'old'].includes(state)
+          ? 'feedback-ask'
+          : 'feedback-sheet',
+    tell: state,
+    tellLocale: 'sv',
+    tellViewports: ['portrait'],
+  })),
+].map((testCase) => ({ authenticated: true, authFixture: tellAuthFixture, ...testCase }));
+
 // iPad portrait and landscape for game over, on CI's existing tablet shards.
 const GAME_OVER_TABLETS = {
   'tablet-portrait': { width: 834, height: 1194 },
@@ -365,7 +455,8 @@ const allCases = [
     photo: 'guest',
   },
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
-  // PID-295: Marcel's welcome and Settings → Send feedback, in both languages.
+  ...tellCases,
+  // PID-295: Marcel's welcome, and PID-316: Settings → Tell us, in both languages.
   ...['en', 'sv'].flatMap((locale) => [
     {
       name: `news-welcome-${locale}`,
@@ -376,7 +467,7 @@ const allCases = [
     },
     {
       name: `settings-feedback-${locale}`,
-      path: `/ui-dev?state=settings&fixture=no-mail&locale=${locale}`,
+      path: `/ui-dev?state=settings&locale=${locale}`,
       testId: 'settings-screen',
       locale,
       feedback: true,
@@ -2069,23 +2160,23 @@ async function assertFirstLaunchScreens(page, testCase, viewport) {
   }
 }
 
-// PID-295: Send feedback is a row in the Settings list; when no mail app opens,
-// the address is there to copy.
+// PID-316: Tell us is the first row of the Settings panel, and opens the sheet.
 async function assertFeedbackRow(page, testCase, viewport) {
   if (!testCase.feedback) return;
   const sv = testCase.locale === 'sv';
-  const row = page.getByTestId('settings-feedback');
-  await row.scrollIntoViewIfNeeded();
-  await row.getByText(sv ? 'Skicka synpunkter' : 'Send feedback', { exact: true }).waitFor();
+  const row = page.getByTestId('settings-tell');
+  await row.getByText(sv ? 'Berätta för oss' : 'Tell us', { exact: true }).waitFor();
   await row
-    .getByText(sv ? /^Skriv till marcel@pidro\.online\./ : /^Write to marcel@pidro\.online\./)
+    .getByText(
+      sv ? 'Något som känns fel, eller något du gillar?' : 'Something off, or something you love?',
+      { exact: true }
+    )
     .waitFor();
-  for (const name of [sv ? 'Skriv' : 'Write', sv ? 'Kopiera adressen' : 'Copy address']) {
-    const box = await row.getByRole('button', { name, exact: true }).boundingBox();
-    assert.ok(box.width >= 44 && box.height >= 44, `${testCase.name}: ${name} is a 44pt target`);
-    assertInsideViewport(`${testCase.name} ${name}`, box, viewport);
-  }
-  assertInsideViewport(`${testCase.name} row`, await row.boundingBox(), viewport);
+  const box = await row.boundingBox();
+  assert.ok(box.height >= 44, `${testCase.name}: the row is a 44pt target`);
+  assertInsideViewport(`${testCase.name} row`, box, viewport);
+  const language = await page.getByTestId('settings-language').boundingBox();
+  assert.ok(box.y + box.height <= language.y, `${testCase.name}: Tell us comes first`);
 }
 
 // A wood button's keyline stays inside its rim and its label inside the face's
@@ -5675,6 +5766,346 @@ async function assertSeatPicker(page, testCase, viewport) {
   assert.equal(await page.getByTestId('seat-picker-result').innerText(), 'Pekka');
 }
 
+// PID-316: the server's side of Tell us. Answers come back in order; every post is kept.
+async function routeFeedback(page, testCase) {
+  page.tellPosts = [];
+  const asks =
+    testCase.tell === 'pace'
+      ? [{ ask: 'old_pidro', game_id: 'fixture-game' }, { ask: null }]
+      : testCase.tell === 'notice'
+        ? [{ ask: 'pace', game_id: 'g-1' }]
+        : [{ ask: null }];
+  await page.route('**/api/v1/feedback/ask', (route) =>
+    route.fulfill({ json: { data: asks.length > 1 ? asks.shift() : asks[0] } })
+  );
+  await page.route('**/api/v1/feedback', async (route) => {
+    page.tellPosts.push(route.request().postDataJSON());
+    // Long enough to see the card lie face down while the note travels.
+    if (testCase.tell === 'send') await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.fulfill(
+      testCase.tell === 'send-fails'
+        ? { status: 503, json: { error: 'unavailable' } }
+        : { status: 201, json: { data: { id: 42 } } }
+    );
+  });
+}
+
+const tellCopy = (testCase) =>
+  testCase.tellLocale === 'sv'
+    ? {
+        door: 'Berätta för oss',
+        title: 'Hej, jag är Marcel.',
+        ask: 'Vad har du lagt märke till? Kändes det fel är det vårt fel, inte ditt.',
+        placeholder: 'Skriv här, eller tryck på mikrofonen på tangentbordet och säg det.',
+        reply: 'Vi svarar till bengt@example.com',
+        change: 'Ändra',
+        send: 'Skicka',
+        fine: 'Appversion, telefon och senaste spelet följer med.',
+        thanks: 'Tack. Vi läser varenda en.',
+        after: 'Om vi svarar går det till bengt@example.com.',
+        done: 'Klar',
+        failed: 'Det gick inte iväg. Dina ord finns kvar.',
+        retry: 'Försök igen',
+        mailApp: 'Använd min e-postapp',
+        limit: 'Det räcker för i dag, tack. Dina ord ligger kvar till i morgon.',
+        limitButton: 'Skicka i morgon',
+        pace: 'Tempot i ditt senaste spel',
+        paceAnswers: ['för långsamt', 'lagom', 'för snabbt'],
+        old: 'Jämfört med gamla Pidro',
+        oldAnswers: ['sämre', 'samma', 'bättre'],
+        close: 'Stäng',
+      }
+    : {
+        door: 'Tell us',
+        title: "Hey, I'm Marcel.",
+        ask: "What did you notice? If it felt wrong, that's on us, not you.",
+        placeholder: 'Write it here, or tap the microphone on your keyboard and say it.',
+        reply: "We'll answer at bengt@example.com",
+        change: 'Change',
+        add: 'Want an answer? Add your email',
+        email: 'Your email',
+        send: 'Send',
+        fine: 'Your app version, phone and last game come along.',
+        thanks: 'Thanks. We read every one.',
+        after: 'If we answer, it goes to bengt@example.com.',
+        done: 'Done',
+        failed: "That didn't go through. Your words are safe.",
+        retry: 'Try again',
+        mailApp: 'Use my mail app',
+        limit: "That's plenty for today, thank you. Your words stay here for tomorrow.",
+        limitButton: 'Send tomorrow',
+        chip: 'About your last game',
+        pace: 'Pace in your last game',
+        paceAnswers: ['too slow', 'right', 'too fast'],
+        old: 'Compared to the old Pidro',
+        oldAnswers: ['worse', 'same', 'better'],
+        thanksShort: 'Thanks',
+        more: 'Tell us more ›',
+        close: 'Close',
+      };
+
+/** The sheet fits the screen without scrolling: Send whole, the card still a place to write. */
+async function assertTellSheetFits(page, testCase, viewport) {
+  const sheet = page.getByTestId('feedback-sheet');
+  const box = await getStableBox(sheet, page);
+  assertInsideViewport(`${testCase.name} sheet`, box, viewport);
+  const send = await getStableBox(page.getByTestId('feedback-send'), page);
+  assertInsideViewport(`${testCase.name} Send`, send, viewport);
+  assert.ok(send.height >= 44, `${testCase.name}: Send is a 44pt target`);
+  assert.ok(send.y + send.height <= box.y + box.height, `${testCase.name}: Send inside the sheet`);
+  const ink = await getStableBox(page.getByTestId('feedback-body'), page);
+  assert.ok(ink.height >= 40, `${testCase.name}: the card keeps room to write (${ink.height})`);
+  // Phone landscape puts Send in its own column beside the card.
+  if (viewport.width > viewport.height && viewport.height < 500)
+    assert.ok(ink.x + ink.width <= send.x, `${testCase.name}: the card ends left of Send`);
+  else assert.ok(ink.y + ink.height <= send.y, `${testCase.name}: the card ends above Send`);
+  const overflow = await sheet.evaluate((node) =>
+    [node, ...node.querySelectorAll('*')].some(
+      (child) =>
+        ['auto', 'scroll'].includes(getComputedStyle(child).overflowY) &&
+        child.scrollHeight > child.clientHeight + 2
+    )
+  );
+  assert.equal(overflow, false, `${testCase.name}: the sheet never scrolls`);
+}
+
+// PID-316: each Tell us state reads as the boards say, and fits all four sizes.
+async function assertTellState(page, testCase, viewport) {
+  if (!testCase.tell) return;
+  const copy = tellCopy(testCase);
+  const sheet = page.getByTestId('feedback-sheet');
+  const see = (text, scope = sheet) => scope.getByText(text, { exact: true }).waitFor();
+  const state = testCase.tell;
+  if (state === 'home') {
+    const door = page.getByRole('button', { name: copy.door, exact: true });
+    const box = await getStableBox(door, page);
+    assert.ok(box.width >= 44 && box.height >= 44, `${testCase.name}: the door is a 44pt target`);
+    assertInsideViewport(`${testCase.name} door`, box, viewport);
+    const header = await getStableBox(page.getByTestId('home-header'), page);
+    assert.ok(
+      box.x + box.width <= header.x + header.width + 1,
+      `${testCase.name}: door in the bar`
+    );
+    assert.equal(await door.innerText(), '', `${testCase.name}: the door has no words`);
+    if (testCase.authFixture === guestAuthFixture) {
+      const gear = await getStableBox(
+        page.getByRole('button', { name: 'Settings', exact: true }),
+        page
+      );
+      assert.equal(Math.round(gear.width), Math.round(box.width), 'door and gear, one size');
+      assert.equal(Math.round(gear.height), Math.round(box.height), 'door and gear, one size');
+      // The name gives way first: it never runs under Friends.
+      const name = await getStableBox(page.getByText('Lucky Moose', { exact: true }), page);
+      const friends = await getStableBox(
+        page.getByRole('button', { name: 'Friends', exact: true }),
+        page
+      );
+      assert.ok(name.x + name.width <= friends.x + 1, `${testCase.name}: the name truncates first`);
+    }
+    return;
+  }
+  if (state === 'pace' || state === 'old' || state === 'notice') {
+    if (state === 'notice') {
+      await page.getByTestId('update-notice').waitFor();
+      await page.waitForTimeout(800);
+      assert.equal(await page.getByTestId('feedback-ask').count(), 0, 'the update notice wins');
+      return;
+    }
+    const card = page.getByTestId('feedback-ask');
+    await see(state === 'pace' ? copy.pace : copy.old, card);
+    const box = await getStableBox(card, page);
+    assertInsideViewport(`${testCase.name} card`, box, viewport);
+    const header = await getStableBox(page.getByTestId('home-header'), page);
+    const tile = await getStableBox(page.getByTestId('home-quick-game'), page);
+    assert.ok(box.y >= header.y + header.height, `${testCase.name}: card below the header`);
+    if (viewport.width < viewport.height)
+      assert.ok(box.y + box.height <= tile.y, `${testCase.name}: card above the tiles`);
+    const radios = card.getByRole('radio');
+    assert.deepEqual(
+      (await radios.allInnerTexts()).map((label) => label.trim()),
+      state === 'pace' ? copy.paceAnswers : copy.oldAnswers
+    );
+    for (const radio of await radios.all()) {
+      const choice = await radio.boundingBox();
+      assert.ok(choice.height >= 44, `${testCase.name}: each answer is a 44pt target`);
+    }
+    return;
+  }
+  await sheet.waitFor();
+  await waitForScreenshotReady(page);
+  await see(state === 'sent' ? copy.thanks : copy.title);
+  if (state === 'sent') {
+    await see(copy.after);
+    await sheet.getByRole('button', { name: copy.done, exact: true }).waitFor();
+    assertInsideViewport(`${testCase.name} sheet`, await getStableBox(sheet, page), viewport);
+    return;
+  }
+  const landscape = viewport.width > viewport.height && viewport.height < 500;
+  if (!(landscape && ['failed', 'limit'].includes(state))) await see(copy.ask);
+  const ink = page.getByTestId('feedback-body');
+  assert.equal(await ink.getAttribute('placeholder'), copy.placeholder);
+  const words = ['open', 'chip'].includes(state) ? '' : TELL_WORDS;
+  assert.equal(await ink.inputValue(), words);
+  const send = page.getByTestId('feedback-send');
+  const label = state === 'failed' ? copy.retry : state === 'limit' ? copy.limitButton : copy.send;
+  assert.equal((await send.innerText()).trim(), label);
+  assert.equal(
+    await send.isDisabled(),
+    state === 'limit' || words === '',
+    `${testCase.name}: Send is ${state === 'limit' || !words ? 'off' : 'on'}`
+  );
+  if (state === 'guest') {
+    assert.equal(await page.getByTestId('feedback-email').inputValue(), 'bengt@example.com');
+    await see(copy.email);
+    assert.equal(await sheet.getByText(/answer at/).count(), 0, 'a guest has no account address');
+  } else if (state === 'limit') {
+    await see(copy.limit);
+    assert.equal(await sheet.getByText(copy.reply, { exact: true }).count(), 0);
+  } else {
+    await see(copy.reply);
+    await sheet.getByRole('button', { name: copy.change, exact: true }).waitFor();
+  }
+  if (state === 'failed') {
+    await see(copy.failed);
+    await sheet.getByRole('button', { name: copy.mailApp, exact: true }).waitFor();
+  }
+  if (state === 'chip') await see(copy.chip);
+  if (state === 'open' && !landscape) await see(copy.fine);
+  // No suit symbols and no photo anywhere on it.
+  assert.equal(await sheet.locator('img').count(), 0, `${testCase.name}: no photo`);
+  assert.doesNotMatch(await sheet.innerText(), /[♠♥♦♣]/u);
+  await assertTellSheetFits(page, testCase, viewport);
+}
+
+/** Taps through the door, the question card and the send, against the routed server. */
+async function assertTellInteractions(page, testCase, viewport) {
+  if (!testCase.tell || testCase.tellLocale) return;
+  const copy = tellCopy(testCase);
+  const sheet = page.getByTestId('feedback-sheet');
+  const door = page.getByRole('button', { name: copy.door, exact: true });
+  const close = () => sheet.getByRole('button', { name: copy.close, exact: true }).first().click();
+  const state = testCase.tell;
+  if (state === 'home') {
+    await door.click();
+    await sheet.waitFor();
+    // The sheet lands first, then the box takes focus.
+    await page.waitForFunction(
+      () => document.activeElement?.getAttribute('data-testid') === 'feedback-body'
+    );
+    await close();
+    await sheet.waitFor({ state: 'detached' });
+    return;
+  }
+  if (state === 'pace') {
+    const card = page.getByTestId('feedback-ask');
+    const before = await getStableBox(card, page);
+    const slow = card.getByRole('radio', { name: copy.paceAnswers[0] });
+    await slow.click();
+    assert.equal(await slow.getAttribute('aria-checked'), 'true', 'marked in place');
+    await card.getByText(copy.old, { exact: true }).waitFor();
+    await card.getByRole('radio', { name: copy.oldAnswers[2] }).click();
+    await card.getByText(copy.thanksShort, { exact: true }).waitFor();
+    const after = await getStableBox(card, page);
+    assert.ok(Math.abs(after.y - before.y) <= 1, 'nothing jumps: the card holds its place');
+    assert.ok(
+      Math.abs(after.height - before.height) <= 1,
+      'nothing jumps: the card holds its size'
+    );
+    assert.deepEqual(page.tellPosts, [
+      { kind: 'pace', answer: 'too_slow', game_id: 'fixture-game' },
+      { kind: 'old_pidro', answer: 'better', game_id: 'fixture-game' },
+    ]);
+    await card.getByRole('button', { name: copy.more, exact: true }).click();
+    await sheet.getByText(copy.chip, { exact: true }).waitFor();
+    return;
+  }
+  if (state === 'old') {
+    const card = page.getByTestId('feedback-ask');
+    await card.getByRole('button', { name: copy.close, exact: true }).click();
+    await card.waitFor({ state: 'detached' });
+    assert.deepEqual(page.tellPosts, [
+      { kind: 'old_pidro', answer: 'skipped', game_id: 'fixture-game' },
+    ]);
+    return;
+  }
+  if (state === 'failed') {
+    // No mail app either: the address is there to write to.
+    await page.evaluate(() => {
+      window.open = () => {
+        throw new Error('no mail app');
+      };
+    });
+    await sheet.getByRole('button', { name: copy.mailApp, exact: true }).click();
+    await sheet.getByText('marcel@pidro.online', { exact: true }).waitFor();
+    return;
+  }
+  if (state === 'open') {
+    // Change folds down the address to edit; an empty one still sends.
+    await sheet.getByRole('button', { name: copy.change, exact: true }).click();
+    const email = page.getByTestId('feedback-email');
+    assert.equal(await email.inputValue(), 'bengt@example.com');
+    await email.fill('');
+    await page.getByTestId('feedback-body').fill('Too fast for me.');
+    await page.getByTestId('feedback-send').click();
+    await sheet.getByText(copy.thanks, { exact: true }).waitFor();
+    await sheet
+      .getByText("You left no email, so we can't answer this one.", { exact: true })
+      .waitFor();
+    assert.equal(page.tellPosts.length, 1);
+    assert.equal(page.tellPosts[0].reply_email, undefined, 'no address, none sent');
+    return;
+  }
+  if (state === 'send') {
+    const frames = process.env.TELL_FRAMES_DIR;
+    const shoot = (name) =>
+      frames ? page.screenshot({ path: resolve(frames, `${name}.png`) }) : undefined;
+    if (frames) await mkdir(frames, { recursive: true });
+    await shoot('0-typed');
+    const send = page.getByTestId('feedback-send');
+    await send.click();
+    const started = Date.now();
+    for (const [at, name] of [
+      [120, '1-turning'],
+      [600, '2-face-down'],
+      [1100, '3-still-face-down'],
+    ]) {
+      await page.waitForTimeout(Math.max(0, at - (Date.now() - started)));
+      await shoot(name);
+    }
+    // Face down while the note travels: no spinner, the words put away.
+    assert.equal(await sheet.getByRole('progressbar').count(), 0, 'no spinner');
+    assert.equal(await page.getByTestId('feedback-body').isEditable(), false);
+    await page.waitForTimeout(Math.max(0, 1380 - (Date.now() - started)));
+    await shoot('4-leaving');
+    await sheet.getByText(copy.thanks, { exact: true }).waitFor();
+    await sheet.getByText(copy.after, { exact: true }).waitFor();
+    await page.waitForTimeout(300);
+    await shoot('5-thanks');
+    const [note] = page.tellPosts;
+    assert.equal(note.kind, 'note');
+    assert.equal(note.body, TELL_WORDS);
+    assert.equal(note.reply_email, 'bengt@example.com');
+    assert.equal(note.details.platform, 'web');
+    await sheet.getByRole('button', { name: copy.done, exact: true }).click();
+    await sheet.waitFor({ state: 'detached' });
+    await door.click();
+    assert.equal(await page.getByTestId('feedback-body').inputValue(), '', 'sent words are gone');
+    return;
+  }
+  if (state === 'send-fails') {
+    await page.getByTestId('feedback-send').click();
+    await sheet.getByText(copy.failed, { exact: true }).waitFor();
+    assert.equal(await page.getByTestId('feedback-body').inputValue(), TELL_WORDS);
+    assert.equal((await page.getByTestId('feedback-send').innerText()).trim(), copy.retry);
+    await assertTellSheetFits(page, testCase, viewport);
+    // Closing keeps the words for next time.
+    await close();
+    await sheet.waitFor({ state: 'detached' });
+    await door.click();
+    assert.equal(await page.getByTestId('feedback-body').inputValue(), TELL_WORDS);
+  }
+}
+
 async function main() {
   if (process.argv[2] === '--list-cases') {
     console.log(JSON.stringify(allCases.map(({ name, path }) => ({ name, path }))));
@@ -5684,6 +6115,8 @@ async function main() {
   const matrix = selectViewports().flatMap((viewport) =>
     cases
       .filter((testCase) => {
+        if (testCase.tell)
+          return (testCase.tellViewports ?? TELL_VIEWPORTS).includes(viewport.name);
         if (
           (testCase.welcome || testCase.name.startsWith('age')) &&
           ['small-portrait', 'compact-portrait', 'tablet-portrait'].includes(viewport.name)
@@ -5837,7 +6270,9 @@ async function main() {
             photoLocale:
               testCase.photo || testCase.path === '/welcome' || testCase.path.startsWith('/(auth)/')
                 ? (testCase.locale ?? 'en')
-                : null,
+                : testCase.tell
+                  ? (testCase.tellLocale ?? 'en')
+                  : null,
           }
         );
         if (testCase.pendingInvite) {
@@ -5929,6 +6364,7 @@ async function main() {
           ].includes(testCase.name) ||
           testCase.homeProfile ||
           testCase.photo ||
+          testCase.tell ||
           testCase.name.startsWith('edge-home-') ||
           testCase.name.startsWith('edge-profile-')
         ) {
@@ -5981,6 +6417,7 @@ async function main() {
             });
           });
         }
+        if (testCase.tell) await routeFeedback(page, testCase);
         const pageErrors = [];
         page.on('pageerror', (error) => pageErrors.push(String(error?.message ?? error)));
 
@@ -6191,7 +6628,8 @@ async function main() {
           if (
             testCase.newTableFixture ||
             testCase.testId === 'password-keypad' ||
-            testCase.testId === 'friend-sheet'
+            testCase.testId === 'friend-sheet' ||
+            testCase.testId === 'feedback-sheet'
           ) {
             await page.getByTestId(testCase.testId).waitFor();
             await waitForScreenshotReady(page);
@@ -6285,6 +6723,7 @@ async function main() {
           }
           await assertFirstLaunchScreens(page, testCase, caseViewport);
           await assertFeedbackRow(page, testCase, caseViewport);
+          await assertTellState(page, testCase, caseViewport);
           await assertPhotoSheet(page, testCase, caseViewport);
           await waitForScreenshotReady(page);
           if (testCase.name.startsWith('edge-') || testCase.testId === 'game-loading-screen') {
@@ -6347,7 +6786,9 @@ async function main() {
             fullPage: false,
           });
           // The welcome covers Home on purpose until Let's play.
-          if (!testCase.welcome) await assertHomeHeaderClear(page, testCase.path, caseViewport);
+          // So does an open sheet, on purpose.
+          if (!testCase.welcome && testCase.testId !== 'feedback-sheet')
+            await assertHomeHeaderClear(page, testCase.path, caseViewport);
           await assertHomeProfile(page, testCase, caseViewport);
           await assertLocalization(page, testCase, caseViewport);
           if (testCase.lobbyFixture !== 'locked') await assertLobbyPresentation(page, testCase);
@@ -6373,6 +6814,7 @@ async function main() {
           await assertRowControls(page, testCase.name, screenshotDir);
           await assertFriendComponents(page, testCase.name, screenshotDir);
           await assertRuleInteractions(page, testCase, viewport, screenshotDir);
+          await assertTellInteractions(page, testCase, caseViewport);
           if (testCase.verifyReadiness) {
             const panel = await getStableBox(
               page.getByRole('button', { name: "I'm ready", exact: true }),

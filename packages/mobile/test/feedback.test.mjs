@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { feedbackMailto } from '../src/features/feedback.ts';
+import {
+  feedbackMailto,
+  feedbackNote,
+  nextAskCard,
+  sendFailure,
+} from '../src/features/feedback.ts';
 
 const details = {
   appVersion: '1.0.0',
@@ -74,5 +79,90 @@ describe('feedback mail', () => {
       'Device: unknown',
       'Player: not signed in',
     ]);
+  });
+});
+
+describe('feedback mail with the words', () => {
+  it('starts with what the player wrote, then the details', () => {
+    const body = parse(
+      feedbackMailto(details, '  Bid buttons are small.\nOtherwise lovely. ')
+    ).body;
+    expect(body.split('\r\n').slice(0, 4)).toEqual([
+      'Bid buttons are small.',
+      'Otherwise lovely.',
+      '',
+      'App version: 1.0.0',
+    ]);
+  });
+});
+
+describe('a posted note', () => {
+  it('trims the words, leaves out an empty address and unknown details', () => {
+    const note = feedbackNote(' Too fast. ', '  ', { ...details, updateId: null, osVersion: null });
+    expect(JSON.parse(JSON.stringify(note))).toEqual({
+      kind: 'note',
+      body: 'Too fast.',
+      details: {
+        app_version: '1.0.0',
+        native_build: '7',
+        channel: 'beta',
+        platform: 'ios',
+        device_model: 'iPhone 13 mini',
+      },
+    });
+    expect(feedbackNote('Hi', ' a@b.c ', details).reply_email).toBe('a@b.c');
+  });
+
+  it('waits for tomorrow only when the server says enough for today', () => {
+    expect(sendFailure({ response: { status: 429, data: { code: 'RATE_LIMITED' } } })).toBe(
+      'limit'
+    );
+    expect(sendFailure({ response: { status: 422, data: { code: 'VALIDATION_FAILED' } } })).toBe(
+      'failed'
+    );
+    expect(sendFailure(new Error('Network Error'))).toBe('failed');
+  });
+});
+
+describe('the question card on Home', () => {
+  const asked = (ask, game_id = 'g-1') => ({ type: 'asked', answer: { ask, game_id } });
+  const none = { type: 'asked', answer: { ask: null, game_id: null } };
+  const pace = nextAskCard(null, asked('pace'));
+
+  it('shows the question the server asks, nothing when it asks none', () => {
+    expect(pace).toEqual({ ask: 'pace', gameId: 'g-1', picked: null, thanked: false });
+    expect(nextAskCard(null, none)).toBeNull();
+    expect(nextAskCard(null, asked('pace', null))).toBeNull();
+  });
+
+  it('marks the answer in place and takes no second one', () => {
+    const marked = nextAskCard(pace, { type: 'picked', answer: 'too_slow' });
+    expect(marked).toEqual({ ...pace, picked: 'too_slow' });
+    expect(nextAskCard(marked, { type: 'picked', answer: 'right' })).toEqual(marked);
+  });
+
+  it('after an answer, a new question replaces the row', () => {
+    const marked = nextAskCard(pace, { type: 'picked', answer: 'right' });
+    expect(nextAskCard(marked, asked('old_pidro', 'g-1'))).toEqual({
+      ask: 'old_pidro',
+      gameId: 'g-1',
+      picked: null,
+      thanked: false,
+    });
+  });
+
+  it('after an answer, no further question is the thanks, still showing the answer', () => {
+    const marked = nextAskCard(pace, { type: 'picked', answer: 'too_fast' });
+    expect(nextAskCard(marked, none)).toEqual({ ...marked, thanked: true });
+  });
+
+  it('the thanks and an unanswered question both go when the server asks nothing on the next focus', () => {
+    const thanks = nextAskCard(nextAskCard(pace, { type: 'picked', answer: 'right' }), none);
+    expect(nextAskCard(thanks, none)).toBeNull();
+    expect(nextAskCard(pace, none)).toBeNull();
+  });
+
+  it('X hides it', () => {
+    expect(nextAskCard(pace, { type: 'skipped' })).toBeNull();
   });
 });

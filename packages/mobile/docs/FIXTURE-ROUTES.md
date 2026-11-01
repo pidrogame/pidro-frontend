@@ -698,6 +698,29 @@ no scrolling/overlap, 44pt targets, Marcel's loaded photo and one wood welcome C
 keyboard focus and the preference surviving reload into Settings. These browser
 checks do not reproduce the iOS native splash lifecycle.
 
+## `/home?fixture=tell-<state>` and `/settings?fixture=tell-<state>` — Tell us (PID-316)
+
+The Tell us sheet open in one state, or the question card on Home. The fixture sets
+only where it starts; Send, the answers and the next question go to the server
+(`POST /api/v1/feedback`, `GET /api/v1/feedback/ask`), which the UI-grammar cases route.
+
+| `state`  | Shows                                                                     |
+| -------- | ------------------------------------------------------------------------- |
+| `open`   | Sheet, empty card, the reply line or "Want an answer?", Send off           |
+| `typing` | Sheet with words on the card, Send on                                      |
+| `chip`   | Sheet opened from the question card: "About your last game" on the card    |
+| `sent`   | "Thanks. We read every one." and Done                                      |
+| `failed` | Words back on the card, the alert, Try again and "Use my mail app"         |
+| `limit`  | The limit alert and a disabled "Send tomorrow"                             |
+| `guest`  | The email field folded down with an address typed (use with a guest)       |
+| `pace`   | Home's question card: Pace in your last game                              |
+| `old`    | Home's question card: Compared to the old Pidro                           |
+
+testIDs `feedback-sheet`, `feedback-body`, `feedback-email`, `feedback-send`,
+`feedback-ask`, `home-tell`, `settings-tell`. UI grammar: the `tell-*` cases at
+390×844, 375×667, 844×390 and 768×1024 (`tell-keyboard` takes the keyboard's height
+off each), Swedish at 390×844; `TELL_FRAMES_DIR=<dir>` saves the send frame by frame.
+
 ## `/home?fixture=table-unknown`
 
 Home after Quick game was refused as "already in a room" and the lobby that would

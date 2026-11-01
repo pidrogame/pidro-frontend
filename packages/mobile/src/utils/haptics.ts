@@ -16,3 +16,12 @@ export function playSelectionHaptic() {
       : Haptics.selectionAsync()
   );
 }
+
+/** Something the player sent arrived. */
+export function playSuccessHaptic() {
+  runHaptic(() =>
+    Platform.OS === 'android'
+      ? Haptics.performAndroidHapticsAsync(Haptics.AndroidHaptics.Confirm)
+      : Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success)
+  );
+}

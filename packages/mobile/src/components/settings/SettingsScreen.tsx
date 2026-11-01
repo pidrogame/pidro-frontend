@@ -1,6 +1,5 @@
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useState } from 'react';
-import * as Clipboard from 'expo-clipboard';
 import { useLocalSearchParams } from 'expo-router';
 import type { RuleSet } from '@pidro/shared';
 import { RuleSetSelector } from '@/components/rules/RuleSet';
@@ -15,9 +14,11 @@ import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { AppUpdateSection } from '@/components/settings/AppUpdateSection';
-import { PidroSpacing } from '@/design/tokens';
-import { FEEDBACK_EMAIL } from '@/features/feedback';
-import { openFeedbackMail } from '@/utils/feedbackMail';
+import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
+import { Icon } from '@/components/ui/Icon';
+import { PressableFX } from '@/components/ui/PressableFX';
+import { PidroColors, PidroNote, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { tellFixture } from '@/features/feedback';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 
@@ -48,6 +49,8 @@ export function SettingsScreen({
   const { fixture } = useLocalSearchParams<{ fixture?: string }>();
   const initialFixture = ruleSetFixture(fixture);
   const [fixtureChoice, setFixtureChoice] = useState<RuleSet | undefined>();
+  const tell = __DEV__ ? tellFixture(fixture) : null;
+  const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
 
   return (
     <ScreenShell
@@ -61,6 +64,26 @@ export function SettingsScreen({
       }}>
       <ScreenHeader title={t('settings.title')} subtitle={t('settings.subtitle')} onBack={onBack} />
       <Surface variant="window" style={styles.panel} padded>
+        <PressableFX
+          testID="settings-tell"
+          accessibilityRole="button"
+          accessibilityLabel={`${t('tell.door')}. ${t('tell.rowHint')}`}
+          onPress={() => setTellOpen(true)}
+          style={styles.tell}
+          pressedStyle={styles.tellPressed}>
+          <View style={styles.disc}>
+            <Icon name="chat" size={22} color={PidroColors.cyanText} />
+          </View>
+          <View style={styles.rowCopy}>
+            <PidroText role="label" style={styles.tellTitle}>
+              {t('tell.door')}
+            </PidroText>
+            <PidroText role="metadata" tone="soft" style={styles.tellHint}>
+              {t('tell.rowHint')}
+            </PidroText>
+          </View>
+          <Icon name="chevron-right" size={20} strokeWidth={2.6} color={PidroColors.cyanText} />
+        </PressableFX>
         <View style={styles.languageColumn}>
           <LanguageSelector />
         </View>
@@ -113,11 +136,11 @@ export function SettingsScreen({
               {t('settings.paceHint')} {t('settings.paceSolo')}
             </PidroText>
           </Surface>
-          <FeedbackRow noMail={fixture === 'no-mail'} />
         </View>
       </Surface>
       {signedIn ? <AccountSection /> : null}
       <AppUpdateSection />
+      <FeedbackSheet open={tellOpen} fixture={tell?.sheet} onClose={() => setTellOpen(false)} />
     </ScreenShell>
   );
 }
@@ -146,42 +169,6 @@ function SettingRow({
   );
 }
 
-function FeedbackRow({ noMail }: { noMail: boolean }) {
-  const { t } = useTranslation();
-  const [failed, setFailed] = useState(noMail);
-  const [copied, setCopied] = useState(false);
-  return (
-    <Surface variant="subtle" testID="settings-feedback">
-      <View style={styles.row}>
-        <View style={styles.rowCopy}>
-          <PidroText role="label">{t('settings.feedback')}</PidroText>
-          <PidroText role="metadata" tone="muted" selectable>
-            {t('settings.feedbackHint', { email: FEEDBACK_EMAIL })}
-          </PidroText>
-        </View>
-        <ActionPill
-          size="lg"
-          icon="mail"
-          label={t('settings.feedbackWrite')}
-          onPress={async () => setFailed(!(await openFeedbackMail()))}
-        />
-      </View>
-      {failed ? (
-        <View style={styles.noMail}>
-          <PidroText role="metadata" accessibilityLiveRegion="polite">
-            {t('settings.feedbackNoMail')}
-          </PidroText>
-          <ActionPill
-            size="lg"
-            label={t(copied ? 'settings.feedbackCopied' : 'settings.feedbackCopy')}
-            onPress={() => Clipboard.setStringAsync(FEEDBACK_EMAIL).then(setCopied, () => {})}
-          />
-        </View>
-      ) : null}
-    </Surface>
-  );
-}
-
 const styles = StyleSheet.create({
   shell: { gap: PidroSpacing.md },
   panel: { gap: PidroSpacing.sm, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
@@ -197,10 +184,30 @@ const styles = StyleSheet.create({
     padding: PidroSpacing.sm,
   },
   rowCopy: { minWidth: 0, flex: 1, gap: PidroSpacing.xxs },
-  noMail: {
-    gap: PidroSpacing.xs,
-    alignItems: 'flex-start',
+  tell: {
+    width: '100%',
+    minHeight: 76,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: PidroSpacing.sm,
+    paddingVertical: 10,
     paddingHorizontal: PidroSpacing.sm,
-    paddingBottom: PidroSpacing.sm,
+    borderRadius: PidroRadii.panel,
+    borderWidth: 1,
+    borderColor: PidroNote.rowBorder,
+    backgroundColor: PidroColors.panelSoft,
   },
+  tellPressed: { backgroundColor: PidroColors.actionPillPressed },
+  disc: {
+    width: 44,
+    height: 44,
+    borderRadius: PidroRadii.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: PidroNote.rowBorder,
+    backgroundColor: PidroNote.disc,
+  },
+  tellTitle: { fontSize: 18, lineHeight: 23 },
+  tellHint: { fontSize: 14, lineHeight: 19, fontWeight: '600' },
 });

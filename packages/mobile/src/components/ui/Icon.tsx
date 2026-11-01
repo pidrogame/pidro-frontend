@@ -42,7 +42,8 @@ export type IconName =
   | 'block'
   | 'enter'
   | 'share'
-  | 'clock';
+  | 'clock'
+  | 'chat';
 
 const ICONS: Record<IconName, { path: string; mode: 'fill' | 'stroke' }> = {
   home: { path: 'M3 11l9-8 9 8M5 9v12h5v-7h4v7h5V9', mode: 'stroke' },
@@ -105,6 +106,10 @@ const ICONS: Record<IconName, { path: string; mode: 'fill' | 'stroke' }> = {
   block: { path: 'M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0M6 6l12 12', mode: 'stroke' },
   enter: { path: 'M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M4 12h11M11 8l4 4-4 4', mode: 'stroke' },
   share: { path: 'M12 15V3M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6', mode: 'stroke' },
+  chat: {
+    path: 'M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4A2.5 2.5 0 0 1 4 13.5z',
+    mode: 'stroke',
+  },
   clock: { path: 'M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0M12 7.5V12l3 2', mode: 'stroke' },
   'arrow-left': { path: 'M19 12H5m7-7-7 7 7 7', mode: 'stroke' },
   star: {

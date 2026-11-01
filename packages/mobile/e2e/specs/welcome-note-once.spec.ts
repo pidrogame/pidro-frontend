@@ -6,7 +6,7 @@ import { api, guest, register } from '../support/api';
 import { startSignedIn } from '../support/session';
 
 // PID-295: Marcel's welcome shows once per install, after the age gate, before
-// the first table and never on one. Settings → Send feedback writes to him.
+// the first table and never on one. Settings → Tell us writes to him.
 test.use({ welcomeSeen: false });
 
 const sheet = (page: import('@playwright/test').Page) => page.getByTestId('welcome-sheet');
@@ -137,22 +137,41 @@ test('it never covers a table, and shows once the player leaves it', async ({ pa
   await expect(sheet(page)).toHaveCount(0);
 });
 
-test.describe('Send feedback', () => {
+test.describe('Tell us', () => {
   test.use({ welcomeSeen: true });
 
-  test('opens a mail to Marcel with the app, device and player filled in', async ({
+  test('Settings opens the sheet ready to write, with the address to answer at', async ({
+    page,
+    player,
+  }) => {
+    await startSignedIn(page, await register(player));
+    await page.goto('/settings');
+    const row = page.getByTestId('settings-tell');
+    await expect(row.getByText('Tell us', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await row.click();
+    const tell = page.getByTestId('feedback-sheet');
+    await expect(tell.getByText("Hey, I'm Marcel.", { exact: true })).toBeVisible();
+    // The sheet lands first, then the box takes focus.
+    await expect(page.getByTestId('feedback-body')).toBeFocused();
+    await expect(tell.getByText(/^We'll answer at \S+@\S+$/)).toBeVisible();
+  });
+
+  test('when the note does not go through, the mail app gets the words and the details', async ({
     page,
     player,
   }) => {
     const session = await register(player);
     await catchOpenedUrls(page);
+    await page.route('**/api/v1/feedback', (route) => route.fulfill({ status: 503, json: {} }));
     await startSignedIn(page, session);
-    await page.goto('/settings');
-    const row = page.getByTestId('settings-feedback');
-    await expect(row.getByText('Send feedback', { exact: true })).toBeVisible({
-      timeout: 30_000,
-    });
-    await row.getByRole('button', { name: 'Write', exact: true }).click();
+    await page.goto('/home');
+    await page.getByRole('button', { name: 'Tell us', exact: true }).click({ timeout: 30_000 });
+    await page.getByTestId('feedback-body').fill('The bid buttons are small.');
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    const tell = page.getByTestId('feedback-sheet');
+    await expect(tell.getByText("That didn't go through. Your words are safe.")).toBeVisible();
+    await expect(page.getByTestId('feedback-body')).toHaveValue('The bid buttons are small.');
+    await tell.getByRole('button', { name: 'Use my mail app', exact: true }).click();
 
     const [url] = await openedUrls(page);
     const [address, query] = url.split('?');
@@ -160,7 +179,7 @@ test.describe('Send feedback', () => {
     const params = new URLSearchParams(query.replaceAll('+', '%2B'));
     expect(params.get('subject')).toBe('Pidro beta feedback');
     const body = params.get('body')!.split('\r\n');
-    expect(body.slice(0, 2)).toEqual(['', '']);
+    expect(body.slice(0, 2)).toEqual(['The bid buttons are small.', '']);
     expect(body.slice(2).map((line) => line.split(':')[0])).toEqual([
       'App version',
       'Native build',
@@ -169,27 +188,6 @@ test.describe('Send feedback', () => {
       'Device',
       'Player',
     ]);
-    expect(body.find((line) => line.startsWith('Platform:'))).toMatch(/^Platform: web /);
     expect(body).toContain(`Player: ${player.name} (${session.user.id})`);
-    // Nothing went wrong, so nothing asks the player to copy the address.
-    await expect(row.getByRole('button', { name: 'Copy address', exact: true })).toHaveCount(0);
-  });
-
-  test('with no mail app, shows the address to copy', async ({ page, player }) => {
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-    await catchOpenedUrls(page, true);
-    await startSignedIn(page, await register(player));
-    await page.goto('/settings');
-    const row = page.getByTestId('settings-feedback');
-    await row.getByRole('button', { name: 'Write', exact: true }).click({
-      timeout: 30_000,
-    });
-    await expect(
-      row.getByText("Your mail app didn't open. Copy the address and write from anywhere.")
-    ).toBeVisible();
-    await expect(row.getByText(/marcel@pidro\.online/)).toBeVisible();
-    await row.getByRole('button', { name: 'Copy address', exact: true }).click();
-    await expect(row.getByRole('button', { name: 'Copied', exact: true })).toBeVisible();
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('marcel@pidro.online');
   });
 });

@@ -5,7 +5,7 @@
  * hiding it never moves anything. A screen whose controls reach the bottom
  * (Home) places it in a free spot of its own with `UpdateNoticeSlot`.
  */
-import { createContext, useContext, useLayoutEffect } from 'react';
+import { createContext, useContext, useLayoutEffect, type ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, useReducedMotion } from 'react-native-reanimated';
 import { BevelButton } from '@/components/ui/BevelButton';
@@ -33,14 +33,28 @@ export const UpdateNoticeHost = createContext<{
   setPlaced: (placed: boolean) => void;
 }>({ notice: null, setPlaced: () => {} });
 
-/** Shows the shell's notice here, at the top of this view, instead of above the pill. */
-export function UpdateNoticeSlot({ style }: { style?: StyleProp<ViewStyle> }) {
+/**
+ * Shows the shell's notice here, at the top of this view, instead of above the
+ * pill. `children` take the spot while there is no notice; the notice wins.
+ */
+export function UpdateNoticeSlot({
+  style,
+  children,
+}: {
+  style?: StyleProp<ViewStyle>;
+  children?: ReactNode;
+}) {
   const { notice, setPlaced } = useContext(UpdateNoticeHost);
   useLayoutEffect(() => {
     setPlaced(true);
     return () => setPlaced(false);
   }, [setPlaced]);
-  return notice ? <UpdateNotice {...notice} style={[styles.slotTop, style]} /> : null;
+  if (notice) return <UpdateNotice {...notice} style={[styles.slotTop, style]} />;
+  return children ? (
+    <View pointerEvents="box-none" style={[styles.slot, styles.slotTop, style]}>
+      {children}
+    </View>
+  ) : null;
 }
 
 export function UpdateNotice({
