@@ -30,7 +30,6 @@ import { OpenChair } from '@/components/lobby/OpenChair';
 import { AuthFlowButton, AuthFlowHeading } from '@/components/auth/AuthFlow';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BevelButton } from '@/components/ui/BevelButton';
-import { gradientBg } from '@/components/ui/Bevel';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
 import { PidroText } from '@/components/ui/PidroText';
@@ -511,13 +510,8 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
           </ScrollView>
         )}
         {portraitPhone && !isEmptyLobby ? (
-          <View
-            pointerEvents="box-none"
-            style={[
-              styles.pinned,
-              gradientBg(`linear-gradient(180deg, transparent 0%, ${PidroColors.feltBottom} 45%)`),
-            ]}>
-            <BevelButton label={t('social.start')} size="lg" fullWidth onPress={handleNewTable} />
+          <View pointerEvents="box-none" style={styles.pinned}>
+            <BevelButton label={t('social.start')} size="md" fullWidth onPress={handleNewTable} />
           </View>
         ) : null}
       </View>
@@ -675,7 +669,7 @@ const styles = StyleSheet.create({
   searchIcon: { position: 'absolute', left: 13, top: 13 },
   eyebrow: { textTransform: 'uppercase', letterSpacing: 1, fontWeight: '900', fontSize: 11 },
   goldHint: { color: PidroBevel.textGold, flexShrink: 1 },
-  pinned: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingTop: 28 },
+  pinned: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   content: {
     minHeight: 0,
     flex: 1,

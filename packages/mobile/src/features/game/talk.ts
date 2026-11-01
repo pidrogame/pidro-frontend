@@ -1,7 +1,7 @@
 import type { TranslationKey } from '@pidro/shared';
 
 /**
- * Table talk (PID-114): words are cards, faces are coins. Only the id travels,
+ * Table talk (PID-114): words are cards, faces are emoji. Only the id travels,
  * so every player reads a word in their own language.
  */
 export const TALK_COINS = ['coin_thumb', 'coin_heart', 'coin_ha', 'coin_oops', 'coin_wow'] as const;
@@ -30,6 +30,14 @@ export interface Said {
   item?: TalkItem;
   text?: string;
 }
+
+export const TALK_EMOJI: Record<TalkCoin, string> = {
+  coin_thumb: '👍',
+  coin_heart: '❤️',
+  coin_ha: '😂',
+  coin_oops: '😅',
+  coin_wow: '😮',
+};
 
 export const isCoin = (item: TalkItem | undefined): item is TalkCoin =>
   !!item && item.startsWith('coin_');

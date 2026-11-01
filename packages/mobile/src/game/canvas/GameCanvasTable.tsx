@@ -617,11 +617,12 @@ export function GameCanvasTable({
     players.flatMap((player) => {
       const landed = talk.landed[player.absolutePosition];
       if (!landed) return [];
-      const draw = (at: ComponentProps<typeof TalkLanding>['at']) => (
+      const draw = (at: ComponentProps<typeof TalkLanding>['at'], ring: number) => (
         <TalkLanding
           key={landed.key}
           landed={landed}
           at={at}
+          ring={ring}
           name={who(landed).name}
           rise={player.isYou ? 60 : 12}
         />

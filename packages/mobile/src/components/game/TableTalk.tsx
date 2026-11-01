@@ -1,9 +1,9 @@
 /**
- * Table talk (PID-114): words are cards, faces are coins. One tap says it.
+ * Table talk (PID-114): words are cards, faces are plain emoji. One tap says it.
  * Board: Chat-Scene (states), chat.css (materials), Chat-Land, Chat-iPad.
  */
 import { useEffect } from 'react';
-import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
   Easing,
   FadeOut,
@@ -12,8 +12,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { gradientBg } from '@/components/ui/Bevel';
-import { Icon, type IconName } from '@/components/ui/Icon';
+import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import {
@@ -27,22 +26,15 @@ import {
 import { OFFER_MS, type Offer } from '@/features/game/offers';
 import {
   isCoin,
+  TALK_EMOJI,
   talkKey,
   type Landed,
   type Said,
-  type TalkCoin as Coin,
   type TalkItem,
 } from '@/features/game/talk';
 import type { SaidAt } from '@/game/canvas/SeatLayer';
 import { t, useTranslation } from '@/i18n';
 
-const GLYPH: Record<Coin, IconName> = {
-  coin_thumb: 'thumb',
-  coin_heart: 'heart',
-  coin_ha: 'laugh',
-  coin_oops: 'oops',
-  coin_wow: 'star',
-};
 /** The band's one row: a word, a coin and the speech button are all this tall. */
 export const TALK_ROW = 52;
 const GAP = PidroSpacing.xs;
@@ -54,51 +46,36 @@ const MIN_WORD = 108;
 export const talkText = (said: Pick<Said, 'item' | 'text'>) =>
   said.text ?? (said.item ? t(talkKey(said.item)) : '');
 
-/** A face is a coin: gold rim, wood face. */
+/** What shows on the table: a face is its emoji, the rest is its words. */
+const talkShown = (said: Pick<Said, 'item' | 'text'>) =>
+  isCoin(said.item) ? TALK_EMOJI[said.item] : talkText(said);
+
+/** A face is a plain emoji, and its label still says it aloud. */
 export function TalkCoin({
   item,
   size = TALK_ROW,
-  count = 1,
   onPress,
 }: {
   item: TalkItem;
   size?: number;
-  count?: number;
   onPress?: () => void;
 }) {
-  const coin = (
-    <View
-      style={[
-        styles.coinRim,
-        { width: size, height: size },
-        gradientBg(PidroBevel.goldRimGradient),
-      ]}>
-      <View style={[styles.coinFace, gradientBg(PidroBevel.woodFaceGradient)]}>
-        <Icon
-          name={GLYPH[item as Coin]}
-          size={Math.round(size * 0.52)}
-          color={PidroBevel.textGold}
-          strokeWidth={2.2}
-        />
-      </View>
-      {count > 1 ? (
-        <View style={styles.times}>
-          <PidroText role="metadata" style={styles.timesText}>
-            ×{count}
-          </PidroText>
-        </View>
-      ) : null}
-    </View>
+  const face = (
+    <Text
+      style={{ fontSize: Math.round(size * 0.58), lineHeight: size }}
+      importantForAccessibility="no">
+      {isCoin(item) ? TALK_EMOJI[item] : ''}
+    </Text>
   );
-  if (!onPress) return coin;
+  if (!onPress) return face;
   return (
     <PressableFX
       accessibilityRole="button"
       accessibilityLabel={t(talkKey(item))}
       testID={`talk-${item}`}
       onPress={onPress}
-      style={styles.round}>
-      {coin}
+      style={[styles.face, { width: size, height: size }]}>
+      {face}
     </PressableFX>
   );
 }
@@ -165,12 +142,15 @@ export function TalkLanding({
   landed,
   name,
   at,
+  ring,
   rise,
 }: {
   landed: Landed;
   name: string;
   /** Where, against the seat's avatar ring (SeatLayer picks). */
   at: SaidAt;
+  /** The avatar ring's size: a landing is placed in plain numbers from it. */
+  ring: number;
   /** How far it travels in: yours comes up from the band. */
   rise: number;
 }) {
@@ -200,6 +180,7 @@ export function TalkLanding({
         };
   });
   const text = talkText(landed);
+  const face = isCoin(landed.item) ? landed.item : null;
   return (
     <Animated.View
       testID="talk-landed"
@@ -210,19 +191,22 @@ export function TalkLanding({
         text: landed.count > 1 ? `${text} ×${landed.count}` : text,
       })}
       exiting={reduceMotion ? undefined : FadeOut.duration(200)}
-      style={[styles.landing, styles[at], motion]}>
-      {isCoin(landed.item) ? (
-        <TalkCoin item={landed.item} size={46} count={landed.count} />
-      ) : (
-        <View style={styles.bubble}>
-          <View style={[styles.tail, TAIL[at]]} />
+      style={[styles.landing, styles[at], PLACE[at](ring), motion]}>
+      <View style={[styles.bubble, face && styles.faceBubble]}>
+        <View style={[styles.tail, TAIL[at]]} />
+        {face ? (
+          <Text style={styles.emoji} importantForAccessibility="no">
+            {TALK_EMOJI[face]}
+            {landed.count > 1 ? <Text style={styles.times}> ×{landed.count}</Text> : null}
+          </Text>
+        ) : (
           <PidroText
             style={[styles.word, landed.text ? styles.typed : null]}
             numberOfLines={landed.text ? 4 : 2}>
             {text}
           </PidroText>
-        </View>
-      )}
+        )}
+      </View>
     </Animated.View>
   );
 }
@@ -294,7 +278,7 @@ export function TalkBand({
             <PidroText role="body" style={styles.who}>
               {lineName}
             </PidroText>{' '}
-            {talkText(line)}
+            {talkShown(line)}
           </>
         ) : (
           empty
@@ -303,6 +287,16 @@ export function TalkBand({
     </PressableFX>
   );
 }
+
+/** Numbers, not percentages: iOS put a landing far from its ring with `left: '100%'`. */
+const BESIDE = 10;
+const PLACE: Record<SaidAt, (ring: number) => ViewStyle> = {
+  aboveStart: (ring) => ({ bottom: ring + 8, left: ring / 2 - 22 }),
+  aboveEnd: (ring) => ({ bottom: ring + 8, right: ring / 2 - 22 }),
+  besideEnd: (ring) => ({ left: ring + BESIDE, top: 2 }),
+  besideStart: (ring) => ({ right: ring + BESIDE, top: 2 }),
+  below: (ring) => ({ top: ring + 8, left: ring / 2 - 22 }),
+};
 
 const TAIL: Record<SaidAt, ViewStyle> = {
   aboveStart: { bottom: -5, left: 17 },
@@ -425,33 +419,7 @@ const styles = StyleSheet.create({
     transformOrigin: 'left',
   },
   drainTight: { top: -6 },
-  round: { borderRadius: PidroRadii.full },
-  coinRim: {
-    padding: 2,
-    borderRadius: PidroRadii.full,
-    boxShadow: PidroColors.pointCardShadow,
-  },
-  coinFace: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: PidroRadii.full,
-    borderWidth: 1,
-    borderColor: PidroBevel.keyline,
-  },
-  times: {
-    position: 'absolute',
-    right: -6,
-    top: -6,
-    minWidth: 24,
-    paddingHorizontal: 5,
-    borderRadius: PidroRadii.full,
-    backgroundColor: PidroColors.leagueCardFace,
-    borderWidth: 1,
-    borderColor: PidroColors.leagueCardEdge,
-    alignItems: 'center',
-  },
-  timesText: { color: PidroColors.leagueCardInk },
+  face: { alignItems: 'center', justifyContent: 'center' },
   card: {
     minHeight: TALK_ROW,
     alignItems: 'center',
@@ -485,6 +453,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PidroColors.border,
   },
+  faceBubble: { paddingHorizontal: 8, paddingVertical: 3 },
+  emoji: { fontSize: 20, lineHeight: 26 },
+  times: { fontSize: 13, fontWeight: '800', color: PidroColors.leagueCardInk },
   bubble: {
     maxWidth: 150,
     paddingHorizontal: 11,
@@ -504,23 +475,11 @@ const styles = StyleSheet.create({
   },
   // A landing's box runs from the ring's middle (or its side) outward.
   landing: { position: 'absolute', width: 150 },
-  aboveStart: {
-    bottom: '100%',
-    marginBottom: 8,
-    left: '50%',
-    marginLeft: -22,
-    alignItems: 'flex-start',
-  },
-  aboveEnd: {
-    bottom: '100%',
-    marginBottom: 8,
-    right: '50%',
-    marginRight: -22,
-    alignItems: 'flex-end',
-  },
-  besideEnd: { left: '100%', marginLeft: 10, top: 2, alignItems: 'flex-start' },
-  besideStart: { right: '100%', marginRight: 10, top: 2, alignItems: 'flex-end' },
-  below: { top: '100%', marginTop: 8, left: '50%', marginLeft: -22, alignItems: 'flex-start' },
+  aboveStart: { alignItems: 'flex-start' },
+  aboveEnd: { alignItems: 'flex-end' },
+  besideEnd: { alignItems: 'flex-start' },
+  besideStart: { alignItems: 'flex-end' },
+  below: { alignItems: 'flex-start' },
   say: {
     height: TALK_ROW,
     minWidth: PidroLayout.touchTarget,
