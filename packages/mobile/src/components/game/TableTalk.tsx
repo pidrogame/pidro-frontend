@@ -238,26 +238,58 @@ export function TalkBand({
   line,
   lineName,
   onOpen,
+  draft,
+  turn,
+  prompt,
+  testID = 'talk-band',
 }: {
   place: TalkPlace;
   line: Said | null;
   lineName: string;
   onOpen: () => void;
+  /** Words typed and not sent yet (PID-318) wait here, ahead of the line. */
+  draft?: string;
+  /** Your turn came while you typed. */
+  turn?: boolean;
+  /** What it says when there is nothing to show. */
+  prompt?: string;
+  testID?: string;
 }) {
   useTranslation();
-  if (place === 'corner') return <TalkSpeech label={t('talk.say')} onPress={onOpen} />;
+  const empty = prompt ?? t('talk.say');
+  const first = turn ? t('talk.turn_first') : '';
+  // In a corner the speech button holds the words, and says so.
+  if (place === 'corner')
+    return <TalkSpeech label={draft ? `${first} ${draft}`.trim() : empty} onPress={onOpen} />;
   return (
     <PressableFX
       accessibilityRole="button"
       accessibilityLabel={
-        line ? t('talk.said', { name: lineName, text: talkText(line) }) : t('talk.say')
+        draft
+          ? `${first} ${draft}`.trim()
+          : line
+            ? t('talk.said', { name: lineName, text: talkText(line) })
+            : empty
       }
-      accessibilityHint={line ? t('talk.title') : undefined}
-      testID="talk-band"
+      accessibilityHint={!draft && line ? t('talk.title') : undefined}
+      testID={testID}
       onPress={onOpen}
       style={styles.say}>
-      <PidroText role="body" tone="soft" numberOfLines={1} style={styles.sayText}>
-        {line ? (
+      <PidroText
+        role="body"
+        tone={draft ? 'default' : 'soft'}
+        numberOfLines={place === 'column' ? 2 : 1}
+        style={styles.sayText}>
+        {draft ? (
+          <>
+            {first ? (
+              <PidroText role="body" style={styles.who}>
+                {first}{' '}
+              </PidroText>
+            ) : null}
+            {draft}
+          </>
+        ) : line ? (
           <>
             <PidroText role="body" style={styles.who}>
               {lineName}
@@ -265,7 +297,7 @@ export function TalkBand({
             {talkText(line)}
           </>
         ) : (
-          t('talk.say')
+          empty
         )}
       </PidroText>
     </PressableFX>

@@ -23,7 +23,7 @@ import {
 import { playActionHaptic } from './useGameHaptics';
 
 /** The hand of words, the game's log, or a face tapped at the table (PID-329). */
-export type TalkSheet = 'words' | 'log' | 'person' | 'report' | 'reported';
+export type TalkSheet = 'words' | 'typing' | 'log' | 'person' | 'report' | 'reported';
 
 export interface TableTalk {
   /** What each seat shows right now. */
@@ -41,6 +41,11 @@ export interface TableTalk {
   quiet: string[];
   open: (sheet: TalkSheet | null, person?: string) => void;
   send: (item: TalkItem) => void;
+  /** What you are typing (PID-318); it waits while the sheet is closed. */
+  draft: string;
+  setDraft: (draft: string) => void;
+  /** Sends the draft; refused words stay in the box. */
+  say: () => Promise<'sent' | 'filtered' | 'failed'>;
   hush: (userId: string) => void;
   report: (userId: string, reason: ReportReason) => Promise<void>;
 }
@@ -66,6 +71,9 @@ export interface TalkFixture {
   person?: string;
   offer?: Offer | null;
   quiet?: string[];
+  draft?: string;
+  /** The server refuses what is typed, as for words it filters. */
+  filtered?: boolean;
 }
 
 /**
@@ -93,6 +101,7 @@ export function useTableTalk(
   }, []);
   const [offer, setOffer] = useState<Offer | null>(fixture?.offer ?? null);
   const [quiet, setQuiet] = useState<string[]>(fixture?.quiet ?? []);
+  const [draft, setDraft] = useState(fixture?.draft ?? '');
   const quietRef = useRef(quiet);
   const pace = useRef(FRESH_PACE);
   const where = useRef({ ...at, offered: false });
@@ -111,6 +120,7 @@ export function useTableTalk(
     open(null);
     setOffer(null);
     setQuiet([]);
+    setDraft('');
   }
   const key = useRef(100);
   const timers = useRef<Partial<Record<Position, ReturnType<typeof setTimeout>>>>({});
@@ -172,23 +182,47 @@ export function useTableTalk(
     });
   }, [offerNow, show, you.seat, you.userId]);
 
+  // Anything said answers what the band offered.
+  const answer = useCallback(() => {
+    if (!where.current.offered) return;
+    clearTimeout(offerTimer.current);
+    pace.current = answered(pace.current);
+    setOffer(null);
+  }, []);
+
   const send = useCallback(
     (item: TalkItem) => {
       open(null);
-      // Anything said answers what the band offered.
-      if (where.current.offered) {
-        clearTimeout(offerTimer.current);
-        pace.current = answered(pace.current);
-        setOffer(null);
-      }
+      answer();
       playActionHaptic();
       if (!you.seat) return;
       if (__DEV__ && fixture) return show({ seat: you.seat, userId: you.userId ?? '', item });
       // A send that fails says nothing: the server broadcast nothing.
       pushGameAction('talk', { item }).catch(() => undefined);
     },
-    [fixture, open, show, you.seat, you.userId]
+    [answer, fixture, open, show, you.seat, you.userId]
   );
+
+  // Typed talk lands from the echo too; only readers get it, the sender among them.
+  const say = useCallback(async () => {
+    const text = draft.trim();
+    if (!text || !you.seat) return 'failed';
+    if (__DEV__ && fixture) {
+      if (fixture.filtered) return 'filtered';
+      show({ seat: you.seat, userId: you.userId ?? '', text });
+    } else {
+      try {
+        await pushGameAction('say', { text });
+      } catch (error: unknown) {
+        return (error as { error?: string } | null)?.error === 'filtered' ? 'filtered' : 'failed';
+      }
+    }
+    setDraft('');
+    open(null);
+    answer();
+    playActionHaptic();
+    return 'sent';
+  }, [answer, draft, fixture, open, show, you.seat, you.userId]);
 
   const hush = useCallback((userId: string) => {
     // What the band offers may answer them; it goes too.
@@ -228,6 +262,9 @@ export function useTableTalk(
     quiet,
     open,
     send,
+    draft,
+    setDraft,
+    say,
     hush,
     report,
   };

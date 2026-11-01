@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'bun:test';
-import { land, landingMs, saidFrom, talkTable } from '../../src/features/game/talk.ts';
+import {
+  land,
+  landingMs,
+  saidFrom,
+  talkTable,
+  typingFor,
+  unreadBy,
+} from '../../src/features/game/talk.ts';
 
 describe('table talk', () => {
   it('reads a word or a typed line, and drops what it cannot show', () => {
@@ -49,5 +56,28 @@ describe('table talk', () => {
     expect(talkTable(seats('bot', 'bot', 'bot', 'bot'))).toBe(false);
     // Before the first readiness snapshot nothing talks.
     expect(talkTable(null)).toBe(false);
+  });
+
+  it('lets adults type, asks guests to make an account, and tells a teen nothing', () => {
+    expect(typingFor(true, false)).toBe('type');
+    expect(typingFor(false, true)).toBe('guest');
+    // A 13 to 17 has an account and does not read typed talk.
+    expect(typingFor(false, false)).toBeNull();
+    // The server's word wins over what the client believes about guests.
+    expect(typingFor(true, true)).toBe('type');
+    expect(typingFor(undefined, false)).toBeNull();
+  });
+
+  it('names the people seated with you who will not see typing, never bots or you', () => {
+    const seats = {
+      north: { occupant_type: 'human', reads_typed: true },
+      east: { occupant_type: 'human', reads_typed: false },
+      south: { occupant_type: 'human', reads_typed: false },
+      west: { occupant_type: 'bot' },
+    };
+    expect(unreadBy(seats, 'south')).toEqual(['east']);
+    expect(unreadBy(seats, 'east')).toEqual(['south']);
+    expect(unreadBy({ ...seats, east: { occupant_type: 'vacant' } }, 'south')).toEqual([]);
+    expect(unreadBy(null, 'south')).toEqual([]);
   });
 });

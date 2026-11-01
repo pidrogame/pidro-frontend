@@ -75,7 +75,7 @@ import { TableFeedback } from '@/components/game/TableFeedback';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
 import { TalkBand, TalkLanding, TalkOffer, type TalkPlace } from '@/components/game/TableTalk';
 import { TalkSheet } from '@/components/game/TalkSheet';
-import { talkTable, type Said } from '@/features/game/talk';
+import { talkTable, typingFor, unreadBy, type Said } from '@/features/game/talk';
 import { useTableTalk, type TalkFixture } from '@/game/useTableTalk';
 
 type Props = {
@@ -589,6 +589,14 @@ export function GameCanvasTable({
     openProfile(playerId, persona);
   };
   const faced = players.find((player) => player.playerId === talk.person);
+  // Your turn while typing (PID-318): the keyboard goes, the cards come back, the words wait in the band.
+  const [turnSeen, setTurnSeen] = useState(false);
+  if (isYourTurn !== turnSeen) {
+    setTurnSeen(isYourTurn);
+    if (isYourTurn && talk.sheet === 'typing') talk.open(null);
+  }
+  const youSeat = youPositionAbs ? readiness?.seats?.[youPositionAbs] : undefined;
+  const typing = typingFor(youSeat?.reads_typed, !!guest);
   // Someone who left the table takes their sheet with them.
   if (!faced && (talk.sheet === 'person' || talk.sheet === 'report')) talk.open(null);
   // The speaker as they sat when they said it, not whoever sits there now.
@@ -723,7 +731,11 @@ export function GameCanvasTable({
               place={talkPlace}
               line={talk.line}
               lineName={talk.line ? who(talk.line).name : ''}
-              onOpen={() => talk.open(talk.line ? 'log' : 'words')}
+              draft={talk.draft}
+              turn={isYourTurn}
+              onOpen={() =>
+                talk.open(talk.draft && typing === 'type' ? 'typing' : talk.line ? 'log' : 'words')
+              }
             />
           )}
         </View>
@@ -750,6 +762,20 @@ export function GameCanvasTable({
           onReport={(reason) =>
             talk.person ? talk.report(talk.person, reason) : Promise.resolve()
           }
+          typing={typing}
+          draft={talk.draft}
+          onDraft={talk.setDraft}
+          onSay={talk.say}
+          unread={
+            youPositionAbs
+              ? unreadBy(readiness?.seats, youPositionAbs).map(
+                  (seat) =>
+                    players.find((player) => player.absolutePosition === seat)?.username ??
+                    t('social.player')
+                )
+              : []
+          }
+          onAccount={onSaveGuest}
           onBlock={async () => {
             const blocked = talk.person;
             if (!blocked) return;

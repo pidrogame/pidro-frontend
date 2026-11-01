@@ -73,3 +73,30 @@ export function talkTable(
 ): boolean {
   return Object.values(seats ?? {}).filter((seat) => seat.occupant_type === 'human').length >= 2;
 }
+
+/**
+ * What the hand of words offers for typing (PID-318). The server says who reads
+ * typed talk: an adult account types, a guest is asked to make one, and a 13 to
+ * 17 sees nothing about it.
+ */
+export function typingFor(
+  readsTyped: boolean | undefined,
+  guest: boolean
+): 'type' | 'guest' | null {
+  return readsTyped ? 'type' : guest ? 'guest' : null;
+}
+
+/** The people seated with you who will not see what you type. */
+export function unreadBy(
+  seats: Record<string, { occupant_type: string; reads_typed?: boolean }> | null | undefined,
+  you: Position
+): Position[] {
+  return Object.entries(seats ?? {})
+    .filter(([seat, { occupant_type, reads_typed }]) => {
+      return seat !== you && occupant_type === 'human' && !reads_typed;
+    })
+    .map(([seat]) => seat as Position);
+}
+
+/** The most a typed line holds. */
+export const SAY_MAX = 80;
