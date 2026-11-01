@@ -12,6 +12,7 @@ import {
   assertMinimumTouchTargets,
   assertTeamLayout,
   getStableBox,
+  talkCases,
   suppressDevOverlays,
   UI_VIEWPORTS,
   waitForImages,
@@ -367,6 +368,18 @@ const allCases = [
       locale,
     })),
   ]),
+  ...talkCases.map((name) => {
+    const state = name.replace('table-talk-', '');
+    const locale = state.startsWith('sv-') ? 'sv' : 'en';
+    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet')}`;
+    return {
+      name,
+      path: `/table-dev?fixture=${fixture}&locale=${locale}`,
+      testId: 'game-table',
+      talk: state.replace('sv-', ''),
+      locale,
+    };
+  }),
   {
     name: 'block-profile-guest',
     path: '/table-dev?phase=game_over&role=player',
@@ -4465,6 +4478,122 @@ async function assertDealerSecondDeal(page, testCase, viewport) {
 // Each seat says its bid, aloud and on screen. Your tight seat has no name,
 // so it shows the short form under its avatar, inside the seat's column,
 // which ends where your cards begin.
+const TALK_WORDS = {
+  en: [
+    'Nice trick!',
+    'Well played',
+    'Good bid',
+    'Sorry partner',
+    'Oops',
+    'Thanks!',
+    'Good luck',
+    'Good game',
+    'Hello!',
+  ],
+  sv: [
+    'Snyggt stick!',
+    'Bra spelat',
+    'Bra bud',
+    'Förlåt, partner',
+    'Hoppsan',
+    'Tack!',
+    'Lycka till',
+    'Bra spel',
+    'Hej!',
+  ],
+};
+const overlaps = (a, b) =>
+  a.x < b.x + b.width - 1 &&
+  b.x < a.x + a.width - 1 &&
+  a.y < b.y + b.height - 1 &&
+  b.y < a.y + a.height - 1;
+
+/**
+ * Table talk (PID-114). The band sits under your seat and never moves the table,
+ * a landing stays clear of every seat's cards, the hand of words fits without
+ * scrolling, and one tap sends and closes it.
+ */
+async function assertTalk(page, testCase, viewport) {
+  if (!testCase.talk) return;
+  // Phones on their side keep a speech button in the corner; an iPad keeps the band beside the hand.
+  const landscape = viewport.width > viewport.height && viewport.height < 600;
+  // The table's own; the log's sheet holds a second band.
+  const opener = page.getByTestId(landscape ? 'talk-speech' : 'talk-band').first();
+  await opener.waitFor();
+  const openerBox = await getStableBox(opener, page);
+  assertInsideViewport('talk opener', openerBox, viewport);
+  const you = await getStableBox(page.getByTestId('seat-south'), page);
+  if (!landscape && viewport.width < 600)
+    assert.ok(openerBox.y >= you.y + you.height, 'the band sits under your seat');
+  assert.ok(!overlaps(openerBox, you), 'talk keeps clear of your seat');
+  // Landscape keeps only the speech button in its corner; it opens the log.
+  if (testCase.talk === 'line' && !landscape)
+    await opener.getByText(testCase.locale === 'sv' ? 'Tack!' : 'Thanks!').waitFor();
+  if (testCase.talk === 'quiet' || testCase.talk === 'send')
+    assert.equal(await page.getByTestId('talk-landed').count(), 0, 'nothing has landed yet');
+  if (testCase.talk === 'send') {
+    await opener.click();
+    await page.getByTestId('talk-sheet-words').waitFor();
+    await page.getByTestId('talk-word_nice').click();
+    await page.getByTestId('talk-sheet-words').waitFor({ state: 'detached' });
+  }
+  if (['landed', 'coin', 'send'].includes(testCase.talk)) {
+    const landed = page.getByTestId('talk-landed');
+    await landed.first().waitFor();
+    await page.waitForTimeout(400);
+    // The backs themselves, not the columns that hold them.
+    const cards = await page
+      .locator('[data-testid^="seat-"][data-testid$="-cards"] img')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const { x, y, width, height } = node.getBoundingClientRect();
+          return { x, y, width, height };
+        })
+      );
+    assert.ok(cards.length > 0, 'the seats hold cards');
+    for (const landing of await landed.all()) {
+      const box = await getStableBox(landing.locator(':scope > *').first(), page);
+      assertInsideViewport('talk landing', box, viewport);
+      for (const card of cards) assert.ok(!overlaps(box, card), 'a landing never covers cards');
+    }
+    if (testCase.talk === 'send') await landed.getByText(TALK_WORDS.en[0]).waitFor();
+  }
+  if (testCase.talk === 'sheet' || testCase.talk === 'log') {
+    const sheet = page.getByTestId(`talk-sheet-${testCase.talk === 'sheet' ? 'words' : 'log'}`);
+    await sheet.waitFor();
+    assertInsideViewport('talk sheet', await getStableBox(sheet, page), viewport);
+    assert.equal(
+      await sheet.evaluate((node) =>
+        [node, ...node.querySelectorAll('*')].some(
+          (child) =>
+            ['auto', 'scroll'].includes(getComputedStyle(child).overflowY) &&
+            child.scrollHeight > child.clientHeight + 1
+        )
+      ),
+      false,
+      'the sheet needs no scrolling'
+    );
+    if (testCase.talk === 'sheet') {
+      const words = sheet.locator('[data-testid^="talk-word_"]');
+      assert.deepEqual(
+        await words.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label'))),
+        TALK_WORDS[testCase.locale]
+      );
+      assert.equal(await sheet.locator('[data-testid^="talk-coin_"]').count(), 5, 'five coins');
+      for (const word of await words.all()) {
+        const text = word.locator('[dir="auto"]').last();
+        assert.equal(
+          await text.evaluate((node) => node.scrollWidth > node.clientWidth + 1),
+          false,
+          'a word fits its card'
+        );
+      }
+    }
+  }
+  await waitForScreenshotReady(page);
+  await assertMinimumTouchTargets(page, testCase.name, viewport);
+}
+
 /** The bot crew sits by name, and each seat still says it is a bot. */
 async function assertCrew(page, testCase) {
   for (const [seat, name] of Object.entries(testCase.crew ?? {})) {
@@ -6644,6 +6773,7 @@ async function main() {
           await assertBidLines(page, testCase, caseViewport);
           await assertCrew(page, testCase);
           await assertBotVoice(page, testCase, caseViewport);
+          await assertTalk(page, testCase, caseViewport);
           await assertPlayLines(page, testCase, caseViewport);
           await assertTwoRows(page, testCase, caseViewport);
           if (testCase.locale && testCase.path.includes('game_over')) {

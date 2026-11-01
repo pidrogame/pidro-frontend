@@ -22,6 +22,7 @@ import type { Position, Room } from '@/types/lobby';
 import type {
   Card,
   Invite,
+  ReadinessSnapshot,
   RuleSet,
   SeatInvitation,
   SeatStatus,
@@ -42,6 +43,8 @@ import {
 import { handResultTiming } from '@/features/game/handResult';
 import { secondDealDurationMs } from '@/game/canvas/animationTiming';
 import type { HeldStyle } from '@/game/canvas/layout';
+import type { TalkFixture } from '@/game/useTableTalk';
+import type { TalkItem } from '@/features/game/talk';
 
 // `bids=`: a hand's bids landing one by one against three bots.
 const BID_ROUNDS: Record<string, { dealer: Position; bids: ServerBid[] }> = {
@@ -325,6 +328,74 @@ const FOLD_TRICK_ROOM: Room = {
         : BOT_CREW[seat.position === 'north' ? 2 : seat.position === 'west' ? 1 : 0]),
     },
   })),
+};
+
+// `fixture=talk-*` (PID-114): four people at the table, as on Chat-Scene.
+const TALK_ROOM: Room = {
+  ...BOT_ROOM,
+  positions: { north: 'p-north', east: 'p-east', south: 'p-south', west: 'p-west' },
+  seats: (
+    [
+      ['south', 'Bengt', '#6a8e51'],
+      ['west', 'Antti', '#8e6851'],
+      ['north', 'Jocke', '#437d9e'],
+      ['east', 'Mikko', '#7a518e'],
+    ] as const
+  ).map(([position, username, color], index) => ({
+    seat_index: index + 1,
+    status: 'occupied' as const,
+    position,
+    player: {
+      id: `p-${position}`,
+      username,
+      avatar_url: fixtureAvatar(username[0], color),
+      level: 20 + index * 7,
+    },
+  })),
+};
+
+/** The server counts a talk table from these: four people sit at TALK_ROOM. */
+const TALK_READINESS: ReadinessSnapshot = {
+  room_id: 'talk',
+  ready_players: [],
+  ready_epoch: 1,
+  snapshot_revision: 1,
+  status: 'playing',
+  positions: TALK_ROOM.positions!,
+  seats: Object.fromEntries(
+    TALK_ROOM.seats!.map((seat) => [
+      seat.position,
+      {
+        occupant_type: 'human',
+        status: 'ready',
+        user_id: seat.player!.id,
+        username: seat.player!.username,
+      },
+    ])
+  ) as ReadinessSnapshot['seats'],
+};
+
+const said = (seat: Position, item: TalkItem) => ({ seat, userId: `p-${seat}`, item });
+/** Each talk state, held still for a screenshot. */
+const TALK_FIXTURES: Record<string, TalkFixture> = {
+  'talk-quiet': {},
+  'talk-landed': { landed: [said('south', 'word_nice')] },
+  'talk-coin': {
+    landed: [said('north', 'coin_heart'), said('west', 'word_well'), said('east', 'coin_thumb')],
+  },
+  'talk-line': { line: said('north', 'word_thanks') },
+  'talk-sheet': { sheet: 'words' },
+  'talk-log': {
+    sheet: 'log',
+    line: said('north', 'word_thanks'),
+    log: [
+      said('north', 'word_hello'),
+      said('south', 'word_luck'),
+      said('west', 'word_bid'),
+      said('south', 'word_nice'),
+      said('north', 'word_thanks'),
+    ],
+  },
 };
 
 /** `deal=draw`: four people at the table, North bid 9 and West deals. */
@@ -663,6 +734,7 @@ function TableDevHarness() {
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
             loading={params.loading ? Number(params.loading) : undefined}
             dealerLate={fixture === 'dealer-late' ? Number(params.late) || 0 : undefined}
+            talk={TALK_FIXTURES[fixture ?? '']}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -893,6 +965,7 @@ function RolePreview({
   scoreHistory = false,
   loading,
   dealerLate,
+  talk,
 }: {
   role: 'player' | 'spectator';
   phase: string;
@@ -924,16 +997,20 @@ function RolePreview({
   loading?: number;
   /** `fixture=dealer-late&late=1500`: the dealer cut reaches a phone busy for 1.5 s. */
   dealerLate?: number;
+  /** `fixture=talk-*`: table talk as it stands (PID-114). */
+  talk?: TalkFixture;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
-  const tableRoom = longNames
-    ? LONG_NAMES_ROOM
-    : fold === 'trick' || fold === 'trick-self'
-      ? FOLD_TRICK_ROOM
-      : bidRound || botTrick || botCrew || outPlayers || invitation || fold
-        ? BOT_ROOM
-        : WAITING_ROOM;
+  const tableRoom = talk
+    ? TALK_ROOM
+    : longNames
+      ? LONG_NAMES_ROOM
+      : fold === 'trick' || fold === 'trick-self'
+        ? FOLD_TRICK_ROOM
+        : bidRound || botTrick || botCrew || outPlayers || invitation || fold
+          ? BOT_ROOM
+          : WAITING_ROOM;
   useEffect(() => {
     let active = true;
     const store = useGameStore.getState();
@@ -981,6 +1058,7 @@ function RolePreview({
     store.setRole(role);
     store.setYouPosition('south');
     store.setChannelStatus(connected);
+    if (talk) store.setReadiness(TALK_READINESS);
     if (botCrew) {
       store.applySeatLifecycle({
         room_id: 'bot-crew',
@@ -1209,6 +1287,7 @@ function RolePreview({
     botHand,
     tableRoom,
     scoreHistory,
+    talk,
   ]);
 
   // The dealer cut as the server times it: the cut, then the deal 3 s later.
@@ -1465,6 +1544,7 @@ function RolePreview({
           }
           topDock={invitation ? invitationHeight : 0}
           loading={loading}
+          talkFixture={talk}
         />
       ) : (
         <Loading />

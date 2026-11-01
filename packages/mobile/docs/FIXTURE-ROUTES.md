@@ -88,6 +88,14 @@ All run at 390×844, 375×667,
 `packages/shared/src/i18n/sections/bots.ts`. These describe the bots at play,
 not the real people's biographies or a guarantee about their bidding strategy.
 
+Table talk (PID-114) uses `/table-dev?fixture=talk-quiet|landed|coin|line|sheet|log&locale=en|sv`:
+four people at the table (Bengt, Antti, Jocke, Mikko), so the band shows. `landed` has your
+word at your seat, `coin` a coin at North and East and a word at West, `line` the band's last
+line after a landing fades, `sheet` the hand of words, `log` what was said this game. A tap
+in a fixture lands at once and sends nothing. `table-talk-*` checks the band under your seat,
+landings clear of every seat's cards, a sheet with no scrolling and one tap that sends and
+closes it, at 390×844, 375×667, 844×390 and 768×1024.
+
 Friends locale previews use `/ui-dev?state=friends&fixture=added-you&locale=sv`
 or `/ui-dev?state=friends-add&fixture=results&locale=sv`. They reuse the actual
 screens and existing fixture data; `/friends` and `/friends-add` ignore locale

@@ -15,6 +15,18 @@ const friendNoticeCases = [
   'queue',
   'too-late',
 ].map((kind) => `friend-notice-${kind}`);
+// Table talk (PID-114): every state of the band, the sheet and a landing.
+export const talkCases = [
+  'quiet',
+  'landed',
+  'coin',
+  'line',
+  'sheet',
+  'log',
+  'send',
+  'sv-quiet',
+  'sv-sheet',
+].map((state) => `table-talk-${state}`);
 const friendSheetCases = [
   'partner',
   'opponent',
@@ -167,6 +179,7 @@ export const UI_VIEWPORTS = [
       'table-game-over-online-win',
       'table-game-over-online-loss-in',
       'table-game-over-online-loss',
+      ...talkCases,
     ],
   },
   // Marcel's TCL 5053Y: 360×780 on Android 9, drawn under 24/48 system bars (PID-304).
@@ -290,6 +303,7 @@ export const UI_VIEWPORTS = [
       'table-game-over-online-loss',
       ...friendNoticeCases,
       ...friendSheetCases,
+      ...talkCases,
     ],
   },
   {
@@ -322,6 +336,7 @@ export const UI_VIEWPORTS = [
     height: 768,
     lobbyViewport: { name: 'lobby-tablet-landscape', width: 1194, height: 834 },
     cases: [
+      ...talkCases,
       ...seatPickerCases,
       'table-bidding',
       'table-count-help',

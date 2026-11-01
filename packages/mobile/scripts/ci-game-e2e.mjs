@@ -245,35 +245,39 @@ async function verifyUiLogin(browser, username) {
   const page = await context.newPage();
 
   try {
-    await page.goto(`${mobileBaseUrl}/(auth)/login`, { waitUntil: 'domcontentloaded' });
-    await page.evaluate(() => localStorage.clear());
-    await page.evaluate(
-      ({ fixture }) => {
-        localStorage.setItem('age-gate-storage', fixture);
-        localStorage.setItem('news-seen:welcome', '1');
-      },
-      { fixture: ageGateFixture }
-    );
-    await page.reload({ waitUntil: 'domcontentloaded' });
-
-    const userField = page.getByLabel('Email or username', { exact: true });
-    const passField = page.getByLabel('Password', { exact: true });
-    const signIn = page.getByRole('button', { name: 'Sign in' });
-    await userField.waitFor({ timeout: 30_000 });
-    let formReady = false;
-    for (let attempt = 0; attempt < 6 && !formReady; attempt += 1) {
-      await userField.fill(username);
-      await passField.fill(password);
-      await page.waitForTimeout(500);
-      formReady = await signIn.isEnabled();
-    }
-    if (!formReady) throw new Error('Sign in never enabled — login form did not accept input');
-    await signIn.click();
-    await page.waitForURL(/\/home$/, { timeout: 20_000 });
+    await signInThroughUi(page, username);
     log('returning-user UI login ok');
   } finally {
     await context.close();
   }
+}
+
+async function signInThroughUi(page, username) {
+  await page.goto(`${mobileBaseUrl}/(auth)/login`, { waitUntil: 'domcontentloaded' });
+  await page.evaluate(() => localStorage.clear());
+  await page.evaluate(
+    ({ fixture }) => {
+      localStorage.setItem('age-gate-storage', fixture);
+      localStorage.setItem('news-seen:welcome', '1');
+    },
+    { fixture: ageGateFixture }
+  );
+  await page.reload({ waitUntil: 'domcontentloaded' });
+
+  const userField = page.getByLabel('Email or username', { exact: true });
+  const passField = page.getByLabel('Password', { exact: true });
+  const signIn = page.getByRole('button', { name: 'Sign in' });
+  await userField.waitFor({ timeout: 30_000 });
+  let formReady = false;
+  for (let attempt = 0; attempt < 6 && !formReady; attempt += 1) {
+    await userField.fill(username);
+    await passField.fill(password);
+    await page.waitForTimeout(500);
+    formReady = await signIn.isEnabled();
+  }
+  if (!formReady) throw new Error('Sign in never enabled — login form did not accept input');
+  await signIn.click();
+  await page.waitForURL(/\/home$/, { timeout: 20_000 });
 }
 
 async function stageOneSoloGame() {
@@ -532,6 +536,94 @@ async function stageTwoMultiplayerVideo() {
   }
 }
 
+// PID-114: two people at one table. One taps a word in the sheet; it lands
+// at their seat on both phones and then stays as the other's last line.
+async function stageThreeTableTalk() {
+  const [speaker, listener] = [`ci_${suffix}c`, `ci_${suffix}d`];
+  log(`stage 3: table talk between ${speaker} and ${listener}`);
+  const speakerToken = await registerOrLogin(speaker);
+  const listenerToken = await registerOrLogin(listener);
+  for (const token of [speakerToken, listenerToken])
+    await api('/api/v1/rooms/current/leave', 'DELETE', token).catch(() => {});
+  const created = await api('/api/v1/rooms', 'POST', speakerToken, {
+    name: `CI talk ${suffix}`,
+    seats: { seat_2: 'ai', seat_4: 'ai' },
+  });
+  const roomCode = created.payload?.data?.code ?? created.payload?.code;
+  if (!roomCode) throw new Error(`create talk room failed: ${JSON.stringify(created.payload)}`);
+  const joined = await api(`/api/v1/rooms/${roomCode}/join`, 'POST', listenerToken, {});
+  if (!joined.ok) throw new Error(`join talk room failed: ${JSON.stringify(joined.payload)}`);
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  });
+  const video = { dir: resolve(artifactDir, 'talk'), size: { width: 390, height: 844 } };
+  const pages = [];
+  try {
+    for (const name of [speaker, listener]) {
+      const context = await browser.newContext({
+        viewport: { width: 390, height: 844 },
+        locale: 'en-US',
+        recordVideo: name === listener ? video : undefined,
+      });
+      const page = await context.newPage();
+      await signInThroughUi(page, name);
+      await page.goto(`${mobileBaseUrl}/game/${roomCode}`, { waitUntil: 'domcontentloaded' });
+      pages.push(page);
+    }
+    const [said, heard] = pages;
+    await confirmInitialTable(pages, '[data-testid="game-table"]');
+    for (const page of pages)
+      await page.getByTestId('talk-band').first().waitFor({ timeout: 30_000 });
+    log('both players see the band: two people at the table');
+
+    await said.getByTestId('talk-band').first().click();
+    await said.getByTestId('talk-sheet-words').waitFor();
+    await said.getByTestId('talk-word_nice').click();
+    await said.getByTestId('talk-sheet-words').waitFor({ state: 'detached' });
+    await said.getByTestId('talk-landed').getByText('Nice trick!').waitFor({ timeout: 10_000 });
+
+    // On the other phone it lands at the speaker's seat, the avatar nearest it.
+    const landing = heard.getByTestId('talk-landed').filter({ hasText: 'Nice trick!' });
+    await landing.waitFor({ timeout: 10_000 });
+    await heard.screenshot({ path: resolve(artifactDir, 'talk-landed.png') });
+    const at = await landing.boundingBox();
+    const seats = await heard.locator('[data-testid^="seat-"][aria-label]').evaluateAll((nodes) =>
+      nodes
+        .filter((node) => /^seat-(north|east|south|west)$/.test(node.dataset.testid))
+        .map((node) => {
+          const box = node.getBoundingClientRect();
+          return {
+            label: node.getAttribute('aria-label'),
+            x: box.x + box.width / 2,
+            y: box.y + box.height / 2,
+          };
+        })
+    );
+    const nearest = seats
+      .map((seat) => ({
+        ...seat,
+        distance: Math.hypot(seat.x - (at.x + at.width / 2), seat.y - (at.y + at.height / 2)),
+      }))
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (!nearest?.label?.startsWith(speaker))
+      throw new Error(`the word landed by ${nearest?.label}, not by ${speaker}`);
+    log(`the word landed at ${speaker}'s seat on ${listener}'s phone`);
+
+    // It fades after about three seconds and the band keeps it.
+    await heard
+      .getByTestId('talk-band')
+      .first()
+      .getByText('Nice trick!')
+      .waitFor({ timeout: 8_000 });
+    await heard.screenshot({ path: resolve(artifactDir, 'talk-last-line.png') });
+    log('stage 3 passed: a word sent from one phone landed on the other and stayed as its line');
+  } finally {
+    await browser.close();
+  }
+}
+
 function writeStepSummary(result, elapsedSeconds) {
   if (!process.env.GITHUB_STEP_SUMMARY) return;
   const lines = [
@@ -541,6 +633,7 @@ function writeStepSummary(result, elapsedSeconds) {
     '',
     `- UI milestones captured: ${result.milestones.join(', ')}`,
     `- Page errors during the UI game: ${result.pageErrors}`,
+    '- Table talk: two players, a word sent from one phone landed at its seat on the other (`talk/`, `talk-*.png`).',
     '- Video + screenshots: see the `game-e2e-artifacts` artifact on this run.',
     '',
   ];
@@ -558,6 +651,7 @@ async function main() {
 
   await stageOneSoloGame();
   const result = await stageTwoMultiplayerVideo();
+  await stageThreeTableTalk();
 
   clearTimeout(watchdog);
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
