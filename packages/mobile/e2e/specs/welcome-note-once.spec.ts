@@ -156,38 +156,42 @@ test.describe('Tell us', () => {
     await expect(tell.getByText(/^We'll answer at \S+@\S+$/)).toBeVisible();
   });
 
-  test('when the note does not go through, the mail app gets the words and the details', async ({
-    page,
-    player,
-  }) => {
-    const session = await register(player);
-    await catchOpenedUrls(page);
-    await page.route('**/api/v1/feedback', (route) => route.fulfill({ status: 503, json: {} }));
-    await startSignedIn(page, session);
-    await page.goto('/home');
-    await page.getByRole('button', { name: 'Tell us', exact: true }).click({ timeout: 30_000 });
-    await page.getByTestId('feedback-body').fill('The bid buttons are small.');
-    await page.getByRole('button', { name: 'Send', exact: true }).click();
-    const tell = page.getByTestId('feedback-sheet');
-    await expect(tell.getByText("That didn't go through. Your words are safe.")).toBeVisible();
-    await expect(page.getByTestId('feedback-body')).toHaveValue('The bid buttons are small.');
-    await tell.getByRole('button', { name: 'Use my mail app', exact: true }).click();
+  test.describe('with the server down', () => {
+    test.use({ unavailableExpected: true });
 
-    const [url] = await openedUrls(page);
-    const [address, query] = url.split('?');
-    expect(address).toBe('mailto:marcel@pidro.online');
-    const params = new URLSearchParams(query.replaceAll('+', '%2B'));
-    expect(params.get('subject')).toBe('Pidro beta feedback');
-    const body = params.get('body')!.split('\r\n');
-    expect(body.slice(0, 2)).toEqual(['The bid buttons are small.', '']);
-    expect(body.slice(2).map((line) => line.split(':')[0])).toEqual([
-      'App version',
-      'Native build',
-      'Update',
-      'Platform',
-      'Device',
-      'Player',
-    ]);
-    expect(body).toContain(`Player: ${player.name} (${session.user.id})`);
+    test('when the note does not go through, the mail app gets the words and the details', async ({
+      page,
+      player,
+    }) => {
+      const session = await register(player);
+      await catchOpenedUrls(page);
+      await page.route('**/api/v1/feedback', (route) => route.fulfill({ status: 503, json: {} }));
+      await startSignedIn(page, session);
+      await page.goto('/home');
+      await page.getByRole('button', { name: 'Tell us', exact: true }).click({ timeout: 30_000 });
+      await page.getByTestId('feedback-body').fill('The bid buttons are small.');
+      await page.getByRole('button', { name: 'Send', exact: true }).click();
+      const tell = page.getByTestId('feedback-sheet');
+      await expect(tell.getByText("That didn't go through. Your words are safe.")).toBeVisible();
+      await expect(page.getByTestId('feedback-body')).toHaveValue('The bid buttons are small.');
+      await tell.getByRole('button', { name: 'Use my mail app', exact: true }).click();
+
+      const [url] = await openedUrls(page);
+      const [address, query] = url.split('?');
+      expect(address).toBe('mailto:marcel@pidro.online');
+      const params = new URLSearchParams(query.replaceAll('+', '%2B'));
+      expect(params.get('subject')).toBe('Pidro beta feedback');
+      const body = params.get('body')!.split('\r\n');
+      expect(body.slice(0, 2)).toEqual(['The bid buttons are small.', '']);
+      expect(body.slice(2).map((line) => line.split(':')[0])).toEqual([
+        'App version',
+        'Native build',
+        'Update',
+        'Platform',
+        'Device',
+        'Player',
+      ]);
+      expect(body).toContain(`Player: ${player.name} (${session.user.id})`);
+    });
   });
 });
