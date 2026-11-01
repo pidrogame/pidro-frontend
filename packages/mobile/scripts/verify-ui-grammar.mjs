@@ -3456,6 +3456,23 @@ async function assertLobbyPresentation(page, testCase) {
   const fixture = testCase.lobbyFixture;
   if (!fixture) return;
   assert.equal(await page.getByTestId('lobby-rule-filter').count(), 0);
+  // Upright phones pin Start a table over the list: no box behind it, and md, not lg.
+  const start = page.getByTestId('lobby-start');
+  const size = page.viewportSize();
+  if (fixture !== 'empty' && size.width < 600 && size.height > size.width)
+    assert.equal(await start.count(), 1, 'upright phones pin the start button');
+  if (await start.count()) {
+    assert.deepEqual(
+      await start.evaluate((node) => {
+        const style = getComputedStyle(node);
+        return [style.backgroundImage, style.backgroundColor];
+      }),
+      ['none', 'rgba(0, 0, 0, 0)'],
+      'no fade behind the start button'
+    );
+    const button = start.getByRole('button', { name: 'Start a table', exact: true });
+    assert.ok((await getStableBox(button, page)).height < 60, 'the start button is md');
+  }
   if (fixture === 'empty') {
     await page.getByText('No one is at a table yet', { exact: true }).waitFor();
     return;
@@ -4528,6 +4545,17 @@ async function assertTalkOffer(page, testCase, viewport, landscape) {
   await offer.waitFor();
   const card = offer.getByRole('button', { name: word, exact: true });
   await card.waitFor();
+  // An offer's faces are TalkCoin's plain emoji, nothing gold.
+  const offered = await offer.locator('[data-testid^="talk-coin_"]').all();
+  if (!landscape) assert.ok(offered.length > 0, 'the offer holds a face');
+  for (const face of offered) {
+    assert.match(await face.innerText(), /^(👍|❤️|😂|😅|😮)$/u, 'an offered face is an emoji');
+    assert.equal(
+      await face.evaluate((node) => getComputedStyle(node).backgroundImage),
+      'none',
+      'an offered face is not gold'
+    );
+  }
   const box = await getStableBox(offer, page);
   assertInsideViewport('talk offer', box, viewport);
   const you = await getStableBox(page.getByTestId('seat-south'), page);
@@ -4727,7 +4755,7 @@ async function assertTalk(page, testCase, viewport) {
     await page.getByTestId('talk-word_nice').click();
     await page.getByTestId('talk-sheet-words').waitFor({ state: 'detached' });
   }
-  if (['landed', 'coin', 'send'].includes(testCase.talk)) {
+  if (['landed', 'coin', 'send', 'face'].includes(testCase.talk)) {
     const landed = page.getByTestId('talk-landed');
     await landed.first().waitFor();
     await page.waitForTimeout(400);
@@ -4745,8 +4773,60 @@ async function assertTalk(page, testCase, viewport) {
       const box = await getStableBox(landing.locator(':scope > *').first(), page);
       assertInsideViewport('talk landing', box, viewport);
       for (const card of cards) assert.ok(!overlaps(box, card), 'a landing never covers cards');
+      // Beside its own ring, in numbers: iOS once put North's and yours ~120 pt off.
+      const ring = await landing.evaluate((node) => node.parentElement.getBoundingClientRect().toJSON());
+      const gap =
+        Math.max(0, ring.x - (box.x + box.width), box.x - (ring.x + ring.width)) +
+        Math.max(0, ring.y - (box.y + box.height), box.y - (ring.y + ring.height));
+      assert.ok(gap <= 14, `a landing sits by its own ring: ${JSON.stringify({ box, ring })}`);
+      // Faces and words are plain bubbles, nothing gold.
+      assert.equal(
+        await landing.locator(':scope > *').first().evaluate((node) => getComputedStyle(node).backgroundImage),
+        'none',
+        'a landing has no gradient'
+      );
     }
     if (testCase.talk === 'send') await landed.getByText(TALK_WORDS.en[0]).waitFor();
+  }
+  if (testCase.talk === 'face') {
+    // Plain emoji, nothing gold; the label still says the word.
+    const landed = page.getByTestId('talk-landed');
+    assert.equal(await landed.count(), 2, 'North and you');
+    await landed.getByText('❤️').waitFor();
+    await landed.getByText('😂').waitFor();
+    const labels = await landed.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')));
+    assert.deepEqual(labels.sort(), ['Jocke: Love it', 'You: Ha'].sort(), 'each landing speaks its word');
+    // Phones on their side keep only the speech button; elsewhere the band says You 😂.
+    if (!landscape) {
+      const band = page.getByTestId('talk-band').first();
+      await band.getByText('😂').waitFor();
+      assert.match(await band.getAttribute('aria-label'), /Ha/);
+    }
+    assert.equal(await page.getByText('Ha', { exact: true }).count(), 0, 'the face, not its word');
+  }
+  if (testCase.talk === 'sheet') {
+    const coins = page.getByTestId('talk-sheet-words').locator('[data-testid^="talk-coin_"]');
+    assert.deepEqual(
+      await coins.evaluateAll((nodes) =>
+        nodes.map((node) => [node.innerText.trim(), node.getAttribute('aria-label')])
+      ),
+      testCase.locale === 'sv'
+        ? [
+            ['👍', 'Bra'],
+            ['❤️', 'Härligt!'],
+            ['😂', 'Haha'],
+            ['😅', 'Hoppsan'],
+            ['😮', 'Wow'],
+          ]
+        : [
+            ['👍', 'Good'],
+            ['❤️', 'Love it'],
+            ['😂', 'Ha'],
+            ['😅', 'Oops'],
+            ['😮', 'Wow'],
+          ],
+      'five plain faces, each saying its word'
+    );
   }
   if (testCase.talk === 'sheet' || testCase.talk === 'log') {
     const sheet = page.getByTestId(`talk-sheet-${testCase.talk === 'sheet' ? 'words' : 'log'}`);

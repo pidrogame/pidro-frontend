@@ -385,6 +385,11 @@ const said = (seat: Position, item: TalkItem) => ({ seat, userId: `p-${seat}`, i
 const TALK_FIXTURES: Record<string, TalkFixture> = {
   'talk-quiet': {},
   'talk-landed': { landed: [said('south', 'word_nice')] },
+  // Faces are plain emoji: at North, at your seat, and as your own last line.
+  'talk-face': {
+    landed: [said('north', 'coin_heart'), said('south', 'coin_ha')],
+    line: said('south', 'coin_ha'),
+  },
   'talk-coin': {
     landed: [said('north', 'coin_heart'), said('west', 'word_well'), said('east', 'coin_thumb')],
   },

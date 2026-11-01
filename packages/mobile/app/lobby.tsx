@@ -510,7 +510,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
           </ScrollView>
         )}
         {portraitPhone && !isEmptyLobby ? (
-          <View pointerEvents="box-none" style={styles.pinned}>
+          <View testID="lobby-start" pointerEvents="box-none" style={styles.pinned}>
             <BevelButton label={t('social.start')} size="md" fullWidth onPress={handleNewTable} />
           </View>
         ) : null}

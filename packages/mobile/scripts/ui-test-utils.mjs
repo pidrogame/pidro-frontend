@@ -19,6 +19,7 @@ const friendNoticeCases = [
 export const talkCases = [
   'quiet',
   'landed',
+  'face',
   'coin',
   'line',
   'sheet',
@@ -139,7 +140,15 @@ export const UI_VIEWPORTS = [
     width: 402,
     height: 874,
     safeArea: 'iphone-17-portrait',
-    cases: ['locale-en-trump', 'locale-sv-trump'],
+    // Marcel's iPhone: where faces land, the band's emoji line, and the lobby's start button.
+    cases: [
+      'locale-en-trump',
+      'locale-sv-trump',
+      'table-talk-face',
+      'table-talk-sheet',
+      'table-talk-offer',
+      'lobby-list',
+    ],
   },
   {
     name: 'iphone-insets-landscape',

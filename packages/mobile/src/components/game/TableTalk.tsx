@@ -63,6 +63,7 @@ export function TalkCoin({
   const face = (
     <Text
       style={{ fontSize: Math.round(size * 0.58), lineHeight: size }}
+      maxFontSizeMultiplier={1}
       importantForAccessibility="no">
       {isCoin(item) ? TALK_EMOJI[item] : ''}
     </Text>
@@ -184,6 +185,7 @@ export function TalkLanding({
   return (
     <Animated.View
       testID="talk-landed"
+      accessible
       accessibilityRole="text"
       accessibilityLiveRegion="polite"
       accessibilityLabel={t('talk.said', {
@@ -195,7 +197,7 @@ export function TalkLanding({
       <View style={[styles.bubble, face && styles.faceBubble]}>
         <View style={[styles.tail, TAIL[at]]} />
         {face ? (
-          <Text style={styles.emoji} importantForAccessibility="no">
+          <Text style={styles.emoji} maxFontSizeMultiplier={1} importantForAccessibility="no">
             {TALK_EMOJI[face]}
             {landed.count > 1 ? <Text style={styles.times}> ×{landed.count}</Text> : null}
           </Text>
