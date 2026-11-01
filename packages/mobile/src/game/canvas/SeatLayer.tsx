@@ -8,7 +8,7 @@
  * Only player identities handle presses; card backs leave gestures to the canvas.
  * Skia-free (only the pure layout module), safe to import anywhere.
  */
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Animated, {
   Easing,
   FadeOut,
@@ -168,7 +168,12 @@ type Props = {
   /** How every hand holds its cards. */
   held?: HeldStyle;
   bid?: { seat: RelativePosition | undefined; amount: number };
+  /** What each seat just said (PID-114), drawn where its ring is. */
+  said?: Partial<Record<RelativePosition, (at: SaidAt) => ReactNode>>;
 };
+
+/** Where a seat's talk lands against its avatar ring. */
+export type SaidAt = 'aboveStart' | 'aboveEnd' | 'besideStart' | 'besideEnd' | 'below';
 
 export function SeatLayer({
   seats,
@@ -184,6 +189,7 @@ export function SeatLayer({
   killed,
   held = HELD_STYLE,
   bid,
+  said,
 }: Props) {
   useTranslation();
   const out = REL.map((rel) => !!seats[rel]?.out);
@@ -438,17 +444,17 @@ export function SeatLayer({
         const holds = !quiet && bid?.seat === rel ? bid.amount : null;
         // What the seat says aloud, its winning bid included.
         const spoken = { ...seat, bid: holds };
+        const labelSide =
+          besideName && !(L.sidesUnder && (rel === 'east' || rel === 'west'))
+            ? rel === 'east'
+              ? 'left'
+              : 'right'
+            : 'below';
         const identity = (
           <PlayerAvatar
             testID={`seat-${rel}`}
             size={size}
-            label={
-              besideName && !(L.sidesUnder && (rel === 'east' || rel === 'west'))
-                ? rel === 'east'
-                  ? 'left'
-                  : 'right'
-                : 'below'
-            }
+            label={labelSide}
             bid={holds != null ? { amount: holds, tone: team } : null}
             dealerTrail={dealerTrail}
             nameRoom={
@@ -501,12 +507,47 @@ export function SeatLayer({
         );
         // Drawn once on Android, its lights inside the bleed. A breathing seat stays live, and so
         // do quiet seats: a layer would fade as one image, unlike the views it holds.
-        const avatar = (
+        const still = (
           <StillLayer
             bleed={Math.ceil(size * 0.95)}
             live={quiet || !!seat.turn?.attention || sliding?.rel === rel}>
             {pressable}
           </StillLayer>
+        );
+        const talk = said?.[rel];
+        // What the seat said lands at its ring, never over the cards or the
+        // trick: side seats above, North and you beside it, landscape North below.
+        const landing = talk
+          ? talk(
+              rel === 'east'
+                ? 'aboveEnd'
+                : rel === 'west' || (rel === 'south' && !portrait)
+                  ? 'aboveStart'
+                  : rel === 'north' && !portrait
+                    ? 'below'
+                    : rel === 'north' && tight
+                      ? 'besideStart'
+                      : 'besideEnd'
+            )
+          : null;
+        // Always this wrapper, so a landing never remounts the avatar.
+        const avatar = (
+          <View pointerEvents="box-none">
+            {still}
+            <View
+              pointerEvents="none"
+              style={[
+                styles.ring,
+                { width: size, height: size },
+                labelSide === 'below' || (tight && rel === 'south')
+                  ? { left: '50%', marginLeft: -size / 2 }
+                  : labelSide === 'right'
+                    ? { left: 0 }
+                    : { right: 0 },
+              ]}>
+              {landing}
+            </View>
+          </View>
         );
 
         if (rel === 'south' && tight) {
@@ -1034,6 +1075,7 @@ const BACK_RADIUS = 4;
 const BACK_SHADOW = 'rgba(0,0,0,0.55)';
 
 const styles = StyleSheet.create({
+  ring: { position: 'absolute', top: 0, zIndex: 30 },
   out: { opacity: 0.6 },
   // Under the hand result's scrim the seats fade back further, as on the board.
   quiet: { opacity: 0.8 },

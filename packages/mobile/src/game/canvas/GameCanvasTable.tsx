@@ -61,10 +61,14 @@ import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
 import { computeLayout, showsTicker, tickerPlacement, trumpPicker, type HeldStyle } from './layout';
 import { RuleSetChip } from '@/components/rules/RuleSet';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
-import { PidroLayout, PidroSpacing } from '@/design/tokens';
+import { PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { t, useTranslation } from '@/i18n';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
+import { TalkBand, TalkLanding, type TalkPlace } from '@/components/game/TableTalk';
+import { TalkSheet } from '@/components/game/TalkSheet';
+import { talkTable, type Said } from '@/features/game/talk';
+import { useTableTalk, type TalkFixture } from '@/game/useTableTalk';
 
 type Props = {
   room: Room;
@@ -87,6 +91,8 @@ type Props = {
   topDock?: number;
   /** Fixtures: hold the loading bar at this share of the cards decoded. */
   loading?: number;
+  /** Fixtures: table talk as it stands (`?fixture=talk-*`). */
+  talkFixture?: TalkFixture;
 };
 
 /** `value` as it was when `hold` began, for as long as it holds. */
@@ -244,6 +250,7 @@ function TimedSeatLayer({
   killed,
   held,
   bid,
+  said,
 }: {
   seats: TableModel['seats'];
   dealerRel: RelativePosition | null;
@@ -258,6 +265,7 @@ function TimedSeatLayer({
   killed: ComponentProps<typeof SeatLayer>['killed'];
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
+  said: ComponentProps<typeof SeatLayer>['said'];
 }) {
   const turnTimer = useGameStore((state) => state.turnTimer);
   const ownPace = useGameStore((state) => state.serverState?.pace === 'own');
@@ -288,6 +296,7 @@ function TimedSeatLayer({
       killed={killed}
       held={held}
       bid={bid}
+      said={said}
       onProfile={Object.fromEntries(
         players
           .filter(
@@ -320,6 +329,7 @@ export function GameCanvasTable({
   held,
   topDock = 0,
   loading,
+  talkFixture,
 }: Props) {
   const { locale } = useTranslation();
   const controller = useGameTableController();
@@ -346,6 +356,7 @@ export function GameCanvasTable({
     countHelp
   );
   const solo = useGameStore((state) => isSoloTable(state.readiness, state.youPositionAbs));
+  const readiness = useGameStore((state) => state.readiness);
   // A hand scored while watching dims the table until its result closes.
   const handResult = useHandResult(
     controller.serverState ? (controller.serverState.last_hand ?? null) : undefined,
@@ -532,6 +543,60 @@ export function GameCanvasTable({
     },
     {} as Partial<Record<RelativePosition, SeatLine | null>>
   );
+  // Table talk (PID-114): only where two or more people sit, and never under game over.
+  const players = viewModel?.players ?? [];
+  const me = players.find((player) => player.isYou);
+  const talk = useTableTalk(
+    {
+      seat: youPositionAbs,
+      userId: me?.playerId ?? null,
+      game: serverState?.game_instance_id,
+    },
+    talkFixture
+  );
+  const talking =
+    !isSpectator &&
+    !!youPositionAbs &&
+    talkTable(readiness?.seats) &&
+    !(isGameOver && roomFinished);
+  // A sheet left open when talk stops (game over, a seat to a bot) must not reopen later.
+  if (!talking && talk.sheet) talk.open(null);
+  const talkPlace: TalkPlace = layout.profile.startsWith('tablet')
+    ? 'column'
+    : width > height
+      ? 'corner'
+      : 'band';
+  // The speaker as they sat when they said it, not whoever sits there now.
+  const who = (said: Said) => {
+    const player =
+      players.find((candidate) => candidate.playerId === said.userId) ??
+      players.find((candidate) => candidate.absolutePosition === said.seat);
+    return {
+      name: player?.isYou ? t('game.you') : (player?.username ?? t('social.player')),
+      color: player?.isYou
+        ? PidroColors.cyanText
+        : player?.isTeammate
+          ? PidroColors.teamUs
+          : PidroColors.teamThem,
+    };
+  };
+  const said = Object.fromEntries(
+    players.flatMap((player) => {
+      const landed = talk.landed[player.absolutePosition];
+      if (!landed) return [];
+      const draw = (at: ComponentProps<typeof TalkLanding>['at']) => (
+        <TalkLanding
+          key={landed.key}
+          landed={landed}
+          at={at}
+          name={who(landed).name}
+          rise={player.isYou ? 60 : 12}
+        />
+      );
+      return [[player.relativePosition, draw]];
+    })
+  );
+
   return (
     <GestureHandlerRootView testID="game-table" style={styles.root}>
       {/* The table surface */}
@@ -560,6 +625,7 @@ export function GameCanvasTable({
         secondDeal={model.secondDealShow}
         killed={model.killed}
         held={model.held}
+        said={talking ? said : undefined}
         bid={
           showBid &&
           !dealing &&
@@ -587,6 +653,48 @@ export function GameCanvasTable({
       ) : null}
 
       <TableChromeBars reserves={reserves} />
+      {/* The band shares its slot with the loading bar and the connection banner; they win. */}
+      {talking && isChannelJoined && loading == null && !textures.loading ? (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.talk,
+            talkPlace === 'band'
+              ? {
+                  left: insets.left + PidroSpacing.sm,
+                  right: insets.right + PidroSpacing.sm,
+                  bottom: insets.bottom,
+                  height: bottomReserve,
+                  justifyContent: 'center',
+                }
+              : talkPlace === 'column'
+                ? {
+                    right: insets.right + PidroSpacing.lg,
+                    bottom: insets.bottom + bottomReserve + PidroSpacing.md,
+                    width: TALK_COLUMN,
+                  }
+                : {
+                    right: insets.right + PidroSpacing.sm,
+                    bottom: insets.bottom + PidroSpacing.xs,
+                  },
+          ]}>
+          <TalkBand
+            place={talkPlace}
+            line={talk.line}
+            lineName={talk.line ? who(talk.line).name : ''}
+            onOpen={() => talk.open(talk.line ? 'log' : 'words')}
+          />
+        </View>
+      ) : null}
+      {talking ? (
+        <TalkSheet
+          sheet={talk.sheet}
+          log={talk.log}
+          who={who}
+          onSend={talk.send}
+          onOpen={talk.open}
+        />
+      ) : null}
       {!isGameOver && handResult.result ? (
         <HandResultPanel
           key={handResult.result.hand.hand_number}
@@ -771,10 +879,13 @@ export function GameCanvasTable({
 }
 
 const LOADING_BAR_WIDTH = 160;
+/** iPad: talk sits beside the hand, a card's width (Chat-iPad). */
+const TALK_COLUMN = 182;
 
 const styles = StyleSheet.create({
   // The felt canvas covers it; on Android it would only be painted over.
   root: { flex: 1, backgroundColor: Platform.OS === 'android' ? undefined : T.bgDeep },
+  talk: { position: 'absolute', zIndex: 39 },
   bannerWrap: {
     position: 'absolute',
     left: 0,

@@ -30,6 +30,15 @@ let globalGameChannel: Channel | null = null;
 let notifySeatEvent: ((event: SeatEvent) => void) | undefined;
 let gameRefCount = 0;
 let currentTopic: string | null = null;
+const talkListeners = new Set<(payload: unknown) => void>();
+
+/** Table talk (PID-114): the table listens while it shows. */
+export function onTableTalk(listener: (payload: unknown) => void) {
+  talkListeners.add(listener);
+  return () => {
+    talkListeners.delete(listener);
+  };
+}
 
 interface UseGameChannelOptions {
   roomCode: string;
@@ -563,6 +572,10 @@ export const useGameChannel = ({
           else console.warn(`[GameChannel] Dropped malformed ${event}`);
         });
       }
+
+      onCurrent('talk', (payload: unknown) => {
+        talkListeners.forEach((listener) => listener(payload));
+      });
 
       onCurrent('progression_summary', (payload: unknown) => {
         const summary = parseProgressionSummary(payload);
