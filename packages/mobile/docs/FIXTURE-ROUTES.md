@@ -102,6 +102,12 @@ Well played: Thanks!, heart) and `talk-start` (Hello!, Good luck). In a fixture 
 holds still and the offer stays. Landscape phones keep the card, one coin and the speech button
 right of your hand, and drop the coin, then the button, where the hand leaves less room.
 
+A face at the table (PID-329) is `fixture=talk-person` (Antti's sheet: Quiet, Report, Block),
+`talk-person-guest` (a guest's, without Block), `talk-report` (the one question; a tap on a
+choice thanks you and sends nothing in a fixture) and `talk-quieted` (Antti is quiet: his
+Well played neither lands nor stays as the line). `table-talk-face-tap` starts from
+`talk-coin`, taps your own face for your profile, then Antti's, and quiets him.
+
 Friends locale previews use `/ui-dev?state=friends&fixture=added-you&locale=sv`
 or `/ui-dev?state=friends-add&fixture=results&locale=sv`. They reuse the actual
 screens and existing fixture data; `/friends` and `/friends-add` ignore locale

@@ -394,6 +394,15 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
     landed: [said('west', 'word_well')],
     offer: replyOffer({ item: 'word_well' }),
   },
+  // PID-329: a face tapped at the table.
+  'talk-person': { sheet: 'person', person: 'p-west' },
+  'talk-person-guest': { sheet: 'person', person: 'p-west' },
+  'talk-report': { sheet: 'report', person: 'p-west' },
+  'talk-quieted': {
+    quiet: ['p-west'],
+    landed: [said('west', 'word_well'), said('north', 'coin_heart')],
+    line: said('west', 'word_well'),
+  },
   'talk-log': {
     sheet: 'log',
     line: said('north', 'word_thanks'),
@@ -745,6 +754,7 @@ function TableDevHarness() {
             dealerLate={fixture === 'dealer-late' ? Number(params.late) || 0 : undefined}
             talk={TALK_FIXTURES[fixture ?? '']}
             talkTurn={!TALK_FIXTURES[fixture ?? '']?.offer || fixture?.endsWith('-turn')}
+            talkGuest={fixture === 'talk-person-guest'}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -977,6 +987,7 @@ function RolePreview({
   dealerLate,
   talk,
   talkTurn = true,
+  talkGuest,
 }: {
   role: 'player' | 'spectator';
   phase: string;
@@ -1012,6 +1023,8 @@ function RolePreview({
   talk?: TalkFixture;
   /** `fixture=talk-*-turn`: your turn while the band offers (PID-328); otherwise West's. */
   talkTurn?: boolean;
+  /** `fixture=talk-person-guest`: a guest has no Block (PID-329). */
+  talkGuest?: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
@@ -1570,6 +1583,7 @@ function RolePreview({
           topDock={invitation ? invitationHeight : 0}
           loading={loading}
           talkFixture={talk}
+          guest={talkGuest}
         />
       ) : (
         <Loading />

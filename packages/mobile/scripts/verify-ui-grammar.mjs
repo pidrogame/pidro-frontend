@@ -371,7 +371,7 @@ const allCases = [
   ...talkCases.map((name) => {
     const state = name.replace('table-talk-', '');
     const locale = state.startsWith('sv-') ? 'sv' : 'en';
-    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer')}`;
+    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer').replace('face-tap', 'coin').replace('reported', 'report')}`;
     return {
       name,
       path: `/table-dev?fixture=${fixture}&locale=${locale}`,
@@ -4549,6 +4549,89 @@ async function assertTalkOffer(page, testCase, viewport, landscape) {
   return true;
 }
 
+const PERSON_SHEETS = { person: 'person', 'person-guest': 'person', report: 'report' };
+
+/** A sheet fits its screen without scrolling. */
+async function assertTalkSheetFits(sheet, page, viewport) {
+  assertInsideViewport('talk sheet', await getStableBox(sheet, page), viewport);
+  assert.equal(
+    await sheet.evaluate((node) =>
+      [node, ...node.querySelectorAll('*')].some(
+        (child) =>
+          ['auto', 'scroll'].includes(getComputedStyle(child).overflowY) &&
+          child.scrollHeight > child.clientHeight + 1
+      )
+    ),
+    false,
+    'the sheet needs no scrolling'
+  );
+}
+
+/**
+ * A face at the table (PID-329): Quiet, Report and Block, Block only with an
+ * account; Report asks one question with three choices, then thanks; Quiet
+ * hides what that person said, and a tap on their face gets there.
+ */
+async function assertTalkPerson(page, testCase, viewport) {
+  const state = testCase.talk;
+  if (PERSON_SHEETS[state]) {
+    const sheet = page.getByTestId(`talk-sheet-${PERSON_SHEETS[state]}`);
+    await sheet.waitFor();
+    await assertTalkSheetFits(sheet, page, viewport);
+    if (state === 'report') {
+      for (const reason of ['rude', 'bothering', 'other'])
+        await sheet.getByTestId(`talk-report-${reason}`).waitFor();
+    } else {
+      const sv = testCase.locale === 'sv';
+      await sheet.getByRole('heading', { name: 'Antti' }).waitFor();
+      await sheet
+        .getByTestId('talk-quiet')
+        .getByText(sv ? 'Tysta resten av spelet' : 'Quiet for this game')
+        .waitFor();
+      await sheet.getByTestId('talk-report').waitFor();
+      assert.equal(
+        await sheet.getByTestId('talk-block').count(),
+        state === 'person-guest' ? 0 : 1,
+        'Block needs an account'
+      );
+      if (state !== 'person-guest')
+        await sheet.getByText(sv ? 'Blockera Antti' : 'Block Antti').waitFor();
+    }
+  } else if (state === 'reported') {
+    // One tap on a choice reports it and says thanks.
+    await page.getByTestId('talk-report-rude').click();
+    await page.getByTestId('talk-sheet-reported').waitFor();
+  } else if (state === 'quieted') {
+    // Antti is quiet: his word neither lands nor stays as the band's line.
+    await page.getByTestId('talk-landed').first().waitFor();
+    assert.equal(await page.getByTestId('talk-landed').count(), 1, 'only Jocke lands');
+    assert.equal(await page.getByText('Well played').count(), 0, 'Antti is not heard');
+  } else if (state === 'face-tap') {
+    // Your own face still opens your profile; a person's opens their sheet.
+    await page.getByTestId('seat-south').click();
+    await page.getByTestId('player-profile-modal').waitFor();
+    assert.equal(await page.getByTestId('talk-sheet-person').count(), 0, 'no sheet for you');
+    const profile = page.getByTestId('player-profile-modal');
+    await profile.getByRole('button', { name: 'Close', exact: true }).last().click();
+    await profile.waitFor({ state: 'detached' });
+    await page.getByTestId('talk-landed').getByText('Well played').waitFor();
+    await page.getByTestId('seat-west').click();
+    const sheet = page.getByTestId('talk-sheet-person');
+    await sheet.waitFor();
+    await sheet.getByTestId('talk-quiet').click();
+    await sheet.waitFor({ state: 'detached' });
+    // Quiet hides what Antti already said, too.
+    await page
+      .getByTestId('talk-landed')
+      .filter({ hasText: 'Well played' })
+      .first()
+      .waitFor({ state: 'detached' });
+  } else return false;
+  await waitForScreenshotReady(page);
+  await assertMinimumTouchTargets(page, testCase.name, viewport);
+  return true;
+}
+
 /**
  * Table talk (PID-114). The band sits under your seat and never moves the table,
  * a landing stays clear of every seat's cards, the hand of words fits without
@@ -4559,6 +4642,7 @@ async function assertTalk(page, testCase, viewport) {
   // Phones on their side keep a speech button in the corner; an iPad keeps the band beside the hand.
   const landscape = viewport.width > viewport.height && viewport.height < 600;
   if (await assertTalkOffer(page, testCase, viewport, landscape)) return;
+  if (await assertTalkPerson(page, testCase, viewport)) return;
   // The table's own; the log's sheet holds a second band.
   const opener = page.getByTestId(landscape ? 'talk-speech' : 'talk-band').first();
   await opener.waitFor();
