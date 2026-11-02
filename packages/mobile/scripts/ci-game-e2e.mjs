@@ -595,8 +595,8 @@ async function stageThreeTableTalk() {
       runAutoplayer(
         [
           ...['--room', roomCode, '--user', name, '--password', password, '--max-minutes', '6'],
-          // CI pacing ends a game in under a minute: a rematch keeps the table going.
-          ...['--rematch', 'now', '--rematch-linger-ms', '300000'],
+          // CI pacing ends a game in under a minute: rematches keep the table going.
+          ...['--rematch', 'now', '--rematches', '6', '--rematch-linger-ms', '300000'],
         ],
         `talk-${name.slice(-1)}`
       ).catch(() => {});
@@ -706,7 +706,11 @@ async function stageThreeTableTalk() {
         await said.waitForTimeout(2_000);
         continue;
       }
-      if (!(await sayWord('talk-word_well').then(ok, lost))) {
+      const spoke = await sayWord('talk-word_well').then(ok, (error) => {
+        log(`Well played did not go (attempt ${attempt}): ${String(error).split('\n')[0]}`);
+        return false;
+      });
+      if (!spoke) {
         await said.waitForTimeout(2_000);
         continue;
       }

@@ -41,6 +41,8 @@ const rematchLingerMs = Number(argValue('--rematch-linger-ms', '0'));
 // With --leave-after-rematch the player plays the rematch to its end and then
 // leaves the room over REST, which is how the others get an open seat to fill.
 const leaveAfterRematch = args.includes('--leave-after-rematch');
+// How many rematches in a row before the linger exit (default one).
+let rematchesLeft = Number(argValue('--rematches', '1'));
 if (rematchMode && !['now', 'after-others'].includes(rematchMode)) {
   console.error(`--rematch takes now or after-others, got ${rematchMode}`);
   process.exit(1);
@@ -132,7 +134,12 @@ async function main() {
   // Game over is where a plain run ends. A rematch run stays on the channel.
   function gameOverConfirmed() {
     if (rematchStarted && leaveAfterRematch) return leaveRoom();
-    if (!rematchMode || rematchStarted) process.exit(0);
+    if (!rematchMode || (rematchStarted && rematchesLeft <= 0)) process.exit(0);
+    if (rematchStarted) {
+      // Another rematch: the vote opens again.
+      rematchStarted = false;
+      rematchAsked = false;
+    }
     maybeAskForRematch();
   }
 
@@ -283,8 +290,10 @@ async function main() {
       rematchStarted = true;
       finished = false;
       progressionReceived = false;
+      rematchesLeft -= 1;
       log(`REMATCH STARTED in ${roomCode} phase=${state.phase} scores=${scores}`);
-      if (!leaveAfterRematch) setTimeout(() => process.exit(0), rematchLingerMs);
+      if (!leaveAfterRematch && rematchesLeft <= 0)
+        setTimeout(() => process.exit(0), rematchLingerMs);
     }
 
     if (!actions.length || acting) return;
