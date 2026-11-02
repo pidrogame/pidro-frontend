@@ -631,9 +631,23 @@ async function stageThreeTableTalk() {
       return words;
     };
 
-    const words = await sayFrom(said);
-    await words.getByTestId('talk-word_nice').click();
-    await words.waitFor({ state: 'detached' });
+    // Your turn coming closes an adult's composer, as it should; then say it again.
+    const sayWord = async (item) => {
+      const sheet = await sayFrom(said);
+      await sheet.getByTestId(item).click({ timeout: 5_000 });
+      await sheet.waitFor({ state: 'detached' });
+    };
+    for (let attempt = 1; ; attempt += 1) {
+      const spoken = await sayWord('talk-word_nice').then(
+        () => true,
+        (error) => {
+          if (attempt >= 8) throw error;
+          return false;
+        }
+      );
+      if (spoken) break;
+      await said.waitForTimeout(2_000);
+    }
     await said.getByTestId('talk-landed').getByText('Nice trick!').waitFor({ timeout: 10_000 });
 
     // On the other phone it lands at the speaker's seat, the avatar nearest it.
@@ -691,8 +705,10 @@ async function stageThreeTableTalk() {
         await said.waitForTimeout(2_000);
         continue;
       }
-      const sheet = await sayFrom(said);
-      await sheet.getByTestId('talk-word_well').click({ timeout: 5_000 });
+      if (!(await sayWord('talk-word_well').then(ok, lost))) {
+        await said.waitForTimeout(2_000);
+        continue;
+      }
       const thanks = heard
         .getByTestId('talk-offer')
         .getByRole('button', { name: 'Thanks!', exact: true });

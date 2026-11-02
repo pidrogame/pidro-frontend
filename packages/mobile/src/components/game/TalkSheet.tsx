@@ -22,7 +22,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { TextLink } from '@/components/ui/TextLink';
-import { PidroBevel, PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { SAY_MAX, TALK_COINS, TALK_WORDS, type Said, type TalkItem } from '@/features/game/talk';
 import type { ReportReason, TalkSheet as Sheet } from '@/game/useTableTalk';
 import { t, useTranslation } from '@/i18n';
@@ -532,12 +532,12 @@ const styles = StyleSheet.create({
   recentLines: { gap: 4 },
   quick: { flexGrow: 0, marginHorizontal: -PidroSpacing.sm },
   quickRow: { alignItems: 'center', gap: PidroSpacing.xs, paddingHorizontal: PidroSpacing.sm },
-  quickWord: { height: 40, paddingHorizontal: PidroSpacing.sm },
+  quickWord: { height: PidroLayout.touchTarget, paddingHorizontal: PidroSpacing.sm },
   field: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
   send: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: PidroLayout.touchTarget,
+    height: PidroLayout.touchTarget,
+    borderRadius: PidroLayout.touchTarget / 2,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: PidroColors.gold,
