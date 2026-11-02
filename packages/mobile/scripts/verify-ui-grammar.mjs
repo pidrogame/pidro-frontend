@@ -4674,15 +4674,20 @@ async function assertTalkTyping(page, testCase, viewport, landscape) {
   const state = testCase.talk;
   const sv = testCase.locale === 'sv';
   if (['type', 'guest', 'teen'].includes(state)) {
-    const sheet = page.getByTestId('talk-sheet-words');
+    // An adult's band opens the composer, faces and words in reach; the rest get the words.
+    const sheet = page.getByTestId(`talk-sheet-${state === 'type' ? 'typing' : 'words'}`);
     await sheet.waitFor();
     await assertTalkSheetFits(sheet, page, viewport);
-    const type = sheet.getByTestId('talk-type');
     const account = sheet.getByTestId('talk-account');
-    assert.equal(await type.count(), state === 'type' ? 1 : 0, 'only an adult may type');
     assert.equal(await account.count(), state === 'guest' ? 1 : 0, 'a guest is asked to sign up');
-    if (state === 'type')
-      await type.getByText(sv ? 'Skriv ett meddelande' : 'Type a message').waitFor();
+    if (state === 'type') {
+      await sheet.getByTestId('talk-word_nice').waitFor();
+      await sheet.getByTestId('talk-coin_ha').waitFor();
+      assert.equal(
+        await sheet.locator('input').getAttribute('placeholder'),
+        sv ? 'Skriv ett meddelande' : 'Type a message'
+      );
+    }
     if (state === 'guest') await account.getByText('Make a free account').waitFor();
     if (state === 'teen')
       assert.equal(await sheet.getByText(/type|account/i).count(), 0, 'nothing about typing');
@@ -4753,9 +4758,9 @@ async function assertTalk(page, testCase, viewport) {
     assert.equal(await page.getByTestId('talk-landed').count(), 0, 'nothing has landed yet');
   if (testCase.talk === 'send') {
     await opener.click();
-    await page.getByTestId('talk-sheet-words').waitFor();
+    await page.getByTestId('talk-sheet-typing').waitFor();
     await page.getByTestId('talk-word_nice').click();
-    await page.getByTestId('talk-sheet-words').waitFor({ state: 'detached' });
+    await page.getByTestId('talk-sheet-typing').waitFor({ state: 'detached' });
   }
   if (['landed', 'coin', 'send', 'face'].includes(testCase.talk)) {
     const landed = page.getByTestId('talk-landed');

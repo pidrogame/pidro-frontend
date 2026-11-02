@@ -413,7 +413,7 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
     line: said('west', 'word_well'),
   },
   // PID-318: typing, for those who read typed talk.
-  'talk-type': { sheet: 'words' },
+  'talk-type': { sheet: 'typing' },
   'talk-guest': { sheet: 'words' },
   'talk-teen': { sheet: 'words' },
   'talk-typing': { sheet: 'typing', draft: 'Nice one with that five' },
@@ -771,7 +771,11 @@ function TableDevHarness() {
             talk={TALK_FIXTURES[fixture ?? '']}
             talkTurn={
               fixture?.endsWith('-turn') ||
-              !(TALK_FIXTURES[fixture ?? '']?.offer || TALK_FIXTURES[fixture ?? '']?.draft)
+              !(
+                TALK_FIXTURES[fixture ?? '']?.offer ||
+                TALK_FIXTURES[fixture ?? '']?.draft ||
+                TALK_FIXTURES[fixture ?? '']?.sheet === 'typing'
+              )
             }
             talkGuest={fixture === 'talk-person-guest' || fixture === 'talk-guest'}
             talkTeen={fixture === 'talk-teen'}

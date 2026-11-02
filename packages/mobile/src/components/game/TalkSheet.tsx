@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import {
   AccessibilityInfo,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -15,6 +16,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useReducedMotion } from 'react-native-reanimated';
 import { localizedError } from '@pidro/shared';
 import { BevelButton } from '@/components/ui/BevelButton';
+import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
 import { PidroText } from '@/components/ui/PidroText';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
@@ -47,6 +49,7 @@ export function TalkSheet({
   onSay,
   unread = [],
   onAccount,
+  onDock,
 }: {
   sheet: Sheet | null;
   log: Said[];
@@ -58,7 +61,7 @@ export function TalkSheet({
   onHush?: () => void;
   onReport?: (reason: ReportReason) => Promise<void>;
   onBlock?: () => Promise<void>;
-  /** Typing (PID-318): an adult types, a guest is asked to make an account. */
+  /** PID-318: a guest is asked to make an account; an adult's band opens the composer. */
   typing?: 'type' | 'guest' | null;
   draft?: string;
   onDraft?: (draft: string) => void;
@@ -66,6 +69,8 @@ export function TalkSheet({
   /** Who is seated with you and will not see what you type. */
   unread?: string[];
   onAccount?: () => void;
+  /** Where the docked composer's top edge sits on screen, so the table can fit above it. */
+  onDock?: (top: number) => void;
 }) {
   useTranslation();
   const { width, height } = useWindowDimensions();
@@ -76,6 +81,7 @@ export function TalkSheet({
   // A report or block on its way holds the sheet: nothing closes it under the answer.
   const locked = useRef(false);
   const draftBox = useRef<TextInput>(null);
+  const sheetBox = useRef<View>(null);
   // iOS presents the account sheet only once this one has gone.
   const handoff = useRef(false);
   const close = () => {
@@ -122,6 +128,21 @@ export function TalkSheet({
     setBlocking(false);
     setError(null);
   };
+  // Typing docks to the keyboard, a bar and no card, as a chat app's composer does.
+  const docked = sheet === 'typing';
+  const side = wide && !docked;
+  const lines = (said: Said[]) =>
+    said.map((one, i) => {
+      const { name, color } = who(one);
+      return (
+        <PidroText key={i} role="body" style={styles.line}>
+          <PidroText role="body" style={[styles.lineWho, { color }]}>
+            {name}
+          </PidroText>{' '}
+          {talkText(one)}
+        </PidroText>
+      );
+    });
   const label =
     sheet === 'log'
       ? t('talk.title')
@@ -152,7 +173,7 @@ export function TalkSheet({
       }}>
       <SafeAreaProvider>
         <SafeAreaView
-          style={[styles.safe, wide && styles.safeWide]}
+          style={[styles.safe, side && styles.safeWide, docked && styles.safeDocked]}
           edges={['top', 'right', 'bottom', 'left']}>
           <Pressable
             accessibilityRole="button"
@@ -163,15 +184,20 @@ export function TalkSheet({
           />
           <KeyboardAvoidingView
             pointerEvents="box-none"
-            style={wide ? styles.keyboardWide : styles.keyboard}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            style={side ? styles.keyboardWide : styles.keyboard}
+            // This modal draws under the system bars, so Android will not resize it for us.
+            behavior="padding">
             <View
+              ref={sheetBox}
+              onLayout={() =>
+                docked && sheetBox.current?.measureInWindow((_x, top) => onDock?.(top))
+              }
               testID={`talk-sheet-${sheet}`}
               accessibilityViewIsModal
               onAccessibilityEscape={blocking ? cancelBlock : close}
               accessibilityLabel={label}
-              style={[styles.sheet, wide && styles.sheetWide]}>
-              {wide ? null : <View style={styles.grabber} />}
+              style={[styles.sheet, side && styles.sheetWide, docked && styles.composer]}>
+              {wide || docked ? null : <View style={styles.grabber} />}
               {sheet === 'person' && person ? (
                 <>
                   <View style={styles.who}>
@@ -265,20 +291,55 @@ export function TalkSheet({
                 </>
               ) : sheet === 'typing' ? (
                 <>
-                  <PidroText role="metadata" tone="soft" testID="talk-unread">
-                    {unread.length === 0
-                      ? t('talk.typed_all')
-                      : t(unread.length === 1 ? 'talk.typed_except' : 'talk.typed_except_many', {
-                          names:
-                            unread.length === 1
-                              ? unread[0]
-                              : `${unread.slice(0, -1).join(', ')} ${t('talk.and')} ${unread.at(-1)}`,
-                        })}
-                  </PidroText>
+                  {log.length > 0 && !wide ? (
+                    <ScrollView
+                      ref={scroll}
+                      style={styles.recent}
+                      contentContainerStyle={styles.recentLines}
+                      keyboardShouldPersistTaps="always"
+                      onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
+                      {lines(log)}
+                    </ScrollView>
+                  ) : null}
+                  {/* One tap says it, keyboard up or not. */}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    keyboardShouldPersistTaps="always"
+                    style={styles.quick}
+                    contentContainerStyle={styles.quickRow}>
+                    {TALK_COINS.map((item) => (
+                      <TalkCoin key={item} item={item} size={44} onPress={() => onSend(item)} />
+                    ))}
+                    {TALK_WORDS.map((item) => (
+                      <TalkWord
+                        key={item}
+                        item={item}
+                        onPress={() => onSend(item)}
+                        style={styles.quickWord}
+                      />
+                    ))}
+                  </ScrollView>
+                  {unread.length > 0 ? (
+                    <PidroText role="metadata" tone="soft" testID="talk-unread">
+                      {t(unread.length === 1 ? 'talk.typed_except' : 'talk.typed_except_many', {
+                        names:
+                          unread.length === 1
+                            ? unread[0]
+                            : `${unread.slice(0, -1).join(', ')} ${t('talk.and')} ${unread.at(-1)}`,
+                      })}
+                    </PidroText>
+                  ) : null}
+                  {filtered ? (
+                    <PidroText role="metadata" tone="danger" accessibilityRole="alert">
+                      {t('talk.filtered')}
+                    </PidroText>
+                  ) : null}
                   <View style={styles.field}>
                     <Input
                       ref={draftBox}
                       testID="talk-draft"
+                      compact
                       autoFocus
                       editable={!busy}
                       submitBehavior="submit"
@@ -292,16 +353,29 @@ export function TalkSheet({
                         setFiltered(false);
                         onDraft?.(text);
                       }}
-                      error={filtered ? t('talk.filtered') : undefined}
                       containerClassName="w-auto flex-1"
                     />
-                    <BevelButton
+                    <PressableFX
                       testID="talk-say"
-                      label={t('talk.send')}
-                      loading={busy}
-                      disabled={!draft.trim()}
+                      accessibilityRole="button"
+                      accessibilityLabel={t('talk.send')}
+                      accessibilityState={{ disabled: !draft.trim() || busy, busy }}
+                      disabled={!draft.trim() || busy}
                       onPress={() => void sendDraft()}
-                    />
+                      style={[styles.send, !draft.trim() && styles.sendEmpty]}>
+                      {busy ? (
+                        <ActivityIndicator color={PidroColors.leagueCardInk} />
+                      ) : (
+                        <View style={styles.sendArrow}>
+                          <Icon
+                            name="arrow-left"
+                            size={20}
+                            strokeWidth={2.6}
+                            color={draft.trim() ? PidroColors.leagueCardInk : PidroColors.textMuted}
+                          />
+                        </View>
+                      )}
+                    </PressableFX>
                   </View>
                 </>
               ) : sheet === 'log' ? (
@@ -312,17 +386,7 @@ export function TalkSheet({
                     contentContainerStyle={styles.logLines}
                     // The newest line first in view.
                     onContentSizeChange={() => scroll.current?.scrollToEnd({ animated: false })}>
-                    {log.map((said, i) => {
-                      const { name, color } = who(said);
-                      return (
-                        <PidroText key={i} role="body" style={styles.line}>
-                          <PidroText role="body" style={[styles.lineWho, { color }]}>
-                            {name}
-                          </PidroText>{' '}
-                          {talkText(said)}
-                        </PidroText>
-                      );
-                    })}
+                    {lines(log)}
                   </ScrollView>
                   <PidroText role="metadata" tone="soft">
                     {t('talk.only_this_game')}
@@ -354,17 +418,7 @@ export function TalkSheet({
                       ))}
                     </View>
                   ))}
-                  {typing === 'type' ? (
-                    <TalkBand
-                      place="band"
-                      line={null}
-                      lineName=""
-                      draft={draft}
-                      prompt={t('talk.type')}
-                      testID="talk-type"
-                      onOpen={() => onOpen('typing')}
-                    />
-                  ) : typing === 'guest' && onAccount ? (
+                  {typing === 'guest' && onAccount ? (
                     <View style={styles.guest}>
                       <PidroText role="metadata" tone="soft">
                         {t('talk.guest_type')}
@@ -420,6 +474,8 @@ function PersonAction({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, justifyContent: 'flex-end', backgroundColor: PidroColors.screenScrim },
+  // The table stays bright above the composer: it is still the thing to watch.
+  safeDocked: { backgroundColor: 'transparent' },
   safeWide: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'stretch' },
   sheet: {
     alignSelf: 'center',
@@ -459,7 +515,36 @@ const styles = StyleSheet.create({
   keyboard: { flex: 1, justifyContent: 'flex-end' },
   // In landscape the sheet stands full height at the right.
   keyboardWide: { alignSelf: 'stretch' },
-  field: { flexDirection: 'row', alignItems: 'flex-start', gap: PidroSpacing.xs },
+  composer: {
+    alignSelf: 'stretch',
+    maxWidth: undefined,
+    borderTopLeftRadius: 0,
+    borderTopRightRadius: 0,
+    borderWidth: 0,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: PidroColors.borderStrong,
+    paddingHorizontal: PidroSpacing.sm,
+    paddingTop: PidroSpacing.xs,
+    paddingBottom: PidroSpacing.xs,
+    gap: PidroSpacing.xs,
+  },
+  recent: { flexGrow: 0, maxHeight: 76 },
+  recentLines: { gap: 4 },
+  quick: { flexGrow: 0, marginHorizontal: -PidroSpacing.sm },
+  quickRow: { alignItems: 'center', gap: PidroSpacing.xs, paddingHorizontal: PidroSpacing.sm },
+  quickWord: { height: 40, paddingHorizontal: PidroSpacing.sm },
+  field: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
+  send: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: PidroColors.gold,
+  },
+  sendEmpty: { backgroundColor: PidroColors.actionPill },
+  // Icon draws one arrow; pointing up reads as send.
+  sendArrow: { transform: [{ rotate: '90deg' }] },
   guest: {
     flexDirection: 'row',
     flexWrap: 'wrap',

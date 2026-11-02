@@ -108,7 +108,7 @@ choice thanks you and sends nothing in a fixture) and `talk-quieted` (Antti is q
 Well played neither lands nor stays as the line). `table-talk-face-tap` starts from
 `talk-coin`, taps your own face for your profile, then Antti's, and quiets him.
 
-Typing (PID-318) is `fixture=talk-type` (an adult's words, with the Type a message box),
+Typing (PID-318) is `fixture=talk-type` (an adult's empty composer, faces and words above the box),
 `talk-guest` (Want to type? Make a free account), `talk-teen` (nothing about typing),
 `talk-typing` (the box, a draft in it, and who will not see it: Antti), `talk-typing-turn`
 (your turn closed the box; the draft waits in the band) and `talk-filtered` (Send is refused:

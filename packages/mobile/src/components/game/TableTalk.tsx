@@ -261,11 +261,7 @@ export function TalkBand({
       testID={testID}
       onPress={onOpen}
       style={styles.say}>
-      <PidroText
-        role="body"
-        tone={draft ? 'default' : 'soft'}
-        numberOfLines={place === 'column' ? 2 : 1}
-        style={styles.sayText}>
+      <PidroText role="body" numberOfLines={place === 'column' ? 2 : 1} style={styles.sayText}>
         {draft ? (
           <>
             {first ? (
@@ -490,7 +486,7 @@ const styles = StyleSheet.create({
     borderRadius: PidroRadii.lg,
     backgroundColor: PidroColors.panelSoft,
     borderWidth: 1,
-    borderColor: PidroColors.border,
+    borderColor: PidroColors.cyanBorder,
   },
   sayText: { fontWeight: '700' },
   who: { fontWeight: '800' },

@@ -9,6 +9,13 @@ import { useCallback, useEffect, useMemo, useState, type ComponentProps } from '
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import type { BotPersona, RematchVote } from '@pidro/shared';
 import type { Room } from '@/types/lobby';
 import type { ActiveTurnTimer, Card, RelativePosition, ServerGameState, Suit } from '@/types/game';
@@ -69,7 +76,7 @@ import {
 } from './layout';
 import { RuleSetChip } from '@/components/rules/RuleSet';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
-import { PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
+import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { t, useTranslation } from '@/i18n';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
@@ -631,341 +638,389 @@ export function GameCanvasTable({
     })
   );
 
+  // While you type the table shrinks to fit above the composer, like a stream beside its chat.
+  // Your hand may slide under it: you cannot play while typing, and your turn closes the box.
+  const [dock, setDock] = useState<number | null>(null);
+  const fit =
+    talk.sheet === 'typing' && dock != null && height > width
+      ? Math.min(1, (dock - insets.top) / (layout.hand.cy - layout.cardH / 2 - insets.top))
+      : 1;
+  const reduceMotion = useReducedMotion();
+  const fitted = useSharedValue(1);
+  useEffect(() => {
+    fitted.set(
+      reduceMotion ? fit : withTiming(fit, { duration: 260, easing: Easing.out(Easing.cubic) })
+    );
+  }, [fit, fitted, reduceMotion]);
+  const notch = insets.top;
+  // A frame, not a cut: a thick rounded border in the composer's colour hides what runs past it.
+  // Only transforms and opacity move, so an old phone has no clipping to redo each frame.
+  const framed = fit < 1 && dock != null;
+  const frameStyle = useAnimatedStyle(() => ({
+    opacity: fit < 1 ? Math.min(1, (1 - fitted.get()) / (1 - fit)) : 0,
+  }));
+  const fittedStyle = useAnimatedStyle(() => ({
+    // Hung from below the notch, so the scores stay clear of it.
+    transform: [{ translateY: notch * (1 - fitted.get()) }, { scale: fitted.get() }],
+  }));
+
   return (
-    <GestureHandlerRootView testID="game-table" style={styles.root}>
-      {/* The table surface */}
-      <GameCanvas
-        model={model}
-        textures={textures}
-        onPlayCard={playCard}
-        topReserve={topReserve}
-        bottomReserve={bottomReserve}
-        previewSuit={previewSuit}
-      />
+    <View style={styles.stage}>
+      <Animated.View style={[styles.fitted, fittedStyle]}>
+        <GestureHandlerRootView testID="game-table" style={styles.root}>
+          {/* The table surface */}
+          <GameCanvas
+            model={model}
+            textures={textures}
+            onPlayCard={playCard}
+            topReserve={topReserve}
+            bottomReserve={bottomReserve}
+            previewSuit={previewSuit}
+          />
 
-      {/* Seat furniture (avatars, names, dealer chip, turn rings, opponent backs) over the canvas */}
-      <TimedSeatLayer
-        seats={model.seats}
-        dealerRel={
-          controller.phase === 'dealer_selection' ? null : (viewModel?.dealerRelative ?? null)
-        }
-        dealing={model.dealStage === 'dealing'}
-        topReserve={topReserve}
-        bottomReserve={bottomReserve}
-        statusByRel={statusByRel}
-        players={viewModel?.players ?? []}
-        onProfile={onFace}
-        quiet={handResult.result != null}
-        secondDeal={model.secondDealShow}
-        killed={model.killed}
-        held={model.held}
-        said={talking ? said : undefined}
-        bid={
-          showBid &&
-          !dealing &&
-          [
-            'declaring',
-            'declaring_trump',
-            'trump_declaration',
-            'discarding',
-            'second_deal',
-            'playing',
-          ].includes(controller.phase ?? '') &&
-          highBid &&
-          typeof highBid.amount === 'number'
-            ? {
-                seat: viewModel?.players.find(
-                  (player) => player.absolutePosition === highBid.position
-                )?.relativePosition,
-                amount: highBid.amount,
-              }
-            : undefined
-        }
-      />
-      {countHelp ? (
-        <TableSignals model={model} topReserve={topReserve} bottomReserve={bottomReserve} />
-      ) : null}
-
-      <TableChromeBars reserves={reserves} />
-      {/* The band shares its slot with the loading bar and the connection banner; they win. */}
-      {talking && isChannelJoined && loading == null && !textures.loading ? (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.talk,
-            talkPlace === 'band'
-              ? {
-                  left: insets.left + PidroSpacing.sm,
-                  right: insets.right + PidroSpacing.sm,
-                  bottom: insets.bottom,
-                  height: bottomReserve,
-                  justifyContent: 'center',
-                }
-              : talkPlace === 'column'
+          {/* Seat furniture (avatars, names, dealer chip, turn rings, opponent backs) over the canvas */}
+          <TimedSeatLayer
+            seats={model.seats}
+            dealerRel={
+              controller.phase === 'dealer_selection' ? null : (viewModel?.dealerRelative ?? null)
+            }
+            dealing={model.dealStage === 'dealing'}
+            topReserve={topReserve}
+            bottomReserve={bottomReserve}
+            statusByRel={statusByRel}
+            players={viewModel?.players ?? []}
+            onProfile={onFace}
+            quiet={handResult.result != null}
+            secondDeal={model.secondDealShow}
+            killed={model.killed}
+            held={model.held}
+            said={talking ? said : undefined}
+            bid={
+              showBid &&
+              !dealing &&
+              [
+                'declaring',
+                'declaring_trump',
+                'trump_declaration',
+                'discarding',
+                'second_deal',
+                'playing',
+              ].includes(controller.phase ?? '') &&
+              highBid &&
+              typeof highBid.amount === 'number'
                 ? {
-                    right: insets.right + PidroSpacing.lg,
-                    bottom: insets.bottom + bottomReserve + PidroSpacing.md,
-                    width: TALK_COLUMN,
+                    seat: viewModel?.players.find(
+                      (player) => player.absolutePosition === highBid.position
+                    )?.relativePosition,
+                    amount: highBid.amount,
                   }
-                : {
-                    right: insets.right + PidroSpacing.sm,
-                    bottom: insets.bottom + PidroSpacing.xs,
-                  },
-          ]}>
-          {talk.offer ? (
-            <TalkOffer
-              offer={talk.offer}
-              place={talkPlace}
-              dim={isYourTurn}
-              hold={!!talkFixture}
-              room={
-                width -
-                insets.right -
-                PidroSpacing.sm * 2 -
-                handRight(layout, model.yourHand.length)
-              }
+                : undefined
+            }
+          />
+          {countHelp ? (
+            <TableSignals model={model} topReserve={topReserve} bottomReserve={bottomReserve} />
+          ) : null}
+
+          <TableChromeBars reserves={reserves} />
+          {/* The band shares its slot with the loading bar and the connection banner; they win. */}
+          {talking && isChannelJoined && loading == null && !textures.loading ? (
+            <View
+              pointerEvents="box-none"
+              style={[
+                styles.talk,
+                talkPlace === 'band'
+                  ? {
+                      left: insets.left + PidroSpacing.sm,
+                      right: insets.right + PidroSpacing.sm,
+                      bottom: insets.bottom,
+                      height: bottomReserve,
+                      justifyContent: 'center',
+                    }
+                  : talkPlace === 'column'
+                    ? {
+                        right: insets.right + PidroSpacing.lg,
+                        bottom: insets.bottom + bottomReserve + PidroSpacing.md,
+                        width: TALK_COLUMN,
+                      }
+                    : {
+                        right: insets.right + PidroSpacing.sm,
+                        bottom: insets.bottom + PidroSpacing.xs,
+                      },
+              ]}>
+              {talk.offer ? (
+                <TalkOffer
+                  offer={talk.offer}
+                  place={talkPlace}
+                  dim={isYourTurn}
+                  hold={!!talkFixture}
+                  room={
+                    width -
+                    insets.right -
+                    PidroSpacing.sm * 2 -
+                    handRight(layout, model.yourHand.length)
+                  }
+                  onSend={talk.send}
+                  onOpen={() => talk.open(typing === 'type' ? 'typing' : 'words')}
+                />
+              ) : (
+                <TalkBand
+                  place={talkPlace}
+                  line={talk.line}
+                  lineName={talk.line ? who(talk.line).name : ''}
+                  draft={talk.draft}
+                  turn={isYourTurn}
+                  onOpen={() =>
+                    talk.open(typing === 'type' ? 'typing' : talk.line ? 'log' : 'words')
+                  }
+                />
+              )}
+            </View>
+          ) : null}
+          {talking ? (
+            <TalkSheet
+              sheet={talk.sheet}
+              log={talk.log}
+              who={who}
               onSend={talk.send}
-              onOpen={() => talk.open('words')}
-            />
-          ) : (
-            <TalkBand
-              place={talkPlace}
-              line={talk.line}
-              lineName={talk.line ? who(talk.line).name : ''}
+              onOpen={talk.open}
+              person={
+                faced?.playerId
+                  ? {
+                      name: faced.username ?? t('social.player'),
+                      avatar: faced.avatar_url,
+                      quiet: talk.quiet.includes(faced.playerId),
+                      // Block needs an account.
+                      canBlock: !guest,
+                    }
+                  : undefined
+              }
+              onHush={() => talk.person && talk.hush(talk.person)}
+              onReport={(reason) =>
+                talk.person ? talk.report(talk.person, reason) : Promise.resolve()
+              }
+              typing={typing}
               draft={talk.draft}
-              turn={isYourTurn}
-              onOpen={() =>
-                talk.open(talk.draft && typing === 'type' ? 'typing' : talk.line ? 'log' : 'words')
+              onDraft={talk.setDraft}
+              onSay={talk.say}
+              unread={
+                youPositionAbs
+                  ? unreadBy(readiness?.seats, youPositionAbs).map(
+                      (seat) =>
+                        players.find((player) => player.absolutePosition === seat)?.username ??
+                        t('social.player')
+                    )
+                  : []
+              }
+              onAccount={onSaveGuest}
+              onDock={setDock}
+              onBlock={async () => {
+                const blocked = talk.person;
+                if (!blocked) return;
+                if (!(__DEV__ && talkFixture)) await blockPlayer(blocked);
+                // Blocked is quiet too, for the rest of this game.
+                if (!talk.quiet.includes(blocked)) talk.hush(blocked);
+              }}
+            />
+          ) : null}
+          {!isGameOver && handResult.result ? (
+            <HandResultPanel
+              key={handResult.result.hand.hand_number}
+              result={handResult.result}
+              seats={model.seats}
+              onClose={handResult.close}
+              onContinue={
+                isSpectator
+                  ? undefined
+                  : async () => {
+                      try {
+                        await pushGameAction('continue_hand', {});
+                        return true;
+                      } catch (error) {
+                        controller.showActionError('Continue', error);
+                        return false;
+                      }
+                    }
+              }
+              topReserve={topReserve}
+              bottomReserve={bottomReserve}
+            />
+          ) : null}
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              // Beside the menu, out of the felt: the middle is for the cards.
+              top: headerTop(insets.top) + PidroSpacing.xxs,
+              right: insets.right + PidroLayout.touchTarget + PidroSpacing.lg,
+              alignItems: 'center',
+            }}>
+            <View style={{ alignSelf: 'center' }}>
+              <RuleSetChip ruleSet={ruleSet} flagOnly testID="table-rule-set" />
+            </View>
+          </View>
+          <RulesExplainer
+            ruleSet={ruleSet}
+            tableCode={room.code}
+            open={rules.open}
+            onClose={rules.dismiss}
+          />
+
+          {/* Gold scoreboard plaque (top-left) — matches the original */}
+          {!(isGameOver && roomFinished) && (
+            <Scoreboard
+              scores={serverState?.scores ?? null}
+              youPosition={youPositionAbs}
+              history={serverState?.hand_history}
+              roomCode={viewModel?.roomCode ?? room.code}
+              top={headerTop(insets.top)}
+              left={insets.left}
+              log={handLog}
+              resting={resting}
+              stateArrived={serverState != null}
+              // The log (ticker and the hand's log behind it) is count help.
+              // While a hand's result shows, its panel says it all: no ticker.
+              ticker={
+                countHelp && !handResult.result
+                  ? tickerPlacement(
+                      layout,
+                      {
+                        tableTop: insets.top + topReserve,
+                        plaqueLeft: insets.left + PidroSpacing.sm,
+                        plaqueTop: headerTop(insets.top),
+                      },
+                      true
+                    )
+                  : null
+              }
+              restingOnly={!fullTicker}
+              help={
+                lastTrickView ? <LastTrick trick={lastTrickView} yourTurn={isYourTurn} /> : null
+              }
+              // Tight and landscape phones leave the ticker and Last trick out
+              // (PID-304, PID-305); the log stays a tap away.
+              logInPanel={countHelp && !fullTicker}
+              glow={countHelp ? scoreGlow(model.lastTrick, model.seats, trickKey) : null}
+              delta={handResult.result?.hand.delta ?? null}
+              yourTurn={
+                isYourTurn && (controller.phase === 'bidding' || controller.phase === 'playing')
               }
             />
           )}
-        </View>
-      ) : null}
-      {talking ? (
-        <TalkSheet
-          sheet={talk.sheet}
-          log={talk.log}
-          who={who}
-          onSend={talk.send}
-          onOpen={talk.open}
-          person={
-            faced?.playerId
-              ? {
-                  name: faced.username ?? t('social.player'),
-                  avatar: faced.avatar_url,
-                  quiet: talk.quiet.includes(faced.playerId),
-                  // Block needs an account.
-                  canBlock: !guest,
-                }
-              : undefined
-          }
-          onHush={() => talk.person && talk.hush(talk.person)}
-          onReport={(reason) =>
-            talk.person ? talk.report(talk.person, reason) : Promise.resolve()
-          }
-          typing={typing}
-          draft={talk.draft}
-          onDraft={talk.setDraft}
-          onSay={talk.say}
-          unread={
-            youPositionAbs
-              ? unreadBy(readiness?.seats, youPositionAbs).map(
-                  (seat) =>
-                    players.find((player) => player.absolutePosition === seat)?.username ??
-                    t('social.player')
-                )
-              : []
-          }
-          onAccount={onSaveGuest}
-          onBlock={async () => {
-            const blocked = talk.person;
-            if (!blocked) return;
-            if (!(__DEV__ && talkFixture)) await blockPlayer(blocked);
-            // Blocked is quiet too, for the rest of this game.
-            if (!talk.quiet.includes(blocked)) talk.hush(blocked);
-          }}
-        />
-      ) : null}
-      {!isGameOver && handResult.result ? (
-        <HandResultPanel
-          key={handResult.result.hand.hand_number}
-          result={handResult.result}
-          seats={model.seats}
-          onClose={handResult.close}
-          onContinue={
-            isSpectator
-              ? undefined
-              : async () => {
-                  try {
-                    await pushGameAction('continue_hand', {});
-                    return true;
-                  } catch (error) {
-                    controller.showActionError('Continue', error);
-                    return false;
-                  }
-                }
-          }
-          topReserve={topReserve}
-          bottomReserve={bottomReserve}
-        />
-      ) : null}
-      <View
-        pointerEvents="none"
-        style={{
-          position: 'absolute',
-          // Beside the menu, out of the felt: the middle is for the cards.
-          top: headerTop(insets.top) + PidroSpacing.xxs,
-          right: insets.right + PidroLayout.touchTarget + PidroSpacing.lg,
-          alignItems: 'center',
-        }}>
-        <View style={{ alignSelf: 'center' }}>
-          <RuleSetChip ruleSet={ruleSet} flagOnly testID="table-rule-set" />
-        </View>
-      </View>
-      <RulesExplainer
-        ruleSet={ruleSet}
-        tableCode={room.code}
-        open={rules.open}
-        onClose={rules.dismiss}
-      />
 
-      {/* Gold scoreboard plaque (top-left) — matches the original */}
-      {!(isGameOver && roomFinished) && (
-        <Scoreboard
-          scores={serverState?.scores ?? null}
-          youPosition={youPositionAbs}
-          history={serverState?.hand_history}
-          roomCode={viewModel?.roomCode ?? room.code}
-          top={headerTop(insets.top)}
-          left={insets.left}
-          log={handLog}
-          resting={resting}
-          stateArrived={serverState != null}
-          // The log (ticker and the hand's log behind it) is count help.
-          // While a hand's result shows, its panel says it all: no ticker.
-          ticker={
-            countHelp && !handResult.result
-              ? tickerPlacement(
-                  layout,
-                  {
-                    tableTop: insets.top + topReserve,
-                    plaqueLeft: insets.left + PidroSpacing.sm,
-                    plaqueTop: headerTop(insets.top),
-                  },
-                  true
-                )
-              : null
-          }
-          restingOnly={!fullTicker}
-          help={lastTrickView ? <LastTrick trick={lastTrickView} yourTurn={isYourTurn} /> : null}
-          // Tight and landscape phones leave the ticker and Last trick out
-          // (PID-304, PID-305); the log stays a tap away.
-          logInPanel={countHelp && !fullTicker}
-          glow={countHelp ? scoreGlow(model.lastTrick, model.seats, trickKey) : null}
-          delta={handResult.result?.hand.delta ?? null}
-          yourTurn={
-            isYourTurn && (controller.phase === 'bidding' || controller.phase === 'playing')
-          }
-        />
-      )}
+          {/* Until this phone has decoded the cards: quiet, in the notice slot, never holding the game. */}
+          {loading != null || textures.loading ? (
+            <View
+              testID="table-loading"
+              style={[styles.bannerWrap, reserves.noticeSlot]}
+              pointerEvents="none">
+              <LeagueProgress
+                progress={loading ?? textures.loaded}
+                label={t('game.loading')}
+                width={LOADING_BAR_WIDTH}
+                align="center"
+              />
+            </View>
+          ) : null}
 
-      {/* Until this phone has decoded the cards: quiet, in the notice slot, never holding the game. */}
-      {loading != null || textures.loading ? (
-        <View
-          testID="table-loading"
-          style={[styles.bannerWrap, reserves.noticeSlot]}
-          pointerEvents="none">
-          <LeagueProgress
-            progress={loading ?? textures.loaded}
-            label={t('game.loading')}
-            width={LOADING_BAR_WIDTH}
-            align="center"
-          />
-        </View>
-      ) : null}
-
-      {/* Connection banner, in the notice slot */}
-      {isChannelJoined && <TableFeedback notice={controller.actionNotice ?? null} />}
-      {!isGameOver && (
-        <View style={[styles.bannerWrap, reserves.noticeSlot]} pointerEvents="box-none">
-          <ConnectionBanner isConnected={isChannelJoined} />
-        </View>
-      )}
-
-      {!(isGameOver && roomFinished) && (
-        <>
-          <TableSettings
-            onLeave={onLeave}
-            isSpectator={isSpectator}
-            isSolo={solo}
-            isGameOver={isGameOver}
-            onRules={rules.show}
-          />
-          {isSpectator && <WatchingBadge />}
-        </>
-      )}
-
-      {/* A dealer picking by hand chooses six here. Everything else of the pick plays out on the table, in no words. */}
-      {isSecondDeal && viewModel && canSelectHand && (
-        <View
-          style={[
-            styles.centerOverlay,
-            {
-              paddingTop: insets.top + TABLE_HEADER + PidroSpacing.xs,
-              paddingBottom: insets.bottom + 16,
-            },
-          ]}
-          pointerEvents="box-none">
-          <DealerSecondDeal
-            viewModel={viewModel}
-            cards={yourHand}
-            trumpSuit={trumpSuit}
-            canSelectHand={canSelectHand}
-            onSelectHand={handleSelectHand}
-          />
-        </View>
-      )}
-
-      {/* Bidding floats from the bottom; trump is picked in the felt. */}
-      <BiddingActions
-        isYourTurn={isYourTurn}
-        isHandReady={isHandReady && !handResult.result}
-        topReserve={topReserve}
-        bottomReserve={bottomReserve}
-      />
-      {showTrumpSelection && (
-        <TrumpPicker
-          cards={yourHand ?? []}
-          frame={trumpPicker(
-            layout,
-            insets.top + topReserve,
-            insets.top + TABLE_HEADER + PidroSpacing.xs
+          {/* Connection banner, in the notice slot */}
+          {isChannelJoined && <TableFeedback notice={controller.actionNotice ?? null} />}
+          {!isGameOver && (
+            <View style={[styles.bannerWrap, reserves.noticeSlot]} pointerEvents="box-none">
+              <ConnectionBanner isConnected={isChannelJoined} />
+            </View>
           )}
-          preview={previewSuit}
-          onPoint={setPointedSuit}
-          onSelect={handleDeclareTrump}
-        />
-      )}
 
-      {/* Game over */}
-      {isGameOver && roomFinished && viewModel && serverState && (
-        <GameOverOverlay
-          viewModel={viewModel}
-          serverState={serverState}
-          progressionSummary={progressionSummary}
-          onHome={onHome ?? onLeave}
-          onPlayAgain={onPlayAgain ?? onLeave}
-          rematch={rematch}
-          rematchPending={rematchPending}
-          playAgainLabel={playAgainLabel}
-          guest={guest}
-          showGuestSave={showGuestSave}
-          onSaveGuest={onSaveGuest}
-          onProfile={openProfile}
+          {!(isGameOver && roomFinished) && (
+            <>
+              <TableSettings
+                onLeave={onLeave}
+                isSpectator={isSpectator}
+                isSolo={solo}
+                isGameOver={isGameOver}
+                onRules={rules.show}
+              />
+              {isSpectator && <WatchingBadge />}
+            </>
+          )}
+
+          {/* A dealer picking by hand chooses six here. Everything else of the pick plays out on the table, in no words. */}
+          {isSecondDeal && viewModel && canSelectHand && (
+            <View
+              style={[
+                styles.centerOverlay,
+                {
+                  paddingTop: insets.top + TABLE_HEADER + PidroSpacing.xs,
+                  paddingBottom: insets.bottom + 16,
+                },
+              ]}
+              pointerEvents="box-none">
+              <DealerSecondDeal
+                viewModel={viewModel}
+                cards={yourHand}
+                trumpSuit={trumpSuit}
+                canSelectHand={canSelectHand}
+                onSelectHand={handleSelectHand}
+              />
+            </View>
+          )}
+
+          {/* Bidding floats from the bottom; trump is picked in the felt. */}
+          <BiddingActions
+            isYourTurn={isYourTurn}
+            isHandReady={isHandReady && !handResult.result}
+            topReserve={topReserve}
+            bottomReserve={bottomReserve}
+          />
+          {showTrumpSelection && (
+            <TrumpPicker
+              cards={yourHand ?? []}
+              frame={trumpPicker(
+                layout,
+                insets.top + topReserve,
+                insets.top + TABLE_HEADER + PidroSpacing.xs
+              )}
+              preview={previewSuit}
+              onPoint={setPointedSuit}
+              onSelect={handleDeclareTrump}
+            />
+          )}
+
+          {/* Game over */}
+          {isGameOver && roomFinished && viewModel && serverState && (
+            <GameOverOverlay
+              viewModel={viewModel}
+              serverState={serverState}
+              progressionSummary={progressionSummary}
+              onHome={onHome ?? onLeave}
+              onPlayAgain={onPlayAgain ?? onLeave}
+              rematch={rematch}
+              rematchPending={rematchPending}
+              playAgainLabel={playAgainLabel}
+              guest={guest}
+              showGuestSave={showGuestSave}
+              onSaveGuest={onSaveGuest}
+              onProfile={openProfile}
+            />
+          )}
+          <PlayerProfileModal {...profile} onClose={() => setProfile({ playerId: null })} />
+        </GestureHandlerRootView>
+      </Animated.View>
+      {framed ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.frame,
+            {
+              left: (width - width * fit) / 2 - FRAME_MASK,
+              right: (width - width * fit) / 2 - FRAME_MASK,
+              top: notch - FRAME_MASK,
+              height: dock - PidroSpacing.xs - notch + FRAME_MASK * 2,
+            },
+            frameStyle,
+          ]}
         />
-      )}
-      <PlayerProfileModal {...profile} onClose={() => setProfile({ playerId: null })} />
-    </GestureHandlerRootView>
+      ) : null}
+    </View>
   );
 }
 
@@ -973,8 +1028,20 @@ const LOADING_BAR_WIDTH = 160;
 /** iPad: talk sits beside the hand, a card's width (Chat-iPad). */
 const TALK_COLUMN = 182;
 
+/** Wide enough to hide all of the table outside its frame. */
+const FRAME_MASK = 240;
+
 const styles = StyleSheet.create({
   // The felt canvas covers it; on Android it would only be painted over.
+  // The composer's colour, so a fitted table sits in one frame with it.
+  stage: { flex: 1, backgroundColor: PidroBevel.panelMid, overflow: 'hidden' },
+  frame: {
+    position: 'absolute',
+    borderWidth: FRAME_MASK,
+    borderRadius: FRAME_MASK + PidroRadii.lg,
+    borderColor: PidroBevel.panelMid,
+  },
+  fitted: { flex: 1, transformOrigin: 'top center' },
   root: { flex: 1, backgroundColor: Platform.OS === 'android' ? undefined : T.bgDeep },
   talk: { position: 'absolute', zIndex: 39 },
   bannerWrap: {

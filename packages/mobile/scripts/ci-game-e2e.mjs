@@ -618,12 +618,14 @@ async function stageThreeTableTalk() {
         .getByTestId('talk-band')
         .or(page.getByTestId('talk-offer').getByTestId('talk-speech'))
         .first();
-    // A band holding a last line opens the log first; its own row opens the words.
+    // An adult's band opens the composer, with the words in it. Others: the log, then the words.
     const sayFrom = async (page) => {
       await tap(opener(page));
       const log = page.getByTestId('talk-sheet-log');
       const words = page.getByTestId('talk-sheet-words');
-      await log.or(words).first().waitFor();
+      const typing = page.getByTestId('talk-sheet-typing');
+      await log.or(words).or(typing).first().waitFor();
+      if (await typing.isVisible()) return typing;
       if (await log.isVisible()) await tap(log.getByTestId('talk-band'));
       await words.waitFor();
       return words;
@@ -631,7 +633,7 @@ async function stageThreeTableTalk() {
 
     const words = await sayFrom(said);
     await words.getByTestId('talk-word_nice').click();
-    await said.getByTestId('talk-sheet-words').waitFor({ state: 'detached' });
+    await words.waitFor({ state: 'detached' });
     await said.getByTestId('talk-landed').getByText('Nice trick!').waitFor({ timeout: 10_000 });
 
     // On the other phone it lands at the speaker's seat, the avatar nearest it.
@@ -736,11 +738,7 @@ async function stageThreeTableTalk() {
       const typedIt = async () => {
         await tap(opener(said));
         const typing = said.getByTestId('talk-sheet-typing');
-        const words = said.getByTestId('talk-sheet-words');
-        const talkLog = said.getByTestId('talk-sheet-log');
-        await typing.or(words).or(talkLog).first().waitFor({ timeout: 5_000 });
-        if (await talkLog.isVisible()) await tap(talkLog.getByTestId('talk-band'));
-        if (!(await typing.isVisible())) await tap(words.getByTestId('talk-type'));
+        await typing.waitFor({ timeout: 5_000 });
         await typing.locator('input').fill(typed, { timeout: 3_000 });
         await tap(typing.getByTestId('talk-say'));
       };
