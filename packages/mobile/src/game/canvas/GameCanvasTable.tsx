@@ -1044,7 +1044,8 @@ const styles = StyleSheet.create({
   },
   fitted: { flex: 1, transformOrigin: 'top center' },
   root: { flex: 1, backgroundColor: Platform.OS === 'android' ? undefined : T.bgDeep },
-  talk: { position: 'absolute', zIndex: 39 },
+  // Elevation too: on Android the dock's elevation 38 would paint over a zIndex alone.
+  talk: { position: 'absolute', zIndex: 39, elevation: 39 },
   bannerWrap: {
     position: 'absolute',
     left: 0,

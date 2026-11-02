@@ -371,7 +371,7 @@ const allCases = [
   ...talkCases.map((name) => {
     const state = name.replace('table-talk-', '');
     const locale = state.startsWith('sv-') ? 'sv' : 'en';
-    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer').replace('face-tap', 'coin').replace('reported', 'report').replace('say', 'typing')}`;
+    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer').replace('face-tap', 'coin').replace('reported', 'report').replace('say-word', 'typing').replace('say', 'typing')}`;
     return {
       name,
       path: `/table-dev?fixture=${fixture}&locale=${locale}`,
@@ -4691,7 +4691,7 @@ async function assertTalkTyping(page, testCase, viewport, landscape) {
     if (state === 'guest') await account.getByText('Make a free account').waitFor();
     if (state === 'teen')
       assert.equal(await sheet.getByText(/type|account/i).count(), 0, 'nothing about typing');
-  } else if (['typing', 'filtered', 'say'].includes(state)) {
+  } else if (['typing', 'filtered', 'say', 'say-word'].includes(state)) {
     const sheet = page.getByTestId('talk-sheet-typing');
     await sheet.waitFor();
     await assertTalkSheetFits(sheet, page, viewport);
@@ -4706,6 +4706,13 @@ async function assertTalkTyping(page, testCase, viewport, landscape) {
       await sheet.getByTestId('talk-say').click();
       await sheet.getByText('Try other words').waitFor();
       assert.equal(await box.inputValue(), DRAFT, 'refused words stay in the box');
+    }
+    if (state === 'say-word') {
+      // A word said instead of the typed one drops the draft.
+      await sheet.getByTestId('talk-word_nice').click();
+      await sheet.waitFor({ state: 'detached' });
+      await page.getByTestId('talk-landed').waitFor();
+      assert.equal(await page.getByText(DRAFT).count(), 0, 'the unsent draft is gone');
     }
     if (state === 'say') {
       await sheet.getByTestId('talk-say').click();

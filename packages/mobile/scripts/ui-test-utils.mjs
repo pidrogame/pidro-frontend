@@ -50,6 +50,7 @@ export const talkCases = [
   'typing-turn',
   'filtered',
   'say',
+  'say-word',
   'sv-type',
   'sv-typing',
 ].map((state) => `table-talk-${state}`);

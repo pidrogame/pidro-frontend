@@ -192,6 +192,8 @@ export function useTableTalk(
 
   const send = useCallback(
     (item: TalkItem) => {
+      // Saying a word or a face instead drops what was typed and not sent.
+      setDraft('');
       open(null);
       answer();
       playActionHaptic();
