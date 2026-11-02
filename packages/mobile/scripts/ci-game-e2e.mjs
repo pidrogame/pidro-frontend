@@ -634,8 +634,9 @@ async function stageThreeTableTalk() {
     // Your turn coming closes an adult's composer, as it should; then say it again.
     const sayWord = async (item) => {
       const sheet = await sayFrom(said);
-      await sheet.getByTestId(item).click({ timeout: 5_000 });
-      await sheet.waitFor({ state: 'detached' });
+      // Turns come fast here and each closes the composer: press it, do not wait for stillness.
+      await tap(sheet.getByTestId(item));
+      await sheet.waitFor({ state: 'detached', timeout: 5_000 });
     };
     for (let attempt = 1; ; attempt += 1) {
       const spoken = await sayWord('talk-word_nice').then(
