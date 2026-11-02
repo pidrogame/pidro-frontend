@@ -290,7 +290,7 @@ export function TalkBand({
   );
 }
 
-/** Numbers, not percentages: iOS put a landing far from its ring with `left: '100%'`. */
+/** How far a landing sits from its ring. */
 const BESIDE = 10;
 const PLACE: Record<SaidAt, (ring: number) => ViewStyle> = {
   aboveStart: (ring) => ({ bottom: ring + 8, left: ring / 2 - 22 }),

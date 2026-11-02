@@ -540,8 +540,10 @@ export function SeatLayer({
               style={[
                 styles.ring,
                 { width: size, height: size },
+                // Not `left: '50%'`: this wrapper hugs its seat, and native layout takes the
+                // percentage of the screen instead (web does not), landing far from the ring.
                 labelSide === 'below' || (tight && rel === 'south')
-                  ? { left: '50%', marginLeft: -size / 2 }
+                  ? { alignSelf: 'center' }
                   : labelSide === 'right'
                     ? { left: 0 }
                     : { right: 0 },
