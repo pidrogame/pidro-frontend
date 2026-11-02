@@ -58,6 +58,24 @@ describe('table talk', () => {
     expect(talkTable(null)).toBe(false);
   });
 
+  it('a seat a bot took closes talk, though the readiness list still says human', () => {
+    const list = {
+      north: { occupant_type: 'human' },
+      east: { occupant_type: 'human' },
+      south: { occupant_type: 'bot' },
+      west: { occupant_type: 'bot' },
+    };
+    const live = (a, b) => ({
+      north: { status: a },
+      east: { status: b },
+      south: { status: 'permanent_bot' },
+      west: { status: 'permanent_bot' },
+    });
+    expect(talkTable(list, live('normal', 'bot_substitute'))).toBe(false);
+    expect(talkTable(list, live('normal', 'reconnecting'))).toBe(true);
+    expect(talkTable(list, live('normal', 'normal'))).toBe(true);
+  });
+
   it('lets adults type, asks guests to make an account, and tells a teen nothing', () => {
     expect(typingFor(true, false)).toBe('type');
     expect(typingFor(false, true)).toBe('guest');

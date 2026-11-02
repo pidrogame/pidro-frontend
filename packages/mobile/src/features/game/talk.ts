@@ -75,12 +75,22 @@ export function land(previous: Landed | undefined, said: Said, key: number): Lan
   return { ...said, count: again ? previous.count + 1 : 1, key };
 }
 
-/** Talk is for tables with people at them: two or more human seats, as the server counts. */
+/**
+ * Talk is for tables with people at them: two or more human seats, as the server counts.
+ * During a game only the lifecycle is live; readiness stops updating, and reading it would
+ * show the band at a table the server has already closed to talk.
+ */
 export function talkTable(
-  seats: Record<string, { occupant_type: string }> | null | undefined
+  seats: Record<string, { occupant_type: string }> | null | undefined,
+  lifecycle?: Record<string, { status: string }> | null
 ): boolean {
+  if (lifecycle)
+    return Object.values(lifecycle).filter(({ status }) => HUMAN_SEAT.includes(status)).length >= 2;
   return Object.values(seats ?? {}).filter((seat) => seat.occupant_type === 'human').length >= 2;
 }
+
+/** A dropped player's seat stays theirs until a bot takes it. */
+const HUMAN_SEAT = ['normal', 'reconnecting'];
 
 /**
  * What the hand of words offers for typing (PID-318). The server says who reads

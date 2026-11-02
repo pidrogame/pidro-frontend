@@ -372,6 +372,7 @@ export function GameCanvasTable({
   );
   const solo = useGameStore((state) => isSoloTable(state.readiness, state.youPositionAbs));
   const readiness = useGameStore((state) => state.readiness);
+  const lifecycleSeats = useGameStore((state) => state.lifecycle?.seats);
   // A hand scored while watching dims the table until its result closes.
   const handResult = useHandResult(
     controller.serverState ? (controller.serverState.last_hand ?? null) : undefined,
@@ -564,7 +565,7 @@ export function GameCanvasTable({
   const talking =
     !isSpectator &&
     !!youPositionAbs &&
-    talkTable(readiness?.seats) &&
+    talkTable(readiness?.seats, lifecycleSeats) &&
     !(isGameOver && roomFinished);
   const hand = serverState?.hand_number ?? serverState?.round_number ?? 0;
   const talk = useTableTalk(
