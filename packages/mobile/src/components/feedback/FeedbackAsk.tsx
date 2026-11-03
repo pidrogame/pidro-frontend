@@ -57,8 +57,10 @@ export function FeedbackAsk({ fixture, onMore }: { fixture?: Ask; onMore: () => 
     answering.current = false;
     setCard((current) => nextAskCard(current, { type: 'asked', answer: next as Ask }));
   };
+  // Closing an answered card only hides it; a skip is for a question left unanswered.
   const skip = () => {
     setCard(nextAskCard(card, { type: 'skipped' }));
+    if (picked) return;
     void feedbackApi
       .send({ kind: ask, answer: 'skipped', game_id: gameId } as FeedbackRequest)
       .catch(() => undefined);

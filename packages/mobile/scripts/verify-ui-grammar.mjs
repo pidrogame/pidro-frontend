@@ -6430,6 +6430,16 @@ async function assertTellInteractions(page, testCase, viewport) {
     ]);
     await card.getByRole('button', { name: copy.more, exact: true }).click();
     await sheet.getByText(copy.chip, { exact: true }).waitFor();
+    await close();
+    await sheet.waitFor({ state: 'detached' });
+    // Closing the thanks only hides it: the answers stand, no skip follows them.
+    await card.getByRole('button', { name: copy.close, exact: true }).click();
+    await card.waitFor({ state: 'detached' });
+    await page.waitForTimeout(500);
+    assert.deepEqual(page.tellPosts, [
+      { kind: 'pace', answer: 'too_slow', game_id: 'fixture-game' },
+      { kind: 'old_pidro', answer: 'better', game_id: 'fixture-game' },
+    ]);
     return;
   }
   if (state === 'old') {
