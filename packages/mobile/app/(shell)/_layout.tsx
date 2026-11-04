@@ -22,6 +22,7 @@ import { UpdateNotice, UpdateNoticeHost } from '@/components/shell/UpdateNotice'
 import { FriendNoticeHost, useShellFriendNotice } from '@/components/shell/FriendNoticeHost';
 import { useAppUpdate } from '@/hooks/useAppUpdate';
 import { LeagueHost } from '@/components/league/LeagueHost';
+import { LeagueResult } from '@/components/league/LeagueResult';
 import { PidroSpacing } from '@/design/tokens';
 import { useAuthStore } from '@/stores/auth';
 import { useWaitingCount } from '@/hooks/useWaitingCount';
@@ -58,6 +59,7 @@ export default function ShellLayout() {
           forceUpdateNotice={__DEV__ && params.fixture === 'update-notice'}
           fixture={__DEV__ ? params.fixture : undefined}
         />
+        <LeagueResult />
       </LeagueHost>
     </FixtureInsets>
   );

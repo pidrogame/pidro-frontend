@@ -1,4 +1,4 @@
-import { getLocale, t, type LeagueId, type LeagueState } from '@pidro/shared';
+import { getLocale, t, type LeagueId, type LeagueState, type LeagueRibbon } from '@pidro/shared';
 
 /** Display order only; promotion and demotion counts always come from the server. */
 export const LEAGUES = [
@@ -59,6 +59,40 @@ export function leagueLine(data: LeagueState): string | null {
     return t('league.line.not_placed', { league: leagueName(data.league) });
   }
   return null;
+}
+
+/** The local Monday following the server's Sunday boundary, not the Sunday date. */
+export function resultWeekDate(
+  startsAt: string,
+  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(startsAt));
+  const part = (name: string) => Number(parts.find(({ type }) => type === name)!.value);
+  const monday = new Date(Date.UTC(part('year'), part('month') - 1, part('day')));
+  monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7));
+  return new Intl.DateTimeFormat(getLocale() === 'sv' ? 'sv-SE' : 'en-GB', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(monday);
+}
+
+export function ribbonMonth(month: string, short = false): string {
+  return new Intl.DateTimeFormat(getLocale(), {
+    month: short ? 'short' : 'long',
+    timeZone: 'UTC',
+  }).format(new Date(`${month}-01T12:00:00Z`));
+}
+
+export function ribbonHistory(ribbons: LeagueState['ribbons']): LeagueRibbon[] {
+  return [...ribbons.past, ...(ribbons.current ? [ribbons.current] : [])]
+    .sort((a, b) => a.month.localeCompare(b.month))
+    .slice(-12);
 }
 
 /** Local calendar day and clock; duration is elapsed time, including across DST. */

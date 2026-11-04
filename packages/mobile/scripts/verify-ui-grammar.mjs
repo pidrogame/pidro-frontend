@@ -637,6 +637,26 @@ const allCases = [
     authenticated: true,
     league: 'profile',
   },
+  ...['up', 'stayed', 'down'].flatMap((move) =>
+    ['en', 'sv'].map((locale) => ({
+      name: `league-result-${move}-${locale}`,
+      path: `/home?fixture=league-result-${move}`,
+      testId: 'league-result',
+      authenticated: true,
+      league: `result-${move}`,
+      locale,
+    }))
+  ),
+  ...['shelf', 'expanded'].flatMap((state) =>
+    ['en', 'sv'].map((locale) => ({
+      name: `league-ribbons-${state}-${locale}`,
+      path: '/profile?fixture=league-ribbons',
+      testId: 'profile-screen',
+      authenticated: true,
+      league: `ribbons-${state}`,
+      locale,
+    }))
+  ),
   { name: 'device-settings', path: '/device-settings', testId: 'settings-screen' },
   ...[
     'list',
@@ -7361,6 +7381,30 @@ async function assertLeague(page, testCase, viewport) {
   const root = page.getByTestId(testCase.testId);
   assertInsideViewport(testCase.name, await root.boundingBox(), viewport);
   if (state === 'intro') await assertAccountSurfaceFits(root, testCase.name, viewport);
+  if (state.startsWith('result-')) {
+    // Reanimated's 350ms card entry is not a browser CSS transition.
+    await page.waitForTimeout(400);
+    await assertAccountSurfaceFits(root, testCase.name, viewport);
+    assert.match(await root.innerText(), testCase.locale === 'sv' ? /12 oktober/i : /12 October/i);
+    const promise = testCase.locale === 'sv' ? 'Spela nästa vecka också' : 'Play next week too';
+    assert.equal((await root.innerText()).includes(promise), state === 'result-up');
+    await assertMinimumTouchTargets(page, testCase.testId, viewport);
+    return;
+  }
+  if (state.startsWith('ribbons-')) {
+    const shelf = page.getByTestId('profile-ribbons');
+    await shelf.scrollIntoViewIfNeeded();
+    assert.equal(await shelf.getByTestId('league-ribbon').count(), 12);
+    assert.equal(await shelf.getByTestId('league-ribbon-star').count(), 4);
+    if (state === 'ribbons-expanded') {
+      await shelf.click();
+      const history = page.getByTestId('league-ribbons');
+      await history.waitFor();
+      await assertAccountSurfaceFits(history, testCase.name, viewport);
+      assert.equal(await history.locator(':scope > div').count(), 12);
+    }
+    return;
+  }
   if (state.startsWith('home-')) {
     const visible = ['home-placed', 'home-not_placed'].includes(state);
     assert.equal(await page.getByTestId('home-league').count(), visible ? 1 : 0);
@@ -8168,6 +8212,10 @@ async function main() {
             path: resolve(screenshotDir, `${testCase.name}.png`),
             fullPage: false,
           });
+          if (testCase.league?.startsWith('result-')) {
+            await page.getByTestId('league-result-close').click();
+            await page.getByTestId('league-result').waitFor({ state: 'detached' });
+          }
           // The welcome covers Home on purpose until Let's play.
           // So does an open sheet, on purpose.
           if (

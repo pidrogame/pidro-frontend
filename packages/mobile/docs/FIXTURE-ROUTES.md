@@ -1052,3 +1052,17 @@ These options only change the browser, never the client's date rules. As elsewhe
 the route ignores `locale=`; grammar seeds the persisted Settings language instead.
 `league-intro` checks clipped text against real ancestor boxes as well as viewport
 fit. Browser checks do not certify native safe areas or maximum system text scaling.
+
+`league-result-up`, `league-result-stayed`, and `league-result-down` on Home preview
+the pending-result sheet. Up uses the October board data: Jack → Ace, 5th of 30,
+2,630 XP and three of four ribbon weeks. Close and Meet your new room acknowledge
+the fixture locally; real accounts POST the result ID before dismissing it. A
+result never interrupts a screen pushed above the shell. Short screens keep a
+small new-league card instead of the large reveal illustration.
+
+`/profile?fixture=league-ribbons` shows twelve monthly ribbons; tap the row to see
+the same twelve with full month names. The current ribbon is faded. Stars and
+star eligibility come from the server, not participation inferred on the client.
+Grammar cases `league-result-<move>-en|sv` and `league-ribbons-shelf|expanded-en|sv`
+measure the sheets at all four league sizes. The Profile itself retains its
+existing scrolling layout; only the expanded ribbon sheet must fit without scrolling.

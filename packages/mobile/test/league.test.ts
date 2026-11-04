@@ -11,9 +11,47 @@ import {
   nextLeague,
   ordinal,
   previousLeague,
+  resultWeekDate,
+  ribbonHistory,
+  ribbonMonth,
 } from '../src/features/league';
 
 afterEach(() => setLocale('en'));
+
+test('result labels name Monday in the device calendar, across Sunday and Monday time zones', () => {
+  for (const zone of [
+    'Europe/Helsinki',
+    'Europe/Stockholm',
+    'America/New_York',
+    'Pacific/Auckland',
+  ]) {
+    assert.equal(resultWeekDate('2026-10-11T19:00:00Z', zone), '12 October');
+    assert.equal(resultWeekDate('2026-12-27T19:00:00Z', zone), '28 December');
+  }
+  setLocale('sv');
+  assert.equal(resultWeekDate('2026-10-11T19:00:00Z', 'Europe/Stockholm'), '12 oktober');
+  assert.equal(ribbonMonth('2026-10'), 'oktober');
+});
+
+test('ribbon history keeps the newest twelve in month order including current, without changing star eligibility', () => {
+  const past = Array.from({ length: 14 }, (_, index) => ({
+    month: new Date(Date.UTC(2025, index, 1)).toISOString().slice(0, 7),
+    league: 'ace' as const,
+    star: false,
+    star_possible: false,
+    weeks_played: 3,
+    weeks_total: 4,
+    so_far: false,
+  })).reverse();
+  const current = { ...past[0], month: '2026-03', so_far: true, star_possible: true };
+  const history = ribbonHistory({ past, current });
+  assert.equal(history.length, 12);
+  assert.equal(history[0].month, '2025-04');
+  assert.equal(history[11], current);
+  assert.equal(history[10].star_possible, false);
+  assert.equal(history[11].star_possible, true);
+  assert.deepEqual(ribbonHistory({ past: [], current: null }), []);
+});
 
 const placed: LeagueState = {
   status: 'placed',

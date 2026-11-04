@@ -9,6 +9,7 @@ import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BadgeSheet } from '@/components/profile/BadgeSheet';
 import { useLeague } from '@/components/league/LeagueHost';
+import { LeagueRibbonShelf } from '@/components/league/LeagueRibbon';
 import { leagueLine, leagueMarkName } from '@/features/league';
 import { BackButton } from '@/components/ui/BackButton';
 import { gradientBg } from '@/components/ui/Bevel';
@@ -454,6 +455,7 @@ function ProfileContent() {
                     ) : null}
                   </Surface>
                 ) : null}
+                <LeagueRibbonShelf />
                 {shelf.medals.length ? (
                   <Surface variant="subtle" style={styles.medals} testID="profile-medals">
                     <View style={styles.medalsHeading}>

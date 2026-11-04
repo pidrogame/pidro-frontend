@@ -22,6 +22,7 @@ const LeagueContext = createContext<{
   refresh: () => Promise<void>;
   introSeen: () => Promise<void>;
   setHidden: (hidden: boolean) => Promise<void>;
+  resultSeen: (id: string) => Promise<void>;
 }>({
   data: null,
   error: false,
@@ -29,6 +30,7 @@ const LeagueContext = createContext<{
   refresh: async () => {},
   introSeen: async () => {},
   setHidden: async () => {},
+  resultSeen: async () => {},
 });
 
 /** One server answer for the shell. Nothing authoritative is persisted on the device. */
@@ -98,13 +100,13 @@ function LeagueSession({ children, token }: { children: ReactNode; token: string
     action: () => Promise<LeagueState | void>,
     next: (data: LeagueState) => LeagueState
   ) => {
-    if (locked.current || !token) return;
+    if (locked.current || !token) throw new Error('League action unavailable');
     locked.current = true;
     request.current++;
     setBusy(true);
     try {
       const result = preview ? undefined : await action();
-      if (current.current !== token) return;
+      if (current.current !== token) throw new Error('League session changed');
       if (preview) setFixtureAnswer({ fixture, data: next(data!) });
       else if (data) setAnswer({ token, data: result ?? next(data) });
       setError(false);
@@ -128,6 +130,14 @@ function LeagueSession({ children, token }: { children: ReactNode; token: string
           mutate(
             () => leagueApi.introSeen(),
             (state) => ({ ...state, intro_seen: true })
+          ),
+        resultSeen: (id) =>
+          mutate(
+            () => leagueApi.markResultSeen(id),
+            (state) => ({
+              ...state,
+              pending_result: state.pending_result?.id === id ? null : state.pending_result,
+            })
           ),
         setHidden: (hidden) =>
           mutate(

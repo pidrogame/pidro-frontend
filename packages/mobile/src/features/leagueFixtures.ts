@@ -46,6 +46,43 @@ export function leagueFixture(value?: string): LeagueState | null {
   if (!__DEV__ || !value?.startsWith('league-')) return null;
   const state = value.slice(7);
   const data = structuredClone(placed);
+  if (state.startsWith('result-')) {
+    const move = state.slice(7) as 'up' | 'stayed' | 'down';
+    const next = move === 'up' ? 'ace' : move === 'down' ? 'ten' : 'jack';
+    data.league = next;
+    data.pending_result = {
+      id: `fixture-${move}`,
+      week_starts_at: '2026-10-11T19:00:00Z',
+      week_closes_at: '2026-10-18T19:00:00Z',
+      old_league: 'jack',
+      new_league: next,
+      move,
+      place: move === 'up' ? 5 : move === 'down' ? 27 : 6,
+      room_size: 30,
+      points: 2630,
+      ribbon: {
+        month: '2026-10',
+        league: move === 'up' ? 'ace' : 'jack',
+        changed: move === 'up',
+        star: false,
+        star_possible: move === 'up',
+        weeks_played: 3,
+        weeks_total: 4,
+        so_far: true,
+      },
+    };
+  }
+  if (state === 'ribbons') {
+    data.ribbons.past = Array.from({ length: 11 }, (_, index) => ({
+      month: new Date(Date.UTC(2025, 11 + index, 1)).toISOString().slice(0, 7),
+      league: (['deuce', 'ten', 'jack', 'ace', 'pidro'] as const)[index % 5],
+      star: index % 3 === 0,
+      star_possible: false,
+      weeks_played: index % 3 === 0 ? 4 : 2,
+      weeks_total: 4,
+      so_far: false,
+    }));
+  }
   if (state === 'intro') data.intro_seen = false;
   if (state === '27') {
     data.me = { place: 27, points: 480 };
