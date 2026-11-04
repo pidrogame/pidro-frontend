@@ -19,7 +19,7 @@ import { formatNumber, useTranslation } from '@/i18n';
 import type { TeamKey } from '@/types/game';
 import type { Position } from '@/types/lobby';
 import { isStillCapture } from '@/utils/stillCapture';
-import { computeLayout } from './layout';
+import { computeLayout, handPointsSize } from './layout';
 import { teams } from './Scoreboard';
 import { useTableSize } from './TableChrome';
 
@@ -77,8 +77,7 @@ export function HandPoints({
   // Own pace waits for a tap; a spectator waits for the players.
   const tapToContinue = waiting && !!onContinue;
 
-  // Digits about as tall as a card's corner rank, or larger.
-  const fontSize = Math.round(Math.max(28, L.cardH * 0.34));
+  const fontSize = handPointsSize(L);
   const figure = { fontSize, lineHeight: Math.round(fontSize * 1.3) };
   const label = t('game.hand_points_accessibility', {
     usLabel: youPosition ? t('game.us') : t('game.ns_short'),

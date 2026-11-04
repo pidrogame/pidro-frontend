@@ -75,6 +75,12 @@ waits for a tap. Grammar cases `table-hand-classic`
 `table-hand-classic-alone` (`end=we-made&pace=own&showMs=0`, 8 | 6 alone) cover
 both beats at 390×844, 375×667, 844×390 and 768×1024.
 
+Upright phones draw cards as big as Classic's (PID-333). Grammar cases
+`table-upright-bidding|second-deal|trick|hand-end|hand-classic` (`phase=bidding`,
+`deal=draw&holdMs=600000`, `trick=full`, `deal=hand&count=on`, and Classic's end)
+check at 390×844 and 375×667 that no seat, back fan, pile, throw, the trump
+mark, your hand or the chat band touches another, and print the card heights.
+
 PID-214 bid presentation uses `/table-dev?phase=bidding&role=player&bids=round|high&locale=sv`.
 `table-bid-*` and `locale-sv-table-bid-*` check every seat's visible/spoken bid,
 the high-bid tone and compact south status without changing bid event identities.

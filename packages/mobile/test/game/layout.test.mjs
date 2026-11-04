@@ -7,6 +7,7 @@ import {
   computeLayout,
   handLeft,
   handLift,
+  handPointsSize,
   handScale,
   handStep,
   LANDSCAPE_SOUTH_LEFT,
@@ -76,11 +77,14 @@ describe('played-card piles', () => {
           }
         }
       }
-      // On landscape phones East's card lands in its front row (PID-305).
-      expect(playedCardTarget(layout, 'east', 0, 1)).toMatchObject({
-        ...(layout.front?.east ?? { x: layout.trick.cx + layout.trick.r, y: layout.trick.cy }),
-        rot: -Math.PI / 2,
-      });
+      // On landscape phones East's card lands in its front row (PID-305);
+      // elsewhere on the circle, upright phones out past it (PID-333).
+      const east = playedCardTarget(layout, 'east', 0, 1);
+      expect(east).toMatchObject({ y: layout.front?.east.y ?? layout.trick.cy, rot: -Math.PI / 2 });
+      if (layout.front) expect(east.x).toBe(layout.front.east.x);
+      else if (layout.profile === 'phone-portrait')
+        expect(east.x).toBeGreaterThanOrEqual(layout.trick.cx + layout.trick.r);
+      else expect(east.x).toBe(layout.trick.cx + layout.trick.r);
     });
   }
 });
@@ -213,6 +217,33 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
       expect(L.trick.r - played / 2 - (L.cardW * TRUMP_MARK) / 2).toBeGreaterThanOrEqual(
         TRICK_GAP - 0.01
       );
+    });
+  }
+
+  // The hand's points (PID-332) sit between East's and West's cards: the
+  // widest, "−14 | 14", is about 3.5 figures.
+  for (const [width, height, insets] of [
+    [390, 844, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    it(`leaves the hand's points room on ${width}×${height} ${insets.top}pt`, () => {
+      const { L, played } = sizes(width, height, insets);
+      const east = playedCardTarget(L, 'east', 0, 1);
+      const west = playedCardTarget(L, 'west', 0, 1);
+      const half = handPointsSize(L) * 1.75;
+      expect(east.x - played / 2 - L.trick.cx).toBeGreaterThan(half);
+      expect(L.trick.cx - (west.x + played / 2)).toBeGreaterThan(half);
+      // A four-card pile at North or yours stays clear of them too.
+      const south = [0, 1, 2, 3].map((i) => playedCardTarget(L, 'south', i, 4).x);
+      const southHalf = (Math.max(...south) - Math.min(...south) + L.cardW * L.trick.pileScale) / 2;
+      expect(east.x - played / 2 - L.trick.cx).toBeGreaterThan(southHalf);
+      // And of their stacks along the edges, a folded hand beside them included.
+      const stack = sideStackInner(L.cardW, 0) + TRICK_GAP;
+      expect(west.x - played / 2).toBeGreaterThan(stack);
+      expect(east.x + played / 2).toBeLessThan(width - stack);
     });
   }
 

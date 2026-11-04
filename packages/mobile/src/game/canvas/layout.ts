@@ -34,8 +34,11 @@ export type TableLayout = {
    * its avatar, and only your avatar and its short line under your hand.
    */
   tight: boolean;
-  /** `pileScale`: how large played cards are drawn around the circle. */
-  trick: { cx: number; cy: number; r: number; pileScale: number };
+  /**
+   * `pileScale`: how large played cards are drawn around the circle.
+   * `across`: how far out East's and West's lie, on upright phones past it (PID-333).
+   */
+  trick: { cx: number; cy: number; r: number; pileScale: number; across: number };
   /**
    * Landscape phones only (PID-305, PID-307): where each seat's played card
    * and thrown cards land, on Classic's cross around the trump mark. `band`
@@ -196,6 +199,9 @@ const ROW_EDGE = 4;
 export const TRICK_GAP = 12;
 /** The trump mark in the middle of the trick, as a share of a card's width. */
 export const TRUMP_MARK = 0.7;
+/** The hand's points over the trump mark (PID-332): digits about as tall as a card's corner rank, or larger. */
+export const handPointsSize = (L: Pick<TableLayout, 'cardH'>) =>
+  Math.round(Math.max(28, L.cardH * 0.34));
 /**
  * How much of your hand a landscape phone shows at least, where the table is
  * too short for all of it: its rank, suit and the top of its art,
@@ -508,6 +514,8 @@ const PILE_SCALE = 0.82;
  * at 390×844, beside a hand of 88pt.
  */
 const PHONE_PILE_SCALE = 0.89;
+/** Upright phones: between the cards of a seat's pile, as a share of a card's width; each shows its rank. */
+const PHONE_PILE_STEP = 0.22;
 /** Played cards shrink a little where the trick circle has to. */
 const COMPACT_PILE_SCALE = 0.72;
 const LANDSCAPE_PILE_SCALE = 0.8;
@@ -520,7 +528,10 @@ export function playedCardTarget(
 ) {
   const portrait = L.profile.endsWith('portrait');
   const pileScale = L.trick.pileScale;
-  const spacing = Math.min(L.cardW * 0.38, portrait ? 24 : 32);
+  const spacing =
+    L.profile === 'phone-portrait'
+      ? L.cardW * PHONE_PILE_STEP
+      : Math.min(L.cardW * 0.38, portrait ? 24 : 32);
   const off = index - (count - 1) / 2;
   // Side cards face their owner: the card's top edge points at the table
   // center (east top→left, west top→right), matching the seat rot below.
@@ -546,11 +557,12 @@ export function playedCardTarget(
 
   // Each pile center lands on a cardinal point of the trick circle. Multiple
   // cards spread along the tangent so the ring remains the visual ruler.
+  const across = L.trick.across;
   const x =
     rel === 'west'
-      ? L.trick.cx - L.trick.r
+      ? L.trick.cx - across
       : rel === 'east'
-        ? L.trick.cx + L.trick.r
+        ? L.trick.cx + across
         : L.trick.cx + off * spacing;
   // East's -90° rotation puts its rank edge at the bottom. Spread upward
   // so newer cards (drawn on top) leave that edge visible on older cards.
@@ -559,7 +571,11 @@ export function playedCardTarget(
       ? L.trick.cy - L.trick.r
       : rel === 'south'
         ? L.trick.cy + L.trick.r
-        : L.trick.cy + off * spacing * (rel === 'east' ? -1 : 1);
+        : L.trick.cy +
+          off * spacing * (rel === 'east' ? -1 : 1) +
+          // Out there, their piles hang down from the trick's line, clear of
+          // their seats above (PID-333).
+          (across > L.trick.r ? ((count - 1) / 2) * spacing : 0);
   return { x, y, rot, scale: pileScale };
 }
 
@@ -847,6 +863,26 @@ export function computeLayout(
         ? Math.max(32, Math.min(usualR, landscapeR(pileScale)))
         : usualR;
 
+  // Upright phones lay East's and West's played cards out past the circle
+  // where they grew into it (PID-333): as far as the hand's widest points
+  // between them ("−14 | 14", about 3.5 figures, PID-332) and a four-card pile
+  // at North or yours need, short of a folded hand beside their stacks.
+  const halfPlayed = (cardH * pileScale) / 2;
+  const across =
+    profile === 'phone-portrait'
+      ? Math.min(
+          Math.max(
+            trickR,
+            handPointsSize({ cardH }) * 1.75 + TRICK_GAP / 2 + halfPlayed,
+            (3 * PHONE_PILE_STEP * cardW + cardW * pileScale) / 2 + TRICK_GAP / 2 + halfPlayed
+          ),
+          cx -
+            Math.max(sideStackInner(cardW, insets.left), sideStackInner(cardW, insets.right)) -
+            1.5 * TRICK_GAP -
+            halfPlayed
+        )
+      : trickR;
+
   const northY = tableTop + cardH * (portrait ? 0.48 : 0.22) + 10;
   // Portrait drops the side line only as far as a full stack still ends above
   // your hand (`sideStacks().lowestTop`); tight phones keep their seats up by North.
@@ -920,7 +956,7 @@ export function computeLayout(
     cardW,
     cardH,
     felt: { cx, cy: trickCy },
-    trick: { cx, cy: trickCy, r: trickR, pileScale },
+    trick: { cx, cy: trickCy, r: trickR, pileScale, across },
     front: twoRows
       ? {
           north: { x: cx, y: trickCy - reach },

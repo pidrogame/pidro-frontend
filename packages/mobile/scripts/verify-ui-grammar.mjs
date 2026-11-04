@@ -1238,7 +1238,14 @@ const allCases = [
       { thrown: ['north', 'east', 'south'], mark: true },
     ],
     ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
-    ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
+    // The PID-236 panel, and Classic's end: the hand's 16 cards (PID-332).
+    ['hand-end', 'deal=hand&count=on', 'hand-result-panel', { result: true }],
+    [
+      'hand-classic',
+      'deal=hand&end=we-missed&showMs=600000',
+      'hand-points',
+      { played: 16, ended: true },
+    ],
   ].map(([name, query, testId, upright]) => ({
     name: `table-upright-${name}`,
     path: `/table-dev?${query}`,
@@ -5659,7 +5666,13 @@ async function assertTwoRows(page, testCase, viewport) {
 // band. The rectangles and the drawn card heights print in dp.
 async function assertUpright(page, testCase, viewport) {
   if (!testCase.upright) return;
-  const { thrown = [], played = 0, result = false, mark = false } = testCase.upright;
+  const {
+    thrown = [],
+    played = 0,
+    result = false,
+    mark = false,
+    ended = result,
+  } = testCase.upright;
   const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
   const union = (label, boxes) => {
     const x = Math.min(...boxes.map((b) => b.x));
@@ -5709,12 +5722,16 @@ async function assertUpright(page, testCase, viewport) {
     const throws = await images(`second-deal-thrown-${rel}`);
     if (throws.length) table.push([union(`${rel}'s throw`, throws)]);
   }
+  // A seat's cards in a trick lie as one pile.
   const cards = sprites.filter((s) => s.kind === 'played');
   assert.equal(cards.length, played, `${testCase.name}: every played card is measured`);
-  for (const card of cards) table.push([spriteBox(card)]);
-  // The hand's result shows once the last trick has taken the last cards.
+  for (const rel of ['north', 'east', 'south', 'west']) {
+    const pile = cards.filter((s) => s.key.split('-')[3] === rel).map(spriteBox);
+    if (pile.length) table.push([union(`${rel}'s cards`, pile)]);
+  }
+  // A hand that has ended has no cards left to hold.
   const held = sprites.filter((s) => s.kind === 'hand');
-  assert.ok(result || held.length > 0, `${testCase.name}: your hand is measured`);
+  assert.ok(ended || held.length > 0, `${testCase.name}: your hand is measured`);
   let hand = null;
   if (held.length) {
     // Playable cards rise out of the row: the hand is where they rest too.
