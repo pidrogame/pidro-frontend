@@ -962,10 +962,10 @@ everything (tokens, primitives, CI); adopt that with `bun run ui:baselines <runI
 
 A push runs only the cases its change touches (`scripts/ci-affected.mjs`, with
 the reasons in the "Select checks" job summary); the release test (Actions →
-Frontend CI → Run workflow) runs all of them. A table-only push runs the table
-cases on one viewport per layout profile, and only the account journeys that play
-through the table. CI balances the selected matrix
-across up to ten jobs, about forty screens each, using Linux case durations in
+Frontend CI → Run workflow) runs all of them. A push runs its cases on every
+viewport they are drawn on, so an adopted screen leaves no stale baseline behind;
+a table-only push runs only the account journeys that play through the table.
+CI balances the selected matrix across up to ten jobs, about forty screens each, using Linux case durations in
 `scripts/ui-case-costs.json` (last calibration: the mean of Actions runs `41814859939`
 and `41812350012`).
 New cases use the median recorded duration and are still included.

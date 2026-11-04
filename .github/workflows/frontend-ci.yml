@@ -40,7 +40,6 @@ jobs:
       full: ${{ steps.select.outputs.full }}
       ui: ${{ steps.select.outputs.ui }}
       ui_cases: ${{ steps.select.outputs.ui_cases }}
-      ui_viewports: ${{ steps.select.outputs.ui_viewports }}
       ui_adopt: ${{ steps.select.outputs.ui_adopt }}
       shards: ${{ steps.select.outputs.shards }}
       game: ${{ steps.select.outputs.game }}
@@ -220,7 +219,6 @@ jobs:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_PARTITION: ${{ matrix.partition }}
           UI_CASES: ${{ needs.select.outputs.ui_cases }}
-          UI_VIEWPORTS: ${{ needs.select.outputs.ui_viewports }}
           UI_REPORT_PATH: /tmp/ui-reports/${{ matrix.shard }}.json
           UI_SHARD: ${{ matrix.shard }}
         run: |
@@ -376,7 +374,6 @@ jobs:
         env:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_CASES: ${{ needs.select.outputs.ui_cases }}
-          UI_VIEWPORTS: ${{ needs.select.outputs.ui_viewports }}
         run: node scripts/verify-ui-grammar.mjs --verify-coverage /tmp/ui-reports | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A push adopts the drift on the screens its changes draw since the last green main

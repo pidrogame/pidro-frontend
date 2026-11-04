@@ -14,21 +14,13 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // What each part of the app draws (UI grammar case routes; /ui-dev cases by their state)
-// and the UI suites that drive it. A push that touches only the table runs its cases on
-// one viewport per layout profile computeLayout() branches on: the phone, the tight
-// phone, the two-row landscape phone at its narrowest and as Marcel's TCL, and a tablet.
-// The release test runs every viewport.
+// and the UI suites that drive it. A push runs its cases on every viewport they are drawn
+// on: CI adopts their drift (PID-343), and a viewport it skipped would keep a stale
+// baseline for the next push to trip over.
 const AREAS = {
   table: {
     screens: ['/table-dev', '/game/*'],
     suites: ['table-behavior', 'seats-and-game-over'],
-    viewports: [
-      'portrait',
-      'compact-portrait',
-      'small-landscape',
-      'android-landscape',
-      'tablet-landscape',
-    ],
   },
   lobby: {
     screens: [
@@ -178,8 +170,7 @@ const MAP = [
 ];
 
 // One table, one lobby, one home and one auth screen, each on its usual viewports
-// (portrait and landscape among them; a table push keeps only the table's), whenever
-// anything visual runs.
+// (portrait and landscape among them), whenever anything visual runs.
 export const SMOKE = ['table-playing', 'lobby-list', 'home', 'login'];
 const SUITES = ['table-behavior', 'lobby-and-creation', 'seats-and-game-over'];
 const SCREENS_PER_SHARD = 40;
@@ -252,20 +243,13 @@ export function selectChecks({ base, files, cases, ids, journeys = [], full = fa
       shards: shardsFor(ids.length, SUITES),
       game: true,
       accounts: true,
-      viewports: null,
       journeys: null,
     };
   }
 
   const selected = new Set(casesOf(areas, cases));
   if (areas.size) SMOKE.forEach((name) => selected.add(name));
-  // Narrow only when every area drawn has its own viewports; anything else runs them all.
-  const narrow = areas.size > 0 && [...areas].every((area) => AREAS[area].viewports);
-  const viewports = narrow ? [...areas].flatMap((area) => AREAS[area].viewports) : null;
-  const count = ids.filter((id) => {
-    const [viewport, name] = [id.slice(0, id.indexOf('/')), id.slice(id.indexOf('/') + 1)];
-    return selected.has(name) && (!viewports || viewports.includes(viewport));
-  }).length;
+  const count = ids.filter((id) => selected.has(id.slice(id.indexOf('/') + 1))).length;
   const suites = SUITES.filter((suite) =>
     [...areas].some((area) => AREAS[area].suites?.includes(suite))
   );
@@ -279,7 +263,6 @@ export function selectChecks({ base, files, cases, ids, journeys = [], full = fa
     shards: shardsFor(count, suites),
     game,
     accounts,
-    viewports,
     // No list to narrow to runs every journey.
     journeys: accounts && journeysOnly && journeys.length ? journeys : null,
   };
@@ -309,7 +292,7 @@ function summarize(selection, base) {
   const visual = selection.full
     ? `all ${selection.screens} screens`
     : selection.cases.length
-      ? `${selection.cases.length} cases, ${selection.screens} screens (${selection.areas.join(', ')} + smoke) on ${selection.viewports ? selection.viewports.join(', ') : 'every viewport'}`
+      ? `${selection.cases.length} cases, ${selection.screens} screens (${selection.areas.join(', ')} + smoke)`
       : 'nothing visual';
   const matrix = selection.shards.filter(({ partition }) => partition).length;
   const suites = selection.shards.filter(({ partition }) => !partition).map(({ shard }) => shard);
@@ -381,7 +364,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         `ui=${selection.shards.length > 0}`,
         `ui_cases=${selection.full ? '' : selection.cases.join(',')}`,
         `shards=${JSON.stringify(selection.shards)}`,
-        `ui_viewports=${selection.viewports?.join(',') ?? ''}`,
         `ui_adopt=${selection.adopt.join(',')}`,
         `game=${selection.game}`,
         `accounts=${selection.accounts}`,

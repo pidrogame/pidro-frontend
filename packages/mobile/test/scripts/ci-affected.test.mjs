@@ -10,7 +10,7 @@ const casesOn = (prefix) =>
   cases.filter(({ path }) => path.startsWith(prefix)).map(({ name }) => name);
 
 describe('what a push runs', () => {
-  test('a table change runs the table cases on one viewport per layout, the smoke set, Game e2e and the table journeys', () => {
+  test('a table change runs the table cases on every viewport, the smoke set, Game e2e and the table journeys', () => {
     const run = select('packages/mobile/src/game/canvas/layout.ts');
     expect(run.full).toBe(false);
     expect(run.cases).toEqual(expect.arrayContaining([...casesOn('/table-dev'), ...SMOKE]));
@@ -18,17 +18,11 @@ describe('what a push runs', () => {
     expect(run.cases).not.toContain('lobby-open');
     expect(run.cases).not.toContain('new-table-setup');
     expect(run.cases).not.toContain('settings');
-    expect(run.viewports).toEqual(
-      expect.arrayContaining([
-        'portrait',
-        'compact-portrait',
-        'small-landscape',
-        'android-landscape',
-        'tablet-landscape',
-      ])
+    // Every viewport of every case it may adopt, so no adopted case keeps a stale baseline.
+    expect(run.adopt).toContain('table-playing');
+    expect(run.screens).toBeGreaterThanOrEqual(
+      ids.filter((id) => run.adopt.includes(id.slice(id.indexOf('/') + 1))).length
     );
-    expect(run.viewports).not.toContain('landscape');
-    expect(run.screens).toBeLessThan(ids.length / 4);
     expect(run.game).toBe(true);
     expect(run.accounts).toBe(true);
     expect(run.journeys).toEqual(
@@ -45,12 +39,11 @@ describe('what a push runs', () => {
     ]);
   });
 
-  test('a table change with anything else runs every viewport and every journey', () => {
+  test('a table change with anything else runs every journey', () => {
     const run = select(
       'packages/mobile/src/game/canvas/layout.ts',
       'packages/mobile/app/lobby.tsx'
     );
-    expect(run.viewports).toBeNull();
     expect(run.journeys).toBeNull();
     expect(run.cases).toEqual(expect.arrayContaining(['lobby-open', 'table-bidding']));
   });
@@ -69,7 +62,6 @@ describe('what a push runs', () => {
     );
     expect(run.cases).not.toContain('table-bidding');
     expect(run.cases).not.toContain('register');
-    expect(run.viewports).toBeNull();
     expect(run.game).toBe(true);
     expect(run.accounts).toBe(true);
     expect(run.journeys).toBeNull();
