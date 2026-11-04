@@ -78,6 +78,8 @@ const LINES: { icon: IconName; color: string; title: TranslationKey; body: Trans
 
 export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
   const { t, locale } = useTranslation();
+  // A guest has no Tell us (PID-348): the mail is the way to write.
+  const guest = useAuthStore((state) => Boolean(state.user?.guest));
   const [photoFailed, setPhotoFailed] = useState(false);
   const { width, height } = useWindowDimensions();
   const landscape = width > height && height < PidroLayout.compactHeight;
@@ -162,7 +164,7 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
               </PidroText>
               <PidroText role="body" tone="soft" style={styles.lineBody}>
                 {line.body === 'news.tellBody'
-                  ? t(line.body, { email: '\uFFF0' })
+                  ? t(guest ? 'news.tellBodyGuest' : line.body, { email: '\uFFF0' })
                       .split('\uFFF0')
                       .flatMap((part, index) =>
                         index === 0

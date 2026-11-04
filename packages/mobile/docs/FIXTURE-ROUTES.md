@@ -755,17 +755,17 @@ The Tell us sheet open in one state, or the question card on Home. The fixture s
 only where it starts; Send, the answers and the next question go to the server
 (`POST /api/v1/feedback`, `GET /api/v1/feedback/ask`), which the UI-grammar cases route.
 
-| `state`  | Shows                                                                   |
-| -------- | ----------------------------------------------------------------------- |
-| `open`   | Sheet, empty card, the reply line or "Want an answer?", Send off        |
-| `typing` | Sheet with words on the card, Send on                                   |
-| `chip`   | Sheet opened from the question card: "About your last game" on the card |
-| `sent`   | "Thanks. We read every one." and Done                                   |
-| `failed` | Words back on the card, the alert, Try again and "Use my mail app"      |
-| `limit`  | The limit alert and a disabled "Send tomorrow"                          |
-| `guest`  | The email field folded down with an address typed (use with a guest)    |
-| `pace`   | Home's question card: Pace in your last game                            |
-| `old`    | Home's question card: Compared to the old Pidro                         |
+| `state`  | Shows                                                                    |
+| -------- | ------------------------------------------------------------------------ |
+| `open`   | Sheet, empty card, the reply line or "Want an answer?", Send off         |
+| `typing` | Sheet with words on the card, Send on                                    |
+| `chip`   | Sheet opened from the question card: "About your last game" on the card  |
+| `sent`   | "Thanks. We read every one." and Done                                    |
+| `failed` | Words back on the card, the alert, Try again and "Use my mail app"       |
+| `limit`  | The limit alert and a disabled "Send tomorrow"                           |
+| `guest`  | The email field folded down with an address typed (an account, no email) |
+| `pace`   | Home's question card: Pace in your last game                             |
+| `old`    | Home's question card: Compared to the old Pidro                          |
 
 testIDs `feedback-sheet`, `feedback-body`, `feedback-email`, `feedback-send`,
 `feedback-ask`, `news-tell`, `settings-tell`. On Home, Tell us is the first row in
@@ -789,7 +789,8 @@ to `POST /api/v1/feedback` with `news_post_id`, which the UI-grammar cases route
 | `error`   | News open: Tell us, "News didn't load." and Try again                  |
 
 testIDs `home-news`, `home-news-dot`, `news-sheet`, `news-feed`, `news-tell`,
-`news-post`, `news-post-new`, `friends-online-count`.
+`news-post`, `news-post-new`, `friends-online-count`. A guest reads News without Tell us
+or Write back, and has no Tell us in Settings either (PID-348): `news-sheet-guest`.
 UI grammar: the `news-*` cases at 390×844, 375×667, 844×390 and 768×1024. The talk button with talk on and off is on
 `/ui-dev?state=components` (`ui-doors`).
 

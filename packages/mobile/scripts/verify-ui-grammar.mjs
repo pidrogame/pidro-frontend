@@ -91,12 +91,13 @@ const tellCases = [
     testId: 'feedback-sheet',
     tell: state,
   })),
+  // A player without an email on the account types an address (guests have no Tell us, PID-348).
   {
     name: 'tell-guest',
     path: '/settings?fixture=tell-guest',
     testId: 'feedback-sheet',
     tell: 'guest',
-    authFixture: guestAuthFixture,
+    authFixture,
   },
   // The keyboard takes this much of the screen: the card gives way, Send stays.
   {
@@ -162,6 +163,12 @@ const newsCases = ['home', 'request', 'sheet', 'reply', 'empty', 'error'].map((s
   authenticated: true,
   authFixture: tellAuthFixture,
 }));
+// PID-348: a guest reads the same posts, with no Tell us and no Write back.
+newsCases.push({
+  ...newsCases.find(({ news }) => news === 'sheet'),
+  name: 'news-sheet-guest',
+  authFixture: guestAuthFixture,
+});
 
 // iPad portrait and landscape for game over, on CI's existing tablet shards.
 const GAME_OVER_TABLETS = {
@@ -522,6 +529,8 @@ const allCases = [
       testId: 'settings-screen',
       locale,
       feedback: true,
+      // PID-348: only an account has Tell us.
+      authenticated: true,
     },
   ]),
   // The real thing: a signed-in player who has not seen it meets it on Home.
@@ -6962,7 +6971,7 @@ async function assertTellState(page, testCase, viewport) {
   if (state === 'guest') {
     assert.equal(await page.getByTestId('feedback-email').inputValue(), 'bengt@example.com');
     await see(copy.email);
-    assert.equal(await sheet.getByText(/answer at/).count(), 0, 'a guest has no account address');
+    assert.equal(await sheet.getByText(/answer at/).count(), 0, 'no account address to answer at');
   } else if (state === 'limit') {
     await see(copy.limit);
     assert.equal(await sheet.getByText(copy.reply, { exact: true }).count(), 0);
@@ -6997,6 +7006,14 @@ async function assertTellInteractions(page, testCase, viewport) {
   };
   const close = () => sheet.getByRole('button', { name: copy.close, exact: true }).first().click();
   const state = testCase.tell;
+  if (state === 'home' && testCase.authFixture === guestAuthFixture) {
+    // PID-348: a guest reads News, with no Tell us and no Write back.
+    await page.getByRole('button', { name: copy.door, exact: true }).click();
+    await page.getByTestId('news-sheet').waitFor();
+    assert.equal(await page.getByTestId('news-tell').count(), 0, 'no Tell us for a guest');
+    assert.equal(await page.getByRole('button', { name: /^Write back/ }).count(), 0);
+    return;
+  }
   if (state === 'home') {
     await door.click();
     await sheet.waitFor();
@@ -7196,6 +7213,23 @@ async function assertNewsState(page, testCase, viewport) {
   assert.ok(close.width >= 44 && close.height >= 44, `${testCase.name}: Close is a 44pt target`);
   const posts = page.getByTestId('news-post');
   const feed = page.getByTestId('news-feed');
+  if (testCase.authFixture === guestAuthFixture) {
+    assert.equal(await page.getByTestId('news-tell').count(), 0, 'no Tell us for a guest');
+    assert.equal(await sheet.getByRole('button', { name: /^Write back/ }).count(), 0);
+    assert.equal(await posts.count(), 3);
+    await feed.evaluate((node) => {
+      node.scrollTop = node.scrollHeight;
+    });
+    assertInsideViewport(
+      `${testCase.name} last post`,
+      await getStableBox(posts.nth(2), page),
+      viewport
+    );
+    await feed.evaluate((node) => {
+      node.scrollTop = 0;
+    });
+    return;
+  }
   const tell = await getStableBox(page.getByTestId('news-tell'), page);
   assert.ok(tell.height >= 44, `${testCase.name}: Tell us is a 44pt target`);
   await page.getByTestId('news-tell').getByText('Something off, or something you love?').waitFor();
@@ -7242,7 +7276,7 @@ async function assertNewsState(page, testCase, viewport) {
 
 /** Write back answers the post, and Done lands back in News. */
 async function assertNewsInteractions(page, testCase, viewport) {
-  if (testCase.news !== 'sheet' || viewport.name !== 'portrait') return;
+  if (testCase.name !== 'news-sheet' || viewport.name !== 'portrait') return;
   const tell = page.getByTestId('feedback-sheet');
   await page.getByRole('button', { name: `Write back: ${NEWS_TITLES[0]}`, exact: true }).click();
   await tell.getByText(NEWS_TITLES[0], { exact: true }).waitFor();

@@ -43,6 +43,8 @@ export function SettingsScreen({
   const pace = useSettingsStore((state) => state.pace);
   const setPace = useSettingsStore((state) => state.setPace);
   const signedIn = useAuthStore((state) => Boolean(state.user));
+  // Only an account sends notes (PID-348).
+  const canTell = useAuthStore((state) => Boolean(state.user && !state.user.guest));
   const preferredRuleSet = useSettingsStore((state) => state.preferredRuleSet);
   const setPreferredRuleSet = useSettingsStore((state) => state.setPreferredRuleSet);
   const { fixture } = useLocalSearchParams<{ fixture?: string }>();
@@ -63,7 +65,7 @@ export function SettingsScreen({
       }}>
       <ScreenHeader title={t('settings.title')} subtitle={t('settings.subtitle')} onBack={onBack} />
       <Surface variant="window" style={styles.panel} padded>
-        <TellRow testID="settings-tell" onPress={() => setTellOpen(true)} />
+        {canTell ? <TellRow testID="settings-tell" onPress={() => setTellOpen(true)} /> : null}
         <View style={styles.languageColumn}>
           <LanguageSelector />
         </View>
@@ -120,7 +122,9 @@ export function SettingsScreen({
       </Surface>
       {signedIn ? <AccountSection /> : null}
       <AppUpdateSection />
-      <FeedbackSheet open={tellOpen} fixture={tell?.sheet} onClose={() => setTellOpen(false)} />
+      {canTell ? (
+        <FeedbackSheet open={tellOpen} fixture={tell?.sheet} onClose={() => setTellOpen(false)} />
+      ) : null}
     </ScreenShell>
   );
 }

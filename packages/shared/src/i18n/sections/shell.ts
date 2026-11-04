@@ -134,6 +134,7 @@ export const en = {
   "news.tell": "Tell me what you find",
   "news.tellBody":
     "Something odd, broken or confusing? Write to %{email} or use Settings → Tell us. I read every one.",
+  "news.tellBodyGuest": "Something odd, broken or confusing? Write to %{email}. I read every one.",
   "news.classic": "Your old Pidro app keeps working. Nothing there changes.",
   "news.play": "Let's play",
   "tell.door": "Tell us",
@@ -305,6 +306,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "news.tell": "Hör av dig",
   "news.tellBody":
     "Något konstigt, trasigt eller krångligt? Skriv till %{email} eller använd Inställningar → Berätta för oss. Jag läser varenda en.",
+  "news.tellBodyGuest": "Något konstigt, trasigt eller krångligt? Skriv till %{email}. Jag läser varenda en.",
   "news.classic": "Din gamla Pidro-app fungerar som vanligt. Där ändras ingenting.",
   "news.play": "Nu spelar vi",
   "tell.door": "Berätta för oss",

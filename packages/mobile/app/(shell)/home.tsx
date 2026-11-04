@@ -446,6 +446,7 @@ export default function HomeScreen() {
         open={newsOpen}
         news={news}
         status={newsStatus}
+        tell={!guest}
         reply={newsPreview?.reply}
         onRetry={() => (newsPreview ? undefined : void openNews())}
         onClose={() => (newsPreview ? setPreviewOpen(false) : closeNews())}

@@ -35,6 +35,8 @@ interface Props {
   news: NewsState;
   status: 'idle' | 'loading' | 'ready' | 'failed';
   onRetry: () => void;
+  /** Only an account sends notes (PID-348): a guest reads News without Tell us or Write back. */
+  tell: boolean;
   /** Fixtures: Write back already open on this post. */
   reply?: NewsPost | null;
 }
@@ -43,7 +45,15 @@ interface Props {
  * News (PID-347): Tell us first, then our posts, newest first. Write back opens
  * Tell us over it, about that post; Done comes back here.
  */
-export function NewsSheet({ open, onClose, news, status, onRetry, reply = null }: Props) {
+export function NewsSheet({
+  open,
+  onClose,
+  news,
+  status,
+  onRetry,
+  tell: canTell,
+  reply = null,
+}: Props) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const landscape = width > height && height < PidroLayout.compactHeight;
@@ -79,7 +89,7 @@ export function NewsSheet({ open, onClose, news, status, onRetry, reply = null }
           key={post.id}
           post={post}
           fresh={isNewPost(index, news.marked)}
-          onWriteBack={() => tellAbout(post)}
+          onWriteBack={canTell ? () => tellAbout(post) : undefined}
         />
       ))
     );
@@ -127,13 +137,15 @@ export function NewsSheet({ open, onClose, news, status, onRetry, reply = null }
               testID="news-feed"
               style={styles.feed}
               contentContainerStyle={styles.feedContent}>
-              <TellRow testID="news-tell" onPress={() => tellAbout(null)} />
+              {canTell ? <TellRow testID="news-tell" onPress={() => tellAbout(null)} /> : null}
               {body}
             </ScrollView>
           </View>
         </SafeAreaView>
       </SafeAreaProvider>
-      <FeedbackSheet open={tellOpen} post={about} onClose={() => setTellOpen(false)} />
+      {canTell ? (
+        <FeedbackSheet open={tellOpen} post={about} onClose={() => setTellOpen(false)} />
+      ) : null}
     </Modal>
   );
 }
@@ -145,7 +157,7 @@ function Post({
 }: {
   post: NewsPost;
   fresh: boolean;
-  onWriteBack: () => void;
+  onWriteBack?: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -159,17 +171,21 @@ function Post({
       <PidroText role="label" accessibilityRole="header" style={styles.postTitle}>
         {post.title}
       </PidroText>
-      <PidroText role="body">{post.body}</PidroText>
-      <PressableFX
-        accessibilityRole="button"
-        accessibilityLabel={`${t('news.writeBack')}: ${post.title}`}
-        onPress={onWriteBack}
-        style={styles.writeBack}>
-        <Icon name="reply" size={18} strokeWidth={2.4} color={PidroColors.cyanText} />
-        <PidroText role="label" tone="cyan" style={styles.writeBackText}>
-          {t('news.writeBack')}
-        </PidroText>
-      </PressableFX>
+      <PidroText role="body" style={!onWriteBack && styles.lastLine}>
+        {post.body}
+      </PidroText>
+      {onWriteBack ? (
+        <PressableFX
+          accessibilityRole="button"
+          accessibilityLabel={`${t('news.writeBack')}: ${post.title}`}
+          onPress={onWriteBack}
+          style={styles.writeBack}>
+          <Icon name="reply" size={18} strokeWidth={2.4} color={PidroColors.cyanText} />
+          <PidroText role="label" tone="cyan" style={styles.writeBackText}>
+            {t('news.writeBack')}
+          </PidroText>
+        </PressableFX>
+      ) : null}
     </Surface>
   );
 }
@@ -240,6 +256,7 @@ const styles = StyleSheet.create({
     boxShadow: PidroColors.newsDotRing,
   },
   postTitle: { fontSize: 19, lineHeight: 24 },
+  lastLine: { marginBottom: 10 },
   writeBack: {
     alignSelf: 'flex-start',
     minHeight: PidroLayout.touchTarget,
