@@ -45,9 +45,19 @@ const eas = (...args) => JSON.parse(sh('bunx', ['eas-cli', ...args, '--json']));
 const isAncestor = (commit, of) =>
   spawnSync('git', ['merge-base', '--is-ancestor', commit, of]).status === 0;
 
-// A re-run of an older Frontend CI run can go green after newer commits landed.
+// A re-run of an older Frontend CI run can go green after newer commits landed. The one
+// commit allowed on top is the baselines the green run adopted itself (frontend-ci.yml):
+// the same app, and no run of its own.
 const tip = sh('git', ['ls-remote', 'origin', 'refs/heads/main']).split(/\s/)[0];
-if (tip !== sha) skip(`main has moved on to ${short(tip)}; its own green run publishes.`);
+if (tip !== sha) {
+  sh('git', ['fetch', '--quiet', 'origin', tip]);
+  const above = sh('git', ['diff', '--name-only', sha, tip]).split('\n').filter(Boolean);
+  if (
+    !isAncestor(sha, tip) ||
+    !above.every((file) => file.startsWith('packages/mobile/test/ui-baselines/'))
+  )
+    skip(`main has moved on to ${short(tip)}; its own green run publishes.`);
+}
 
 const { expo } = JSON.parse(readFileSync('app.json', 'utf8'));
 const runtime = typeof expo.runtimeVersion === 'string' ? expo.runtimeVersion : expo.version;

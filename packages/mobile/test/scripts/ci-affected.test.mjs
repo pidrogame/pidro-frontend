@@ -113,6 +113,25 @@ describe('what a push runs', () => {
     expect(selectChecks({ base, files: null, cases, ids }).full).toBe(true);
   });
 
+  test('a table change adopts drift on the table it draws, not on the smoke screens around it', () => {
+    const run = select('packages/mobile/src/game/canvas/layout.ts');
+    expect(run.adopt).toEqual(expect.arrayContaining([...casesOn('/table-dev'), 'table-playing']));
+    for (const outside of ['lobby-list', 'home', 'login', 'settings'])
+      expect(run.adopt).not.toContain(outside);
+  });
+
+  test('a run that checks everything adopts nothing, even beside a table change', () => {
+    const run = select(
+      'packages/mobile/src/components/ui/Button.tsx',
+      'packages/mobile/src/game/canvas/layout.ts'
+    );
+    expect(run.full).toBe(true);
+    expect(run.adopt).toEqual([]);
+    expect(select('packages/mobile/src/design/tokens.ts').adopt).toEqual([]);
+    expect(selectChecks({ base, files: [], cases, ids, full: true }).adopt).toEqual([]);
+    expect(select('packages/mobile/test/ui-baselines/portrait/home.png').adopt).toEqual([]);
+  });
+
   test('shards hold about forty screens, at most ten', () => {
     const home = select('packages/mobile/app/(shell)/home.tsx');
     const matrix = home.shards.filter(({ partition }) => partition);

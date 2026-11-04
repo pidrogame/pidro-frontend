@@ -953,8 +953,12 @@ node scripts/verify-dealing.mjs  # four dealers, 3/6/9 receive order, sort/biddi
 ```
 
 `bun run test:ui:diff` (pixel diff) is **CI-only** — baselines are Linux Chromium
-renders, so Mac captures flag font/antialiasing noise. Adopt intentional drift with
-`bun run ui:baselines <runId>`.
+renders, so Mac captures flag font/antialiasing noise. On a push to `main`, CI adopts
+the drift on the screens the changes since the last green `main` draw (the areas of
+`scripts/ci-affected.mjs`): it commits their new captures, and the first capture of a
+new case, on top of the pushed commit, links them in the "UI grammar" summary and goes
+green. Drift on any other screen fails, and so does drift from a change that runs
+everything (tokens, primitives, CI); adopt that with `bun run ui:baselines <runId>`.
 
 A push runs only the cases its change touches (`scripts/ci-affected.mjs`, with
 the reasons in the "Select checks" job summary); the release test (Actions →
@@ -962,7 +966,8 @@ Frontend CI → Run workflow) runs all of them. A table-only push runs the table
 cases on one viewport per layout profile, and only the account journeys that play
 through the table. CI balances the selected matrix
 across up to ten jobs, about forty screens each, using Linux case durations in
-`scripts/ui-case-costs.json` (last calibration: Actions run `39359720639`).
+`scripts/ui-case-costs.json` (last calibration: the mean of Actions runs `41814859939`
+and `41812350012`).
 New cases use the median recorded duration and are still included.
 Refresh the weights from a successful run's `ui-report-*`
 artifacts (each record's `id` maps to its `ms`); local Mac timings are not comparable.

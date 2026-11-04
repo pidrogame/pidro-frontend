@@ -41,6 +41,7 @@ jobs:
       ui: ${{ steps.select.outputs.ui }}
       ui_cases: ${{ steps.select.outputs.ui_cases }}
       ui_viewports: ${{ steps.select.outputs.ui_viewports }}
+      ui_adopt: ${{ steps.select.outputs.ui_adopt }}
       shards: ${{ steps.select.outputs.shards }}
       game: ${{ steps.select.outputs.game }}
       accounts: ${{ steps.select.outputs.accounts }}
@@ -315,6 +316,9 @@ jobs:
     if: ${{ !cancelled() && needs.select.outputs.ui != 'false' }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
+    outputs:
+      adopted: ${{ steps.adopted.outputs.adopted }}
+      diffs: ${{ steps.diffs.outputs.artifact-url }}
 
     steps:
       - name: Check out repository
@@ -375,20 +379,43 @@ jobs:
           UI_VIEWPORTS: ${{ needs.select.outputs.ui_viewports }}
         run: node scripts/verify-ui-grammar.mjs --verify-coverage /tmp/ui-reports | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # A push adopts the drift on the screens its changes draw since the last green main
+      # (ci-affected.mjs); drift on any other screen fails.
       - name: Compare against visual baselines
         working-directory: packages/mobile
         env:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_DIFF_PARTIAL: ${{ needs.select.outputs.full != 'true' && '1' || '' }}
+          UI_ADOPT: ${{ github.event_name == 'push' && needs.select.outputs.ui_adopt || '' }}
         run: bun run test:ui:diff
 
       - name: Upload visual diffs
+        id: diffs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ui-grammar-diffs
           path: /tmp/ui-grammar-screens/diffs/
           if-no-files-found: ignore
+          retention-days: 14
+
+      # Committed only once the whole run is green (adopt-baselines).
+      - name: Collect adopted baselines
+        id: adopted
+        if: github.event_name == 'push'
+        run: |
+          mkdir -p /tmp/ui-adopted
+          git ls-files -mo --exclude-standard -- packages/mobile/test/ui-baselines |
+            sed 's#^packages/mobile/test/ui-baselines/##' |
+            (cd packages/mobile/test/ui-baselines && xargs -r cp --parents -t /tmp/ui-adopted)
+          if [ -n "$(ls -A /tmp/ui-adopted)" ]; then echo adopted=true >> "$GITHUB_OUTPUT"; fi
+
+      - name: Upload adopted baselines
+        if: steps.adopted.outputs.adopted == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-grammar-adopted
+          path: /tmp/ui-adopted/
           retention-days: 14
 
   game-e2e:
@@ -447,3 +474,47 @@ jobs:
               or (.["ui-grammar"].result == "skipped" and $selected.ui == "false"))
             and (.["game-e2e"].result == "success"
               or (.["game-e2e"].result == "skipped" and $selected.game == "false"))'
+
+  # The drift a green push adopted (compare-ui-baselines.mjs), committed on top of its
+  # commit, fast-forward only: when main has moved on, the newer run adopts the same drift
+  # and this one stays red. The workflow token's push starts no run of its own, and
+  # beta-update publishes this run's commit under it (publish-beta.mjs). Only git runs here.
+  adopt-baselines:
+    name: Adopt baselines
+    needs: [ui-grammar, ready]
+    if: ${{ !cancelled() && github.event_name == 'push' && needs.ready.result == 'success' && needs.ui-grammar.outputs.adopted == 'true' }}
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Download adopted baselines
+        uses: actions/download-artifact@v4
+        with:
+          name: ui-grammar-adopted
+          path: packages/mobile/test/ui-baselines
+
+      - name: Commit adopted baselines
+        env:
+          DIFFS: ${{ needs.ui-grammar.outputs.diffs }}
+        run: |
+          git add packages/mobile/test/ui-baselines
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit --quiet -m "Baselines for ${GITHUB_SHA::7}'s screens, adopted by Frontend CI" \
+            -m "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          commit=$(git rev-parse HEAD)
+          if ! git push origin "HEAD:$GITHUB_REF"; then
+            # A re-run finds its own adoption already there.
+            git fetch --quiet --depth=1 origin "$GITHUB_REF"
+            if ! git diff --quiet FETCH_HEAD HEAD; then
+              echo "Push rejected: ${GITHUB_REF#refs/heads/} has moved on (its newer run adopts these screens), or the push failed." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+            commit=$(git rev-parse FETCH_HEAD)
+          fi
+          echo "### Baselines adopted" >> "$GITHUB_STEP_SUMMARY"
+          echo "Committed as [\`${commit::7}\`]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$commit), before and after side by side${DIFFS:+; [pixel diffs]($DIFFS)}. The screens are listed under UI grammar." >> "$GITHUB_STEP_SUMMARY"

@@ -10,8 +10,20 @@
  *
  * A push that ran only some screens (scripts/ci-affected.mjs) sets UI_DIFF_PARTIAL=1:
  * the screens it captured are compared, the rest are left to the release test.
+ *
+ * UI_ADOPT names the cases the change draws (scripts/ci-affected.mjs). Their drift, and
+ * their captures with no baseline yet, become the new baselines in the checkout for CI
+ * to commit; drift anywhere else still fails.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pixelmatch from 'pixelmatch';
@@ -32,6 +44,7 @@ const MAX_DIFF_PERCENT = Number(process.env.UI_DIFF_MAX_PERCENT ?? '2');
 // The kill clears as the first card lands (PID-306): asserted, not diffed.
 const SKIP = new Set(['table-completed-trick', 'table-two-rows-kill']);
 const PARTIAL = process.env.UI_DIFF_PARTIAL === '1';
+const ADOPT = new Set(process.env.UI_ADOPT?.split(',').filter(Boolean));
 
 if (!existsSync(baselineRoot)) {
   console.error(`no baselines at ${baselineRoot} — run \`bun run ui:baselines\` first`);
@@ -43,6 +56,7 @@ if (!existsSync(captureRoot)) {
 }
 
 const failures = [];
+const adopted = [];
 let compared = 0;
 let notCaptured = 0;
 
@@ -66,9 +80,14 @@ for (const viewport of readdirSync(baselineRoot, { withFileTypes: true })) {
 
     const baseline = PNG.sync.read(readFileSync(resolve(baselineRoot, viewport.name, file)));
     const capture = PNG.sync.read(readFileSync(capturePath));
+    const drifted = (why) => {
+      if (!ADOPT.has(caseName)) return failures.push(`${label}: ${why}`);
+      copyFileSync(capturePath, resolve(baselineRoot, viewport.name, file));
+      adopted.push(`${label}: ${why}`);
+    };
     if (baseline.width !== capture.width || baseline.height !== capture.height) {
-      failures.push(
-        `${label}: size changed ${baseline.width}x${baseline.height} → ${capture.width}x${capture.height}`
+      drifted(
+        `size changed ${baseline.width}x${baseline.height} → ${capture.width}x${capture.height}`
       );
       continue;
     }
@@ -91,17 +110,39 @@ for (const viewport of readdirSync(baselineRoot, { withFileTypes: true })) {
     if (percent > MAX_DIFF_PERCENT) {
       mkdirSync(resolve(diffRoot, viewport.name), { recursive: true });
       writeFileSync(resolve(diffRoot, viewport.name, file), PNG.sync.write(diff));
-      failures.push(
-        `${label}: ${percent.toFixed(2)}% of pixels differ (limit ${MAX_DIFF_PERCENT}%)`
-      );
+      drifted(`${percent.toFixed(2)}% of pixels differ (limit ${MAX_DIFF_PERCENT}%)`);
     }
+  }
+  // A case the change adds has no baseline yet: its first capture becomes one.
+  const captured = resolve(captureRoot, viewport.name);
+  if (!existsSync(captured)) continue;
+  for (const file of readdirSync(captured)) {
+    const caseName = file.replace(/\.png$/, '');
+    if (!file.endsWith('.png') || !ADOPT.has(caseName) || SKIP.has(caseName)) continue;
+    if (existsSync(resolve(baselineRoot, viewport.name, file))) continue;
+    copyFileSync(resolve(captured, file), resolve(baselineRoot, viewport.name, file));
+    adopted.push(`${viewport.name}/${caseName}: new screen`);
   }
 }
 
 console.log(
   `visual diff: ${compared} screens compared, ${failures.length} drifted` +
+    (adopted.length ? `, ${adopted.length} to adopt as this change's new baselines` : '') +
     (PARTIAL ? `, ${notCaptured} not captured by this run` : '')
 );
+for (const line of adopted) console.log(`  ↻ ${line}`);
+if (adopted.length && process.env.GITHUB_STEP_SUMMARY)
+  appendFileSync(
+    process.env.GITHUB_STEP_SUMMARY,
+    [
+      `### ${adopted.length} screens to adopt as new baselines`,
+      '',
+      'They are screens this change draws (scripts/ci-affected.mjs). Adopt baselines commits them once the whole run is green.',
+      '',
+      ...adopted.map((line) => `- \`${line.replace(': ', '`: ')}`),
+      '',
+    ].join('\n')
+  );
 
 if (failures.length) {
   for (const failure of failures) console.error(`  ✗ ${failure}`);

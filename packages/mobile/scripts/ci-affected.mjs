@@ -246,6 +246,7 @@ export function selectChecks({ base, files, cases, ids, journeys = [], full = fa
     return {
       full: true,
       reasons,
+      adopt: [],
       cases: null,
       screens: ids.length,
       shards: shardsFor(ids.length, SUITES),
@@ -256,10 +257,7 @@ export function selectChecks({ base, files, cases, ids, journeys = [], full = fa
     };
   }
 
-  const screens = [...areas].flatMap((area) => AREAS[area].screens);
-  const selected = new Set(
-    cases.filter((testCase) => matches(screens, screenOf(testCase))).map(({ name }) => name)
-  );
+  const selected = new Set(casesOf(areas, cases));
   if (areas.size) SMOKE.forEach((name) => selected.add(name));
   // Narrow only when every area drawn has its own viewports; anything else runs them all.
   const narrow = areas.size > 0 && [...areas].every((area) => AREAS[area].viewports);
@@ -275,6 +273,7 @@ export function selectChecks({ base, files, cases, ids, journeys = [], full = fa
     full: false,
     reasons,
     areas: [...areas],
+    adopt: casesOf(areas, cases),
     cases: [...selected],
     screens: count,
     shards: shardsFor(count, suites),
@@ -285,6 +284,14 @@ export function selectChecks({ base, files, cases, ids, journeys = [], full = fa
     journeys: accounts && journeysOnly && journeys.length ? journeys : null,
   };
 }
+
+// The cases a change means to redraw: every screen of the areas its files draw. Their
+// drift is the change itself, and CI adopts it as their new baselines. A run that checks
+// everything (tokens, primitives, CI, the release test) adopts nothing: its drift stays red.
+const casesOf = (areas, cases) => {
+  const screens = [...areas].flatMap((area) => AREAS[area].screens);
+  return cases.filter((testCase) => matches(screens, screenOf(testCase))).map(({ name }) => name);
+};
 
 function shardsFor(screens, suites) {
   const total = Math.min(MAX_SHARDS, Math.ceil(screens / SCREENS_PER_SHARD));
@@ -312,6 +319,7 @@ function summarize(selection, base) {
     `Changes measured from \`${base ? base.slice(0, 7) : 'nothing'}\`.`,
     '',
     `- **UI grammar:** ${visual}; ${matrix} matrix shard(s)${suites.length ? `, ${suites.join(', ')}` : ''}`,
+    `- **Drift adopted on:** ${selection.adopt.length ? `the ${selection.adopt.length} cases this change draws, on a push` : 'nothing; any drift fails'}`,
     `- **Game e2e:** ${yes(selection.game)}`,
     `- **Account journeys:** ${yes(selection.accounts)}${selection.journeys ? `, the ${selection.journeys.length} that play through the table` : ''}`,
     '- **Mobile quality:** runs',
@@ -374,6 +382,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         `ui_cases=${selection.full ? '' : selection.cases.join(',')}`,
         `shards=${JSON.stringify(selection.shards)}`,
         `ui_viewports=${selection.viewports?.join(',') ?? ''}`,
+        `ui_adopt=${selection.adopt.join(',')}`,
         `game=${selection.game}`,
         `accounts=${selection.accounts}`,
         `account_specs=${selection.journeys?.join(' ') ?? ''}`,
