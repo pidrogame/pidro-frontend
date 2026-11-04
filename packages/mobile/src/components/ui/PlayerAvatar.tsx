@@ -633,7 +633,7 @@ function breathAt(from: number, at: number) {
 const BREATH_PHASES = Array.from({ length: 65 }, (_, step) => step / 64);
 const BREATH_DEPTHS = BREATH_PHASES.map((at) => (1 - breathAt(1, at)) / 0.65);
 /** One breath in or out; quicker when the timer runs low. */
-const BREATH_MS = 1100;
+const BREATH_MS = 2000;
 const URGENT_BREATH_MS = 450;
 /** Another player's shine, held still: present, but quieter than yours. */
 const OTHER_SHINE = 0.55;
