@@ -3,7 +3,7 @@
 The approved designs for the avatar, the table seats, the profile, leagues and the Tables screens, exported from Marcel's design canvas on 2026-10-14; the Tables boards were replaced on 2026-10-15 (PID-202), and the end-of-hand, game-over and share boards were added on 2026-10-16. The Friends and New table boards were added on 2026-10-19 (epics PID-239 and PID-240), and the password-seat boards the same day (PID-259). The canvas itself is private (https://claude.ai/artifact/QNDfktYA6aE65LywZGW7so), so this folder is the copy a ticket works from.
 
 - `boards/<Name>.png`: what it should look like. Phone boards are at 2×, wide boards at 1×.
-- `source/<Name>.html`: the same board as plain HTML and CSS. Open it in a browser, or read it for exact sizes, offsets and colours. The shared classes are in `source/pidro-ds-v2.css`.
+- `source/<Name>.html`: the same board as plain HTML and CSS. The status boards (PID-336) are in `source/status/`, with their own copy of the CSS and felt. Open it in a browser, or read it for exact sizes, offsets and colours. The shared classes are in `source/pidro-ds-v2.css`.
 
 The boards are drawn in CSS, not React Native. Read them as a spec: match the sizes, positions, order and wording. Build with the app's primitives and tokens (`src/design/README.md`), never by pasting a hex value into a screen. If a colour on a board has no token yet, add one to `src/design/tokens.ts` under a name that says what it is for.
 
@@ -47,6 +47,12 @@ Initials stand in for photos on the boards. In the app the avatar is the player'
 | `Win-Reveal`, `Lose-Reveal`, `Win-Compact`, `Win-Landscape` | Game over, won and lost, on a phone, a small phone (375×667) and in landscape. iPad uses the phone layouts at 1.25×, centred | Game over (PID-237) |
 | `Win-Beats` | The win beat by beat: picture, sound and haptic, Reduce Motion, the quieter loss | Game over (PID-237) |
 | `Share-Card` | The 1080×1920 story card shared from the win screen | Share the win (PID-238) |
+| `Status-Map` | Three layers, never mixed: who you are, what you earned, what is happening now; where each may show | Epic PID-336 |
+| `Status-Level` | The chip once you pass level 100; option A (stars take over the chip) is chosen, B and C are rejected | Level chip (PID-338) |
+| `Status-Seats`, `Small-Corners` | One meaning per corner at the table: dealer bottom left, bid top right, bot or offline bottom right | Level chip (PID-338) |
+| `Status-Profile` | Your own profile: hero, games · won · friends, next Legend star, medals, Classic years | Profile (PID-339) |
+| `Status-Player` | The sheet behind any player: chip and pin, presence, record, games together, Add friend | Player sheet (PID-340) |
+| `Status-Card` | The share card ("My card"); not built yet | Later |
 
 On `Friends-Add` the link card ends "…you’ll be friends straight away"; signing up through your link sends you a friend request instead, so the app's "…their friend request waits for you here." replaces the board's line.
 

@@ -1,0 +1,176 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="pidro-ds-v2.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bree+Serif&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap">
+<style>
+body{margin:0;font-family:"Nunito",sans-serif;color:#ffffff;background:#07264c}
+a{color:#8beaff}a:hover{color:#c4f4ff}
+</style>
+</head><body>
+
+<main class="felt" style="width: 1360px; height: 900px; box-sizing: border-box; padding: 40px; display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 32px">
+
+<section class="window" aria-label="Three layers" style="padding: 28px; display: flex; flex-direction: column; gap: 26px">
+<p class="eyebrow">Three layers, never mixed</p>
+
+<div style="position: relative; width: 150px; height: 150px; margin: 8px auto 6px">
+<svg class="turn-arc" width="182" height="182" viewBox="0 0 182 182" aria-hidden="true" style="left: -16px; top: -16px"><circle cx="91" cy="91" r="88" fill="none" stroke="rgba(139, 234, 255, 0.22)" stroke-width="4"></circle><circle cx="91" cy="91" r="88" fill="none" stroke="#c9f7ff" stroke-width="4" stroke-linecap="round" stroke-dasharray="330 553" transform="rotate(-90 91 91)"></circle></svg>
+<span class="ring" style="width: 150px; height: 150px; padding: 6px"><span class="face-initial" style="font-size: 66px">B</span></span>
+<span class="gem" style="left: 66px; top: -9px; width: 18px; height: 18px" aria-hidden="true"></span>
+<span class="lvl" aria-hidden="true" style="bottom: -14px; min-width: 60px; height: 30px; padding: 0 10px; font-size: 15px; background: linear-gradient(180deg, #F6DE9A 0%, #E2AF45 45%, #C4892A 100%); color: #3a1c05; border-color: #8F5E12">★4</span>
+<span class="dealer" aria-hidden="true" style="left: -14px; bottom: 4px; width: 36px; height: 36px; font-size: 19px">D</span>
+<span aria-hidden="true" style="position: absolute; right: -14px; top: -6px; width: 40px; height: 40px; box-sizing: border-box; border-radius: 999px; background: #0A2340; border: 3px solid #92e6b2; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 20px; color: #ffffff">9</span>
+</div>
+
+<ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 18px">
+<li style="display: flex; flex-direction: column; gap: 3px">
+<span class="label" style="color: #FFD447">1 · Who you are</span>
+<span class="meta">Face and ring. Shown everywhere, at every size, chat included. The ring is the only thing money buys: glass free, gold supporter, gold with a gem for Founding Supporters.</span>
+</li>
+<li style="display: flex; flex-direction: column; gap: 3px">
+<span class="label" style="color: #FFD447">2 · What you earned</span>
+<span class="meta">One chip under the face: the level, or a star count once you pass 100. Everything else you earned (title, pin, Classic years, medals) lives on the profile and the player sheet, one tap away.</span>
+</li>
+<li style="display: flex; flex-direction: column; gap: 3px">
+<span class="label" style="color: #FFD447">3 · What is happening now</span>
+<span class="meta">Table only: turn light, dealer D, bid, bot or offline. These take the corners. Nothing from layer 2 sits in a corner at the table.</span>
+</li>
+</ol>
+
+<p class="meta" style="margin-top: auto; color: rgba(239, 249, 255, 0.62)">Skill tier stays off the avatar: it belongs to Leagues. Two metals on one face (ring and tier) would read as one thing.</p>
+</section>
+
+<section class="window" aria-label="Where each status may show" style="padding: 24px 24px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0">
+<p class="eyebrow">Where each status may show</p>
+<div role="table" aria-label="Status by surface" style="display: flex; flex-direction: column">
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: end; gap: 6px; padding: 0 8px 10px; border-bottom: 1px solid rgba(184, 225, 246, 0.22)">
+<span role="columnheader" class="meta">Status</span>
+<span role="columnheader" class="meta" style="text-align: center; color: #8beaff">Table seat</span><span role="columnheader" class="meta" style="text-align: center; color: #8beaff">Lobby row</span><span role="columnheader" class="meta" style="text-align: center; color: #8beaff">Friend row</span><span role="columnheader" class="meta" style="text-align: center; color: #8beaff">Chat</span><span role="columnheader" class="meta" style="text-align: center; color: #8beaff">Player sheet</span><span role="columnheader" class="meta" style="text-align: center; color: #8beaff">Your profile</span><span role="columnheader" class="meta" style="text-align: center; color: #8beaff">Player card</span>
+<span role="columnheader" class="meta" style="text-align: right">Data today</span>
+</div>
+
+<div role="row" style="padding: 12px 8px 4px"><span role="cell" class="eyebrow" style="color: #FFD447">1 · Who you are</span></div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Face</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Photo, else a default</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Ring</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Glass · gold · gold + gem</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #ffb4b9">Not built (no IAP)</span>
+</div>
+
+
+<div role="row" style="padding: 12px 8px 4px"><span role="cell" class="eyebrow" style="color: #FFD447">2 · What you earned</span></div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Level chip</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">1 to 99, then 100</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Legend stars</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">One per 500k XP past 100</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #FFD447">Server only</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Title</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Rookie … Legend</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span style="font-weight: 900; font-size: 11px; color: #8beaff">tap</span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Pin, one worn</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Classic or Founding Tester</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span style="font-weight: 900; font-size: 11px; color: #8beaff">tap</span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #FFD447">Choice not saved</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Classic years</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Name, games, since</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Medals</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Achievements</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span style="font-weight: 900; font-size: 11px; color: #8beaff">tap</span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #FFD447">Server only</span>
+</div>
+
+
+<div role="row" style="padding: 12px 8px 4px"><span role="cell" class="eyebrow" style="color: #FFD447">3 · What is happening now</span></div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Turn light</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Also the timer</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Dealer, bid</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Bottom left, top right</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Bot or offline</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Bottom right</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+
+
+<div role="row" style="display: grid; grid-template-columns: 210px repeat(7, minmax(0, 1fr)) 120px; align-items: center; gap: 6px; min-height: 34px; padding: 0 8px; border-bottom: 1px solid rgba(184, 225, 246, 0.1)">
+<span role="cell" style="display: flex; flex-direction: column"><span class="label" style="font-size: 14px; line-height: 18px">Online, at a table</span><span class="meta" style="font-size: 11px; line-height: 14px; color: rgba(239, 249, 255, 0.6)">Presence dot</span></span>
+<span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="shows" style="display: block; width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span><span role="cell" style="display: flex; justify-content: center"><span role="img" aria-label="never" style="display: block; width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span></span>
+<span role="cell" class="meta" style="text-align: right; color: #92e6b2">Ready</span>
+</div>
+
+
+</div>
+<div style="display: flex; gap: 22px; margin-top: auto; padding: 8px 8px 0">
+<span class="meta" style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 12px; height: 12px; border-radius: 999px; background: #FFD447"></span>Shows</span>
+<span class="meta" style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="font-weight: 900; color: #8beaff">tap</span>One tap away</span>
+<span class="meta" style="display: flex; align-items: center; gap: 6px"><span aria-hidden="true" style="width: 12px; height: 12px; box-sizing: border-box; border-radius: 999px; border: 1.5px solid rgba(184, 225, 246, 0.35)"></span>Never there</span>
+</div>
+</section>
+</main>
+
+</body></html>
