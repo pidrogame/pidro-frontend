@@ -819,15 +819,34 @@ async function stageFourLegendSeat() {
     headless: true,
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
   });
+  let keepSeat;
   try {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     await signInThroughUi(page, legend);
     await page.goto(`${mobileBaseUrl}/game/${roomCode}`, { waitUntil: 'domcontentloaded' });
     await confirmInitialTable([page], '[data-testid="game-table"]');
+    // The phone only watches: the player bids and plays over the protocol, so
+    // the hand gets a bid, and the seat is never sent away for missed turns.
+    runAutoplayer(
+      ['--room', roomCode, '--user', legend, '--password', password, '--max-minutes', '3'],
+      'legend'
+    ).catch(() => {});
+    keepSeat = setInterval(() => {
+      void page
+        .getByTestId('game-away-window')
+        .isVisible()
+        .then((away) =>
+          away
+            ? page.getByRole('button', { name: "I'm back" }).click({ timeout: 3_000 })
+            : undefined
+        )
+        .catch(() => {});
+    }, 500);
     // The cut lasts three seconds; the chip shows only until the deal.
     await page.waitForFunction(
-      () => document.querySelector('[data-testid="seat-south-level"]')?.textContent?.trim() === '★4',
+      () =>
+        document.querySelector('[data-testid="seat-south-level"]')?.textContent?.trim() === '★4',
       null,
       { timeout: 20_000 }
     );
@@ -861,6 +880,8 @@ async function stageFourLegendSeat() {
       `stage 4 passed: ${d.seat} at (${Math.round(d.x)}, ${Math.round(d.y)}), ${b.seat} at (${Math.round(b.x)}, ${Math.round(b.y)})`
     );
   } finally {
+    clearInterval(keepSeat);
+    killChildren();
     await browser.close();
     await api('/api/v1/rooms/current/leave', 'DELETE', token).catch(() => {});
   }
