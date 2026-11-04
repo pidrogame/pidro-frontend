@@ -1,0 +1,39 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="pidro-ds-v2.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bree+Serif&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap">
+<style>
+body{margin:0;font-family:"Nunito",sans-serif;color:#ffffff;background:#07264c}
+a{color:#8beaff}a:hover{color:#c4f4ff}
+a:focus-visible,textarea:focus-visible{outline:2px solid #FFD447;outline-offset:2px}
+.note{box-sizing:border-box;display:flex;flex-direction:column;gap:6px;padding:12px 14px;border-radius:14px;background:#fbfbf7;border:1px solid rgba(0,0,0,.25);box-shadow:0px 8px 22px rgba(0,0,0,.45);flex:1 1 0;min-height:0}
+.ink{flex:1 1 0;min-height:0;width:100%;box-sizing:border-box;padding:0;margin:0;border:0;outline:none;resize:none;background:transparent;font-family:"Nunito",sans-serif;font-weight:700;font-size:19px;line-height:27px;color:#0d2238}
+.ink::placeholder{color:#566676;opacity:1}
+.ctx{align-self:flex-start;box-sizing:border-box;display:inline-flex;align-items:center;gap:6px;max-width:100%;height:28px;padding:0 10px;border-radius:999px;background:#e6edf3;font-family:"Nunito",sans-serif;font-weight:800;font-size:13px;color:#0A2340;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.reply{display:flex;align-items:center;gap:8px;min-height:28px}
+.reply .tx{flex:1;min-width:0;font-weight:700;font-size:14px;line-height:19px;color:rgba(239,249,255,.86);margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</head><body>
+
+<main class="felt" aria-label="Write back" style="width: 390px; height: 844px; box-sizing: border-box">
+<div class="scrim" style="background: rgba(2, 14, 28, 0.72)"></div>
+
+<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="wb-title" style="position: absolute; left: 0; right: 0; bottom: 0; height: 540px; border-radius: 22px 22px 0 0; padding: 10px 20px 34px; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box">
+<span class="grabber" style="align-self: center; flex-shrink: 0"></span>
+<div style="display: flex; align-items: flex-start; gap: 12px; flex-shrink: 0">
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+<h2 id="wb-title" class="display" style="font-size: 26px; line-height: 32px">Hey, I’m Marcel.</h2>
+<p class="body" style="font-size: 16px; line-height: 22px; color: rgba(239,249,255,.9)">What do you think? Every answer comes to me.</p>
+</div>
+<a class="glass" href="Doors-News.dc.html" aria-label="Close" style="width: 44px; height: 44px; flex-shrink: 0"><span class="face"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#CFEFFF" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></span></a>
+</div>
+
+<div class="note">
+<span class="ctx"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0A2340" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg>The table sounds like Pidro again</span>
+<textarea class="ink" aria-label="Your answer" placeholder="Write it here, or tap the microphone on your keyboard and say it."></textarea>
+</div>
+
+<div class="reply" style="flex-shrink: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8beaff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M3 7l9 6 9-6"></path></svg><p class="tx">We’ll answer at bengt@example.com</p></div>
+<a class="wood" href="Doors-News.dc.html" style="width: 100%; height: 56px; flex-shrink: 0; opacity: .55"><span class="face" style="font-size: 20px">Send</span></a>
+</section>
+</main>
+
+</body></html>

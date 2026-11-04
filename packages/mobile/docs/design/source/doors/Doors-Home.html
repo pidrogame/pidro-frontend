@@ -1,0 +1,51 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="pidro-ds-v2.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bree+Serif&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap">
+<style>
+body{margin:0;font-family:"Nunito",sans-serif;color:#ffffff;background:#07264c}
+a{color:#8beaff}a:hover{color:#c4f4ff}
+a:focus-visible{outline:2px solid #FFD447;outline-offset:2px}
+.rays{position:absolute;border-radius:999px;background:repeating-conic-gradient(from 0deg,rgba(255,255,255,.08) 0deg 6deg,rgba(255,255,255,0) 6deg 18deg);-webkit-mask-image:radial-gradient(circle,#000 0%,rgba(0,0,0,.5) 30%,transparent 62%);mask-image:radial-gradient(circle,#000 0%,rgba(0,0,0,.5) 30%,transparent 62%)}
+.htile{box-sizing:border-box;display:flex;flex:1 1 0;min-width:0}
+.htile .face{flex-direction:column;gap:2px;padding:10px;text-align:center}
+.door{position:relative;width:44px;height:44px;flex-shrink:0;text-decoration:none}
+.unread{position:absolute;right:-2px;top:-2px;width:12px;height:12px;border-radius:999px;background:#46dcff;border:2px solid #07264c;box-sizing:border-box}
+.on-count{position:absolute;display:flex;align-items:center;gap:3px;height:20px;padding:0 6px 0 5px;border-radius:999px;background:#2fbf71;border:2px solid #07264c;box-sizing:border-box;font-weight:900;font-size:12px;line-height:16px;color:#05240f}
+.on-count i{width:6px;height:6px;border-radius:999px;background:#eafff2;display:block}
+.req-count{position:absolute;display:flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#c8262c;border:2px solid #07264c;box-sizing:border-box;font-weight:900;font-size:12px;line-height:16px;color:#ffffff}
+.ptab{position:relative}
+</style>
+</head><body>
+
+<main class="felt" aria-label="Home" style="width: 390px; height: 844px; box-sizing: border-box">
+<span class="rays" style="left: -235px; top: -60px; width: 860px; height: 860px"></span>
+<img src="pidro-logo.png" alt="Pidro" style="position: absolute; left: 50%; top: 270px; width: 290px; transform: translateX(-50%)">
+
+<header style="position: absolute; left: 16px; right: 16px; top: 59px; display: flex; align-items: center; gap: 10px">
+<span style="position: relative; width: 48px; height: 48px; flex-shrink: 0"><span class="ring" style="width: 48px; height: 48px; padding: 2.5px"><span class="face-initial" style="font-size: 20px">B</span></span><span class="lvl" style="bottom: -7px; min-width: 24px; height: 16px; padding: 0 4px; font-size: 10px">44</span></span>
+<span style="display: flex; flex-direction: column; flex: 1; min-width: 0"><span class="label" style="font-size: 18px; line-height: 23px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Bengt</span><span class="meta" style="font-size: 13px; line-height: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">2,076 games · Level 44</span></span>
+<div style="display: flex; align-items: center; gap: 10px">
+
+<a class="glass door" href="Doors-News.dc.html" aria-label="News, new posts"><span class="face"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#CFEFFF" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h10A1.5 1.5 0 0 1 17 5.5V18a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2zM17 9h2.5A1.5 1.5 0 0 1 21 10.5V18a2 2 0 0 1-4 0M7.5 8h6M7.5 11.5h6M7.5 15h3.5"></path></svg></span>
+<span class="unread" aria-hidden="true"></span>
+</a>
+</div>
+</header>
+
+<div style="position: absolute; left: 16px; right: 16px; bottom: 118px; height: 176px; display: flex; gap: 14px">
+<span class="glass htile" style="border-radius: 18px"><span class="face" style="border-radius: 16px"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#CFEFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="8" width="16" height="12" rx="3"></rect><path d="M12 4v4M9 13v1.5M15 13v1.5M2 13v3M22 13v3"></path></svg><span style="font-family: 'Nunito', sans-serif; font-weight: 900; font-size: 20px">Quick game</span><span style="font-size: 14px; font-weight: 700">You and three bots</span></span></span>
+<span class="wood htile"><span class="face" style="flex-direction: column; gap: 2px; padding: 10px; text-align: center"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#FFD447" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19c.6-3 2.8-5 5.5-5s4.9 2 5.5 5"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M16 14.2c2.3.3 4 2.1 4.5 4.8"></path></svg><span style="font-size: 21px">Play online</span><span style="font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 700; color: #FFF4D6">Real players</span></span></span>
+</div>
+
+<nav class="tabbar" aria-label="Main" style="position: absolute; left: 25px; right: 25px; bottom: 26px">
+<span class="tab"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="9" r="5"></circle><path d="M9 13.5L8 21l4-2 4 2-1-7.5"></path></svg>League</span>
+<span class="tab"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 20v-6M12 20V4M18 20v-9"></path></svg>Profile</span>
+<span class="spade"><svg width="22" height="22" viewBox="0 0 24 24" fill="#FFD447" aria-hidden="true"><path d="M12 3c-3 3.6-7 6.2-7 10 0 2.2 1.7 3.8 3.8 3.8 1.2 0 2.2-.5 2.7-1.3-.2 1.7-.9 3.2-2.3 4.5h5.6c-1.4-1.3-2.1-2.8-2.3-4.5.5.8 1.5 1.3 2.7 1.3 2.1 0 3.8-1.6 3.8-3.8 0-3.8-4-6.4-7-10z"></path></svg></span>
+<span class="tab ptab" aria-label="Friends, 2 online now"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3"></circle><path d="M3.5 19c.6-3 2.8-5 5.5-5s4.9 2 5.5 5"></path><circle cx="17" cy="9" r="2.5"></circle><path d="M16 14.2c2.3.3 4 2.1 4.5 4.8"></path></svg>Friends
+
+<span class="on-count" style="right: -10px; top: -8px"><i></i>2</span>
+</span>
+<span class="tab"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"></path></svg>Settings</span>
+</nav>
+</main>
+
+</body></html>
