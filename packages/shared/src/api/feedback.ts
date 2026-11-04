@@ -17,7 +17,14 @@ export type OldPidroAnswer = 'worse' | 'same' | 'better';
 export type FeedbackAnswer = PaceAnswer | OldPidroAnswer;
 
 export type FeedbackRequest =
-  | { kind: 'note'; body: string; reply_email?: string; details: FeedbackNoteDetails }
+  | {
+      kind: 'note';
+      body: string;
+      reply_email?: string;
+      details: FeedbackNoteDetails;
+      /** A Write back answers this news post. */
+      news_post_id?: number;
+    }
   | { kind: 'pace'; answer: PaceAnswer | 'skipped'; game_id: string }
   | { kind: 'old_pidro'; answer: OldPidroAnswer | 'skipped'; game_id: string };
 

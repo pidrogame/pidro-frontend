@@ -77,6 +77,7 @@ export {
   type OldPidroAnswer,
   type PaceAnswer,
 } from './feedback';
+export { createNewsApi, type NewsApi, type NewsPage, type NewsPost } from './news';
 export {
   type CreateRoomResponse,
   createLobbyApi,
