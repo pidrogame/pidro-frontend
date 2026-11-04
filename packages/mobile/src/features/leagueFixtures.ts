@@ -1,4 +1,23 @@
 import type { LeagueState, LeagueStanding } from '@pidro/shared';
+import samplePlaced from './leagueSamples/placed.json';
+import sampleNotPlaced from './leagueSamples/not_placed.json';
+import sampleHidden from './leagueSamples/opted_out.json';
+import sampleGuest from './leagueSamples/guest.json';
+import sampleOff from './leagueSamples/off.json';
+import sampleUp from './leagueSamples/pending_up.json';
+import sampleStayed from './leagueSamples/pending_stayed.json';
+import sampleDown from './leagueSamples/pending_down.json';
+
+const samples = {
+  placed: samplePlaced,
+  not_placed: sampleNotPlaced,
+  opted_out: sampleHidden,
+  guest: sampleGuest,
+  off: sampleOff,
+  pending_up: sampleUp,
+  pending_stayed: sampleStayed,
+  pending_down: sampleDown,
+};
 
 export const LEAGUE_FIXTURE_NOW = new Date('2026-11-06T19:00:00Z');
 
@@ -18,10 +37,8 @@ const standings: LeagueStanding[] = Array.from({ length: 30 }, (_, index) => ({
 }));
 
 const placed: LeagueState = {
-  status: 'placed',
-  league: 'jack',
-  week: { starts_at: '2026-11-01T19:00:00Z', closes_at: '2026-11-08T19:00:00Z' },
-  room: { size: 30, promote: 5, demote: 5, standings },
+  ...(samplePlaced as LeagueState),
+  room: { ...samplePlaced.room, standings },
   me: { place: 6, points: 1240 },
   last_week: null,
   pending_result: null,
@@ -45,9 +62,12 @@ const placed: LeagueState = {
 export function leagueFixture(value?: string): LeagueState | null {
   if (!__DEV__ || !value?.startsWith('league-')) return null;
   const state = value.slice(7);
+  if (state.startsWith('sample-'))
+    return structuredClone(samples[state.slice(7) as keyof typeof samples]) as LeagueState;
   const data = structuredClone(placed);
   if (state.startsWith('result-')) {
-    const move = state.slice(7) as 'up' | 'stayed' | 'down';
+    const earnedStar = state === 'result-star';
+    const move = earnedStar ? 'stayed' : (state.slice(7) as 'up' | 'stayed' | 'down');
     const next = move === 'up' ? 'ace' : move === 'down' ? 'ten' : 'jack';
     data.league = next;
     data.pending_result = {
@@ -64,9 +84,9 @@ export function leagueFixture(value?: string): LeagueState | null {
         month: '2026-10',
         league: move === 'up' ? 'ace' : 'jack',
         changed: move === 'up',
-        star: false,
-        star_possible: move === 'up',
-        weeks_played: 3,
+        star: earnedStar,
+        star_possible: earnedStar || move === 'up',
+        weeks_played: earnedStar ? 4 : 3,
         weeks_total: 4,
         so_far: true,
       },

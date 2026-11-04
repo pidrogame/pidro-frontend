@@ -1066,3 +1066,25 @@ star eligibility come from the server, not participation inferred on the client.
 Grammar cases `league-result-<move>-en|sv` and `league-ribbons-shelf|expanded-en|sv`
 measure the sheets at all four league sizes. The Profile itself retains its
 existing scrolling layout; only the expanded ribbon sheet must fit without scrolling.
+
+`/league?fixture=league-friends` and `league-friends-not_placed` add Mirja (Ace,
+third) and Kalle (Ten, twelfth). Tap a row for the existing friend sheet. Grammar
+cases `league-friends|friends-not_placed|friends-sheet-en|sv` cover all four sizes;
+empty friend sections stay absent.
+
+`/settings?fixture=league-placed` previews the registered player's switch and its
+midweek confirmation; `league-opted_out` previews it on. Grammar cases
+`league-settings-visible|hidden|confirm|failed|guest|off-en|sv` use the real API
+client with routed raw responses. They exercise cancel, hide, show, retained state
+after a failed PUT, guest/off suppression, and confirmation containment at all
+four sizes. Settings keeps its existing scrolling layout.
+
+`/league?fixture=league-sample-<name>` consumes the eight unchanged backend samples
+in `src/features/leagueSamples/`: `placed`, `not_placed`, `opted_out`, `guest`,
+`off`, `pending_up`, `pending_stayed`, `pending_down`. Source: backend `main`
+commit `64621603f3454f7cf9f42ef85a28b7640d2a299a`,
+`apps/pidro_server/priv/league_samples/`. The board fixture starts from the published
+placed response, overriding its presentation data for the exact board comparison.
+The `league-sample-*` grammar cases acknowledge intro/result sheets before measuring
+the supplied standings. League grammar cases isolate unrelated HTTP calls so fake
+fixture tokens cannot sign themselves out against a running real backend.

@@ -637,7 +637,7 @@ const allCases = [
     authenticated: true,
     league: 'profile',
   },
-  ...['up', 'stayed', 'down'].flatMap((move) =>
+  ...['up', 'stayed', 'down', 'star'].flatMap((move) =>
     ['en', 'sv'].map((locale) => ({
       name: `league-result-${move}-${locale}`,
       path: `/home?fixture=league-result-${move}`,
@@ -664,6 +664,33 @@ const allCases = [
       testId: 'league-screen',
       authenticated: true,
       league: state,
+      locale,
+    }))
+  ),
+  ...[
+    'placed',
+    'not_placed',
+    'opted_out',
+    'guest',
+    'off',
+    'pending_up',
+    'pending_stayed',
+    'pending_down',
+  ].map((state) => ({
+    name: `league-sample-${state}`,
+    path: `/league?fixture=league-sample-${state}`,
+    testId: 'league-screen',
+    authenticated: true,
+    league: `sample-${state}`,
+  })),
+  ...['visible', 'hidden', 'confirm', 'failed', 'guest', 'off'].flatMap((state) =>
+    ['en', 'sv'].map((locale) => ({
+      name: `league-settings-${state}-${locale}`,
+      path: '/settings',
+      testId: 'settings-screen',
+      authenticated: true,
+      authFixture: state === 'guest' ? guestAuthFixture : authFixture,
+      league: `settings-${state}`,
       locale,
     }))
   ),
@@ -7390,6 +7417,96 @@ async function assertLeague(page, testCase, viewport) {
   const state = testCase.league;
   const root = page.getByTestId(testCase.testId);
   assertInsideViewport(testCase.name, await root.boundingBox(), viewport);
+  if (state.startsWith('sample-')) {
+    const sample = JSON.parse(
+      await readFile(
+        resolve(mobileRoot, `src/features/leagueSamples/${state.slice(7)}.json`),
+        'utf8'
+      )
+    );
+    if (['placed', 'not_placed'].includes(sample.status)) {
+      await page.getByTestId('league-got-it').click();
+      await page.getByTestId('league-intro').waitFor({ state: 'detached' });
+    }
+    if (sample.pending_result) {
+      const result = page.getByTestId('league-result');
+      await result.waitFor();
+      await page.waitForTimeout(400);
+      await assertAccountSurfaceFits(result, testCase.name, viewport);
+      await page.getByTestId('league-result-close').click();
+      await result.waitFor({ state: 'detached' });
+    }
+    if (sample.room?.promote) {
+      const row = await page.getByTestId(`league-row-${sample.room.promote}`).boundingBox();
+      const divider = await page.getByTestId('league-up-divider').boundingBox();
+      assert.ok(
+        Math.abs(divider.y - row.y - row.height) <= 4,
+        'published server band follows the supplied row'
+      );
+    }
+    await assertMinimumTouchTargets(page, testCase.testId, viewport);
+    return;
+  }
+  if (state.startsWith('settings-')) {
+    const row = page.getByTestId('settings-league');
+    if (state === 'settings-guest' || state === 'settings-off') {
+      assert.equal(await row.count(), 0, 'no league switch for guests or disabled leagues');
+      return;
+    }
+    await row.scrollIntoViewIfNeeded();
+    assertInsideViewport('league preference', await row.boundingBox(), viewport);
+    const toggle = row.getByRole('switch');
+    assert.equal(await toggle.getAttribute('aria-checked'), String(state === 'settings-hidden'));
+    const box = await toggle.boundingBox();
+    assert.ok(box.width >= 44 && box.height >= 44, 'league switch has a 44pt target');
+    if (state === 'settings-confirm' || state === 'settings-failed') {
+      await toggle.click();
+      const confirm = page.getByTestId('league-hide-confirm');
+      await confirm.waitFor();
+      await page.waitForTimeout(400);
+      await assertAccountSurfaceFits(confirm.locator('..'), testCase.name, viewport);
+      await mkdir(resolve(screenshotRoot, viewport.name), { recursive: true });
+      await page.screenshot({
+        path: resolve(screenshotRoot, viewport.name, `${testCase.name}-dialog.png`),
+      });
+      await page
+        .getByRole('link', { name: testCase.locale === 'sv' ? 'Avbryt' : 'Cancel', exact: true })
+        .click();
+      assert.equal(await toggle.getAttribute('aria-checked'), 'false', 'cancel keeps membership');
+      await toggle.click();
+      const hide = confirm.getByRole('button', {
+        name: testCase.locale === 'sv' ? 'Dölj mig i ligorna' : 'Hide me from leagues',
+        exact: true,
+      });
+      if (state === 'settings-failed') {
+        await hide.click();
+        await confirm.getByRole('alert').waitFor();
+        assert.equal(
+          await toggle.getAttribute('aria-checked'),
+          'false',
+          'failed PUT keeps membership'
+        );
+        await assertAccountSurfaceFits(confirm.locator('..'), testCase.name, viewport);
+      } else {
+        await hide.click();
+        await confirm.waitFor({ state: 'detached' });
+        await page.waitForFunction(
+          () =>
+            document
+              .querySelector('[data-testid="settings-league"] [role="switch"]')
+              ?.getAttribute('aria-checked') === 'true'
+        );
+        await toggle.click();
+        await page.waitForFunction(
+          () =>
+            document
+              .querySelector('[data-testid="settings-league"] [role="switch"]')
+              ?.getAttribute('aria-checked') === 'false'
+        );
+      }
+    }
+    return;
+  }
   if (state === 'intro') await assertAccountSurfaceFits(root, testCase.name, viewport);
   if (state.startsWith('result-')) {
     // Reanimated's 350ms card entry is not a browser CSS transition.
@@ -7398,12 +7515,19 @@ async function assertLeague(page, testCase, viewport) {
     assert.match(await root.innerText(), testCase.locale === 'sv' ? /12 oktober/i : /12 October/i);
     const promise = testCase.locale === 'sv' ? 'Spela nästa vecka också' : 'Play next week too';
     assert.equal((await root.innerText()).includes(promise), state === 'result-up');
+    const earned =
+      testCase.locale === 'sv' ? 'Ditt band har en stjärna.' : 'Your ribbon has a star.';
+    assert.equal((await root.innerText()).includes(earned), state === 'result-star');
     await assertMinimumTouchTargets(page, testCase.testId, viewport);
     return;
   }
   if (state.startsWith('ribbons-')) {
     const shelf = page.getByTestId('profile-ribbons');
-    await shelf.scrollIntoViewIfNeeded();
+    await shelf.evaluate((node) => node.scrollIntoView({ block: 'center' }));
+    assert.ok(
+      !boxesOverlap(await shelf.boundingBox(), await page.getByTestId('tab-pill').boundingBox()),
+      'the complete ribbon shelf can scroll clear of the pill'
+    );
     assert.equal(await shelf.getByTestId('league-ribbon').count(), 12);
     assert.equal(await shelf.getByTestId('league-ribbon-star').count(), 4);
     if (state === 'ribbons-expanded') {
@@ -7734,9 +7858,39 @@ async function main() {
             })
           );
         }
-        if (testCase.name === 'game-away' || testCase.name.startsWith('friend-notice-')) {
+        if (
+          testCase.league ||
+          testCase.name === 'game-away' ||
+          testCase.name.startsWith('friend-notice-')
+        ) {
           // These deterministic fixtures need no server, even beside a live e2e backend.
           await page.route('**/api/v1/**', (route) => route.abort());
+        }
+        if (testCase.league?.startsWith('settings-')) {
+          const state = testCase.league.slice(9);
+          const sample =
+            state === 'hidden'
+              ? 'opted_out'
+              : state === 'off' || state === 'guest'
+                ? state
+                : 'placed';
+          let data = JSON.parse(
+            await readFile(resolve(mobileRoot, `src/features/leagueSamples/${sample}.json`), 'utf8')
+          );
+          data.intro_seen = true;
+          data.pending_result = null;
+          await page.route('**/api/v1/league', (route) => route.fulfill({ json: data }));
+          let failed = false;
+          await page.route('**/api/v1/league/hidden', async (route) => {
+            if (state === 'failed' && !failed) {
+              failed = true;
+              return route.fulfill({ status: 500, json: { error: 'Unavailable' } });
+            }
+            const { hidden } = route.request().postDataJSON();
+            assert.equal(typeof hidden, 'boolean');
+            data = { ...data, status: hidden ? 'opted_out' : 'not_placed', room: null, me: null };
+            await route.fulfill({ json: data });
+          });
         }
         if (testCase.name === 'lobby-player-sheet') {
           await page.route('**/api/v1/profiles/**', (route) =>
@@ -8245,6 +8399,18 @@ async function main() {
           if (testCase.league?.startsWith('result-')) {
             await page.getByTestId('league-result-close').click();
             await page.getByTestId('league-result').waitFor({ state: 'detached' });
+          }
+          if (testCase.league === 'settings-failed') {
+            await page.getByTestId('league-hide-confirm').getByRole('button').click();
+            await page.getByTestId('league-hide-confirm').waitFor({ state: 'detached' });
+            assert.equal(
+              await page
+                .getByTestId('settings-league')
+                .getByRole('switch')
+                .getAttribute('aria-checked'),
+              'true',
+              'retry adopts the successful server response'
+            );
           }
           // The welcome covers Home on purpose until Let's play.
           // So does an open sheet, on purpose.

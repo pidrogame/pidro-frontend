@@ -12,6 +12,10 @@ import { ActionPill } from '@/components/ui/ActionPill';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
+import { Modal } from '@/components/ui/Modal';
+import { BevelButton } from '@/components/ui/BevelButton';
+import { TextLink } from '@/components/ui/TextLink';
+import { useLeague } from '@/components/league/LeagueHost';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { AppUpdateSection } from '@/components/settings/AppUpdateSection';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
@@ -43,6 +47,10 @@ export function SettingsScreen({
   const pace = useSettingsStore((state) => state.pace);
   const setPace = useSettingsStore((state) => state.setPace);
   const signedIn = useAuthStore((state) => Boolean(state.user));
+  const registered = useAuthStore((state) => Boolean(state.user && !state.user.guest));
+  const { data: league, busy: leagueBusy, setHidden } = useLeague();
+  const [hideConfirm, setHideConfirm] = useState(false);
+  const [leagueFailed, setLeagueFailed] = useState(false);
   const tells = useAuthStore((state) => canTell(state.user));
   const preferredRuleSet = useSettingsStore((state) => state.preferredRuleSet);
   const setPreferredRuleSet = useSettingsStore((state) => state.setPreferredRuleSet);
@@ -51,6 +59,13 @@ export function SettingsScreen({
   const [fixtureChoice, setFixtureChoice] = useState<RuleSet | undefined>();
   const tell = __DEV__ ? tellFixture(fixture) : null;
   const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
+
+  const changeHidden = (hidden: boolean) => {
+    setLeagueFailed(false);
+    void setHidden(hidden)
+      .then(() => setHideConfirm(false))
+      .catch(() => setLeagueFailed(true));
+  };
 
   return (
     <ScreenShell
@@ -69,6 +84,33 @@ export function SettingsScreen({
           <LanguageSelector />
         </View>
         <View style={styles.preferencesColumn}>
+          {registered && league && league.status !== 'guest' && league.status !== 'off' ? (
+            <>
+              <Surface variant="subtle" style={styles.row} testID="settings-league">
+                <View style={styles.rowCopy}>
+                  <PidroText role="label">{t('league.settings.hidden')}</PidroText>
+                  <PidroText role="metadata" tone="muted">
+                    {t('league.settings.help')}
+                  </PidroText>
+                </View>
+                <PidroSwitch
+                  accessibilityLabel={t('league.settings.hidden')}
+                  value={league.status === 'opted_out'}
+                  disabled={leagueBusy}
+                  onValueChange={(hidden) => {
+                    setLeagueFailed(false);
+                    if (hidden && league.status === 'placed') setHideConfirm(true);
+                    else changeHidden(hidden);
+                  }}
+                />
+              </Surface>
+              {leagueFailed && !hideConfirm ? (
+                <PidroText role="metadata" tone="danger" accessibilityRole="alert">
+                  {t('league.settings.error')}
+                </PidroText>
+              ) : null}
+            </>
+          ) : null}
           <Surface variant="subtle" style={styles.rulesRow} testID="settings-preferred-rules">
             <PidroText role="label">{t('rules.preferred')}</PidroText>
             <RuleSetSelector
@@ -121,6 +163,31 @@ export function SettingsScreen({
       </Surface>
       {signedIn ? <AccountSection /> : null}
       <AppUpdateSection />
+      <Modal
+        isOpen={hideConfirm}
+        onClose={() => !leagueBusy && setHideConfirm(false)}
+        title={t('league.settings.hidden')}
+        description={t('league.settings.midweek')}
+        supportedOrientations={['portrait', 'landscape']}>
+        <View testID="league-hide-confirm">
+          {leagueFailed ? (
+            <PidroText role="metadata" tone="danger" accessibilityRole="alert">
+              {t('league.settings.error')}
+            </PidroText>
+          ) : null}
+          <BevelButton
+            label={t('league.settings.hidden')}
+            fullWidth
+            loading={leagueBusy}
+            onPress={() => changeHidden(true)}
+          />
+          <TextLink
+            label={t('common.cancel')}
+            disabled={leagueBusy}
+            onPress={() => setHideConfirm(false)}
+          />
+        </View>
+      </Modal>
       {tells ? (
         <FeedbackSheet open={tellOpen} fixture={tell?.sheet} onClose={() => setTellOpen(false)} />
       ) : null}
