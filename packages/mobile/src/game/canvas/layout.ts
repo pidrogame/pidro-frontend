@@ -731,6 +731,7 @@ export function utilityDockReserve(height: number): number {
 }
 
 export function pickProfile(w: number, h: number): Profile {
+  // The lobby picks its layout here too (app/lobby.tsx).
   const tablet = Math.min(w, h) >= 600; // shortest-side breakpoint; browser window counts as tablet
   const landscape = w > h;
   return `${tablet ? 'tablet' : 'phone'}-${landscape ? 'landscape' : 'portrait'}` as Profile;
