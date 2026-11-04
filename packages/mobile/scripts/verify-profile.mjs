@@ -116,9 +116,10 @@ try {
   await page.goto(baseURL);
   await button('Open your profile').click();
   await visible(button('Edit bio'));
-  await visible(page.getByText('Mainstay · Level 44', { exact: true }));
+  await visible(page.getByText('Mainstay', { exact: true }));
+  await visible(page.getByText('Level 44 · Pidro player since 2012', { exact: true }));
   await visible(page.getByText('3,680 XP to Level 45', { exact: true }));
-  for (const label of ['Games played: 2,076', 'Wins: 1,131', 'Win rate: 54%']) {
+  for (const label of ['Games played: 2,076', 'Win rate: 54%']) {
     await visible(page.getByTestId('profile-record').getByLabel(label, { exact: true }));
   }
   await assertMinimumTouchTargets(page, 'profile', { name: 'portrait' });
@@ -129,7 +130,7 @@ try {
   assert.equal(await avatarButton.getAttribute('aria-label'), 'Your photo and ring');
   const pinOnAvatar = () => avatarButton.locator('svg').count();
   const pinned = await pinOnAvatar();
-  await button('Old Pidro · Level 42').click();
+  await button('Old Pidro').click();
   const sheet = page.getByTestId('badge-sheet');
   await visible(sheet.getByText('Old Pidro · Level 42 · 1,284 games as SofiaClassic'));
   const radio = (name) => sheet.getByRole('radio', { name: new RegExp(`^${name}\\.`) });
@@ -578,10 +579,10 @@ try {
   // Sign out lives in Settings. Leaving with a draft asks first, as Back does.
   await button('Add bio').click();
   await input.fill('Unsaved sign-out draft.');
-  await button('Account and sign-in').click();
+  await button('Account and sign-in').getByText('Account and sign-in', { exact: true }).click();
   await button('Keep editing').click();
   assert.equal(await input.inputValue(), 'Unsaved sign-out draft.');
-  await button('Account and sign-in').click();
+  await button('Account and sign-in').getByText('Account and sign-in', { exact: true }).click();
   await button('Discard changes').click();
   await page.waitForURL(/\/settings$/);
   await visible(page.getByText('sofia@example.com', { exact: true }));

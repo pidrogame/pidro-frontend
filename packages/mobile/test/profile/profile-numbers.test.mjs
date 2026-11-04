@@ -2,8 +2,13 @@ import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
 import {
   classicPinLine,
+  classicRecordLine,
+  legendProgress,
   levelProgress,
+  medalShelf,
   monthName,
+  sinceYear,
+  titleLine,
   veteranTitle,
   winRate,
   wornPin,
@@ -88,4 +93,90 @@ it('retranslates profile helpers on invocation without changing identity or prog
   } finally {
     setLocale('en');
   }
+});
+
+describe('the year a player started', () => {
+  it('is the Classic year for a Classic player, else the account year', () => {
+    const first_seen_at = '2026-09-12T10:00:00Z';
+    expect(sinceYear({ classic: { member_since: '2011-05-14T08:30:00Z' }, first_seen_at })).toBe(
+      2011
+    );
+    // Classic without a date: no year, rather than this year.
+    expect(sinceYear({ classic: { name: 'Bengt64' }, first_seen_at })).toBeNull();
+    expect(sinceYear({ classic: null, first_seen_at })).toBe(2026);
+    expect(sinceYear({ classic: null, first_seen_at: null })).toBeNull();
+  });
+});
+
+describe('the title line', () => {
+  it('names the stars in gold from level 100, and the title below it', () => {
+    expect(titleLine({ level: 100, title: 'Legend', prestige: 4 })).toEqual({
+      text: 'Legend ★4',
+      legend: true,
+    });
+    expect(titleLine({ level: 100, title: 'Legend', prestige: 0 })).toEqual({
+      text: 'Legend',
+      legend: true,
+    });
+    expect(titleLine({ level: 44, title: 'Mainstay', prestige: 0 })).toEqual({
+      text: 'Mainstay',
+      legend: false,
+    });
+  });
+});
+
+describe('the next Legend star', () => {
+  it('counts toward the star after the ones you hold', () => {
+    const next = legendProgress({ level: 100, prestige: 4, prestige_progress: [366127, 500000] });
+    expect(next.next).toBe('Next: Legend ★5');
+    expect(next.caption).toBe(`${(133873).toLocaleString()} XP to go`);
+    expect(next.fraction).toBeCloseTo(366127 / 500000);
+    // At 100 with no star yet, the first star is next.
+    expect(legendProgress({ level: 100, prestige: 0, prestige_progress: [0, 500000] }).next).toBe(
+      'Next: Legend ★1'
+    );
+  });
+
+  it('is nothing below level 100, where the level bar stays', () => {
+    expect(legendProgress({ level: 99, prestige: 0, prestige_progress: null })).toBeNull();
+    expect(legendProgress(undefined)).toBeNull();
+  });
+});
+
+describe('the medals shelf', () => {
+  const medal = (key, earned) => ({ key, name: key, description: '', tier: 1, earned });
+  const catalog = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((key) =>
+    medal(key, ['c', 'f'].includes(key))
+  );
+  const earned = ['f', 'c'].map((key) => ({
+    key,
+    name: key,
+    description: '',
+    tier: 1,
+    awarded_at: '',
+  }));
+
+  it('puts earned medals first, in the order earned, then fills with locked ones', () => {
+    const shelf = medalShelf(earned, catalog);
+    expect(shelf.medals.map(({ key, earned }) => `${key}${earned ? '+' : ''}`)).toEqual([
+      'f+',
+      'c+',
+      'a',
+      'b',
+      'd',
+    ]);
+    expect(shelf.total).toBe(7);
+  });
+
+  it('shows what there is when fewer than five exist', () => {
+    expect(medalShelf([], catalog.slice(0, 2)).medals.map((m) => m.key)).toEqual(['a', 'b']);
+    expect(medalShelf(undefined, undefined)).toEqual({ medals: [], total: 0 });
+  });
+});
+
+it('reads the Classic row like the board', () => {
+  expect(classicRecordLine({ name: 'Bengt64', level: 61, games_played: 38536 })).toBe(
+    `Bengt64 · level 61 there · ${(38536).toLocaleString()} games, counted in your record above`
+  );
+  expect(classicRecordLine({ level: 3 })).toBe('level 3 there');
 });

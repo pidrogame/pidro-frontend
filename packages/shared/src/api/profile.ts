@@ -42,12 +42,38 @@ export interface ProfileIdentity {
     title?: string;
     /** XP into the current level and the level's span, or "max" at the top. */
     progress?: [number, number] | 'max';
+    /** Legend stars: one per 500,000 XP past level 100. */
+    prestige?: number;
+    /** XP into the next star and the star's span; null below level 100. */
+    prestige_progress?: [number, number] | null;
   };
   /** XP earned since Monday and since the 1st, both UTC. */
   xp?: { this_week: number; this_month: number };
   /** Pidro and Classic games added up. `win_rate` is 0 to 1. */
   record?: { games: number; wins: number; losses: number; win_rate: number };
+  /** When the account was made. */
+  first_seen_at?: string | null;
+  /** Earned medals, in the order they were earned. */
+  achievements?: Achievement[];
+  /** Every medal there is to earn, each marked earned or not. */
+  achievements_catalog?: AchievementCatalogEntry[];
   classic: ClassicProfile | null;
+}
+
+export interface Achievement {
+  key: string;
+  name: string;
+  description: string;
+  tier: number;
+  awarded_at: string;
+}
+
+export interface AchievementCatalogEntry {
+  key: string;
+  name: string;
+  description: string;
+  tier: number;
+  earned: boolean;
 }
 
 export interface ClassicProfile {

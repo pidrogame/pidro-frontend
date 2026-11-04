@@ -219,6 +219,15 @@ const allCases = [
     authenticated: true,
     homeProfile: true,
   },
+  // PID-339: Bengt from the Status-Profile board, a Legend with four stars.
+  {
+    name: 'profile-legend',
+    path: '/profile?fixture=legend',
+    testId: 'profile-screen',
+    authenticated: true,
+    authFixture: tellAuthFixture,
+    homeProfile: true,
+  },
   {
     name: 'friends-from-profile',
     path: '/friends?fixture=list&from=profile',
@@ -1892,9 +1901,7 @@ async function assertPhotoSheet(page, testCase, viewport) {
       if (box) assert.ok(!boxesOverlap(badge, box), `${name}: camera overlaps pin/level`);
     }
     const chip = page.getByTestId('profile-classic-chip');
-    await chip
-      .getByText(sv ? 'Gamla Pidro · Nivå 14' : 'Old Pidro · Level 14', { exact: true })
-      .waitFor();
+    await chip.getByText(sv ? 'Gamla Pidro' : 'Old Pidro', { exact: true }).waitFor();
     // The profile intentionally scrolls; only this pill must contain its copy.
     await chip.scrollIntoViewIfNeeded();
     await assertAccountSurfaceFits(chip, name, viewport);
@@ -3742,6 +3749,61 @@ async function assertCreationPresentation(page, testCase) {
   );
 }
 
+// The Status-Profile board's words, in its order, and nothing in the hero clipped.
+async function assertLegendProfile(page, viewport) {
+  const expected = [
+    ['profile-title', 'Legend ★4'],
+    ['profile-since', 'Level 100 · Pidro player since 2011'],
+  ];
+  for (const [id, text] of expected)
+    assert.equal((await page.getByTestId(id).innerText()).trim(), text, id);
+  assert.equal(
+    await page.getByTestId('profile-friends-cell').getAttribute('aria-label'),
+    'Friends, 18, 2 online'
+  );
+  const record = page.getByTestId('profile-record');
+  await record.getByLabel('Games played: 40,612', { exact: true }).waitFor();
+  await record.getByLabel('Win rate: 55%', { exact: true }).waitFor();
+  const xp = page.getByTestId('profile-xp');
+  await xp.getByText('Next: Legend ★5', { exact: true }).waitFor();
+  await xp.getByText('133,873 XP to go', { exact: true }).waitFor();
+  const medals = page.getByTestId('profile-medals');
+  assert.equal(
+    (await page.getByTestId('profile-medals-all').innerText()).trim(),
+    'All 14 ›',
+    'All N counts every medal'
+  );
+  const labels = await medals
+    .locator('[aria-label]')
+    .evaluateAll((nodes) =>
+      nodes
+        .map((node) => node.getAttribute('aria-label'))
+        .filter((label) => label !== 'All 14 medals')
+    );
+  assert.deepEqual(labels, [
+    'Homerun',
+    'Win Streak',
+    'Partnership',
+    'Full House',
+    'Unstoppable, not earned yet',
+  ]);
+  const classic = page.getByTestId('profile-classic-row');
+  await classic
+    .getByText(`Old Pidro, 2011 to ${new Date().getFullYear()}`, { exact: true })
+    .waitFor();
+  await classic
+    .getByText('Bengt64 · level 61 there · 38,536 games, counted in your record above', {
+      exact: true,
+    })
+    .waitFor();
+  for (const id of ['profile-avatar-button', 'profile-classic-chip', 'profile-friends-cell'])
+    assertInsideViewport(id, await page.getByTestId(id).boundingBox(), viewport);
+  await assertMinimumTouchTargets(page, 'profile-legend', viewport);
+  // Blocked players stays one tap away, inside the Account row.
+  await page.getByTestId('profile-blocked-link').click();
+  await page.waitForURL((url) => url.pathname.endsWith('/blocked-players'));
+}
+
 async function assertHomeProfile(page, testCase, viewport) {
   const name = testCase.name;
   if (name === 'profile-friends-guest') {
@@ -3750,7 +3812,7 @@ async function assertHomeProfile(page, testCase, viewport) {
       .getByRole('button', { name: 'Not now', exact: true })
       .click();
     await page.waitForURL((url) => url.pathname.endsWith('/profile'));
-    await page.getByTestId('profile-friends-row').waitFor();
+    await page.getByTestId('profile-friends-cell').waitFor();
     assert.equal(await page.getByTestId('tab-pill').count(), 0);
   }
   if (name === 'home-waiting' || name === 'home-waiting-guest') {
@@ -3767,17 +3829,22 @@ async function assertHomeProfile(page, testCase, viewport) {
   if (name === 'home' || name === 'home-guest')
     assert.equal(await page.getByTestId('home-waiting-count').count(), 0);
   if (name === 'profile-friends' || name === 'profile-friends-zero') {
-    const row = page.getByTestId('profile-friends-row');
-    const count = name.endsWith('-zero') ? 0 : 6;
-    assert.equal(await row.getAttribute('aria-label'), `Friends, ${count}`);
+    // PID-339: friends are the third number in the stat strip; three of the six are on.
+    const row = page.getByTestId('profile-friends-cell');
+    assert.equal(
+      await row.getAttribute('aria-label'),
+      name.endsWith('-zero') ? 'Friends, 0' : 'Friends, 6, 3 online'
+    );
+    assert.equal(await page.getByRole('link', { name: 'Blocked players', exact: true }).count(), 1);
     assertInsideViewport(name, await row.boundingBox(), viewport);
     await row.click();
     await page.getByTestId('friends-profile-back').waitFor();
     assert.equal(new URL(page.url()).searchParams.get('from'), 'profile');
     await page.getByTestId('friends-profile-back').click();
     await page.waitForURL((url) => url.pathname.endsWith('/profile'));
-    await page.getByTestId('profile-friends-row').waitFor();
+    await page.getByTestId('profile-friends-cell').waitFor();
   }
+  if (name === 'profile-legend') await assertLegendProfile(page, viewport);
   if (name === 'friends-from-profile') {
     const back = page.getByTestId('friends-profile-back');
     assertInsideViewport(name, await back.boundingBox(), viewport);
@@ -4127,7 +4194,11 @@ async function assertDeleteAccountConfirmation(page, name, screenshotDir) {
   if (name !== 'profile' && name !== 'profile-guest') return;
   const classic = name === 'profile';
   // Delete account lives in Settings, one row away from the profile.
-  await page.getByRole('button', { name: 'Account and sign-in', exact: true }).click();
+  // The row's title: Blocked players is a link of its own inside the row (PID-339).
+  await page
+    .getByRole('button', { name: 'Account and sign-in', exact: true })
+    .getByText('Account and sign-in', { exact: true })
+    .click();
   await page.waitForURL((url) => url.pathname.endsWith('/settings'));
   await page.getByRole('button', { name: 'Delete account', exact: true }).click();
   await page.getByText('Delete your account?', { exact: true }).waitFor();

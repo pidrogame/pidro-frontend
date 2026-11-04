@@ -532,12 +532,22 @@ upload/removal completion after browser Back unmounts the sheet, plus the existi
 bio, pin and Settings journeys. Native route removal is guarded while busy;
 browser Back can still leave, but its server result updates the matching session.
 
+## `/profile?fixture=legend` — your profile at a glance (PID-339)
+
+Bengt from `Status-Profile`, with no server: Legend ★4 (prestige 4, 366,127 of 500,000
+XP to the fifth star), Old Pidro since 2011 with 38,536 games, 40,612 games and 55% in
+all, 18 friends with 2 on, and four of fourteen medals earned. Grammar case
+`profile-legend` checks the board's copy, the shelf order (earned first, then locked),
+**All 14 ›**, touch targets, and that **Blocked players** in the Account row opens
+Blocked players, at 390×844, 375×667, 844×390 and 768×1024.
+
 ## Shell friend notices
 
 PID-276: `/home?fixture=waiting` puts three incoming requests on both the avatar
 and Friends tab. `/home?fixture=invitations` also shows the avatar's seat count,
-including with guest auth (no tab). `/profile?fixture=list|empty` shows the full
-Friends row with six or zero friends; tapping it opens Friends with Back to Profile.
+including with guest auth (no tab). `/profile?fixture=list|empty` shows the friends
+cell of the stat strip (`profile-friends-cell`, PID-339) with six friends, three of them
+on, or zero; tapping it opens Friends with Back to Profile.
 `/friends?fixture=list&from=profile` opens that header directly. Plain tab entry has
 no Back. Guests dismissing the Friends sign-in sheet return to their entry screen.
 Grammar cases `home-waiting`, `home-waiting-guest`, `profile-friends`,

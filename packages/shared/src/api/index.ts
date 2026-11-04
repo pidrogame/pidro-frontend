@@ -60,6 +60,8 @@ export {
   normalizeBio,
   bioLength,
   bioError,
+  type Achievement,
+  type AchievementCatalogEntry,
   type ClassicProfile,
   type ProfileIdentity,
 } from './profile';

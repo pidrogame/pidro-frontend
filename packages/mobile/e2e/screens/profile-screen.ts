@@ -17,7 +17,7 @@ export class ProfileScreen extends Screen {
     await this.button('Save your progress').click();
   }
 
-  /** The "Pidro Classic · Level n" chip a Classic player wears under their name. */
+  /** The "Old Pidro" chip a Classic player wears under their name. */
   get classicChip() {
     return this.root.getByTestId('profile-classic-chip');
   }
@@ -32,7 +32,10 @@ export class ProfileScreen extends Screen {
 
   /** Sign out and Delete account live in Settings, behind "Account and sign-in". */
   async openAccount() {
-    await this.button('Account and sign-in').click();
+    // The row's title: Blocked players is a link of its own inside the row (PID-339).
+    await this.button('Account and sign-in')
+      .getByText('Account and sign-in', { exact: true })
+      .click();
     const settings = new SettingsScreen(this.page);
     await settings.root.waitFor();
     return settings;

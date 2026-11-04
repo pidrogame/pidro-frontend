@@ -8,6 +8,7 @@ import { localizedError, localizedFieldErrors } from '@/utils/apiErrors';
 import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BadgeSheet } from '@/components/profile/BadgeSheet';
+import { BackButton } from '@/components/ui/BackButton';
 import { gradientBg } from '@/components/ui/Bevel';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Button } from '@/components/ui/Button';
@@ -15,7 +16,6 @@ import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { Coin, PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
-import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
@@ -29,12 +29,23 @@ import {
   PidroRadii,
   PidroSpacing,
 } from '@/design/tokens';
-import { levelProgress, monthName, winRate, wornPin, veteranTitle } from '@/features/profile';
+import {
+  classicRecordLine,
+  legendProgress,
+  levelProgress,
+  medalShelf,
+  monthName,
+  sinceYear,
+  titleLine,
+  winRate,
+  wornPin,
+} from '@/features/profile';
 import { authStore, useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { usePillClearance } from '@/components/shell/TabPill';
 import { friendsFixture } from '@/features/friends/fixtures';
+import { profileFixture } from '@/features/profileFixtures';
 import { refreshFriends, useFriendsStore } from '@/stores/friends';
 
 export default function ProfileScreen() {
@@ -61,9 +72,11 @@ function ProfileContent() {
     classicClaimed?: string;
     fixture?: string;
   }>();
-  const previewFriends = friendsFixture(fixture);
+  const preview = profileFixture(fixture);
+  const previewFriends = preview ?? friendsFixture(fixture);
   const storedFriends = useFriendsStore((state) => state.friends);
-  const friendCount = (previewFriends?.friends ?? storedFriends).length;
+  const friends = previewFriends?.friends ?? storedFriends;
+  const friendsOn = friends.filter((friend) => friend.presence !== 'offline').length;
   const router = useRouter();
   const navigation = useNavigation();
   const refreshIdentity = useProfileIdentity();
@@ -85,13 +98,14 @@ function ProfileContent() {
   const [accountSheetOpen, setAccountSheetOpen] = useState(classicClaimed === 'guest');
   const photoFixture = __DEV__ && fixture?.startsWith('photo-') ? fixture : undefined;
   const [badgesOpen, setBadgesOpen] = useState(!!photoFixture && photoFixture !== 'photo-profile');
-  const [identity, setIdentity] = useState<ProfileIdentity | undefined>(undefined);
+  const [medalsOpen, setMedalsOpen] = useState(false);
+  const [identity, setIdentity] = useState<ProfileIdentity | undefined>(preview?.identity);
   const classic = identity?.classic ?? null;
   const pinChoice = useSettingsStore((state) => (user ? state.pins[user.id] : undefined));
   const setPin = useSettingsStore((state) => state.setPin);
   const pin = wornPin(pinChoice, !!classic);
   // The cards wait for the profile's answer so nothing below them moves when it lands.
-  const [answered, setAnswered] = useState(false);
+  const [answered, setAnswered] = useState(!!preview);
   const [confirmation, setConfirmation] = useState<{
     title: TranslationKey;
     description: TranslationKey;
@@ -135,6 +149,7 @@ function ProfileContent() {
 
   useFocusEffect(
     useCallback(() => {
+      if (profileFixture(fixture)) return;
       if (!user?.guest && !friendsFixture(fixture)) void refreshFriends().catch(() => undefined);
       void refreshIdentity()
         .then((next) => {
@@ -187,9 +202,18 @@ function ProfileContent() {
 
   const name = publicPlayerName(user?.username, t('social.player'), user?.display_name);
   const veteran = identity?.veteran;
-  const title = veteranTitle(veteran?.title);
-  const avatarSize = shortWindow ? 104 : 124;
-  const level = levelProgress(veteran);
+  const title = titleLine(veteran);
+  const since = identity ? sinceYear(identity) : null;
+  const avatarSize = shortWindow ? 104 : 136;
+  const legend = legendProgress(veteran);
+  const level = legend ?? { ...levelProgress(veteran), next: t('profile.all_time') };
+  const shelf = medalShelf(identity?.achievements, identity?.achievements_catalog);
+  const classicSince = classic ? sinceYear({ classic }) : null;
+  const openFriends = () =>
+    router.push({
+      pathname: '/friends',
+      params: { from: 'profile', ...(__DEV__ && fixture ? { fixture } : {}) },
+    });
 
   const saveProgress = user?.guest ? (
     <BevelButton
@@ -211,30 +235,7 @@ function ProfileContent() {
         paddingRight: horizontalPadding + pillClearance.right,
       }}>
       <View className={shortWindow ? 'gap-3' : 'gap-6'}>
-        <ScreenHeader title={t('profile.title')} onBack={() => router.back()} />
-        <PressableFX
-          testID="profile-friends-row"
-          accessibilityRole="button"
-          accessibilityLabel={`${t('social.friends')}, ${formatNumber(friendCount)}`}
-          onPress={() =>
-            router.push({
-              pathname: '/friends',
-              params: { from: 'profile', ...(__DEV__ && fixture ? { fixture } : {}) },
-            })
-          }
-          style={styles.accountRow}>
-          <Icon name="friends" size={20} />
-          <PidroText role="label" style={styles.accountCopy}>
-            {t('social.friends')}
-          </PidroText>
-          <PidroText role="label" tone="soft">
-            {formatNumber(friendCount)}
-          </PidroText>
-          <Icon name="chevron-right" size={18} />
-        </PressableFX>
-        {!user?.guest ? (
-          <TextLink label={t('blocks.title')} onPress={() => router.push('/blocked-players')} />
-        ) : null}
+        <BackButton onPress={() => router.back()} />
         {refreshError && (
           <PidroText role="metadata" tone="danger" accessibilityRole="alert">
             {t('profile.refresh_error')}
@@ -273,10 +274,23 @@ function ProfileContent() {
               <PidroText style={styles.name} align="center" numberOfLines={2}>
                 {name}
               </PidroText>
+              {title.text ? (
+                <PidroText
+                  testID="profile-title"
+                  role="label"
+                  align="center"
+                  style={[styles.title, title.legend && styles.gold]}>
+                  {title.text}
+                </PidroText>
+              ) : null}
               {veteran ? (
-                <PidroText role="label" align="center">
-                  {title ? `${title} · ` : ''}
-                  {t('profile.level', { number: formatNumber(veteran.level) })}
+                <PidroText testID="profile-since" role="metadata" tone="soft" align="center">
+                  {since
+                    ? t('profile.level_since', {
+                        level: formatNumber(veteran.level),
+                        year: String(since),
+                      })
+                    : t('profile.level', { number: formatNumber(veteran.level) })}
                 </PidroText>
               ) : null}
               {classic ? (
@@ -284,17 +298,15 @@ function ProfileContent() {
                   testID="profile-classic-chip"
                   accessibilityRole="button"
                   onPress={() => setBadgesOpen(true)}
-                  style={styles.classicChip}>
-                  <Coin material="wood" size={28} rim={2} style={styles.inlineCoin}>
-                    <Icon name="spade" size={13} color={PidroBevel.textGold} />
-                  </Coin>
-                  <PidroText role="label">
-                    {t('profile.classic_app')}
-                    {classic.level != null
-                      ? ` · ${t('profile.level', { number: formatNumber(classic.level) })}`
-                      : ''}
-                  </PidroText>
-                  <Icon name="chevron-right" size={16} color={PidroBevel.rim} />
+                  style={styles.chipTarget}>
+                  <View style={styles.classicChip}>
+                    <Coin material="wood" size={24} rim={2} style={styles.inlineCoin}>
+                      <Icon name="spade" size={11} color={PidroBevel.textGold} />
+                    </Coin>
+                    <PidroText role="label" style={styles.chipLabel}>
+                      {t('profile.classic_app')}
+                    </PidroText>
+                  </View>
                 </PressableFX>
               ) : null}
             </View>
@@ -305,12 +317,68 @@ function ProfileContent() {
             className={twoColumns ? 'min-w-0 flex-1 gap-4' : 'w-full gap-4'}>
             {answered ? (
               <>
+                <Surface variant="window" style={styles.record} testID="profile-record">
+                  {identity?.record ? (
+                    <>
+                      <View
+                        accessible
+                        accessibilityLabel={`${t('profile.games_played')}: ${formatNumber(identity.record.games)}`}
+                        style={styles.stat}>
+                        <PidroText role="title" align="center" style={styles.number}>
+                          {formatNumber(identity.record.games)}
+                        </PidroText>
+                        <PidroText role="metadata" tone="soft" align="center">
+                          {t('profile.games')}
+                        </PidroText>
+                      </View>
+                      <View
+                        accessible
+                        accessibilityLabel={`${t('profile.win_rate')}: ${winRate(identity.record.win_rate)}`}
+                        style={[styles.stat, styles.middleStat]}>
+                        <PidroText role="title" align="center" style={styles.number}>
+                          {winRate(identity.record.win_rate)}
+                        </PidroText>
+                        <PidroText role="metadata" tone="soft" align="center">
+                          {t('profile.won')}
+                        </PidroText>
+                      </View>
+                    </>
+                  ) : null}
+                  <PressableFX
+                    testID="profile-friends-cell"
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      friendsOn
+                        ? t('profile.friends_on_label', {
+                            number: formatNumber(friends.length),
+                            online: formatNumber(friendsOn),
+                          })
+                        : t('profile.friends_label', { number: formatNumber(friends.length) })
+                    }
+                    onPress={openFriends}
+                    style={styles.stat}>
+                    <View style={styles.friendsCount}>
+                      <PidroText role="title" tone="cyan" style={styles.number}>
+                        {formatNumber(friends.length)}
+                      </PidroText>
+                      <Icon name="chevron-right" size={18} color={PidroColors.cyanText} />
+                    </View>
+                    <View style={styles.friendsCaption}>
+                      {friendsOn ? <View style={styles.onlineDot} /> : null}
+                      <PidroText role="metadata" tone="soft" numberOfLines={1}>
+                        {friendsOn
+                          ? t('profile.friends_on', { number: formatNumber(friendsOn) })
+                          : t('profile.friends_caption', { count: friends.length })}
+                      </PidroText>
+                    </View>
+                  </PressableFX>
+                </Surface>
                 {veteran?.xp != null ? (
                   <Surface variant="window" padded style={styles.xp} testID="profile-xp">
                     <View style={styles.xpTop}>
                       <View style={styles.figure}>
                         <PidroText role="metadata" tone="cyan" style={styles.eyebrow}>
-                          {t('profile.all_time')}
+                          {level.next}
                         </PidroText>
                         <PidroText role="title" style={styles.number}>
                           {formatNumber(veteran.xp)} XP
@@ -371,38 +439,84 @@ function ProfileContent() {
                     ) : null}
                   </Surface>
                 ) : null}
-                {identity?.record ? (
-                  <Surface variant="subtle" style={styles.record} testID="profile-record">
-                    {[
-                      {
-                        label: t('profile.games_played'),
-                        caption: t('profile.games'),
-                        value: formatNumber(identity.record.games),
-                      },
-                      {
-                        label: t('profile.wins'),
-                        caption: t('profile.wins_caption'),
-                        value: formatNumber(identity.record.wins),
-                      },
-                      {
-                        label: t('profile.win_rate'),
-                        caption: t('profile.win_rate_caption'),
-                        value: winRate(identity.record.win_rate),
-                      },
-                    ].map((stat, index) => (
-                      <View
-                        key={stat.label}
-                        accessible
-                        accessibilityLabel={`${stat.label}: ${stat.value}`}
-                        style={[styles.stat, index === 1 && styles.middleStat]}>
-                        <PidroText role="title" align="center" style={styles.number}>
-                          {stat.value}
-                        </PidroText>
-                        <PidroText role="metadata" tone="soft" align="center">
-                          {stat.caption}
-                        </PidroText>
-                      </View>
-                    ))}
+                {shelf.medals.length ? (
+                  <Surface variant="subtle" style={styles.medals} testID="profile-medals">
+                    <View style={styles.medalsHeading}>
+                      <PidroText role="label">{t('profile.medals')}</PidroText>
+                      {shelf.total > shelf.medals.length ? (
+                        <TextLink
+                          testID="profile-medals-all"
+                          label={t('profile.medals_all', { number: formatNumber(shelf.total) })}
+                          accessibilityLabel={t('profile.medals_all_label', {
+                            number: formatNumber(shelf.total),
+                          })}
+                          onPress={() => setMedalsOpen(true)}
+                          style={styles.medalsAll}
+                        />
+                      ) : null}
+                    </View>
+                    <View style={styles.shelf}>
+                      {shelf.medals.map((medal) => (
+                        <View
+                          key={medal.key}
+                          accessible
+                          accessibilityLabel={
+                            medal.earned
+                              ? medal.name
+                              : t('profile.medal_locked', { name: medal.name })
+                          }
+                          style={styles.medal}>
+                          <MedalCoin name={medal.name} earned={medal.earned} size={50} />
+                          <PidroText
+                            role="metadata"
+                            tone="soft"
+                            align="center"
+                            style={styles.medalName}>
+                            {medal.name}
+                          </PidroText>
+                        </View>
+                      ))}
+                    </View>
+                  </Surface>
+                ) : null}
+                {classic ? (
+                  <PressableFX
+                    testID="profile-classic-row"
+                    accessibilityRole="button"
+                    onPress={() => setBadgesOpen(true)}
+                    style={[styles.accountRow, styles.classicRow]}>
+                    <Coin material="wood" size={48} rim={3} style={styles.inlineCoin}>
+                      <Icon name="spade" size={20} color={PidroBevel.textGold} />
+                    </Coin>
+                    <View style={styles.accountCopy}>
+                      <PidroText role="label">
+                        {classicSince
+                          ? t('profile.classic_years', {
+                              from: String(classicSince),
+                              to: String(new Date().getFullYear()),
+                            })
+                          : t('profile.classic_app')}
+                      </PidroText>
+                      <PidroText role="metadata" tone="soft">
+                        {classicRecordLine(classic)}
+                      </PidroText>
+                    </View>
+                  </PressableFX>
+                ) : identity ? (
+                  <Surface variant="panel" padded style={styles.claim}>
+                    <View style={styles.claimHeading}>
+                      <PidroText role="label">{t('profile.classic_app')}</PidroText>
+                      <PidroText role="body" tone="soft">
+                        {t('profile.classic_help')}
+                      </PidroText>
+                    </View>
+                    <BevelButton
+                      label={t('profile.claim')}
+                      material="glass"
+                      size="sm"
+                      fullWidth
+                      onPress={() => router.push('/(auth)/claim-classic')}
+                    />
                   </Surface>
                 ) : null}
                 <Surface variant="subtle" className="gap-3" padded>
@@ -488,35 +602,47 @@ function ProfileContent() {
                   accessibilityRole="button"
                   accessibilityLabel={t('profile.account')}
                   accessibilityHint={user?.email ?? undefined}
+                  accessibilityActions={
+                    user?.guest ? undefined : [{ name: 'blocked', label: t('blocks.title') }]
+                  }
+                  onAccessibilityAction={(event) => {
+                    if (event.nativeEvent.actionName === 'blocked') router.push('/blocked-players');
+                  }}
                   onPress={() => router.replace('/settings')}
                   style={styles.accountRow}>
                   <Icon name="mail" size={20} />
                   <View style={styles.accountCopy}>
-                    <PidroText role="label">{t('profile.account')}</PidroText>
-                    <PidroText role="metadata" tone="soft" numberOfLines={1}>
-                      {user?.email ??
-                        t(user?.guest ? 'profile.guest_unsaved' : 'profile.sign_out_delete')}
+                    {/* Above the link's 44pt target, so a tap on the title opens the account. */}
+                    <PidroText role="label" style={styles.accountTitle}>
+                      {t('profile.account')}
                     </PidroText>
+                    <View style={styles.accountLine}>
+                      <PidroText
+                        role="metadata"
+                        tone="soft"
+                        numberOfLines={user?.email ? 1 : undefined}
+                        style={styles.email}>
+                        {user?.email ??
+                          t(user?.guest ? 'profile.guest_unsaved' : 'profile.sign_out_delete')}
+                      </PidroText>
+                      {!user?.guest ? (
+                        <>
+                          <PidroText role="metadata" tone="soft">
+                            ·
+                          </PidroText>
+                          <TextLink
+                            testID="profile-blocked-link"
+                            label={t('blocks.title')}
+                            size={14}
+                            onPress={() => router.push('/blocked-players')}
+                            style={styles.blockedLink}
+                          />
+                        </>
+                      ) : null}
+                    </View>
                   </View>
                   <Icon name="chevron-right" size={18} />
                 </PressableFX>
-                {identity && !classic ? (
-                  <Surface variant="panel" padded style={styles.claim}>
-                    <View style={styles.claimHeading}>
-                      <PidroText role="label">{t('profile.classic_app')}</PidroText>
-                      <PidroText role="body" tone="soft">
-                        {t('profile.classic_help')}
-                      </PidroText>
-                    </View>
-                    <BevelButton
-                      label={t('profile.claim')}
-                      material="glass"
-                      size="sm"
-                      fullWidth
-                      onPress={() => router.push('/(auth)/claim-classic')}
-                    />
-                  </Surface>
-                ) : null}
               </>
             ) : null}
           </View>
@@ -548,6 +674,31 @@ function ProfileContent() {
           </View>
         )}
       </Modal>
+      <Modal
+        isOpen={medalsOpen}
+        title={t('profile.medals')}
+        onClose={() => setMedalsOpen(false)}
+        scrollable>
+        <View testID="profile-medals-list" style={styles.medalList}>
+          {medalShelf(identity?.achievements, identity?.achievements_catalog, Infinity).medals.map(
+            (medal) => (
+              <View
+                key={medal.key}
+                accessible
+                accessibilityLabel={
+                  medal.earned ? medal.name : t('profile.medal_locked', { name: medal.name })
+                }
+                style={styles.medalRow}>
+                <MedalCoin name={medal.name} earned={medal.earned} size={36} />
+                <PidroText role="label" tone={medal.earned ? 'default' : 'muted'}>
+                  {medal.name}
+                </PidroText>
+              </View>
+            )
+          )}
+          <TextLink label={t('profile.close')} onPress={() => setMedalsOpen(false)} />
+        </View>
+      </Modal>
       <AuthSheet
         isOpen={accountSheetOpen}
         onClose={() => setAccountSheetOpen(false)}
@@ -571,6 +722,25 @@ function ProfileContent() {
   );
 }
 
+/** A medal: a gold-rimmed wood coin with its initial once earned, dim glass until then. */
+function MedalCoin({ name, earned, size }: { name: string; earned: boolean; size: number }) {
+  return (
+    <View style={!earned && styles.locked}>
+      <Coin material={earned ? 'wood' : 'glass'} size={size} rim={3} style={styles.inlineCoin}>
+        <PidroText
+          maxFontSizeMultiplier={1}
+          style={[
+            styles.medalInitial,
+            { fontSize: Math.round(size * 0.36), lineHeight: Math.round(size * 0.48) },
+            !earned && styles.lockedInitial,
+          ]}>
+          {name.charAt(0)}
+        </PidroText>
+      </Coin>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   identity: {
     alignItems: 'center',
@@ -584,26 +754,34 @@ const styles = StyleSheet.create({
   name: {
     fontFamily: PidroFonts.display,
     fontWeight: '400',
-    fontSize: 32,
+    fontSize: 34,
     lineHeight: 40,
     color: PidroBevel.textGold,
     textShadowColor: 'rgba(20, 8, 0, 0.6)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 3,
   },
-  classicChip: {
+  title: { fontSize: 17, lineHeight: 22 },
+  gold: { color: PidroBevel.textGold },
+  // The chip is drawn 32 tall; the touch target around it is the full 44.
+  chipTarget: {
     minHeight: PidroLayout.touchTarget,
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  classicChip: {
+    height: 32,
     flexDirection: 'row',
     alignItems: 'center',
     gap: PidroSpacing.xs,
-    marginTop: 6,
-    paddingLeft: PidroSpacing.xxs,
-    paddingRight: PidroSpacing.sm,
+    paddingLeft: 4,
+    paddingRight: 14,
     borderRadius: PidroRadii.full,
     borderWidth: 1,
     borderColor: PidroBevel.rim,
     backgroundColor: PidroColors.panel,
   },
+  chipLabel: { fontSize: 13, lineHeight: 18 },
   inlineCoin: { position: 'relative' },
   xp: { gap: PidroSpacing.sm },
   xpTop: {
@@ -633,8 +811,37 @@ const styles = StyleSheet.create({
     paddingLeft: PidroSpacing.sm,
   },
   leagueLink: { alignSelf: 'flex-start', alignItems: 'flex-start', paddingHorizontal: 0 },
-  record: { flexDirection: 'row', paddingVertical: 14, paddingHorizontal: PidroSpacing.xs },
-  stat: { flex: 1, alignItems: 'center', gap: 2 },
+  record: { flexDirection: 'row', paddingVertical: 14, paddingHorizontal: 6 },
+  stat: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  friendsCount: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  friendsCaption: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  onlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: PidroColors.presenceOnline,
+  },
+  medals: { gap: 12, paddingVertical: 14, paddingHorizontal: PidroSpacing.md },
+  medalsHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  medalsAll: { marginVertical: -12, marginRight: -12 },
+  shelf: { flexDirection: 'row', gap: 6 },
+  medal: { flex: 1, minWidth: 0, alignItems: 'center', gap: 6 },
+  medalName: { fontSize: 11, lineHeight: 13 },
+  medalInitial: {
+    fontFamily: PidroFonts.display,
+    fontWeight: '400',
+    color: PidroBevel.textGold,
+    textAlign: 'center',
+  },
+  locked: { opacity: 0.4 },
+  lockedInitial: { color: PidroColors.text },
+  medalList: { gap: PidroSpacing.sm },
+  medalRow: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.sm },
+  classicRow: { gap: 14, paddingVertical: 14, paddingHorizontal: PidroSpacing.md },
   middleStat: {
     borderLeftWidth: 1,
     borderRightWidth: 1,
@@ -653,6 +860,11 @@ const styles = StyleSheet.create({
     backgroundColor: PidroColors.glass,
   },
   accountCopy: { minWidth: 0, flex: 1, gap: 2 },
+  accountTitle: { zIndex: 1 },
+  accountLine: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', columnGap: 4 },
+  email: { flexShrink: 1 },
+  // The link keeps its 44 target without making the row taller.
+  blockedLink: { marginVertical: -13, paddingHorizontal: 2 },
   claim: { gap: PidroSpacing.md },
   claimHeading: { gap: PidroSpacing.xxs },
 });

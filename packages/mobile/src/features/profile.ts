@@ -86,6 +86,91 @@ export function classicPinLine(classic: ClassicProfile): string {
   return parts.filter(Boolean).join(' · ') || t('social.classic_career');
 }
 
+/**
+ * "Pidro player since 2011": the year of Classic's `member_since`, else the
+ * account's. A Classic player without a date (Classic kept none before about
+ * 2018) gets no year: their account's would say they started this year.
+ */
+export function sinceYear(
+  identity: Pick<ProfileIdentity, 'classic' | 'first_seen_at'>
+): number | null {
+  const date = identity.classic ? identity.classic.member_since : identity.first_seen_at;
+  const year = /^(\d{4})/.exec(date ?? '');
+  return year ? Number(year[1]) : null;
+}
+
+/** The title line: "Legend ★4" in gold from level 100 up, otherwise the title as the server names it. */
+export function titleLine(veteran: ProfileIdentity['veteran']): {
+  text: string | null;
+  legend: boolean;
+} {
+  const legend = (veteran?.level ?? 0) >= 100;
+  const stars = veteran?.prestige ?? 0;
+  if (legend && stars > 0)
+    return { text: t('profile.legend_stars', { number: formatNumber(stars) }), legend };
+  return { text: legend ? t('profile.legend') : veteranTitle(veteran?.title), legend };
+}
+
+/** From level 100 the card counts toward the next Legend star; null below it. */
+export function legendProgress(veteran: ProfileIdentity['veteran']): {
+  next: string;
+  fraction: number;
+  caption: string;
+} | null {
+  const progress = veteran?.prestige_progress;
+  if (!progress) return null;
+  const [into, step] = progress;
+  return {
+    next: t('profile.next_legend', { number: formatNumber((veteran?.prestige ?? 0) + 1) }),
+    fraction: step > 0 ? Math.min(1, Math.max(0, into / step)) : 0,
+    caption: t('profile.xp_to_go', { xp: formatNumber(Math.max(0, step - into)) }),
+  };
+}
+
+export interface ShelfMedal {
+  key: string;
+  name: string;
+  earned: boolean;
+}
+
+/**
+ * The medals shelf: earned medals in the order earned, then locked ones from
+ * the catalog to fill it. `total` is every medal there is, for "All N".
+ */
+export function medalShelf(
+  earned: ProfileIdentity['achievements'] = [],
+  catalog: ProfileIdentity['achievements_catalog'] = [],
+  size = 5
+): { medals: ShelfMedal[]; total: number } {
+  const earnedKeys = new Set(earned.map((medal) => medal.key));
+  const locked = catalog.filter((medal) => !medal.earned && !earnedKeys.has(medal.key));
+  const all: ShelfMedal[] = [
+    ...earned.map(({ key, name }) => ({ key, name, earned: true })),
+    ...locked.map(({ key, name }) => ({ key, name, earned: false })),
+  ];
+  return { medals: all.slice(0, size), total: all.length };
+}
+
+/** "Bengt64 · level 61 there · 38,536 games, counted in your record above" */
+export function classicRecordLine(classic: ClassicProfile): string {
+  return [
+    classic.name,
+    classic.level != null
+      ? t('profile.classic_there', { level: formatNumber(classic.level) })
+      : null,
+    classic.games_played != null
+      ? t('profile.classic_counted', {
+          games: t('social.games', {
+            count: classic.games_played,
+            number: formatNumber(classic.games_played),
+          }),
+        })
+      : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+}
+
 /** A Classic player wears the Classic pin until they choose No pin. */
 export function wornPin(choice: PinChoice | undefined, classic: boolean): 'classic' | null {
   return classic && choice !== 'none' ? 'classic' : null;
