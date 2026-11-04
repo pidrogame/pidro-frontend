@@ -485,20 +485,25 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
   },
 };
 
-/** `deal=draw`: four people at the table, North bid 9 and West deals. */
+/** `deal=draw`: four people at the table, each with a photo, North bid 9 and West deals. */
 const DRAW_ROOM: Room = {
   ...BOT_ROOM,
   seats: (
     [
-      ['south', 'Mia', 44],
-      ['west', 'Wynn', 18],
-      ['north', 'Nora', 31],
-      ['east', 'Eli', 12],
+      ['south', 'Mia', 44, '#e0a020'],
+      ['west', 'Wynn', 18, '#d04a3a'],
+      ['north', 'Nora', 31, '#3ab0a0'],
+      ['east', 'Eli', 12, '#e06090'],
     ] as const
-  ).map(([position, username, level], index) => ({
+  ).map(([position, username, level, color], index) => ({
     seat_index: index + 1,
     status: 'occupied' as const,
-    player: { id: BOT_ROOM.positions![position]!, username, level },
+    player: {
+      id: BOT_ROOM.positions![position]!,
+      username,
+      level,
+      avatar_url: fixtureAvatar(username[0], color),
+    },
     position,
   })),
 };
@@ -510,7 +515,10 @@ const DRAW_LONG_ROOM: Room = {
     seat.position === 'west' || seat.position === 'north'
       ? {
           ...seat,
-          player: LONG_NAMES_ROOM.seats!.find((long) => long.position === seat.position)!.player,
+          player: {
+            ...LONG_NAMES_ROOM.seats!.find((long) => long.position === seat.position)!.player!,
+            avatar_url: seat.player!.avatar_url,
+          },
         }
       : seat
   ),
