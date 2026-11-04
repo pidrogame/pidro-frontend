@@ -1,6 +1,6 @@
 /**
  * Skia table scene.
- * Felt, trick ring and opponent back-stacks are static; the hand + trick cards
+ * Felt and opponent back-stacks are static; the hand + trick cards
  * are animated, draggable sprites driven by useCardSprites.
  * Self-contained for window/insets; web callers load CanvasKit before import.
  */
@@ -108,13 +108,6 @@ export default function GameCanvas({
           colors={['rgba(120, 195, 250, 0.14)', 'rgba(120, 195, 250, 0)']}
         />
       </Circle>
-      <Circle
-        c={vec(L.trick.cx, L.trick.cy)}
-        r={L.trick.r}
-        style="stroke"
-        strokeWidth={1.4}
-        color={T.ring}
-      />
       {!model.trumpSuit && <Circle c={vec(L.trick.cx, L.trick.cy)} r={3} color={T.ringDot} />}
 
       {model.trumpSuit && (

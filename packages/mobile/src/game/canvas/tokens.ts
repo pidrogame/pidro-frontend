@@ -20,7 +20,6 @@ export const T = {
   glassBorder: PidroColors.cyanBorder,
 
   // Table-derived
-  ring: 'rgba(70, 220, 255, 0.14)',
   ringDot: 'rgba(70, 220, 255, 0.28)',
   slot: 'rgba(255, 255, 255, 0.08)',
   slotYou: 'rgba(70, 220, 255, 0.16)',
