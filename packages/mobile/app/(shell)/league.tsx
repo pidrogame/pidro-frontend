@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { LeagueStanding } from '@pidro/shared';
 import { AuthSheet } from '@/components/auth/AuthSheet';
@@ -48,7 +48,10 @@ export default function LeagueScreen() {
   const bands = league && room ? leagueBands(league, room) : null;
   const own = room?.standings.find((row) => row.me);
   const pinned =
-    own && ownBox.height > 0 && (ownBox.y < offset || ownBox.y + ownBox.height > offset + viewport);
+    own &&
+    ownBox.height > 0 &&
+    viewport > ownBox.height + PidroSpacing.xs &&
+    (ownBox.y + ownBox.height <= offset || ownBox.y >= offset + viewport);
   const footer =
     down && bands?.demoteFrom && room
       ? t(room.demote === 1 ? 'league.demote_one' : 'league.demote', {
@@ -114,19 +117,23 @@ export default function LeagueScreen() {
         </View>
         {room ? (
           <Surface testID="league-standings" variant="window" style={styles.standings}>
-            <View style={styles.list}>
+            <View
+              style={styles.list}
+              onLayout={(event) => setViewport(event.nativeEvent.layout.height)}>
               <ScrollView
                 testID="league-list"
                 style={styles.list}
                 contentContainerStyle={styles.rows}
-                onLayout={(event) => setViewport(event.nativeEvent.layout.height)}
                 onScroll={(event) => setOffset(event.nativeEvent.contentOffset.y)}
                 scrollEventThrottle={16}>
                 {room.standings.map((row) => (
-                  <View
-                    key={row.user_id}
-                    onLayout={row.me ? (event) => setOwnBox(event.nativeEvent.layout) : undefined}>
-                    <StandingRow row={row} onPress={() => setSelected(row.user_id)} />
+                  <Fragment key={row.user_id}>
+                    <View
+                      onLayout={
+                        row.me ? (event) => setOwnBox(event.nativeEvent.layout) : undefined
+                      }>
+                      <StandingRow row={row} onPress={() => setSelected(row.user_id)} />
+                    </View>
                     {row.place === bands?.promoteAfter && up ? (
                       <View testID="league-up-divider" style={styles.divider}>
                         <PidroText role="metadata" tone="gold">
@@ -134,7 +141,7 @@ export default function LeagueScreen() {
                         </PidroText>
                       </View>
                     ) : null}
-                  </View>
+                  </Fragment>
                 ))}
                 <LeagueFriends />
               </ScrollView>
@@ -256,7 +263,7 @@ const styles = StyleSheet.create({
   copy: { flex: 1, minWidth: 0, gap: 2 },
   standings: { flex: 1, minHeight: 0, padding: 6 },
   list: { flex: 1, minHeight: 0 },
-  rows: { gap: 2, paddingBottom: 58 },
+  rows: { gap: 2 },
   row: {
     minHeight: 54,
     flexDirection: 'row',
@@ -282,11 +289,8 @@ const styles = StyleSheet.create({
   },
   footer: { paddingVertical: PidroSpacing.sm, paddingHorizontal: 4 },
   pinned: {
-    position: 'absolute',
-    bottom: 6,
-    left: 6,
-    right: 6,
-    backgroundColor: PidroColors.panelStrong,
+    flexShrink: 0,
+    paddingTop: PidroSpacing.xs,
   },
   empty: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: PidroSpacing.md },
 });

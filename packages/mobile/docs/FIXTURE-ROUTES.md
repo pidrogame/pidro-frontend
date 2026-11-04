@@ -1053,12 +1053,26 @@ the route ignores `locale=`; grammar seeds the persisted Settings language inste
 `league-intro` checks clipped text against real ancestor boxes as well as viewport
 fit. Browser checks do not certify native safe areas or maximum system text scaling.
 
+`league-pin-scroll-en|sv` checks a 27th-place row entering partially and leaving
+the list, then a height-starved resize and restore. Placed cases also scroll the
+sixth-place row fully above the list. Pinned rows occupy a separate footer slot;
+real boxes must show no overlap with standings or the promotion divider.
+
+`/profile?fixture=league-profile` deliberately supplies 2,700 league points against
+1,240 profile-week XP: placed Profile uses the former. The
+`league-profile-not-placed` case keeps the latter. Both capture the weekly cell
+scrolled clear of the navigation pill.
+
 `league-result-up`, `league-result-stayed`, and `league-result-down` on Home preview
 the pending-result sheet. Up uses the October board data: Jack → Ace, 5th of 30,
 2,630 XP and three of four ribbon weeks. Close and Meet your new room acknowledge
 the fixture locally; real accounts POST the result ID before dismissing it. A
 result never interrupts a screen pushed above the shell. Short screens keep a
 small new-league card instead of the large reveal illustration.
+
+`/home?fixture=league-result-first` has both an unseen intro and a pending result.
+The `league-result-first-en|sv` cases check the reveal on Home, then Meet your new
+room → League intro → Got it. The result takes precedence over the intro.
 
 `/profile?fixture=league-ribbons` shows twelve monthly ribbons; tap the row to see
 the same twelve with full month names. The current ribbon is faded. Stars and
@@ -1082,9 +1096,9 @@ four sizes. Settings keeps its existing scrolling layout.
 `/league?fixture=league-sample-<name>` consumes the eight unchanged backend samples
 in `src/features/leagueSamples/`: `placed`, `not_placed`, `opted_out`, `guest`,
 `off`, `pending_up`, `pending_stayed`, `pending_down`. Source: backend `main`
-commit `64621603f3454f7cf9f42ef85a28b7640d2a299a`,
+commit `f79cdf90cbc227219025546d73d8b35747006e48`,
 `apps/pidro_server/priv/league_samples/`. The board fixture starts from the published
 placed response, overriding its presentation data for the exact board comparison.
-The `league-sample-*` grammar cases acknowledge intro/result sheets before measuring
+The `league-sample-*` grammar cases acknowledge result/intro sheets before measuring
 the supplied standings. League grammar cases isolate unrelated HTTP calls so fake
 fixture tokens cannot sign themselves out against a running real backend.

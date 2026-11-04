@@ -27,13 +27,7 @@ import { LeagueRibbon, LeagueWeekDots } from './LeagueRibbon';
 export function LeagueResult() {
   const { data } = useLeague();
   const focused = useIsFocused();
-  if (
-    !focused ||
-    !data?.intro_seen ||
-    !data.pending_result ||
-    data.status === 'off' ||
-    data.status === 'guest'
-  )
+  if (!focused || !data?.pending_result || data.status === 'off' || data.status === 'guest')
     return null;
   return <ResultSheet key={data.pending_result.id} result={data.pending_result} />;
 }

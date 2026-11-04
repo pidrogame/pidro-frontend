@@ -423,7 +423,12 @@ function ProfileContent() {
                               {t('social.this_week')}
                             </PidroText>
                             <PidroText role="title" style={styles.number}>
-                              {formatNumber(identity.xp.this_week)} XP
+                              {formatNumber(
+                                league?.status === 'placed' && league.me
+                                  ? league.me.points
+                                  : identity.xp.this_week
+                              )}{' '}
+                              XP
                             </PidroText>
                             {leagueCaption ? (
                               <TextLink

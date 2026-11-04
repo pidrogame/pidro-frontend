@@ -65,9 +65,18 @@ export function leagueFixture(value?: string): LeagueState | null {
   if (state.startsWith('sample-'))
     return structuredClone(samples[state.slice(7) as keyof typeof samples]) as LeagueState;
   const data = structuredClone(placed);
+  if (state === 'profile') {
+    data.me!.points = 2700;
+    data.room!.standings.find((row) => row.me)!.points = 2700;
+  }
   if (state.startsWith('result-')) {
     const earnedStar = state === 'result-star';
-    const move = earnedStar ? 'stayed' : (state.slice(7) as 'up' | 'stayed' | 'down');
+    const move = earnedStar
+      ? 'stayed'
+      : state === 'result-first'
+        ? 'up'
+        : (state.slice(7) as 'up' | 'stayed' | 'down');
+    if (state === 'result-first') data.intro_seen = false;
     const next = move === 'up' ? 'ace' : move === 'down' ? 'ten' : 'jack';
     data.league = next;
     data.pending_result = {

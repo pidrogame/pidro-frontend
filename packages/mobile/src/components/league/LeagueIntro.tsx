@@ -21,7 +21,13 @@ export function LeagueIntro() {
   const reduceMotion = useReducedMotion();
   const [failed, setFailed] = useState(false);
   const focused = useIsFocused();
-  if (!focused || !data || data.intro_seen || !['placed', 'not_placed'].includes(data.status))
+  if (
+    !focused ||
+    !data ||
+    data.intro_seen ||
+    data.pending_result ||
+    !['placed', 'not_placed'].includes(data.status)
+  )
     return null;
   const dismiss = () => {
     setFailed(false);

@@ -632,12 +632,27 @@ const allCases = [
   })),
   {
     name: 'league-profile',
-    path: '/profile?fixture=league-placed',
+    path: '/profile?fixture=league-profile',
     testId: 'profile-screen',
     authenticated: true,
     league: 'profile',
   },
-  ...['up', 'stayed', 'down', 'star'].flatMap((move) =>
+  {
+    name: 'league-profile-not-placed',
+    path: '/profile?fixture=league-not_placed',
+    testId: 'profile-screen',
+    authenticated: true,
+    league: 'profile-not-placed',
+  },
+  ...['en', 'sv'].map((locale) => ({
+    name: `league-pin-scroll-${locale}`,
+    path: '/league?fixture=league-27',
+    testId: 'league-screen',
+    authenticated: true,
+    league: 'pin-scroll',
+    locale,
+  })),
+  ...['up', 'stayed', 'down', 'star', 'first'].flatMap((move) =>
     ['en', 'sv'].map((locale) => ({
       name: `league-result-${move}-${locale}`,
       path: `/home?fixture=league-result-${move}`,
@@ -7424,10 +7439,6 @@ async function assertLeague(page, testCase, viewport) {
         'utf8'
       )
     );
-    if (['placed', 'not_placed'].includes(sample.status)) {
-      await page.getByTestId('league-got-it').click();
-      await page.getByTestId('league-intro').waitFor({ state: 'detached' });
-    }
     if (sample.pending_result) {
       const result = page.getByTestId('league-result');
       await result.waitFor();
@@ -7435,6 +7446,10 @@ async function assertLeague(page, testCase, viewport) {
       await assertAccountSurfaceFits(result, testCase.name, viewport);
       await page.getByTestId('league-result-close').click();
       await result.waitFor({ state: 'detached' });
+    }
+    if (['placed', 'not_placed'].includes(sample.status) && !sample.intro_seen) {
+      await page.getByTestId('league-got-it').click();
+      await page.getByTestId('league-intro').waitFor({ state: 'detached' });
     }
     if (sample.room?.promote) {
       const row = await page.getByTestId(`league-row-${sample.room.promote}`).boundingBox();
@@ -7514,7 +7529,14 @@ async function assertLeague(page, testCase, viewport) {
     await assertAccountSurfaceFits(root, testCase.name, viewport);
     assert.match(await root.innerText(), testCase.locale === 'sv' ? /12 oktober/i : /12 October/i);
     const promise = testCase.locale === 'sv' ? 'Spela nästa vecka också' : 'Play next week too';
-    assert.equal((await root.innerText()).includes(promise), state === 'result-up');
+    assert.equal(
+      (await root.innerText()).includes(promise),
+      state === 'result-up' || state === 'result-first'
+    );
+    if (state === 'result-first') {
+      assert.equal(new URL(page.url()).pathname, '/home', 'first reveal is presented on Home');
+      assert.equal(await page.getByTestId('league-intro').count(), 0, 'reveal precedes intro');
+    }
     const earned =
       testCase.locale === 'sv' ? 'Ditt band har en stjärna.' : 'Your ribbon has a star.';
     assert.equal((await root.innerText()).includes(earned), state === 'result-star');
@@ -7550,10 +7572,23 @@ async function assertLeague(page, testCase, viewport) {
       );
     return;
   }
-  if (state === 'profile') {
+  if (state === 'profile' || state === 'profile-not-placed') {
     const link = page.getByTestId('profile-league');
-    await link.scrollIntoViewIfNeeded();
-    assert.match(await link.innerText(), /6th in Jack league/);
+    const cell = link.locator('..');
+    await cell.evaluate((node) => node.scrollIntoView({ block: 'center' }));
+    assert.match(
+      await link.innerText(),
+      state === 'profile' ? /6th in Jack league/ : /play a game to join/
+    );
+    assert.match(
+      await cell.innerText(),
+      state === 'profile' ? /2,700 XP/ : /1,240 XP/,
+      'placed uses league points; not placed keeps profile XP'
+    );
+    assert.ok(
+      !boxesOverlap(await cell.boundingBox(), await page.getByTestId('tab-pill').boundingBox()),
+      'weekly XP and league caption are clear of the navigation pill'
+    );
     return;
   }
   const overflow = await root.evaluate((node) => {
@@ -7600,11 +7635,88 @@ async function assertLeague(page, testCase, viewport) {
         await page.getByTestId('league-demotion').innerText(),
         testCase.locale === 'sv' ? /23.*30/ : /Places 23 to 30/
       );
-    if (state === '27') {
+    const ownRow = await list.getByRole('button', { name: /\((you|du)\)/ }).boundingBox();
+    const listBounds = await list.boundingBox();
+    const ownVisible =
+      ownRow.y < listBounds.y + listBounds.height && ownRow.y + ownRow.height > listBounds.y;
+    const pinned = page.getByTestId('league-pinned');
+    assert.equal(await pinned.count(), ownVisible ? 0 : 1, 'pin only a fully offscreen own row');
+    if (await pinned.count())
+      assert.ok(
+        listBounds.y + listBounds.height <= (await pinned.boundingBox()).y + 1,
+        'no standings row or promotion divider can be overlapped by the pinned footer'
+      );
+    if (state === '27' || state === 'pin-scroll') {
       const pin = page.getByTestId('league-pinned');
       await pin.waitFor();
       assertInsideViewport('27th place pinned row', await pin.boundingBox(), viewport);
       assert.match(await pin.innerText(), /Bengt/);
+      const listBox = await list.boundingBox();
+      const pinBox = await pin.boundingBox();
+      assert.ok(
+        listBox.y + listBox.height <= pinBox.y + 1,
+        'pinned row has a separate footer slot, never overlaps standings or the divider'
+      );
+      if (state === 'pin-scroll') {
+        const own = list.getByTestId('league-row-27');
+        const rowBox = await own.boundingBox();
+        await list.evaluate(
+          (node, delta) => (node.scrollTop += delta),
+          rowBox.y - listBox.y - listBox.height + 8
+        );
+        await pin.waitFor({ state: 'detached' });
+        const visible = await own.boundingBox();
+        const bounds = await list.boundingBox();
+        assert.ok(
+          visible.y < bounds.y + bounds.height && visible.y + visible.height > bounds.y,
+          'a partially visible own row does not pin'
+        );
+        await list.evaluate((node) => (node.scrollTop = 0));
+        await pin.waitFor();
+        const scrolled = await list.boundingBox();
+        assert.ok(
+          scrolled.y + scrolled.height <= (await pin.boundingBox()).y + 1,
+          'fully offscreen own row returns to its separate footer slot'
+        );
+        await page.setViewportSize({ width: 844, height: 140 });
+        await pin.waitFor({ state: 'detached' });
+        await waitForScreenshotReady(page);
+        const changes = await page.getByTestId('league-standings').evaluate(
+          (node) =>
+            new Promise((resolve) => {
+              let count = 0;
+              const observer = new MutationObserver(() => count++);
+              observer.observe(node, { childList: true, subtree: true });
+              setTimeout(() => {
+                observer.disconnect();
+                resolve(count);
+              }, 500);
+            })
+        );
+        assert.equal(
+          changes,
+          0,
+          'height-starved pin allocation settles without mount/unmount loops'
+        );
+        await page.setViewportSize({ width: viewport.width, height: viewport.height });
+        await pin.waitFor();
+      }
+    }
+    if (state === 'placed') {
+      const own = list.getByTestId('league-row-6');
+      const row = await own.boundingBox();
+      const bounds = await list.boundingBox();
+      await list.evaluate(
+        (node, delta) => (node.scrollTop += delta),
+        row.y + row.height - bounds.y + 4
+      );
+      await pinned.waitFor();
+      const above = await own.boundingBox();
+      const scrolled = await list.boundingBox();
+      assert.ok(above.y + above.height <= scrolled.y, 'fully above-viewport own row pins too');
+      assert.ok(scrolled.y + scrolled.height <= (await pinned.boundingBox()).y + 1);
+      await list.evaluate((node) => (node.scrollTop = 0));
+      await waitForScreenshotReady(page);
     }
     const bounds = await list.boundingBox();
     assertInsideViewport('standings scroll', bounds, viewport);
@@ -8396,7 +8508,15 @@ async function main() {
             path: resolve(screenshotDir, `${testCase.name}.png`),
             fullPage: false,
           });
-          if (testCase.league?.startsWith('result-')) {
+          if (testCase.league === 'result-first') {
+            await page.getByTestId('league-result-continue').click();
+            await page.waitForURL((url) => url.pathname === '/league');
+            await page.getByTestId('league-intro').waitFor();
+            await waitForScreenshotReady(page);
+            await page.screenshot({ path: resolve(screenshotDir, `${testCase.name}-intro.png`) });
+            await page.getByTestId('league-got-it').click();
+            await page.getByTestId('league-intro').waitFor({ state: 'detached' });
+          } else if (testCase.league?.startsWith('result-')) {
             await page.getByTestId('league-result-close').click();
             await page.getByTestId('league-result').waitFor({ state: 'detached' });
           }
@@ -8419,7 +8539,7 @@ async function main() {
             testCase.testId !== 'feedback-sheet' &&
             testCase.testId !== 'news-sheet'
           )
-            await assertHomeHeaderClear(page, testCase.path, caseViewport);
+            await assertHomeHeaderClear(page, new URL(page.url()).pathname, caseViewport);
           await assertHomeProfile(page, testCase, caseViewport);
           await assertLocalization(page, testCase, caseViewport);
           if (testCase.lobbyFixture !== 'locked') await assertLobbyPresentation(page, testCase);
