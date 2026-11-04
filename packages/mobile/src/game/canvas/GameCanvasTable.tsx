@@ -38,7 +38,7 @@ import { tableLine } from '@/features/game/tableVoice';
 import { pushGameAction, type ProgressionSummary } from '@/channels/hooks/useGameChannel';
 import { getRankLabel, SUIT_SYMBOLS } from '@/utils/cards';
 import { useCardTextures } from './cardTextures';
-import { useTableModel, type TableModel } from './tableModel';
+import { buildTableModel, useTableModel, type TableModel } from './tableModel';
 import { useHandPresentationReady } from './useHandPresentationReady';
 import { useDealPresentation } from './useDealPresentation';
 import { useSecondDealPresentation } from './useSecondDealPresentation';
@@ -52,7 +52,7 @@ import type { TickerRestingLine } from './ActionTicker';
 import { buildHandLog } from '@/game/handLog';
 import { bidSeatLine, bidsShown } from '@/features/game/bidding';
 import { isSoloTable, loneTrumpHolder } from '@/features/game/tableHelp';
-import { waitsForContinue } from '@/features/game/handResult';
+import { handResultTiming, waitsForContinue } from '@/features/game/handResult';
 import { useSettingsStore } from '@/stores/settings';
 import { blockPlayer } from '@/stores/friends';
 import { LastTrick, type LastTrickView } from './LastTrick';
@@ -66,6 +66,7 @@ import {
 } from './TableChrome';
 import { TableSignals, scoreGlow, tablePidro } from './TableSignals';
 import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
+import { HandPoints } from './HandPoints';
 import {
   computeLayout,
   handRight,
@@ -384,7 +385,43 @@ export function GameCanvasTable({
   // the hand that ended while its result shows, and deals once it closes.
   const holding = handResult.result != null || handResult.opening;
   const heldModel = useHeldWhile(serverModel, holding);
-  // Under the result the hand is played out: no trick, no cards left in hand.
+  // Count help off, a hand ends as Classic's did (PID-332): its cards stay on
+  // the table, the final trick's too, under the hand's points; halfway to the
+  // deal they clear and the points stay alone.
+  const ended = handResult.result?.hand;
+  const classicEnd = !countHelp && !controller.isGameOver && ended != null;
+  const endedNumber = classicEnd ? ended.hand_number : null;
+  const [cleared, setCleared] = useState<number | null>(null);
+  // A rematch numbers its hands afresh.
+  if (endedNumber == null && cleared != null) setCleared(null);
+  useEffect(() => {
+    if (endedNumber == null) return;
+    const timer = setTimeout(() => setCleared(endedNumber), handResultTiming.showMs / 2);
+    return () => clearTimeout(timer);
+  }, [endedNumber]);
+  const endedTricks = classicEnd && cleared !== endedNumber ? ended.tricks : undefined;
+  const tablePlayers = controller.players;
+  const piles = useMemo(
+    () =>
+      endedTricks
+        ? buildTableModel({
+            phase: 'playing',
+            trumpSuit: ended?.trump ?? null,
+            players: tablePlayers,
+            yourHand: null,
+            yourCardCount: null,
+            currentTrick: null,
+            tricks: endedTricks,
+            legalActions: [],
+            currentTurnRelative: null,
+            canPlay: false,
+            getCardCountForPlayer: () => null,
+          }).playedCards
+        : {},
+    [endedTricks, ended?.trump, tablePlayers]
+  );
+  // Under the result the hand is played out: no trick, no cards left in hand,
+  // and with count help no cards on the table.
   const tableModel = useMemo(
     () =>
       holding
@@ -392,13 +429,29 @@ export function GameCanvasTable({
             ...heldModel,
             yourHand: [],
             currentTrick: {},
-            playedCards: {},
+            playedCards: piles,
             latestPlayKey: null,
             winningKey: null,
             trickPoints: null,
+            // Classic's points take the trump mark's place; no seat is on turn,
+            // and each says the last card it played until the cards clear.
+            ...(classicEnd && {
+              trumpSuit: null,
+              currentTurnRelative: null,
+              seats: Object.fromEntries(
+                Object.entries(heldModel.seats).map(([rel, seat]) => [
+                  rel,
+                  seat && {
+                    ...seat,
+                    isCurrentTurn: false,
+                    lastPlayedCard: piles[rel as RelativePosition]?.at(-1) ?? null,
+                  },
+                ])
+              ) as TableModel['seats'],
+            }),
           }
         : heldModel,
-    [holding, heldModel]
+    [holding, heldModel, piles, classicEnd]
   );
   // Catching up: what the server allows the dealer cut, and how late this phone is.
   const arrivedAt = controller.serverState ? arrivals.get(controller.serverState) : undefined;
@@ -559,6 +612,17 @@ export function GameCanvasTable({
     },
     {} as Partial<Record<RelativePosition, SeatLine | null>>
   );
+  const continueHand = isSpectator
+    ? undefined
+    : async () => {
+        try {
+          await pushGameAction('continue_hand', {});
+          return true;
+        } catch (error) {
+          controller.showActionError('Continue', error);
+          return false;
+        }
+      };
   // Table talk (PID-114): only where two or more people sit, and never under game over.
   const players = viewModel?.players ?? [];
   const me = players.find((player) => player.isYou);
@@ -688,10 +752,11 @@ export function GameCanvasTable({
             dealing={model.dealStage === 'dealing'}
             topReserve={topReserve}
             bottomReserve={bottomReserve}
-            statusByRel={statusByRel}
+            // The next hand's lines wait for its deal.
+            statusByRel={classicEnd ? undefined : statusByRel}
             players={viewModel?.players ?? []}
             onProfile={onFace}
-            quiet={handResult.result != null}
+            quiet={handResult.result != null && !classicEnd}
             secondDeal={model.secondDealShow}
             killed={model.killed}
             held={model.held}
@@ -824,27 +889,27 @@ export function GameCanvasTable({
             />
           ) : null}
           {!isGameOver && handResult.result ? (
-            <HandResultPanel
-              key={handResult.result.hand.hand_number}
-              result={handResult.result}
-              seats={model.seats}
-              onClose={handResult.close}
-              onContinue={
-                isSpectator
-                  ? undefined
-                  : async () => {
-                      try {
-                        await pushGameAction('continue_hand', {});
-                        return true;
-                      } catch (error) {
-                        controller.showActionError('Continue', error);
-                        return false;
-                      }
-                    }
-              }
-              topReserve={topReserve}
-              bottomReserve={bottomReserve}
-            />
+            countHelp ? (
+              <HandResultPanel
+                key={handResult.result.hand.hand_number}
+                result={handResult.result}
+                seats={model.seats}
+                onClose={handResult.close}
+                onContinue={continueHand}
+                topReserve={topReserve}
+                bottomReserve={bottomReserve}
+              />
+            ) : (
+              <HandPoints
+                key={handResult.result.hand.hand_number}
+                delta={handResult.result.hand.delta}
+                youPosition={youPositionAbs}
+                waiting={handResult.result.waiting}
+                onContinue={continueHand}
+                topReserve={topReserve}
+                bottomReserve={bottomReserve}
+              />
+            )
           ) : null}
           <View
             pointerEvents="none"

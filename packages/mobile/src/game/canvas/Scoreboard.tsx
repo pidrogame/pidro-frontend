@@ -145,7 +145,7 @@ const DELTA_TONE = {
   },
 } as const;
 
-function teams(scores: Scores, you: Position | null) {
+export function teams(scores: Scores, you: Position | null) {
   const ns = scores?.north_south ?? 0;
   const ew = scores?.east_west ?? 0;
   const youAreNS = you === null || you === 'north' || you === 'south';
