@@ -25,6 +25,8 @@ import {
   type SecondDealShow,
 } from './secondDealPlan';
 import { KILLED_SHOW_MS } from './animationTiming';
+import { play } from '../sounds';
+import { refillArrives } from '@/features/game/sounds';
 
 export type { SecondDealShow } from './secondDealPlan';
 
@@ -79,7 +81,7 @@ export function useSecondDealPresentation(
       if (armed) setArmed(false);
     } else if (plan && hasPlay(model)) {
       setPlan(null);
-    } else if (armed && !plan && !reducedMotion) {
+    } else if (armed && !plan) {
       const next = makePlan(model, held);
       if (next) {
         setPlan(next);
@@ -101,14 +103,23 @@ export function useSecondDealPresentation(
     model.seats[model.dealerRelative ?? 'south']?.discarded == null;
   useEffect(() => {
     if (!plan || !frame || dealerPicking) return;
-    const timer = setTimeout(() => (atEnd ? setPlan(null) : setStep(step + 1)), frame.ms);
+    // Sound keeps these beats under Reduce Motion too; only the picture is skipped.
+    const timer = setTimeout(() => {
+      if (atEnd) return setPlan(null);
+      if (refillArrives(frame, plan.frames[step + 1])) play('deal');
+      setStep(step + 1);
+    }, frame.ms);
     return () => clearTimeout(timer);
   }, [plan, frame, atEnd, step, dealerPicking]);
 
   // Once the second deal has played, killed trumps show until the first card lands.
   const anyKilled = killedKey !== '{}';
   const showKilled =
-    anyKilled && !plan && model.phase === 'playing' && !hasPlay(model) && killedShown !== killedKey;
+    anyKilled &&
+    (!plan || reducedMotion) &&
+    model.phase === 'playing' &&
+    !hasPlay(model) &&
+    killedShown !== killedKey;
   useEffect(() => {
     if (!showKilled) return;
     const timer = setTimeout(() => setKilledShown(killedKey), KILLED_SHOW_MS);
@@ -119,7 +130,8 @@ export function useSecondDealPresentation(
     [model, anyKilled, showKilled]
   );
 
-  if (!plan || !frame || reducedMotion || !AFTER.has(model.phase) || hasPlay(model)) return shown;
+  if (!plan || !frame || !AFTER.has(model.phase) || hasPlay(model)) return shown;
+  if (reducedMotion) return { ...shown, dealUnseen: true };
 
   const dealer = model.dealerRelative;
   const show: SecondDealShow = showAt(frame, model, dealt);

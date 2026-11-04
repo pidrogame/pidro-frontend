@@ -9,7 +9,15 @@ import {
   CUT_WINNER_PAUSE_MS,
 } from './canvas/animationTiming';
 import type { TableModel } from './canvas/tableModel';
+import type { ServerBid } from '@/types/game';
 import { getTableHapticEvents } from './hapticTransitions';
+import { play } from './sounds';
+import {
+  TURN_REMINDER_MS,
+  bidSound,
+  yourPlayTurnStarted,
+  yourTurnKey,
+} from '@/features/game/sounds';
 export { playSelectionHaptic } from '@/utils/haptics';
 
 export function playActionHaptic() {
@@ -77,9 +85,11 @@ function playTurnHaptic() {
   runHaptic(() => Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success));
 }
 
-export function useTableHaptics(model: TableModel) {
+/** The table's haptics, and the sounds that share their moments: your turn, the bids. */
+export function useTableHaptics(model: TableModel, bids?: ServerBid[]) {
   const reducedMotion = useReducedMotion();
   const previousModel = useRef<TableModel | null>(null);
+  const previousBids = useRef(bids);
   const timers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   useEffect(() => {
@@ -91,6 +101,7 @@ export function useTableHaptics(model: TableModel) {
       timers.current.add(timer);
     };
 
+    if (yourPlayTurnStarted(previousModel.current, model)) play('turn');
     const events = getTableHapticEvents(previousModel.current, model);
     for (const event of events) {
       if (event === 'your_turn') playTurnHaptic();
@@ -123,6 +134,19 @@ export function useTableHaptics(model: TableModel) {
     }
     previousModel.current = model;
   }, [model, reducedMotion]);
+
+  useEffect(() => {
+    const sound = bidSound(previousBids.current, bids);
+    previousBids.current = bids;
+    if (sound) play(sound);
+  }, [bids]);
+
+  const turnKey = yourTurnKey(model);
+  useEffect(() => {
+    if (!turnKey) return;
+    const timer = setInterval(() => play('reminder'), TURN_REMINDER_MS);
+    return () => clearInterval(timer);
+  }, [turnKey]);
 
   useEffect(
     () => () => {

@@ -383,7 +383,8 @@ export function GameCanvasTable({
     controller.serverState ? (controller.serverState.last_hand ?? null) : undefined,
     viewerOf(serverModel.seats),
     room.code,
-    waitsForContinue(controller.serverState ?? {})
+    waitsForContinue(controller.serverState ?? {}),
+    serverModel.phase === 'dealing' || serverModel.phase === 'bidding'
   );
   // The server sends the next hand with the one that ended: the table holds
   // the hand that ended while its result shows, and deals once it closes.
@@ -476,7 +477,6 @@ export function GameCanvasTable({
     () => (held ? { ...playPresentation.model, held } : playPresentation.model),
     [playPresentation.model, held]
   );
-  useTableHaptics(model);
   const isBiddingTurn = controller.phase === 'bidding' && controller.isYourTurn;
   const facesReady = useHandPresentationReady(serverModel.yourHand, textures, isBiddingTurn);
   // A held loading bar is a phone still decoding: its hand is not ready either.
@@ -523,6 +523,8 @@ export function GameCanvasTable({
   // also while the last hand's result holds the next hand back.
   const dealing = holding || dealt.dealStage != null;
   const shownState = useMemo(() => bidsShown(serverState, dealing), [serverState, dealing]);
+  // Bids sound once the deal has played, seen or not.
+  useTableHaptics(model, dealt.dealUnseen ? undefined : shownState?.bid_order);
 
   const handLog = useMemo(
     () =>

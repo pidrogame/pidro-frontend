@@ -87,6 +87,8 @@ export type TableModel = {
   /** Server deal order, before the display-only suit sort. */
   dealtHand: TableCard[];
   dealStage?: 'dealing' | 'sorting';
+  /** A deal's beats still play unseen under Reduce Motion: sound keeps to them (PID-335). */
+  dealUnseen?: boolean;
   yourCardCount: number | null;
   dealerCuts: Partial<Record<RelativePosition, TableCard>>;
   currentTrick: Partial<Record<RelativePosition, TableCard>>;

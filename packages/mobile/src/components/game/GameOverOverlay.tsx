@@ -34,6 +34,8 @@ import {
 } from '@/features/game/gameOver';
 import type { ProgressionSummary } from '@/channels/hooks/useGameChannel';
 import { playBigTrickHaptic, playOurPidroHaptic } from '@/game/useGameHaptics';
+import { play } from '@/game/sounds';
+import { gameOverSound } from '@/features/game/sounds';
 import { formatNumber, t, useTranslation } from '@/i18n';
 import type { BotPersona, RematchVote } from '@pidro/shared';
 import type { GameViewModel, RelativePlayerView, ServerGameState, TeamKey } from '@/types/game';
@@ -251,6 +253,10 @@ export function GameOverOverlay({
     nameList(viewModel.players.filter((player) => teamOf(player) === team).map(displayName));
   const hands = history.length || lastHand?.hand_number || 0;
   const { values: beat, skip, calm } = useBeats(viewerWon);
+  const sound = gameOverSound({ spectator, tied, won: viewerWon });
+  useEffect(() => {
+    if (sound) play(sound);
+  }, [sound]);
 
   const headline = tied
     ? t('game.tie')

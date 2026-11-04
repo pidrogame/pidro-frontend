@@ -8,6 +8,7 @@ import {
   DEAL_SORT_PAUSE_MS,
   dealtCardCounts,
 } from './animationTiming';
+import { play } from '../sounds';
 
 /** A presentation only: never delays or mutates authoritative game state. */
 export function useDealPresentation(
@@ -27,7 +28,6 @@ export function useDealPresentation(
       setDeal(null);
     } else if (
       !deal &&
-      !reducedMotion &&
       dealer &&
       initialPhase &&
       model.dealtHand.length === 9 &&
@@ -51,14 +51,19 @@ export function useDealPresentation(
           : step === 12
             ? DEAL_SORT_PAUSE_MS
             : DEAL_SORT_DURATION_MS;
+    // Sound keeps this schedule under Reduce Motion too; only the picture is skipped.
+    // A shuffle that began in the hold covers this deal; one that had no room starts here.
+    if (step === 0) play('shuffle');
     const timer = setTimeout(() => {
+      if (step < 12) play('deal');
       if (step === 13) setDeal(null);
       else setStep(step + 1);
     }, delay);
     return () => clearTimeout(timer);
   }, [deal, step]);
 
-  if (!deal || reducedMotion || !initialPhase || handKey !== deal.hand) return model;
+  if (!deal || !initialPhase || handKey !== deal.hand) return model;
+  if (reducedMotion) return { ...model, dealUnseen: true };
   const counts = dealtCardCounts(deal.dealer, step);
   const seats = { ...model.seats };
   for (const rel of ['north', 'east', 'south', 'west'] as const) {

@@ -5,7 +5,7 @@ type GameCanvasTableComponent = typeof GameCanvasTable;
 
 let table: Promise<ComponentType<ComponentProps<GameCanvasTableComponent>>> | null = null;
 
-/** Loads the table once, and starts decoding its card textures; the waiting room calls it early. */
+/** Loads the table once, and starts decoding its card textures and sounds; the waiting room calls it early. */
 export function loadGameCanvasTable() {
   table ??= load().catch((error) => {
     table = null;
@@ -23,5 +23,7 @@ async function load(): Promise<ComponentType<ComponentProps<GameCanvasTableCompo
   const module = require('./GameCanvasTable') as typeof import('./GameCanvasTable');
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   void (require('./cardTextures') as typeof import('./cardTextures')).preloadCardTextures();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  (require('../sounds') as typeof import('../sounds')).preloadSounds();
   return module.GameCanvasTable;
 }

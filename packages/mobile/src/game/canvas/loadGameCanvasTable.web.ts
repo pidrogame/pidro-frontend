@@ -5,7 +5,7 @@ type GameCanvasTableComponent = typeof GameCanvasTable;
 
 let table: Promise<ComponentType<ComponentProps<GameCanvasTableComponent>>> | null = null;
 
-/** Loads CanvasKit and the table once, and starts decoding its card textures. */
+/** Loads CanvasKit and the table once, and starts decoding its card textures and sounds. */
 export function loadGameCanvasTable() {
   table ??= load().catch((error) => {
     table = null;
@@ -19,5 +19,6 @@ async function load(): Promise<ComponentType<ComponentProps<GameCanvasTableCompo
   await skiaWeb.LoadSkiaWeb({ locateFile: (file) => `/${file}` });
   const module = await import('./GameCanvasTable');
   void (await import('./cardTextures')).preloadCardTextures();
+  (await import('../sounds')).preloadSounds();
   return module.GameCanvasTable;
 }

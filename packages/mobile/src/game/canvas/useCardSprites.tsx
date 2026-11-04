@@ -38,6 +38,8 @@ import { trumpsIn } from '@/features/game/trump';
 import { catchUpPace } from '@/features/game/catchUp';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playSelectionHaptic } from '@/utils/haptics';
+import { shuffleAtMs } from '@/features/game/sounds';
+import { play } from '../sounds';
 import { blockedCardTap, blockedPlay, cardTap } from '@/diagnostics/actions';
 import type { DiagnosticCode } from '@/diagnostics/buffer';
 import {
@@ -193,6 +195,7 @@ export function useCardSprites({
   const keyToSlot = useRef<Map<string, number>>(new Map());
   const targets = useRef<Map<number, string>>(new Map());
   const retirementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const cutSounds = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cutSequenceKey = useRef<string | null>(null);
   const cutSequenceStartedAt = useRef(0);
   // 1 as designed; less when this phone is behind the server; 0 skips to the result.
@@ -217,6 +220,7 @@ export function useCardSprites({
     () => () => {
       retirementTimers.current.forEach(clearTimeout);
       retirementTimers.current.clear();
+      cutSounds.current.forEach(clearTimeout);
       flight.forEach(cancelAnimation);
       collection.forEach(cancelAnimation);
     },
@@ -444,18 +448,38 @@ export function useCardSprites({
             .map((card) => `${card.key}:${card.tx}:${card.ty}`)
             .join('|')
         : null;
-    const newCutSequence =
-      !reduceMotion && !!nextCutSequenceKey && nextCutSequenceKey !== cutSequenceKey.current;
-    if (newCutSequence) {
+    const cutChanged = !!nextCutSequenceKey && nextCutSequenceKey !== cutSequenceKey.current;
+    const newCutSequence = !reduceMotion && cutChanged;
+    if (cutChanged) {
       cutSequenceStartedAt.current = Date.now();
+      const cutCount = Object.keys(model.dealerCuts).length;
+      const lateMs = model.arrivedAt != null ? Date.now() - model.arrivedAt : 0;
       // The server deals once its window is up: a phone behind it plays the
       // cut faster, or, too far behind, lays the cards down with the winner lit.
       cutPace.current = catchUpPace({
-        motionMs: cutRevealAt(Object.keys(model.dealerCuts).length),
+        motionMs: cutRevealAt(cutCount),
         holdMs: CUT_WINNER_READ_MS,
         windowMs: model.dealerSelectionMs,
-        lateMs: model.arrivedAt != null ? Date.now() - model.arrivedAt : 0,
+        lateMs,
       });
+      // Each cut card sounds as it lands, Reduce Motion or not, and the
+      // shuffle leads into the deal the window ends with.
+      const pace = cutPace.current;
+      const landings =
+        pace > 0
+          ? desired
+              .filter((card) => card.kind === 'cut')
+              .map((card) => (card.delayOrder * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS) * pace)
+          : [];
+      const dealsInMs =
+        model.dealerSelectionMs != null
+          ? model.dealerSelectionMs - lateMs
+          : (cutRevealAt(cutCount) + CUT_WINNER_READ_MS) * pace;
+      cutSounds.current.forEach(clearTimeout);
+      cutSounds.current = [
+        ...landings.map((at) => setTimeout(() => play('deal'), at)),
+        setTimeout(() => play('shuffle'), shuffleAtMs(dealsInMs, Math.max(0, ...landings))),
+      ];
     }
     const animateCutSequence = newCutSequence && cutPace.current > 0;
     const skipCutSequence = newCutSequence && cutPace.current === 0;

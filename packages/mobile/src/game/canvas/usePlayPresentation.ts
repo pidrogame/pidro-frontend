@@ -10,6 +10,8 @@ import {
 } from './animationTiming';
 import { cardKey } from './cardKey';
 import { blockedPlay } from '@/diagnostics/actions';
+import { cardPlayed } from '@/features/game/sounds';
+import { play } from '../sounds';
 
 const cards = (model: TableModel) =>
   Object.values(model.playedCards)
@@ -151,6 +153,15 @@ export function usePlayPresentation(
   const presented = optimisticPlay(source, pending, now);
   const optimistic = presented !== source;
   if (pending && !optimistic) setPending(null);
+  // A card sounds as it leaves: your tap's flight, or another seat's. Its
+  // confirmation is the same card, already on the felt.
+  const shownCards = cards(presented);
+  const playedBefore = useRef(presented.playedCards);
+  useEffect(() => {
+    if (cardPlayed(playedBefore.current, presented.playedCards)) play('card');
+    playedBefore.current = presented.playedCards;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the cards on the felt, not the object
+  }, [shownCards]);
   useEffect(() => {
     if (!pending) pendingRef.current = null;
   }, [pending]);

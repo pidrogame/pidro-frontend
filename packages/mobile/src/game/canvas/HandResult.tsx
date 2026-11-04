@@ -36,6 +36,8 @@ import { getCardImage } from '@/utils/cardImages';
 import { SUIT_SYMBOLS } from '@/utils/cards';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playOurPidroHaptic } from '@/game/useGameHaptics';
+import { play } from '@/game/sounds';
+import { shuffleAtMs } from '@/features/game/sounds';
 import { formatNumber, useTranslation } from '@/i18n';
 import { TABLE_HEADER, headerTop, useTableSize } from './TableChrome';
 import { computeLayout } from './layout';
@@ -67,12 +69,14 @@ export type HandResultState = {
 /**
  * The result of a hand scored while watching: `hand` is undefined until the
  * table has its first state, so a result already there when it opens stays shut.
+ * `dealsNext`: the next hand deals when it closes, so its shuffle starts in the hold.
  */
 export function useHandResult(
   hand: ServerLastHand | null | undefined,
   viewer: Position | null,
   room: string,
-  waiting = false
+  waiting = false,
+  dealsNext = false
 ): { result: HandResultState | null; opening: boolean; close: () => void } {
   const handNumber = hand === undefined ? undefined : (hand?.hand_number ?? null);
   const [seen, setSeen] = useState(handNumber);
@@ -100,6 +104,12 @@ export function useHandResult(
     const timer = setTimeout(() => setShown(null), closeMs);
     return () => clearTimeout(timer);
   }, [shown, closeMs, waiting]);
+  // Own pace has no deadline: its shuffle starts with the deal.
+  useEffect(() => {
+    if (waiting || closeMs == null || !dealsNext || isStillCapture()) return;
+    const timer = setTimeout(() => play('shuffle'), shuffleAtMs(closeMs));
+    return () => clearTimeout(timer);
+  }, [shown, closeMs, waiting, dealsNext]);
   return { result, opening, close: () => setShown(null) };
 }
 
