@@ -25,6 +25,7 @@ import { lobbyApi } from '@/api/lobby';
 import { useLobbyChannel } from '@/channels/hooks/useLobbyChannel';
 import { PasswordKeypadSheet } from '@/components/lobby/PasswordKeypadSheet';
 import { RoomCard } from '@/components/lobby/RoomCard';
+import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { SeatInvitations } from '@/components/invites/SeatInvitations';
 import { OpenChair } from '@/components/lobby/OpenChair';
 import { AuthFlowButton, AuthFlowHeading } from '@/components/auth/AuthFlow';
@@ -104,6 +105,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   const [query, setQuery] = useState(fixture?.query ?? '');
   const [rowErrors, setRowErrors] = useState<Record<string, LobbyFailure | undefined>>({});
   const [joining, setJoining] = useState<string | null>(null);
+  const [sheetPlayer, setSheetPlayer] = useState<string | null>(null);
   const [passwordSeat, setPasswordSeat] = useState<{
     code: string;
     position: Position;
@@ -500,6 +502,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
                           pending={joining === room.code}
                           error={failureText(rowErrors[room.code])}
                           onAction={handleRowAction}
+                          onPlayer={setSheetPlayer}
                         />
                       </View>
                     ))}
@@ -516,6 +519,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
         ) : null}
       </View>
 
+      <PlayerSheet playerId={sheetPlayer} presence="online" onClose={() => setSheetPlayer(null)} />
       {passwordSeat ? (
         <PasswordKeypadSheet
           words={passwordSeat.words}

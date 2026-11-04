@@ -51,6 +51,13 @@ it('shows the public profile as text without an editor, and closes without navig
     avatar_url: null,
     bio: '<script>alert(1)</script>',
     classic: null,
+    level: 1,
+    prestige: 0,
+    title: null,
+    pin: null,
+    record: { games: 0, win_rate: 0 },
+    medals: 0,
+    together: { games: 0, won_as_partners: 0, against_games: 0, against_won: 0 },
   });
   const { container } = render(
     <PlayerProfileButton playerId="other" name="Anna">

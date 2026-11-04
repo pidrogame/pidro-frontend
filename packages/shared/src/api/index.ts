@@ -63,6 +63,7 @@ export {
   type Achievement,
   type AchievementCatalogEntry,
   type ClassicProfile,
+  type PlayerSheet,
   type ProfileIdentity,
 } from './profile';
 export {

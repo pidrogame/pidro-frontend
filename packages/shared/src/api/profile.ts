@@ -60,6 +60,39 @@ export interface ProfileIdentity {
   classic: ClassicProfile | null;
 }
 
+/**
+ * Another player's sheet, from `GET /api/v1/profiles/:id`: who they are, with
+ * the sheet's answers on top (PID-337).
+ */
+export interface PlayerSheet {
+  user_id: string;
+  username: string;
+  display_name: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  level: number;
+  /** Legend stars past level 100. */
+  prestige: number;
+  title: string | null;
+  pin: 'classic' | null;
+  classic: {
+    username?: string | null;
+    member_since?: string | null;
+    games_played?: number | null;
+  } | null;
+  /** Pidro and Classic games added up. `win_rate` is 0 to 1. */
+  record: { games: number; win_rate: number };
+  /** How many medals they have earned. */
+  medals: number;
+  /** The viewer and this player: as partners, and against each other. */
+  together: {
+    games: number;
+    won_as_partners: number;
+    against_games: number;
+    against_won: number;
+  };
+}
+
 export interface Achievement {
   key: string;
   name: string;
@@ -93,15 +126,15 @@ export function createProfileApi(api: ApiClient) {
       const response = await api.get<{ data: ProfileIdentity }>('/api/v1/profile');
       return response.data.data;
     },
-    getPlayer: async (id: string): Promise<ProfileIdentity> => {
-      const response = await api.get<{ data: ProfileIdentity }>(
+    getPlayer: async (id: string): Promise<PlayerSheet> => {
+      const response = await api.get<{ data: PlayerSheet }>(
         `/api/v1/profiles/${encodeURIComponent(id)}`
       );
       return response.data.data;
     },
     /** The player behind `pidro.online/play/<slug>`. */
-    getPlayerBySlug: async (slug: string): Promise<ProfileIdentity> => {
-      const response = await api.get<{ data: ProfileIdentity }>(
+    getPlayerBySlug: async (slug: string): Promise<PlayerSheet> => {
+      const response = await api.get<{ data: PlayerSheet }>(
         `/api/v1/players/by-slug/${encodeURIComponent(slug)}`
       );
       return response.data.data;

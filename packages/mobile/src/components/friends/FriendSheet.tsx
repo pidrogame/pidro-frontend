@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useReducedMotion } from 'react-native-reanimated';
-import { localizedError, type ProfileIdentity } from '@pidro/shared';
+import { localizedError, type PlayerSheet } from '@pidro/shared';
 import { profileApi } from '@/api/profile';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { DismissButton } from '@/components/ui/DismissButton';
@@ -20,7 +20,7 @@ interface Props {
   onAction: (action: 'join' | 'play' | 'accept' | 'remove' | 'block') => Promise<void>;
   onProfile: () => void;
   onClose: () => void;
-  fixture?: ProfileIdentity;
+  fixture?: PlayerSheet;
   initialConfirm?: 'remove' | 'block';
 }
 
@@ -37,9 +37,7 @@ export function FriendSheet({
   const { width, height } = useWindowDimensions();
   const wide = width > height;
   const reduceMotion = useReducedMotion();
-  const [profile, setProfile] = useState<ProfileIdentity | undefined>(
-    __DEV__ ? fixture : undefined
-  );
+  const [profile, setProfile] = useState<PlayerSheet | undefined>(__DEV__ ? fixture : undefined);
   const [confirm, setConfirm] = useState<'remove' | 'block' | null>(
     __DEV__ ? (initialConfirm ?? null) : null
   );
@@ -145,8 +143,8 @@ export function FriendSheet({
                       <PlayerAvatar
                         size={64}
                         uri={profile?.avatar_url ?? player.avatar_url}
-                        level={profile?.veteran?.level}
-                        prestige={profile?.veteran?.prestige}
+                        level={profile?.level}
+                        prestige={profile?.prestige}
                       />
                       <View style={styles.copy}>
                         <PidroText role="display" accessibilityRole="header" style={styles.name}>

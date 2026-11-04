@@ -15,7 +15,7 @@ import { FriendDiscovery } from '@/components/friends/FriendDiscovery';
 import { FriendRow } from '@/components/friends/FriendRow';
 import { FriendSheet } from '@/components/friends/FriendSheet';
 import { InfoCard } from '@/components/friends/InfoCard';
-import { PlayerProfileModal } from '@/components/profile/PlayerProfileModal';
+import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { useNoticeInset, usePillClearance } from '@/components/shell/TabPill';
 import { ActionPill } from '@/components/ui/ActionPill';
 import { BackButton } from '@/components/ui/BackButton';
@@ -34,9 +34,9 @@ import {
   friendRowState,
   friendSections,
   friendsMeta,
-  linkProfileAction,
 } from '@/features/friends';
 import { discoveryFixture, friendsFixture, linkProfileFixture } from '@/features/friends/fixtures';
+import { friendSheetFixture } from '@/features/profileFixtures';
 import { roomHasUser } from '@/features/lobby/newTable';
 import { useAuthStore } from '@/stores/auth';
 import {
@@ -448,17 +448,7 @@ export default function FriendsScreen() {
                   setFullProfile(selectedPlayer);
                   onOpen(null);
                 }}
-                fixture={
-                  preview
-                    ? {
-                        ...selectedPlayer,
-                        username: selectedPlayer.display_name,
-                        bio: null,
-                        classic: null,
-                        veteran: { level: 31 },
-                      }
-                    : undefined
-                }
+                fixture={preview ? friendSheetFixture(selectedPlayer) : undefined}
                 initialConfirm={
                   fixture === 'sheet-remove'
                     ? 'remove'
@@ -488,25 +478,18 @@ export default function FriendsScreen() {
                 }}
               />
             ) : null}
-            <PlayerProfileModal
+            <PlayerSheet
               playerId={linked}
-              add={linked ? linkProfileAction(lists, linked, user?.id) : null}
+              lists={lists}
               onClose={() => setLinked(null)}
-              fixture={
-                linkPreview
-                  ? { ...linkPreview, username: linkPreview.display_name, bio: null, classic: null }
-                  : undefined
-              }
+              fixture={linkPreview ? friendSheetFixture(linkPreview) : undefined}
             />
-            <PlayerProfileModal
+            <PlayerSheet
               playerId={fullProfile?.user_id ?? null}
-              hideActions
+              presence={fullProfile?.presence === 'offline' ? 'offline' : 'online'}
+              lists={lists}
               onClose={() => setFullProfile(null)}
-              fixture={
-                preview && fullProfile
-                  ? { ...fullProfile, username: fullProfile.display_name, bio: null, classic: null }
-                  : undefined
-              }
+              fixture={preview && fullProfile ? friendSheetFixture(fullProfile) : undefined}
             />
           </>
         )}

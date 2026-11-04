@@ -24,6 +24,7 @@ export const RoomCard = memo(function RoomCard({
   gamesPlayed,
   onLocked,
   onPassword,
+  onPlayer,
 }: {
   room: Room;
   category?: LobbyCategoryKey;
@@ -34,6 +35,8 @@ export const RoomCard = memo(function RoomCard({
   gamesPlayed?: number;
   onLocked?: (code: string, minimum: number, played: number) => void;
   onPassword?: (code: string, position: Position) => void;
+  /** A seated player's face opens their sheet (PID-340). */
+  onPlayer?: (playerId: string) => void;
 }) {
   const { t } = useTranslation();
   useBotCatalogueStore((state) => state.profiles);
@@ -126,6 +129,8 @@ export const RoomCard = memo(function RoomCard({
             position: t(`social.${seat.position}`),
           });
           const label = seat.password ? t('social.password_seat', { seat: join }) : join;
+          // A seated person opens their sheet; bots, held and open seats do not.
+          const id = seat.kind === 'player' ? seat.id : undefined;
           return (
             <Fragment key={seat.position}>
               {index === 2 ? (
@@ -157,6 +162,15 @@ export const RoomCard = memo(function RoomCard({
                         ? onPassword(room.code, seat.position)
                         : onJoin(room.code, seat.position)
                   }
+                  style={styles.seat}>
+                  {content}
+                </PressableFX>
+              ) : id && onPlayer ? (
+                <PressableFX
+                  testID={`lobby-player-${room.code}-${seat.position}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={t('friends.view_profile', { name: seat.name })}
+                  onPress={() => onPlayer(id)}
                   style={styles.seat}>
                   {content}
                 </PressableFX>

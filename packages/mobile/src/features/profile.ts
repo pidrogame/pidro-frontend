@@ -1,6 +1,7 @@
 import {
   type ClassicProfile,
   type PinChoice,
+  type PlayerSheet,
   type ProfileIdentity,
   t,
   formatNumber,
@@ -109,6 +110,67 @@ export function titleLine(veteran: ProfileIdentity['veteran']): {
   if (legend && stars > 0)
     return { text: t('profile.legend_stars', { number: formatNumber(stars) }), legend };
   return { text: legend ? t('profile.legend') : veteranTitle(veteran?.title), legend };
+}
+
+/**
+ * The title line on someone's sheet: "Legend ★4", or the title with the
+ * level, "Legend · Level 100"; gold from level 100 up.
+ */
+export function sheetTitle(sheet: Pick<PlayerSheet, 'level' | 'prestige' | 'title'>): {
+  text: string;
+  legend: boolean;
+} {
+  const legend = sheet.level >= 100;
+  if (legend && sheet.prestige > 0)
+    return { text: t('profile.legend_stars', { number: formatNumber(sheet.prestige) }), legend };
+  const level = formatNumber(sheet.level);
+  const title = legend ? t('profile.legend') : veteranTitle(sheet.title);
+  return {
+    text: title
+      ? t('player_sheet.title_level', { title, level })
+      : t('player_sheet.level', { level }),
+    legend,
+  };
+}
+
+/**
+ * "At your table · Old Pidro since 2014": where they are, when that is known,
+ * then where they come from. Null when there is neither.
+ */
+export function presenceLine(
+  presence: 'table' | 'online' | 'offline' | undefined,
+  classic: PlayerSheet['classic']
+): string | null {
+  const where = presence
+    ? t(
+        presence === 'table'
+          ? 'player_sheet.at_table'
+          : presence === 'online'
+            ? 'friends.online_now'
+            : 'friends.not_online'
+      )
+    : null;
+  const year = /^(\d{4})/.exec(classic?.member_since ?? '')?.[1];
+  const since = year ? t('player_sheet.since', { year }) : null;
+  return [where, since].filter(Boolean).join(' · ') || null;
+}
+
+/** "You two: 23 games together" and what came of them; null when they never played. */
+export function togetherLines(
+  together: PlayerSheet['together']
+): { title: string; detail: string } | null {
+  if (!together.games) return null;
+  return {
+    title: t('player_sheet.together', {
+      count: together.games,
+      number: formatNumber(together.games),
+    }),
+    detail: t('player_sheet.together_detail', {
+      won: formatNumber(together.won_as_partners),
+      against_won: formatNumber(together.against_won),
+      against: formatNumber(together.against_games),
+    }),
+  };
 }
 
 /** From level 100 the card counts toward the next Legend star; null below it. */

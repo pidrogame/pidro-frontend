@@ -30,7 +30,7 @@ import { BiddingActions } from '@/components/game/BiddingActions';
 import { TrumpPicker } from '@/components/game/TrumpPicker';
 import { DealerSecondDeal } from '@/components/game/DealerSecondDeal';
 import { GameOverOverlay } from '@/components/game/GameOverOverlay';
-import { PlayerProfileModal } from '@/components/profile/PlayerProfileModal';
+import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { canViewPlayer } from '@/features/friends';
 import { botPersonas } from '@/components/ui/botPersonas';
 import { isBuiltinBot } from '@pidro/shared';
@@ -354,7 +354,7 @@ export function GameCanvasTable({
   const { locale } = useTranslation();
   const controller = useGameTableController();
   const [profile, setProfile] = useState<
-    Pick<ComponentProps<typeof PlayerProfileModal>, 'playerId' | 'persona'>
+    Pick<ComponentProps<typeof PlayerSheet>, 'playerId' | 'persona'>
   >({ playerId: null });
   const openProfile = useCallback(
     (playerId: string | null, persona?: BotPersona | null) => setProfile({ playerId, persona }),
@@ -1082,7 +1082,11 @@ export function GameCanvasTable({
               onProfile={openProfile}
             />
           )}
-          <PlayerProfileModal {...profile} onClose={() => setProfile({ playerId: null })} />
+          <PlayerSheet
+            {...profile}
+            presence={isSpectator ? 'online' : 'table'}
+            onClose={() => setProfile({ playerId: null })}
+          />
         </GestureHandlerRootView>
       </Animated.View>
       {framed ? (

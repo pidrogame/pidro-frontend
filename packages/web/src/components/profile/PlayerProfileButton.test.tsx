@@ -27,6 +27,13 @@ describe('public profile name', () => {
       avatar_url: null,
       bio: null,
       classic: null,
+      level: 1,
+      prestige: 0,
+      title: null,
+      pin: null,
+      record: { games: 0, win_rate: 0 },
+      medals: 0,
+      together: { games: 0, won_as_partners: 0, against_games: 0, against_won: 0 },
     });
     render(
       <PlayerProfileButton playerId="stable-ios-id" name="mfios1">

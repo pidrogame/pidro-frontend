@@ -1,4 +1,9 @@
-import type { AchievementCatalogEntry, FriendPlayer, ProfileIdentity } from '@pidro/shared';
+import type {
+  AchievementCatalogEntry,
+  FriendPlayer,
+  PlayerSheet,
+  ProfileIdentity,
+} from '@pidro/shared';
 
 /** Fourteen medals, the first four earned: the shelf on `Status-Profile`. */
 const MEDALS = [
@@ -74,4 +79,47 @@ export function profileFixture(
 ): { identity: ProfileIdentity; friends: FriendPlayer[] } | undefined {
   if (!__DEV__ || value !== 'legend') return;
   return { identity: legend, friends };
+}
+
+/** Kalle at your table, as drawn on `Status-Player` (PID-340). */
+const kalle: PlayerSheet = {
+  user_id: 'p-east',
+  username: 'Kalle',
+  display_name: 'Kalle',
+  avatar_url: null,
+  bio: 'Sunday mornings, coffee and a good bid.',
+  level: 100,
+  prestige: 0,
+  title: 'Legend',
+  pin: 'classic',
+  classic: { username: 'Kalle', member_since: '2014-03-02T09:00:00Z', games_played: 9_800 },
+  record: { games: 10_420, win_rate: 0.53 },
+  medals: 7,
+  together: { games: 23, won_as_partners: 14, against_games: 9, against_won: 4 },
+};
+
+/** `sheet=kalle`: Kalle's sheet from the board, with no server. */
+export function playerSheetFixture(value?: string): PlayerSheet | undefined {
+  return __DEV__ && value === 'kalle' ? kalle : undefined;
+}
+
+/** A fixture friend's sheet: what the friends list knows, and nothing more. */
+export function friendSheetFixture(
+  player: Pick<FriendPlayer, 'user_id' | 'display_name' | 'avatar_url' | 'level' | 'prestige'>
+): PlayerSheet {
+  return {
+    user_id: player.user_id,
+    username: player.display_name,
+    display_name: player.display_name,
+    avatar_url: player.avatar_url,
+    bio: null,
+    level: player.level ?? 1,
+    prestige: player.prestige ?? 0,
+    title: null,
+    pin: null,
+    classic: null,
+    record: { games: 0, win_rate: 0 },
+    medals: 0,
+    together: { games: 0, won_as_partners: 0, against_games: 0, against_won: 0 },
+  };
 }

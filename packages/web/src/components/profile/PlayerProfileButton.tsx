@@ -1,4 +1,4 @@
-import type { ProfileIdentity } from '@pidro/shared';
+import type { PlayerSheet } from '@pidro/shared';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { profileApi } from '../../api/profile';
@@ -35,7 +35,7 @@ export function PlayerProfileButton({
 
 function PlayerProfileDialog({ playerId, onClose }: { playerId: string; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [profile, setProfile] = useState<ProfileIdentity>();
+  const [profile, setProfile] = useState<PlayerSheet>();
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {

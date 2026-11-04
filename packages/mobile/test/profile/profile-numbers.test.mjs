@@ -7,8 +7,11 @@ import {
   levelProgress,
   medalShelf,
   monthName,
+  presenceLine,
+  sheetTitle,
   sinceYear,
   titleLine,
+  togetherLines,
   veteranTitle,
   winRate,
   wornPin,
@@ -179,4 +182,55 @@ it('reads the Classic row like the board', () => {
     `Bengt64 · level 61 there · ${(38536).toLocaleString()} games, counted in your record above`
   );
   expect(classicRecordLine({ level: 3 })).toBe('level 3 there');
+});
+
+describe('the player sheet', () => {
+  const since2014 = { username: 'Kalle', member_since: '2014-03-02T09:00:00Z' };
+
+  it('gives a Legend their stars, or the title with the level', () => {
+    expect(sheetTitle({ level: 100, prestige: 4, title: 'Legend' })).toEqual({
+      text: 'Legend ★4',
+      legend: true,
+    });
+    expect(sheetTitle({ level: 100, prestige: 0, title: 'Legend' })).toEqual({
+      text: 'Legend · Level 100',
+      legend: true,
+    });
+    expect(sheetTitle({ level: 99, prestige: 0, title: 'Grandmaster' })).toEqual({
+      text: 'Grandmaster · Level 99',
+      legend: false,
+    });
+    expect(sheetTitle({ level: 7, prestige: 0, title: null }).text).toBe('Level 7');
+    setLocale('sv');
+    try {
+      expect(sheetTitle({ level: 100, prestige: 0, title: 'Legend' }).text).toBe(
+        'Legend · Nivå 100'
+      );
+    } finally {
+      setLocale('en');
+    }
+  });
+
+  it('says where they are, then since when they play Old Pidro', () => {
+    expect(presenceLine('table', since2014)).toBe('At your table · Old Pidro since 2014');
+    expect(presenceLine('online', since2014)).toBe('Online now · Old Pidro since 2014');
+    expect(presenceLine('offline', null)).toBe('Not online');
+    expect(presenceLine(undefined, since2014)).toBe('Old Pidro since 2014');
+    expect(presenceLine(undefined, { username: 'Kalle', member_since: null })).toBeNull();
+  });
+
+  it('counts the two of you, wins before games against each other', () => {
+    expect(
+      togetherLines({ games: 23, won_as_partners: 14, against_games: 9, against_won: 4 })
+    ).toEqual({
+      title: 'You two: 23 games together',
+      detail: '14 won as partners · 4 of 9 against each other',
+    });
+    expect(
+      togetherLines({ games: 1, won_as_partners: 0, against_games: 1, against_won: 1 })?.title
+    ).toBe('You two: 1 game together');
+    expect(
+      togetherLines({ games: 0, won_as_partners: 0, against_games: 0, against_won: 0 })
+    ).toBeNull();
+  });
 });
