@@ -395,6 +395,9 @@ the cancelled/new turn-timer events follow separately. Grammar cases
 `table-play-right`, `table-play-left` and `table-play-middle` check immediate
 departure, stable sprite identity and the ring through trick completion at
 390×844, 375×667, 844×390 and 768×1024. Completed cards still remain as hand history.
+`table-trick-stays` (PID-331) plays with `transition=0`, the server's Classic pace:
+the finished trick's four cards stay still and opaque for 3 s, longer than a bot's
+2 s beat, and the server-selected leader lights as the fourth card lands.
 
 PID-302: `/table-dev?phase=bidding&role=player&fixture=dealer-late&late=1500` sends the
 dealer cut with a 3 s window to a phone busy for `late` ms, then deals; grammar case

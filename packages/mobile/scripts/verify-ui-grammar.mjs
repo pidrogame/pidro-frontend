@@ -928,6 +928,13 @@ const allCases = [
     testId: 'seat-north',
     playPosition: position,
   })),
+  // PID-331: with the server's trick pause at 0, a finished trick stays put.
+  {
+    name: 'table-trick-stays',
+    path: '/table-dev?fixture=play-motion&autoplay=false&transition=0',
+    testId: 'seat-north',
+    trickStays: true,
+  },
   ...['north', 'east', 'south', 'west', 'reduced'].map((winner) => ({
     name: `table-motion-${winner}`,
     path: `/table-dev?fixture=play-motion&autoplay=false&sweep=${winner === 'reduced' ? 'west' : winner}`,
@@ -4386,6 +4393,52 @@ async function assertPlayMotion(page, position, viewport) {
   assert.equal(await page.getByTestId('rendered-played-card-count-4').count(), 1);
 }
 
+/**
+ * With no trick pause (Classic's 2 s beat, PID-331) the fourth card still lands,
+ * and the finished trick lies still and whole for longer than a bot's beat.
+ */
+async function assertTrickStays(page) {
+  await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
+  await page.waitForTimeout(1500);
+  const before = JSON.parse(await page.getByTestId('play-presentation').getAttribute('aria-label'));
+  const target = before.hand[3];
+  await page.evaluate(() => {
+    const frames = [];
+    let completedAt;
+    const sample = () => {
+      const { completed } = JSON.parse(
+        document.querySelector('[data-testid="play-fixture"]').getAttribute('aria-label')
+      );
+      const at = performance.now();
+      if (completed && completedAt === undefined) completedAt = at;
+      if (completedAt !== undefined && at - completedAt >= 500)
+        frames.push({ at, sprites: window.__pidroCardMotion().filter((s) => s.kind === 'played') });
+      if (completedAt !== undefined && at - completedAt >= 3000) window.__pidroTrickFrames = frames;
+      else requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.mouse.click(target.x - target.w / 2 + 10, target.y);
+  await page.waitForFunction(() => window.__pidroTrickFrames, null, { timeout: 15_000 });
+  const frames = await page.evaluate(() => window.__pidroTrickFrames);
+  const settled = frames[0].sprites;
+  assert.equal(settled.length, 4, 'the finished trick lost a card');
+  for (const frame of frames) {
+    assert.equal(frame.sprites.length, 4, 'a card of the finished trick vanished');
+    for (const s of frame.sprites) {
+      const first = settled.find((c) => c.key === s.key);
+      assert.ok(first, `${s.key} replaced a card of the finished trick`);
+      assert.equal(s.opacity, 1, `${s.key} faded`);
+      assert.ok(Math.hypot(s.x - first.x, s.y - first.y) < 0.5, `${s.key} moved`);
+    }
+  }
+  const lit = JSON.parse(await page.getByTestId('play-presentation').getAttribute('aria-label')).lit;
+  assert.equal(lit, 'south', 'the server-selected leader is not lit');
+  console.log(
+    `trick stays: 4 cards still and opaque for ${(frames.at(-1).at - frames[0].at + 500).toFixed(0)}ms after completion`
+  );
+}
+
 async function assertCardCollection(page, winner, reduced, viewport) {
   await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
   await page.waitForTimeout(1500);
@@ -7084,6 +7137,7 @@ async function main() {
             }
             await assertPlayMotion(page, testCase.playPosition, caseViewport);
           }
+          if (testCase.trickStays) await assertTrickStays(page);
           if (testCase.sweepWinner) {
             await assertCardCollection(
               page,
