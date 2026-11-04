@@ -2,12 +2,14 @@
  * Classic's table sounds (PID-335): its own files at volume 1.0. Each file
  * loads once into its own player, so one sound never cuts off another; a
  * sound played again restarts itself. The silent switch is respected and
- * other apps' audio keeps playing.
+ * other apps' audio keeps playing. On web nothing plays before the page's
+ * first tap or key: a browser refuses it, and expo-audio leaves that refusal
+ * unhandled (PID-344).
  */
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { useSettingsStore } from '@/stores/settings';
-import { shuffleCovered } from '@/features/game/sounds';
+import { pageMayPlay, shuffleCovered } from '@/features/game/sounds';
 
 const FILES = {
   card: require('~/assets/sounds/card-play.wav'),
@@ -24,6 +26,13 @@ export type SoundName = keyof typeof FILES;
 
 let players: Partial<Record<SoundName, AudioPlayer>> | null = null;
 let shuffledAt = -Infinity;
+let gestured = false;
+const web = Platform.OS === 'web' && typeof window !== 'undefined';
+if (web && !navigator.userActivation) {
+  const gesture = () => (gestured = true);
+  window.addEventListener('pointerdown', gesture, { capture: true, once: true });
+  window.addEventListener('keydown', gesture, { capture: true, once: true });
+}
 
 /** Loads every player once; the table calls it early, like the card textures. */
 export function preloadSounds() {
@@ -45,6 +54,7 @@ export function preloadSounds() {
 
 export function play(name: SoundName) {
   if (!useSettingsStore.getState().soundEnabled || AppState.currentState !== 'active') return;
+  if (web && !pageMayPlay(navigator.userActivation, gestured)) return;
   preloadSounds();
   const player = players?.[name];
   if (!player) return;

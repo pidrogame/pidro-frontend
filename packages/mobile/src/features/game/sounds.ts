@@ -38,24 +38,41 @@ export function bidSound(
   return next[next.length - 1].amount === 'pass' ? 'pass' : 'bid';
 }
 
+/** The cards the table has heard: those on the felt, and those of this trick that went back to a hand. */
+export type CardsHeard = { trick: number; faces: ReadonlySet<string> };
+type Played = Pick<TableModel, 'playedCards' | 'lastTrick'>;
+
+const faces = (model: Played) =>
+  Object.values(model.playedCards).flatMap((cards) => (cards ?? []).map((card) => card.textureKey));
+
+/** A tap confirmed after its timeout went back to the hand: this trick still remembers it (PID-344). */
+export function cardsHeard(model: Played, heard?: CardsHeard): CardsHeard {
+  const trick = model.lastTrick?.number ?? 0;
+  const kept = heard?.trick === trick ? heard.faces : [];
+  return { trick, faces: new Set([...kept, ...faces(model)]) };
+}
+
 /**
- * Exactly one card left a hand. A card is known by its face, not its key: the
- * server renames your tapped card when it confirms it. More at once is a
- * reconnect catching up: silent.
+ * Exactly one card left a hand, once per card. A card is known by its face,
+ * not its key: the server renames your tapped card when it confirms it. More
+ * at once is a reconnect catching up: silent.
  */
-export function cardPlayed(
-  previous: TableModel['playedCards'],
-  next: TableModel['playedCards']
+export function cardPlayed(heard: CardsHeard, next: Played): boolean {
+  return faces(next).filter((face) => !heard.faces.has(face)).length === 1;
+}
+
+/** The cut's sounds belong to its cards, not to where a rotation lays them (PID-344). */
+export function cutSoundKey(cuts: TableModel['dealerCuts']): string | null {
+  const keys = Object.values(cuts).flatMap((card) => (card ? [card.key] : []));
+  return keys.length ? keys.sort().join('|') : null;
+}
+
+/** Web starts audio only after a tap or key on the page; until then a sound is dropped. */
+export function pageMayPlay(
+  userActivation: { hasBeenActive: boolean } | undefined,
+  gestured: boolean
 ): boolean {
-  const seen = new Set(
-    Object.values(previous)
-      .flat()
-      .map((card) => card?.textureKey)
-  );
-  const fresh = Object.values(next)
-    .flat()
-    .filter((card) => card && !seen.has(card.textureKey));
-  return fresh.length === 1;
+  return userActivation?.hasBeenActive ?? gestured;
 }
 
 /** A player's refill arrives, once per player, the dealer's when they take the rest. */

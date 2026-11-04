@@ -38,7 +38,7 @@ import { trumpsIn } from '@/features/game/trump';
 import { catchUpPace } from '@/features/game/catchUp';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playSelectionHaptic } from '@/utils/haptics';
-import { shuffleAtMs } from '@/features/game/sounds';
+import { cutSoundKey, shuffleAtMs } from '@/features/game/sounds';
 import { play } from '../sounds';
 import { blockedCardTap, blockedPlay, cardTap } from '@/diagnostics/actions';
 import type { DiagnosticCode } from '@/diagnostics/buffer';
@@ -196,6 +196,7 @@ export function useCardSprites({
   const targets = useRef<Map<number, string>>(new Map());
   const retirementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const cutSounds = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const cutSoundSequence = useRef<string | null>(null);
   const cutSequenceKey = useRef<string | null>(null);
   const cutSequenceStartedAt = useRef(0);
   // 1 as designed; less when this phone is behind the server; 0 skips to the result.
@@ -450,10 +451,12 @@ export function useCardSprites({
         : null;
     const cutChanged = !!nextCutSequenceKey && nextCutSequenceKey !== cutSequenceKey.current;
     const newCutSequence = !reduceMotion && cutChanged;
+    const nextCutSoundKey =
+      model.phase === 'dealer_selection' ? cutSoundKey(model.dealerCuts) : null;
+    const cutCount = Object.keys(model.dealerCuts).length;
+    const lateMs = model.arrivedAt != null ? Date.now() - model.arrivedAt : 0;
     if (cutChanged) {
       cutSequenceStartedAt.current = Date.now();
-      const cutCount = Object.keys(model.dealerCuts).length;
-      const lateMs = model.arrivedAt != null ? Date.now() - model.arrivedAt : 0;
       // The server deals once its window is up: a phone behind it plays the
       // cut faster, or, too far behind, lays the cards down with the winner lit.
       cutPace.current = catchUpPace({
@@ -462,8 +465,11 @@ export function useCardSprites({
         windowMs: model.dealerSelectionMs,
         lateMs,
       });
-      // Each cut card sounds as it lands, Reduce Motion or not, and the
-      // shuffle leads into the deal the window ends with.
+    }
+    // Each cut card sounds as it lands, Reduce Motion or not, and the shuffle
+    // leads into the deal the window ends with. A rotation replays the cut's
+    // picture, never its sounds.
+    if (nextCutSoundKey && nextCutSoundKey !== cutSoundSequence.current) {
       const pace = cutPace.current;
       const landings =
         pace > 0
@@ -481,6 +487,7 @@ export function useCardSprites({
         setTimeout(() => play('shuffle'), shuffleAtMs(dealsInMs, Math.max(0, ...landings))),
       ];
     }
+    cutSoundSequence.current = nextCutSoundKey;
     const animateCutSequence = newCutSequence && cutPace.current > 0;
     const skipCutSequence = newCutSequence && cutPace.current === 0;
     cutSequenceKey.current = nextCutSequenceKey;

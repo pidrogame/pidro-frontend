@@ -10,7 +10,7 @@ import {
 } from './animationTiming';
 import { cardKey } from './cardKey';
 import { blockedPlay } from '@/diagnostics/actions';
-import { cardPlayed } from '@/features/game/sounds';
+import { cardPlayed, cardsHeard } from '@/features/game/sounds';
 import { play } from '../sounds';
 
 const cards = (model: TableModel) =>
@@ -154,14 +154,15 @@ export function usePlayPresentation(
   const optimistic = presented !== source;
   if (pending && !optimistic) setPending(null);
   // A card sounds as it leaves: your tap's flight, or another seat's. Its
-  // confirmation is the same card, already on the felt.
+  // confirmation is the same card, already on the felt or back from a timeout.
   const shownCards = cards(presented);
-  const playedBefore = useRef(presented.playedCards);
+  const heard = useRef(cardsHeard(presented));
   useEffect(() => {
-    if (cardPlayed(playedBefore.current, presented.playedCards)) play('card');
-    playedBefore.current = presented.playedCards;
+    if (cardPlayed(heard.current, presented)) play('card');
+    heard.current = cardsHeard(presented, heard.current);
+    // A new hand can start on the felt the result left empty: its trick still turns over.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the cards on the felt, not the object
-  }, [shownCards]);
+  }, [shownCards, presented.lastTrick?.number]);
   useEffect(() => {
     if (!pending) pendingRef.current = null;
   }, [pending]);
