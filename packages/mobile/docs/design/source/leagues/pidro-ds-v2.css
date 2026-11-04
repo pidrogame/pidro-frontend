@@ -1,0 +1,267 @@
+/* Pidro mobile DS v2 materials (packages/mobile/src/design/tokens.ts), plus the
+   profile, badge, league and table pieces drawn on this canvas. */
+.felt {
+  position: relative;
+  overflow: hidden;
+  background-color: #0d5087;
+  background-image: url("felt.png");
+  background-size: cover;
+  background-position: center;
+  font-family: "Nunito", sans-serif;
+  color: #ffffff;
+}
+
+/* Surfaces */
+.window {
+  box-sizing: border-box;
+  background: rgba(5, 36, 69, 0.9);
+  border: 1px solid rgba(91, 221, 255, 0.42);
+  border-radius: 12px;
+  box-shadow: 0px 10px 30px rgba(1, 13, 27, 0.45);
+}
+.subtle {
+  box-sizing: border-box;
+  background: rgba(18, 74, 119, 0.58);
+  border: 1px solid rgba(184, 225, 246, 0.22);
+  border-radius: 10px;
+}
+.sheet {
+  box-sizing: border-box;
+  background: rgba(5, 36, 69, 0.98);
+  border: 1px solid rgba(91, 221, 255, 0.42);
+  border-bottom: 0;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0px -10px 30px rgba(1, 13, 27, 0.5);
+}
+.grabber { width: 40px; height: 5px; border-radius: 999px; background: rgba(184, 225, 246, 0.35); }
+.scrim { position: absolute; inset: 0; background: rgba(2, 14, 28, 0.62); }
+
+/* Type roles */
+.display { font-family: "Bree Serif", serif; font-weight: 400; color: #FFD447; text-shadow: 0px 2px 3px rgba(20, 8, 0, 0.6); margin: 0; }
+.label { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 15px; line-height: 20px; color: #ffffff; margin: 0; }
+.body { font-family: "Nunito", sans-serif; font-weight: 600; font-size: 15px; line-height: 22px; color: rgba(239, 249, 255, 0.82); margin: 0; }
+.meta { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 12px; line-height: 16px; letter-spacing: 0.2px; color: rgba(239, 249, 255, 0.8); margin: 0; }
+.eyebrow { font-family: "Nunito", sans-serif; font-weight: 900; font-size: 11px; line-height: 14px; letter-spacing: 1px; text-transform: uppercase; color: #8beaff; margin: 0; }
+.num { font-family: "Nunito", sans-serif; font-weight: 900; font-variant-numeric: tabular-nums; color: #ffffff; }
+.gold { color: #FFD447; }
+.cyan { color: #8beaff; }
+
+/* BevelButton material="wood" */
+.wood {
+  box-sizing: border-box; display: flex; padding: 3px; border-radius: 18px; text-decoration: none; cursor: pointer; border: 0;
+  background: linear-gradient(180deg, #F6DE9A 0%, #E2AF45 35%, #C4892A 65%, #8F5E12 100%);
+  box-shadow: 0px 8px 16px rgba(0,0,0,0.5), 0px 2px 4px rgba(0,0,0,0.35);
+  font: inherit;
+}
+.wood .face {
+  flex-grow: 1; display: flex; align-items: center; justify-content: center; gap: 10px;
+  border: 1.5px solid #2A1505; border-radius: 15px;
+  background:
+    linear-gradient(180deg, rgba(255,248,225,0.30) 0%, rgba(255,248,225,0.08) 46%, rgba(255,248,225,0) 47%),
+    linear-gradient(180deg, #B57A31 0%, #91541C 42%, #6C370E 78%, #4E2509 100%);
+  box-shadow: inset 0px 2px 0px rgba(255,240,200,0.4), inset 0px -6px 0px rgba(0,0,0,0.34);
+  font-family: "Bree Serif", serif; color: #FFD447; text-shadow: 0px 2px 3px rgba(20, 8, 0, 0.6);
+}
+.wood:hover .face { filter: brightness(1.06); }
+
+/* BevelButton material="glass" */
+.glass {
+  box-sizing: border-box; display: flex; padding: 1.5px; border-radius: 13px; text-decoration: none; cursor: pointer; border: 0;
+  background: linear-gradient(180deg, rgba(170,235,255,0.72) 0%, rgba(60,140,190,0.55) 50%, rgba(16,72,112,0.68) 100%);
+  box-shadow: 0px 2px 6px rgba(0,0,0,0.3);
+  font: inherit;
+}
+.glass .face {
+  flex-grow: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  border-radius: 11.5px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.02) 100%),
+    linear-gradient(180deg, rgba(46,118,178,0.92) 0%, rgba(24,78,128,0.92) 100%);
+  box-shadow: inset 0px 1px 0px rgba(255,255,255,0.30), inset 0px -2px 0px rgba(2,24,44,0.45);
+  font-family: "Nunito", sans-serif; font-weight: 800; color: #ffffff; text-shadow: 0px 1px 2px rgba(0, 10, 20, 0.5);
+}
+.glass:hover .face { filter: brightness(1.08); }
+.cyan-link { color: #8beaff; font-family: "Nunito", sans-serif; font-weight: 800; text-decoration: none; background: none; border: 0; cursor: pointer; }
+.cyan-link:hover { color: #c4f4ff; }
+
+/* Input */
+.field-label { display: block; font-family: "Nunito", sans-serif; font-weight: 800; font-size: 14px; line-height: 18px; color: rgba(239, 249, 255, 0.82); margin: 0 0 6px 0; }
+.input {
+  box-sizing: border-box; width: 100%; height: 50px; padding: 0 14px;
+  background: #08243d; border: 1.5px solid rgba(184, 225, 246, 0.22); border-radius: 8px;
+  font-family: "Nunito", sans-serif; font-weight: 600; font-size: 17px; color: #ffffff; outline: none;
+}
+
+/* Avatar in the gold level ring, with the level chip under it */
+.ring {
+  box-sizing: border-box; display: flex; border-radius: 999px;
+  background: linear-gradient(180deg, #F6DE9A 0%, #E2AF45 35%, #C4892A 65%, #8F5E12 100%);
+  box-shadow: 0px 4px 10px rgba(0,0,0,0.45);
+}
+.face-initial {
+  flex-grow: 1; border-radius: 999px; border: 1.5px solid #2A1505;
+  background: linear-gradient(180deg, #175086 0%, #0E3158 60%, #0A2340 100%);
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Bree Serif", serif; color: #FFD447; text-shadow: 0px 2px 3px rgba(20, 8, 0, 0.6);
+}
+.lvl {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  box-sizing: border-box; display: flex; align-items: center; justify-content: center;
+  border-radius: 999px; background: #0A2340; border: 1.5px solid #E2AF45;
+  font-family: "Nunito", sans-serif; font-weight: 900; color: #FFD447; font-variant-numeric: tabular-nums;
+}
+
+/* Classic medallion: the wood-and-gold of Pidro's own buttons, struck as a coin */
+.medal {
+  position: absolute; box-sizing: border-box; display: flex; border-radius: 999px;
+  background: linear-gradient(180deg, #F6DE9A 0%, #E2AF45 35%, #C4892A 65%, #8F5E12 100%);
+  box-shadow: 0px 0px 0px 2px #0A2340, 0px 3px 6px rgba(0,0,0,0.5);
+}
+.medal-inline { position: relative; }
+.medal .coin, .medal-inline .coin {
+  flex-grow: 1; border-radius: 999px; border: 1px solid #2A1505;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255,240,200,0.35) 0%, rgba(255,240,200,0) 45%),
+    linear-gradient(180deg, #91541C 0%, #6C370E 60%, #4E2509 100%);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  color: #FFD447;
+}
+/* Founding Tester mark: cyan glass coin */
+.tester {
+  box-sizing: border-box; display: flex; border-radius: 999px;
+  background: linear-gradient(180deg, rgba(170,235,255,0.95) 0%, rgba(60,140,190,0.9) 50%, rgba(16,72,112,0.95) 100%);
+  box-shadow: 0px 0px 0px 2px #0A2340, 0px 3px 6px rgba(0,0,0,0.5);
+}
+.tester .coin {
+  flex-grow: 1; border-radius: 999px;
+  background: linear-gradient(180deg, #2E76B2 0%, #184E80 100%);
+  display: flex; align-items: center; justify-content: center; color: #ffffff;
+}
+
+/* Badge chips under the name */
+.badge-chip {
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px 0 4px;
+  border-radius: 999px; background: rgba(7, 45, 82, 0.86); border: 1px solid rgba(226, 175, 69, 0.7);
+  font-family: "Nunito", sans-serif; font-weight: 800; font-size: 13px; color: #ffffff; cursor: pointer; text-decoration: none;
+}
+.badge-chip.cyan-edge { border-color: rgba(91, 221, 255, 0.7); }
+
+/* Progress well */
+.well { box-sizing: border-box; height: 12px; border-radius: 999px; background: #08243d; border: 1px solid rgba(184, 225, 246, 0.22); overflow: hidden; }
+.well .fill { height: 100%; border-radius: 999px; background: linear-gradient(180deg, #F6DE9A 0%, #E2AF45 45%, #C4892A 100%); }
+.well.cyan-fill .fill { background: linear-gradient(180deg, #a7f0ff 0%, #46dcff 60%, #1aa6cf 100%); }
+
+/* Floating tab pill */
+.tabbar { box-sizing: border-box; display: flex; align-items: center; justify-content: space-around; height: 72px; padding: 0 10px; border-radius: 999px; background: rgba(5,36,69,0.94); border: 1px solid rgba(184,225,246,0.22); box-shadow: 0px 8px 24px rgba(1,13,27,0.5); }
+.tab { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 52px; font-family: "Nunito", sans-serif; font-weight: 800; font-size: 11px; color: rgba(218,237,247,0.8); text-decoration: none; }
+.tab.on { color: #ffffff; }
+.spade { width: 54px; height: 54px; border-radius: 999px; background: linear-gradient(180deg,#B57A31,#6C370E); border: 2px solid #E2AF45; display: flex; align-items: center; justify-content: center; }
+
+/* Seat card at the table (as on the game screen) */
+.seat {
+  box-sizing: border-box; display: flex; align-items: center; gap: 8px; min-height: 42px; padding: 5px 8px;
+  border-radius: 8px; background: rgba(7, 45, 82, 0.86); border: 1px solid rgba(184, 225, 246, 0.22);
+}
+
+/* Table seen from above, for the empty lobby and New table */
+.tabletop {
+  position: absolute; box-sizing: border-box; border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 40%, #1b6aa4 0%, #11558c 55%, #0b3f6c 100%);
+  border: 6px solid #6C370E;
+  box-shadow: 0px 0px 0px 2px #E2AF45, 0px 14px 30px rgba(1,13,27,0.55), inset 0px 0px 30px rgba(0,0,0,0.35);
+}
+.chair-open {
+  box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px;
+  border: 2px dashed rgba(139, 234, 255, 0.75); background: rgba(7, 45, 82, 0.7); color: #8beaff;
+}
+.choice {
+  box-sizing: border-box; display: flex; align-items: center; gap: 14px; width: 100%; min-height: 72px; padding: 12px 14px;
+  border-radius: 12px; background: rgba(18, 74, 119, 0.58); border: 1px solid rgba(184, 225, 246, 0.22);
+  font: inherit; color: #ffffff; text-align: left; cursor: pointer;
+}
+.choice.on { border: 2px solid #E2AF45; background: rgba(107, 73, 11, 0.45); padding: 11px 13px; }
+.radio { box-sizing: border-box; width: 22px; height: 22px; border-radius: 999px; border: 2px solid rgba(184,225,246,0.6); flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.choice.on .radio { border-color: #FFD447; }
+.choice.on .radio::after { content: ""; width: 10px; height: 10px; border-radius: 999px; background: #FFD447; }
+
+/* League list */
+.row { box-sizing: border-box; display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 12px; border-radius: 10px; }
+.row.me { background: rgba(107, 73, 11, 0.5); border: 1.5px solid #E2AF45; }
+.zone { display: flex; align-items: center; gap: 8px; font-family: "Nunito", sans-serif; font-weight: 900; font-size: 11px; letter-spacing: 0.8px; text-transform: uppercase; }
+.zone::before, .zone::after { content: ""; flex-grow: 1; height: 1px; }
+.zone.up { color: #FFD447; }
+.zone.up::before, .zone.up::after { background: rgba(226, 175, 69, 0.6); }
+.zone.down { color: #ffb4b9; }
+.zone.down::before, .zone.down::after { background: rgba(255, 138, 145, 0.45); }
+.suit { box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 10px; background: rgba(7,45,82,0.86); border: 1px solid rgba(184,225,246,0.22); font-size: 20px; color: rgba(218,237,247,0.8); }
+.suit.on { border: 2px solid #E2AF45; color: #FFD447; background: rgba(107, 73, 11, 0.5); }
+.suit.done { color: #ffffff; }
+
+/* v2: the ring says whether you support Pidro. Plain .ring is gold (Supporter). */
+.ring.glass-ring { background: linear-gradient(180deg, #D8F6FF 0%, #86CFEE 32%, #3A8BC0 66%, #17507E 100%); }
+.ring.glass-ring .face-initial { border-color: #0b2a47; color: #ffffff; }
+.lvl.glass-edge { border-color: #86CFEE; color: #ffffff; }
+/* Lifetime: gold ring with a gem set at twelve o'clock */
+.gem {
+  position: absolute; box-sizing: border-box; transform: rotate(45deg); border-radius: 2px;
+  background: linear-gradient(135deg, #ffffff 0%, #c9f7ff 30%, #5fd2ff 65%, #2a76d0 100%);
+  border: 1.5px solid #E2AF45;
+  box-shadow: 0px 0px 0px 1.5px #0A2340, 0px 0px 10px rgba(160, 240, 255, 0.85);
+}
+.face-initial.bot { background: linear-gradient(180deg, #2E76B2 0%, #184E80 100%); }
+
+/* At the table: no plate. Avatar, then name, then what they are doing. */
+.sname { font-family: "Nunito", sans-serif; font-weight: 800; font-size: 13px; line-height: 16px; color: #ffffff; white-space: nowrap; margin: 0; text-shadow: 0px 1px 2px rgba(0, 12, 24, 0.9), 0px 0px 8px rgba(0, 12, 24, 0.6); }
+.sname.mate { color: #92e6b2; }
+.sstat { font-family: "Nunito", sans-serif; font-weight: 700; font-size: 11px; line-height: 14px; color: #8beaff; white-space: nowrap; margin: 0; text-shadow: 0px 1px 2px rgba(0, 12, 24, 0.9), 0px 0px 8px rgba(0, 12, 24, 0.6); }
+.sstat.now { color: #ffffff; }
+.sstat.quiet { color: rgba(218, 237, 247, 0.7); }
+.turn-arc { position: absolute; overflow: visible; filter: drop-shadow(0px 0px 4px rgba(139, 234, 255, 0.9)); }
+.dealer {
+  position: absolute; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #FFF4C4 0%, #F2C94C 42%, #C4892A 100%);
+  border: 1.5px solid #6C370E; box-shadow: 0px 2px 4px rgba(0,0,0,0.55);
+  font-family: "Bree Serif", serif; color: #4E2509; line-height: 1;
+}
+.away-dot {
+  position: absolute; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border-radius: 999px;
+  background: #3a1520; border: 1.5px solid #ff8a91; box-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+}
+
+/* Cards */
+.card {
+  position: absolute; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;
+  border-radius: 6px; background: #fbfbf7; border: 1px solid rgba(0,0,0,0.25); box-shadow: 0px 3px 8px rgba(0,0,0,0.45);
+  font-family: "Bree Serif", serif; color: #1b1b1b; line-height: 1;
+}
+.card.red { color: #c3172f; }
+.back {
+  position: absolute; box-sizing: border-box; border-radius: 5px; border: 2px solid #E2AF45;
+  background: repeating-linear-gradient(45deg, #14456f 0px, #14456f 4px, #0c2f52 4px, #0c2f52 8px);
+  box-shadow: 0px 2px 5px rgba(0,0,0,0.45);
+}
+
+/* League emblems: a card from the deck. J, Q, K, A, then the Pidro. */
+.lg {
+  box-sizing: border-box; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; flex-shrink: 0;
+  border-radius: 6px; background: #fbfbf7; border: 1px solid rgba(0,0,0,0.3); box-shadow: 0px 2px 6px rgba(0,0,0,0.4);
+  font-family: "Bree Serif", serif; color: #1b1b1b; line-height: 1;
+}
+.lg.red { color: #c3172f; }
+.lg.pidro { background: linear-gradient(180deg, #F6DE9A 0%, #E2AF45 40%, #C4892A 100%); border-color: #8F5E12; color: #4E2509; }
+.lg.on { box-shadow: 0px 0px 0px 2px #FFD447, 0px 0px 14px rgba(255, 212, 71, 0.6); }
+.lg.ahead { opacity: 0.5; }
+
+/* Month ribbons, coloured by the best league of that month */
+.ribbon {
+  box-sizing: border-box; display: flex; flex-direction: column; align-items: center; gap: 3px; padding-top: 6px; flex-shrink: 0;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%);
+  font-family: "Nunito", sans-serif; font-weight: 900; color: #ffffff;
+}
+.ribbon.j { background: linear-gradient(180deg, #4f86b8 0%, #2f5f8c 100%); }
+.ribbon.q { background: linear-gradient(180deg, #35a091 0%, #1f6e63 100%); }
+.ribbon.k { background: linear-gradient(180deg, #c4475a 0%, #8a2433 100%); }
+.ribbon.a { background: linear-gradient(180deg, #4a4e6e 0%, #23263a 100%); }
+.ribbon.p { background: linear-gradient(180deg, #F6DE9A 0%, #E2AF45 45%, #C4892A 100%); color: #4E2509; }
+.ribbon .m { font-size: 9px; line-height: 10px; letter-spacing: 0.8px; }
+.ribbon .l { font-family: "Bree Serif", serif; font-weight: 400; font-size: 18px; line-height: 18px; }

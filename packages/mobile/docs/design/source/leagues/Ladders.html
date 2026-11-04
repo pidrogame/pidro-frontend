@@ -1,0 +1,130 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="pidro-ds-v2.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bree+Serif&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap">
+<style>
+body{margin:0;font-family:"Nunito",sans-serif;color:#ffffff;background:#07264c}
+a{color:#8beaff}a:hover{color:#c4f4ff}
+</style>
+</head><body>
+
+<main class="felt" style="width: 1360px; height: 900px; box-sizing: border-box; padding: 48px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px">
+
+<section class="window" aria-label="This week: League" style="padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<header style="display: flex; flex-direction: column; gap: 4px">
+<p class="eyebrow">This week</p>
+<h2 class="display" style="font-size: 36px; line-height: 42px">League</h2>
+<p class="body">The week ends Sunday at 19:00 UTC, shown in your own time, and the next one starts that second, everyone at 0.</p>
+</header>
+
+<ol aria-label="Leagues, top to bottom" style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px">
+<li style="display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 0 10px">
+<span class="lg pidro" style="width: 38px; height: 52px"><svg width="22" height="22" viewBox="0 0 24 24" fill="#4E2509" aria-hidden="true"><path d="M12 3c-3 3.6-7 6.2-7 10 0 2.2 1.7 3.8 3.8 3.8 1.2 0 2.2-.5 2.7-1.3-.2 1.7-.9 3.2-2.3 4.5h5.6c-1.4-1.3-2.1-2.8-2.3-4.5.5.8 1.5 1.3 2.7 1.3 2.1 0 3.8-1.6 3.8-3.8 0-3.8-4-6.4-7-10z"></path></svg></span>
+<span style="display: flex; flex-direction: column"><span class="label" style="color: #FFD447">Pidro league</span><span class="meta">The top. The 5 of trumps. Bottom 8 of 30 move down.</span></span>
+</li>
+<li style="display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 0 10px">
+<span class="lg" style="width: 38px; height: 52px; font-size: 20px; gap: 1px">A<span style="font-size: 16px">♠</span></span>
+<span style="display: flex; flex-direction: column"><span class="label">Ace league</span><span class="meta">Top 3 of 30 move up.</span></span>
+</li>
+<li aria-current="true" style="display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 0 10px; border-radius: 10px; background: rgba(107, 73, 11, 0.5); border: 1.5px solid #E2AF45">
+<span class="lg red on" style="width: 38px; height: 52px; font-size: 20px; gap: 1px">J<span style="font-size: 16px">♥</span></span>
+<span style="display: flex; flex-direction: column; flex-grow: 1"><span class="label">Jack league</span><span class="meta" style="color: #FFD447">Bengt is 6th of 30 · top 5 move up</span></span>
+</li>
+<li style="display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 0 10px">
+<span class="lg red" style="width: 38px; height: 52px; font-size: 20px; gap: 1px">10<span style="font-size: 16px">♦</span></span>
+<span style="display: flex; flex-direction: column"><span class="label">Ten league</span><span class="meta">Top 7 of 30 move up.</span></span>
+</li>
+<li style="display: flex; align-items: center; gap: 14px; min-height: 60px; padding: 0 10px">
+<span class="lg" style="width: 38px; height: 52px; font-size: 20px; gap: 1px">2<span style="font-size: 16px">♣</span></span>
+<span style="display: flex; flex-direction: column"><span class="label">Deuce league</span><span class="meta">Every new player starts here. Top 10 of 30 move up.</span></span>
+</li>
+</ol>
+
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px" class="body">
+<li>Rooms of 30 from the same league. Your first game of the week puts you in one.</li>
+<li>Every game with people counts: the XP you earn there is your points. Alone with bots is practice.</li>
+<li>Fewer move up the higher you are: 10, 7, 5, 3. Places 26 to 30 move down; in Pidro league, 23 to 30. Nobody moves down from Deuce.</li>
+<li>Skip a week and you keep your league.</li>
+<li>Everyone starts in Deuce, Classic players too. Your Level stays.</li>
+</ul>
+<p class="meta" style="margin-top: auto">Shows on the League tab, one card on Home, and your profile.</p>
+</section>
+
+<section class="window" aria-label="This month: Season" style="padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<header style="display: flex; flex-direction: column; gap: 4px">
+<p class="eyebrow">This month</p>
+<h2 class="display" style="font-size: 36px; line-height: 42px">Season</h2>
+<p class="body">A new one on the 1st. Nothing to race; it collects your weeks.</p>
+</header>
+
+<div class="subtle" style="padding: 20px 16px 16px; display: flex; flex-direction: column; gap: 14px">
+<p class="eyebrow" style="color: rgba(239, 249, 255, 0.8)">Bengt’s ribbons</p>
+<div style="display: flex; gap: 14px; align-items: flex-start">
+<span class="ribbon q" role="img" aria-label="June, Ten league" style="width: 50px; height: 74px"><span class="m">JUN</span><span class="l">10</span></span>
+<span class="ribbon k" role="img" aria-label="July, Jack league" style="width: 50px; height: 74px"><span class="m">JUL</span><span class="l">J</span></span>
+<span class="ribbon k" role="img" aria-label="August, Jack league, played every week" style="width: 50px; height: 74px"><span class="m">AUG</span><span class="l">J</span><svg width="12" height="12" viewBox="0 0 24 24" fill="#FFD447" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5-4.9-4.5 6.6-.8z"></path></svg></span>
+<span class="ribbon k" role="img" aria-label="September, Jack league, played every week" style="width: 50px; height: 74px"><span class="m">SEP</span><span class="l">J</span><svg width="12" height="12" viewBox="0 0 24 24" fill="#FFD447" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5-4.9-4.5 6.6-.8z"></path></svg></span>
+<span class="ribbon k" role="img" aria-label="October so far, Jack league" style="width: 50px; height: 74px; opacity: 0.6"><span class="m">OCT</span><span class="l">J</span></span>
+</div>
+</div>
+
+<div class="subtle" style="padding: 16px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: baseline">
+<p class="label">October so far</p>
+<span class="num" style="font-size: 17px">5,880 XP</span>
+</div>
+<div style="display: flex; align-items: center; gap: 8px" role="img" aria-label="Played 2 of 4 weeks, this week in progress">
+<span style="width: 22px; height: 22px; border-radius: 999px; background: #E2AF45; border: 2px solid #F6DE9A; box-sizing: border-box"></span>
+<span style="width: 22px; height: 22px; border-radius: 999px; background: #E2AF45; border: 2px solid #F6DE9A; box-sizing: border-box"></span>
+<span style="width: 22px; height: 22px; border-radius: 999px; background: rgba(226, 175, 69, 0.3); border: 2px solid #E2AF45; box-sizing: border-box"></span>
+<span style="width: 22px; height: 22px; border-radius: 999px; border: 2px solid rgba(184, 225, 246, 0.4); box-sizing: border-box"></span>
+<span class="meta" style="margin-left: 6px">Weeks played: 2 of 4</span>
+</div>
+</div>
+
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px" class="body">
+<li>Your best league this month becomes the month’s ribbon.</li>
+<li>Play in every week of the month and it gets a star.</li>
+<li>Your last 12 ribbons sit on your profile.</li>
+<li>No monthly leaderboard.</li>
+</ul>
+<p class="meta" style="margin-top: auto">Shows on your profile, and on Monday’s result when it changes.</p>
+</section>
+
+<section class="window" aria-label="All time: Level" style="padding: 24px; display: flex; flex-direction: column; gap: 16px">
+<header style="display: flex; flex-direction: column; gap: 4px">
+<p class="eyebrow">All time</p>
+<h2 class="display" style="font-size: 36px; line-height: 42px">Level</h2>
+<p class="body">Never resets. Classic XP counts.</p>
+</header>
+
+<table style="border-collapse: collapse; width: 100%">
+<thead>
+<tr>
+<th scope="col" class="meta" style="text-align: left; padding: 0 0 8px 10px; font-weight: 800">Level</th>
+<th scope="col" class="meta" style="text-align: left; padding: 0 0 8px; font-weight: 800">Title</th>
+<th scope="col" class="meta" style="text-align: right; padding: 0 10px 8px 0; font-weight: 800">Classic players</th>
+</tr>
+</thead>
+<tbody>
+<tr style="height: 40px; border-top: 1px solid rgba(184, 225, 246, 0.16)"><td class="num" style="padding-left: 10px; color: #FFD447">100</td><td class="label" style="color: #FFD447">Hall of Famer</td><td class="meta" style="text-align: right; padding-right: 10px">0.9%</td></tr>
+<tr style="height: 40px; border-top: 1px solid rgba(184, 225, 246, 0.16)"><td class="num" style="padding-left: 10px">75</td><td class="label">Living Legend</td><td class="meta" style="text-align: right; padding-right: 10px">1.2%</td></tr>
+<tr style="height: 40px; border-top: 1px solid rgba(184, 225, 246, 0.16)"><td class="num" style="padding-left: 10px">50</td><td class="label">Pillar of the Table</td><td class="meta" style="text-align: right; padding-right: 10px">3.0%</td></tr>
+<tr aria-current="true" style="height: 44px; background: rgba(107, 73, 11, 0.5); outline: 1.5px solid #E2AF45; outline-offset: -1.5px"><td class="num" style="padding-left: 10px; color: #FFD447">35</td><td style="display: flex; flex-direction: column; justify-content: center; height: 44px"><span class="label">Mainstay</span><span class="meta" style="color: #FFD447">Bengt, level 44</span></td><td class="meta" style="text-align: right; padding-right: 10px">4.0%</td></tr>
+<tr style="height: 40px; border-top: 1px solid rgba(184, 225, 246, 0.16)"><td class="num" style="padding-left: 10px">20</td><td class="label">Table Fixture</td><td class="meta" style="text-align: right; padding-right: 10px">8.3%</td></tr>
+<tr style="height: 40px; border-top: 1px solid rgba(184, 225, 246, 0.16)"><td class="num" style="padding-left: 10px">10</td><td class="label">Old Hand</td><td class="meta" style="text-align: right; padding-right: 10px">13.2%</td></tr>
+<tr style="height: 40px; border-top: 1px solid rgba(184, 225, 246, 0.16)"><td class="num" style="padding-left: 10px">5</td><td class="label">Regular</td><td class="meta" style="text-align: right; padding-right: 10px">15.0%</td></tr>
+<tr style="height: 40px; border-top: 1px solid rgba(184, 225, 246, 0.16)"><td class="num" style="padding-left: 10px">1</td><td class="label">Newcomer</td><td class="meta" style="text-align: right; padding-right: 10px">54.3%</td></tr>
+</tbody>
+</table>
+
+<div style="display: flex; align-items: center; gap: 10px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="#FFD447" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.5 1.3 6.5L12 17.1l-5.9 3.2 1.3-6.5-4.9-4.5 6.6-.8z"></path></svg>
+<p class="body">Past 100: a Prestige star for every 500,000 XP.</p>
+</div>
+<ul style="margin: 0; padding: 0 0 0 18px; display: flex; flex-direction: column; gap: 6px" class="body">
+<li>No all-time leaderboard. It would show the same few lifers forever.</li>
+</ul>
+<p class="meta" style="margin-top: auto">Shows on every avatar (the number) and your profile (the title).</p>
+</section>
+</main>
+
+</body></html>
