@@ -359,7 +359,7 @@ export function tickerPlacement(
   L: TableLayout,
   { tableTop, plaqueLeft, plaqueTop }: { tableTop: number; plaqueLeft: number; plaqueTop: number },
   always = false
-): { lineMaxWidth: number; drop: number } | null {
+): { lineMaxWidth: number; drop: number; wraps?: boolean } | null {
   if (L.tight || L.front || (!always && !showsTicker(L))) return null;
   const backW = northBackWidth(L.cardW, compactNorth(L));
   if (!L.profile.endsWith('portrait')) {
@@ -368,7 +368,13 @@ export function tickerPlacement(
   }
   const fanLeft = L.seats.north.x - northFanWidth(L.cardW, 6, compactNorth(L)) / 2;
   const room = fanLeft + backW / 2 - plaqueLeft - TICKER_CHEVRON;
-  return { lineMaxWidth: clamp(room, TICKER_LINE_MIN, TICKER_LINE_MAX), drop: 0 };
+  // Upright phones' bigger backs leave the lines less room (PID-333): a name
+  // takes a row of its own rather than be cut short, as the bid line's does.
+  return {
+    lineMaxWidth: clamp(room, TICKER_LINE_MIN, TICKER_LINE_MAX),
+    drop: 0,
+    wraps: L.profile === 'phone-portrait',
+  };
 }
 /**
  * Seat avatars, from the Table boards. Landscape phones draw them larger:

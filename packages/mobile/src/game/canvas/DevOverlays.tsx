@@ -27,7 +27,8 @@ import { BiddingActions } from '@/components/game/BiddingActions';
 import { HandSelector } from '@/components/game/HandSelector';
 import type { RematchVote } from '@pidro/shared';
 import { GameOverOverlay } from '@/components/game/GameOverOverlay';
-import { useTableReserves } from './TableChrome';
+import { useTableReserves, useTableSize } from './TableChrome';
+import { computeLayout, northSeatBottom } from './layout';
 import { useTranslation } from '@/i18n';
 
 const noop = () => {};
@@ -384,6 +385,8 @@ export function DevOverlays({
   const [voted, setVoted] = useState(false);
   const insets = useSafeAreaInsets();
   const { topReserve, bottomReserve } = useTableReserves();
+  const { width, height } = useTableSize();
+  const layout = computeLayout(width, height, insets, topReserve, bottomReserve);
   const eastViewer = result === 'east';
   const spectator = result === 'spectator';
   const viewer: Position = eastViewer ? 'east' : 'south';
@@ -469,7 +472,15 @@ export function DevOverlays({
         <View
           style={[
             styles.centerOverlay,
-            { paddingTop: insets.top + 64, paddingBottom: insets.bottom + 16 },
+            {
+              paddingTop: Math.max(
+                insets.top + 64,
+                layout.profile === 'phone-portrait'
+                  ? northSeatBottom(layout, insets.top + topReserve) + 8
+                  : 0
+              ),
+              paddingBottom: insets.bottom + 16,
+            },
           ]}
           pointerEvents="box-none">
           <HandSelector viewModel={VM} cards={HAND12} trumpSuit="spades" onSelectHand={noop} />

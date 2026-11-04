@@ -70,6 +70,7 @@ import { HandPoints } from './HandPoints';
 import {
   computeLayout,
   handRight,
+  northSeatBottom,
   showsTicker,
   tickerPlacement,
   trumpPicker,
@@ -1019,7 +1020,14 @@ export function GameCanvasTable({
               style={[
                 styles.centerOverlay,
                 {
-                  paddingTop: insets.top + TABLE_HEADER + PidroSpacing.xs,
+                  // Upright phones keep it under North's seat, whatever the cards' size (PID-333).
+                  paddingTop:
+                    Math.max(
+                      insets.top + TABLE_HEADER,
+                      layout.profile === 'phone-portrait'
+                        ? northSeatBottom(layout, insets.top + topReserve)
+                        : 0
+                    ) + PidroSpacing.xs,
                   paddingBottom: insets.bottom + 16,
                 },
               ]}

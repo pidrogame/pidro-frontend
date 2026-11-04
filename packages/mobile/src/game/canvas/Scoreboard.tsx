@@ -181,7 +181,7 @@ export function Scoreboard({
   /** Kept for fixture callers; a turn change never dismisses the log. */
   yourTurn?: boolean;
   /** Where the ticker keeps off North's fan (layout's tickerPlacement); null leaves it out. */
-  ticker?: { lineMaxWidth: number; drop: number } | null;
+  ticker?: { lineMaxWidth: number; drop: number; wraps?: boolean } | null;
   /** False until the table has its first server state; the ticker waits for it. */
   stateArrived?: boolean;
   /** Only the resting line, where the table has no room for the passing ones. */
@@ -287,6 +287,7 @@ export function Scoreboard({
             onOpenLog={() => setLogOpen(true)}
             stateArrived={stateArrived}
             lineMaxWidth={ticker?.lineMaxWidth}
+            wraps={ticker?.wraps}
           />
           {help}
         </View>

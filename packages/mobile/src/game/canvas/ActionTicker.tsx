@@ -38,6 +38,8 @@ type Props = {
   stateArrived: boolean;
   /** Where the lines must stop short of North's fan (layout's tickerPlacement). */
   lineMaxWidth?: number;
+  /** Every line's name takes a row of its own rather than be cut short, not only the bid line's. */
+  wraps?: boolean;
 };
 
 /** The ticker's text grows with large text, as the bid line did; the plaque's does not. */
@@ -74,6 +76,7 @@ export function ActionTicker({
   onOpenLog,
   stateArrived,
   lineMaxWidth = 168,
+  wraps = false,
 }: Props) {
   const { t } = useTranslation();
   const [schedule, setSchedule] = useState<Schedule>(() => ({
@@ -151,6 +154,7 @@ export function ActionTicker({
                 ours={entry.ours}
                 fading={fading}
                 maxWidth={lineMaxWidth}
+                wraps={wraps}
               />
             ))
           : resting && (
