@@ -599,7 +599,8 @@ test('Play opens New table with the friend already assigned as Partner and creat
     await page.getByTestId('home-play-online').click();
     await expect(page.getByText('Your table', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Go back', exact: true }).click();
-    await page.getByRole('button', { name: 'Friends', exact: true }).click();
+    // The friend is online, so the tab counts them.
+    await page.getByRole('button', { name: 'Friends, 1 online now', exact: true }).click();
     await page
       .getByRole('button', { name: `Start a table with ${friendPlayer.name}`, exact: true })
       .click();
