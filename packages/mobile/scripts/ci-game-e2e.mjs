@@ -623,15 +623,17 @@ async function stageThreeTableTalk() {
         .or(page.getByTestId('talk-offer').getByTestId('talk-speech'))
         .first();
     // An adult's band opens the composer, with the words in it. Others: the log, then the words.
+    // It opens at once or not at all: your turn can close it before it is seen, so do not
+    // wait the default 30 s for it, which three turns would spend the whole Thanks! budget on.
     const sayFrom = async (page) => {
       await tap(opener(page));
       const log = page.getByTestId('talk-sheet-log');
       const words = page.getByTestId('talk-sheet-words');
       const typing = page.getByTestId('talk-sheet-typing');
-      await log.or(words).or(typing).first().waitFor();
+      await log.or(words).or(typing).first().waitFor({ timeout: 5_000 });
       if (await typing.isVisible()) return typing;
       if (await log.isVisible()) await tap(log.getByTestId('talk-band'));
-      await words.waitFor();
+      await words.waitFor({ timeout: 5_000 });
       return words;
     };
 
