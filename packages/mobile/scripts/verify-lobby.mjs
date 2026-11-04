@@ -183,7 +183,8 @@ try {
     assert.equal(await first.getByRole('button', { name: /^Join/ }).count(), 2);
     const mek = await first.getByText('Mek', { exact: true }).boundingBox();
     const magnolia = await first.getByText('Magnolia', { exact: true }).boundingBox();
-    assert.equal(await first.getByRole('button', { name: /profile/ }).count(), 0);
+    // PID-340: the two seated players open their sheet; the open seats join.
+    assert.equal(await first.getByRole('button', { name: /profile/ }).count(), 2);
     const east = await first.getByRole('button', { name: /^Join east/ }).boundingBox();
     const west = await first.getByRole('button', { name: /^Join west/ }).boundingBox();
     assert.ok(
