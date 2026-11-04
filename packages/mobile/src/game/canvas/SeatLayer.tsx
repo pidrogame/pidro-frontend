@@ -161,6 +161,8 @@ type Props = {
   onProfile?: Partial<Record<RelativePosition, () => void>>;
   /** A hand's result is showing: avatar and name only (PID-236). */
   quiet?: boolean;
+  /** Level chips show; off from the deal until the hand ends (PID-334). */
+  levels?: boolean;
   /** The second deal playing out: the pack, what each seat threw. */
   secondDeal?: SecondDealShow;
   /** Killed trumps, face up in front of the seat that killed them (PID-306). */
@@ -185,6 +187,7 @@ export function SeatLayer({
   turnByRel,
   onProfile,
   quiet = false,
+  levels = true,
   secondDeal,
   killed,
   held = HELD_STYLE,
@@ -440,7 +443,10 @@ export function SeatLayer({
         const team = whosePoints(data.absolutePosition, viewer).column;
         const seat = quiet
           ? { ...avatarFor(data, false, null, undefined, team), level: null, pin: null, turn: null }
-          : avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team);
+          : {
+              ...avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team),
+              ...(!levels && { level: null }),
+            };
         const holds = !quiet && bid?.seat === rel ? bid.amount : null;
         // What the seat says aloud, its winning bid included.
         const spoken = { ...seat, bid: holds };

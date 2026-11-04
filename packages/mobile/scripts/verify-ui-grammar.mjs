@@ -959,6 +959,7 @@ const allCases = [
     path: '/table-dev?phase=dealer_selection',
     testId: 'seat-north',
     verifyDealerCutCards: true,
+    levels: true,
   },
   // PID-302: a phone 1.5 s behind the server shows the cut's winner before the
   // server deals, and a bid made during its deal lands the deal at once.
@@ -1207,6 +1208,7 @@ const allCases = [
     path: `/table-dev?${query}&names=long&count=on`,
     testId,
     twoRows,
+    ...(name === 'trick' && { levels: false }),
   })),
   // PID-267: the bots bid while the cards are still being dealt. Until the
   // deal ends no seat and no log line shows a bid; then all three show.
@@ -1217,6 +1219,7 @@ const allCases = [
     dealHold: true,
     bidLines: { west: 'Passed', north: 'Bid 7', east: 'Bid 9 · high' },
     viewports: { 'compact-landscape': { width: 640, height: 360 } },
+    levels: false,
   },
   // PID-220: with count help on, the plaque's bid line carries the bidders'
   // count and "Last trick" sits under it, clear of every seat. Tight phones
@@ -7009,6 +7012,14 @@ async function main() {
           }
           if (testCase.verifyDealerCutCards) {
             await assertDealerCutCards(page, viewport);
+          }
+          // PID-334: level chips show before the first deal, never during a hand.
+          if (testCase.levels != null) {
+            const chips = await page
+              .locator('[data-testid^="seat-"][data-testid$="-level"]')
+              .count();
+            if (testCase.levels) assert.ok(chips > 0, `${testCase.name}: seats show their level`);
+            else assert.equal(chips, 0, `${testCase.name}: no level chips during a hand`);
           }
           if (testCase.verifyCatchUp) {
             await assertDealerCatchUp(page, viewport);

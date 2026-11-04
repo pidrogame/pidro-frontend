@@ -262,6 +262,7 @@ function TimedSeatLayer({
   players,
   onProfile,
   quiet,
+  levels,
   secondDeal,
   killed,
   held,
@@ -277,6 +278,7 @@ function TimedSeatLayer({
   players: NonNullable<ReturnType<typeof useGameTableController>['viewModel']>['players'];
   onProfile: (playerId: string | null, persona?: BotPersona | null) => void;
   quiet: boolean;
+  levels: boolean;
   secondDeal: ComponentProps<typeof SeatLayer>['secondDeal'];
   killed: ComponentProps<typeof SeatLayer>['killed'];
   held: ComponentProps<typeof SeatLayer>['held'];
@@ -308,6 +310,7 @@ function TimedSeatLayer({
       statusByRel={statusByRel}
       turnByRel={turnByRel}
       quiet={quiet}
+      levels={levels}
       secondDeal={secondDeal}
       killed={killed}
       held={held}
@@ -757,6 +760,7 @@ export function GameCanvasTable({
             players={viewModel?.players ?? []}
             onProfile={onFace}
             quiet={handResult.result != null && !classicEnd}
+            levels={controller.phase === 'dealer_selection' || isGameOver}
             secondDeal={model.secondDealShow}
             killed={model.killed}
             held={model.held}

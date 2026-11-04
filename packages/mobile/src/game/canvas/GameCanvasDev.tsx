@@ -765,6 +765,7 @@ export default function GameCanvasDev({
         topReserve={topReserve}
         bottomReserve={bottomReserve}
         quiet={handResult.result != null}
+        levels={['dealer_selection', 'complete', 'game_over'].includes(phase)}
         statusByRel={
           phase === 'dealer_selection'
             ? dealerCutStatus()
