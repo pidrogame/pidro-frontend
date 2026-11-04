@@ -41,8 +41,9 @@ const diffRoot = resolve(captureRoot, 'diffs');
 const MAX_DIFF_PERCENT = Number(process.env.UI_DIFF_MAX_PERCENT ?? '2');
 
 // Screens with ongoing motion at capture time — not stable enough to diff.
-// The kill clears as the first card lands (PID-306): asserted, not diffed.
-const SKIP = new Set(['table-completed-trick', 'table-two-rows-kill']);
+// The kill clears as the first card lands (PID-306), and a late dealer's hand is
+// still flying in (verifyCatchUp): asserted, not diffed.
+const SKIP = new Set(['table-completed-trick', 'table-two-rows-kill', 'table-dealer-late']);
 const PARTIAL = process.env.UI_DIFF_PARTIAL === '1';
 const ADOPT = new Set(process.env.UI_ADOPT?.split(',').filter(Boolean));
 
