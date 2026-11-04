@@ -497,6 +497,11 @@ export function showsTicker(L: TableLayout): boolean {
 /** Below this circle radius the trick reads as a heap: give it the seats' room. */
 const MIN_COMFORT_R = 64;
 const PILE_SCALE = 0.82;
+/**
+ * Upright phones' played cards, as tall as Classic's (PID-333): about 78pt
+ * at 390×844, beside a hand of 88pt.
+ */
+const PHONE_PILE_SCALE = 0.89;
 /** Played cards shrink a little where the trick circle has to. */
 const COMPACT_PILE_SCALE = 0.72;
 const LANDSCAPE_PILE_SCALE = 0.8;
@@ -621,7 +626,15 @@ export function pileSpot(L: TableLayout, rel: RelativePosition, i: number, n: nu
   const sideways = rel === 'east' || rel === 'west';
   if (!L.front) {
     const at = playedCardTarget(L, rel, 0, 1);
-    const off = (i - (n - 1) / 2) * w * 0.44;
+    // Upright phones: a big throw closes up to keep the trick's corners free
+    // (PID-333), East's and West's between North's and yours, and those two
+    // within the circle.
+    const reach =
+      L.profile === 'phone-portrait'
+        ? L.trick.r - 6 - (sideways ? (w * CARD_RATIO) / 2 : 0)
+        : Infinity;
+    const step = n > 1 ? Math.max(0, Math.min(w * 0.44, (2 * reach - w) / (n - 1))) : 0;
+    const off = (i - (n - 1) / 2) * step;
     return sideways ? { x: at.x, y: at.y + off } : { x: at.x + off, y: at.y };
   }
   const at = L.front[rel];
@@ -701,8 +714,15 @@ export function pickProfile(w: number, h: number): Profile {
   return `${tablet ? 'tablet' : 'phone'}-${landscape ? 'landscape' : 'portrait'}` as Profile;
 }
 
-export function cardSize(shortest: number): number {
-  return clamp(shortest * 0.13, 54, 104); // CSS clamp(), in JS
+/**
+ * Upright phones draw their cards as big as Classic's (PID-333): smaller
+ * phones in proportion to their width, and the shortest by their height,
+ * which the table runs out of first; never smaller than before.
+ */
+export function cardSize(width: number, height: number): number {
+  if (pickProfile(width, height) === 'phone-portrait')
+    return clamp(Math.max(width * 0.13, Math.min(width * 0.16, height * 0.09)), 54, 104);
+  return clamp(Math.min(width, height) * 0.13, 54, 104); // CSS clamp(), in JS
 }
 
 export function computeLayout(
@@ -715,7 +735,7 @@ export function computeLayout(
   const profile = pickProfile(width, height);
   const portrait = profile.endsWith('portrait');
   const shortest = Math.min(width, height);
-  const cardW = cardSize(shortest);
+  const cardW = cardSize(width, height);
   const cardH = cardW * CARD_RATIO;
 
   const cx = width / 2;
@@ -752,7 +772,8 @@ export function computeLayout(
   // Your tight seat under the hand takes its room from the trick band where a
   // phone has none spare: the circle then keeps clear of a lifted card too.
   const lift = tight ? Math.min(16, cardH * 0.14) : 0;
-  const compact = portrait && fitR(band, PILE_SCALE) - lift < usualR;
+  const usualPile = profile === 'phone-portrait' ? PHONE_PILE_SCALE : PILE_SCALE;
+  const compact = portrait && fitR(band, usualPile) - lift < usualR;
   const handH = cardH * handScale(profile);
   // Landscape phones lay the table out as Classic does, one card size
   // (PID-305, PID-307): each hand along its edge, and the played cards on a
@@ -795,10 +816,18 @@ export function computeLayout(
   // circle and its cards until it does.
   const landscapeR = (scale: number) => handY - handH / 2 - 8 - (cardH * scale) / 2 - trickCy;
   const shortLandscape = !portrait && !twoRows && landscapeR(LANDSCAPE_PILE_SCALE) < usualR;
+  // Upright phones close the circle in before their played cards shrink, and
+  // shrink them only to keep TRICK_GAP from the trump mark, as landscape does.
   const pileScale = portrait
-    ? compact
-      ? COMPACT_PILE_SCALE
-      : PILE_SCALE
+    ? profile === 'phone-portrait'
+      ? clamp(
+          (band / 2 - 8 - lift - (cardW * TRUMP_MARK) / 2 - TRICK_GAP) / cardH,
+          COMPACT_PILE_SCALE,
+          PHONE_PILE_SCALE
+        )
+      : compact
+        ? COMPACT_PILE_SCALE
+        : PILE_SCALE
     : twoRows
       ? 1
       : shortLandscape

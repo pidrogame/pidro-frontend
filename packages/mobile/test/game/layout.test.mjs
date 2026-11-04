@@ -175,11 +175,97 @@ describe('portrait trick fits between North and your hand', () => {
   }
 });
 
+describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
+  const sizes = (width, height, insets) => {
+    const L = computeLayout(width, height, insets, 61, utilityDockReserve(height));
+    return { L, hand: L.cardH * handScale(L.profile), played: L.cardH * L.trick.pileScale };
+  };
+  // Before PID-333 every upright phone drew a 54pt-wide card.
+  const before = 54 * (110 / 78);
+
+  it('a played card about 78pt and your hand about 88pt on 390×844', () => {
+    const { hand, played } = sizes(390, 844, { top: 0, bottom: 0, left: 0, right: 0 });
+    expect(Math.abs(hand - 88)).toBeLessThanOrEqual(1);
+    expect(Math.abs(played - 78)).toBeLessThanOrEqual(1);
+  });
+
+  it('a 375×667 phone a little smaller, and bigger than before', () => {
+    const { hand } = sizes(375, 667, { top: 20, bottom: 0, left: 0, right: 0 });
+    expect(hand).toBeLessThan(88);
+    expect(hand).toBeGreaterThan(before + 5);
+  });
+
+  // The circle closes in first; the played cards shrink only to keep
+  // TRICK_GAP from the trump mark, never below their size before.
+  for (const [width, height, insets] of [
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [393, 852, { top: 59, bottom: 34, left: 0, right: 0 }],
+    [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }],
+    [375, 812, { top: 50, bottom: 34, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [360, 800, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    it(`keeps the trump mark clear on ${width}×${height}`, () => {
+      const { L, hand, played } = sizes(width, height, insets);
+      expect(hand).toBeGreaterThanOrEqual(before);
+      expect(played).toBeGreaterThan(before * 0.72);
+      expect(L.trick.r - played / 2 - (L.cardW * TRUMP_MARK) / 2).toBeGreaterThanOrEqual(
+        TRICK_GAP - 0.01
+      );
+    });
+  }
+
+  // The second deal's throws grew with the cards; a big one closes up.
+  for (const [width, height, insets] of [
+    [390, 844, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    it(`keeps nine-card throws apart on ${width}×${height} ${insets.top}pt`, () => {
+      const { L } = sizes(width, height, insets);
+      const w = pileCardW(L);
+      const h = w * (110 / 78);
+      const pile = (rel) => {
+        const side = rel === 'east' || rel === 'west';
+        const spots = Array.from({ length: 9 }, (_, i) => pileSpot(L, rel, i, 9));
+        const [hw, hh] = side ? [h / 2, w / 2] : [w / 2, h / 2];
+        return {
+          left: Math.min(...spots.map((s) => s.x)) - hw,
+          right: Math.max(...spots.map((s) => s.x)) + hw,
+          top: Math.min(...spots.map((s) => s.y)) - hh,
+          bottom: Math.max(...spots.map((s) => s.y)) + hh,
+        };
+      };
+      const apart = (a, b) =>
+        a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+      for (const [a, b] of [
+        ['north', 'east'],
+        ['east', 'south'],
+        ['south', 'west'],
+        ['west', 'north'],
+      ])
+        expect(apart(pile(a), pile(b)), `${a} and ${b}`).toBe(true);
+    });
+  }
+
+  it('the shortest phones keep the cards they had', () => {
+    for (const [width, height] of [
+      [320, 568],
+      [360, 592],
+    ]) {
+      expect(sizes(width, height, { top: 24, bottom: 0, left: 0, right: 0 }).L.cardW).toBe(54);
+    }
+  });
+});
+
 describe('tight phones', () => {
   const dock = (height) => utilityDockReserve(height);
   for (const [width, height, insets, tight] of [
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, true],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }, true],
+    // Marcel's TCL 5053Y, since its cards grew (PID-333).
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }, true],
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }, false],
     [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }, false],
   ]) {
@@ -287,7 +373,7 @@ describe('count help shows the bidder’s whole name on phones (PID-220)', () =>
 
   for (const [width, height, insets] of [
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
-    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [360, 800, { top: 24, bottom: 48, left: 0, right: 0 }],
   ]) {
     it(`on ${width}×${height}, ${insets.top}pt top inset`, () => {
       const HEADER = 61;
@@ -388,7 +474,7 @@ describe('landscape phones draw your hand the size of the table’s cards, besid
     it(`on ${width}×${height} ${JSON.stringify(insets)}`, () => {
       const L = computeLayout(width, height, insets);
       const handW = L.cardW * handScale(L.profile);
-      expect(handW).toBeCloseTo(cardSize(height));
+      expect(handW).toBeCloseTo(cardSize(width, height));
       expect(handW).toBeGreaterThanOrEqual(54);
 
       // Your seat: 70pt in, a 52pt avatar, a 10pt gap and at least 56pt of name.
