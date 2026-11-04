@@ -63,12 +63,12 @@ test("the release test's partitions cover every unfiltered viewport/case exactly
   const configured = selectChecks({ full: true, cases: [], ids: expected })
     .shards.map(({ partition }) => partition)
     .filter(Boolean);
-  expect(configured).toEqual(Array.from({ length: 10 }, (_, index) => `${index + 1}/10`));
+  expect(configured).toEqual(Array.from({ length: 15 }, (_, index) => `${index + 1}/15`));
   const partitions = configured.map(list);
   expect(partitions.every((items) => items.length > 0)).toBe(true);
   expect(new Set(expected).size).toBe(expected.length);
   expect(partitions.flat().sort()).toEqual(expected.sort());
-  // Eleven real child processes can exceed Bun's five-second default on a busy host.
+  // Sixteen real child processes can exceed Bun's five-second default on a busy host.
 }, 30_000);
 
 test('the actual pixel comparison fails when captures are missing', () => {

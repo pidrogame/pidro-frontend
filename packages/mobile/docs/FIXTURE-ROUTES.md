@@ -942,7 +942,7 @@ Needs Expo web running (`bun run web`) and, once per machine,
 bun run test:ui            # full viewport matrix, touch targets, containment
 UI_CASES=table-bidding,home bun run test:ui      # just these
 UI_SHOT_DIR=/tmp/shots bun run test:ui           # where screenshots land
-UI_PARTITION=1/10 UI_REPORT_PATH=/tmp/ui-report.json bun run test:ui  # one CI-sized batch
+UI_PARTITION=1/15 UI_REPORT_PATH=/tmp/ui-report.json bun run test:ui  # one CI-sized batch
 node scripts/verify-ui-grammar.mjs --list        # selected viewport/case IDs, no browser
 node scripts/verify-ui-grammar.mjs --list-cases  # every case's name and route, no browser
 node scripts/ci-affected.mjs <base-sha>          # what CI would run for the changes since base
@@ -965,9 +965,9 @@ the reasons in the "Select checks" job summary); the release test (Actions →
 Frontend CI → Run workflow) runs all of them. A push runs its cases on every
 viewport they are drawn on, so an adopted screen leaves no stale baseline behind;
 a table-only push runs only the account journeys that play through the table.
-CI balances the selected matrix across up to ten jobs, about forty screens each, using Linux case durations in
-`scripts/ui-case-costs.json` (last calibration: the mean of Actions runs `41814859939`
-and `41812350012`).
+CI balances the selected matrix across up to fifteen jobs, about forty screens each,
+using Linux case durations in `scripts/ui-case-costs.json` (last calibration: the mean
+of Actions runs `41814859939`, `41812350012`, `41826874604` and `41830244863`).
 New cases use the median recorded duration and are still included.
 Refresh the weights from a successful run's `ui-report-*`
 artifacts (each record's `id` maps to its `ms`); local Mac timings are not comparable.

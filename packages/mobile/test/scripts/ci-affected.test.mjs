@@ -124,11 +124,11 @@ describe('what a push runs', () => {
     expect(select('packages/mobile/test/ui-baselines/portrait/home.png').adopt).toEqual([]);
   });
 
-  test('shards hold about forty screens, at most ten', () => {
+  test('shards hold about forty screens, at most fifteen', () => {
     const home = select('packages/mobile/app/(shell)/home.tsx');
     const matrix = home.shards.filter(({ partition }) => partition);
-    expect(matrix.length).toBe(Math.min(10, Math.ceil(home.screens / 40)));
+    expect(matrix.length).toBe(Math.min(15, Math.ceil(home.screens / 40)));
     expect(matrix.at(-1).partition).toBe(`${matrix.length}/${matrix.length}`);
-    expect(select('packages/mobile/src/components/lobby/SeatRow.tsx').shards).toHaveLength(10 + 3);
+    expect(select('packages/mobile/src/components/lobby/SeatRow.tsx').shards).toHaveLength(15 + 3);
   });
 });

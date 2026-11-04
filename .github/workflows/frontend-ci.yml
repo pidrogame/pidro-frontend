@@ -156,7 +156,7 @@ jobs:
             exit 1
           fi
 
-  # Balance the selected viewport/case matrix across up to ten jobs by recorded duration
+  # Balance the selected viewport/case matrix across up to fifteen jobs by recorded duration
   # (scripts/ui-case-costs.json), about forty screens each, plus the UI suites the change
   # touches. The aggregate verifies exact coverage before comparing the merged captures.
   ui-grammar-shard:

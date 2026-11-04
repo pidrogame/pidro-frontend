@@ -174,7 +174,7 @@ const MAP = [
 export const SMOKE = ['table-playing', 'lobby-list', 'home', 'login'];
 const SUITES = ['table-behavior', 'lobby-and-creation', 'seats-and-game-over'];
 const SCREENS_PER_SHARD = 40;
-const MAX_SHARDS = 10;
+const MAX_SHARDS = 15;
 
 const glob = (pattern) =>
   new RegExp(
