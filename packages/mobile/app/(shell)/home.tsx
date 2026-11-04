@@ -40,7 +40,7 @@ import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tok
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useWaitingCount } from '@/hooks/useWaitingCount';
 import { TABLE_UNKNOWN_ERROR, useQuickGame } from '@/hooks/useQuickGame';
-import { tellFixture } from '@/features/feedback';
+import { canTell, tellFixture } from '@/features/feedback';
 import { newsFixture } from '@/features/news';
 import { useAuthStore } from '@/stores/auth';
 import { refreshFriendsOnFocus, useFriendsStore } from '@/stores/friends';
@@ -446,7 +446,7 @@ export default function HomeScreen() {
         open={newsOpen}
         news={news}
         status={newsStatus}
-        tell={!guest}
+        tell={canTell(user)}
         reply={newsPreview?.reply}
         onRetry={() => (newsPreview ? undefined : void openNews())}
         onClose={() => (newsPreview ? setPreviewOpen(false) : closeNews())}

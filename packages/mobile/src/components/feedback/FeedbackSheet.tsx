@@ -107,6 +107,8 @@ export function FeedbackSheet({ open, onClose, chip = false, post, fixture }: Pr
   const lift = height;
   const replyTo = emailOpen ? email.trim() : accountEmail;
   const sending = stage === 'sending';
+  // The server will not take this note now: for today, or from a guest (PID-348).
+  const refused = stage === 'limit' || stage === 'account';
   const showChip = chip || Boolean(fixture?.chip) || Boolean(post);
 
   const card = useAnimatedStyle(() => {
@@ -143,12 +145,13 @@ export function FeedbackSheet({ open, onClose, chip = false, post, fixture }: Pr
     opacity: interpolate(beat.value, [0, 0.4], [1, 0], 'clamp'),
   }));
 
-  // Opening again starts from the words: a sent note or a failure is over, the limit is not.
+  // Opening again starts from the words: a sent note, a failure or a refusal to a guest
+  // (who may have an account by now) is over; the limit is not.
   // Reset on open, not on close, so the sheet keeps its face while it slides away.
   const [shown, setShown] = useState(open);
   if (open !== shown) {
     setShown(open);
-    if (open && (stage === 'sent' || stage === 'failed')) {
+    if (open && (stage === 'sent' || stage === 'failed' || stage === 'account')) {
       setStage('write');
       setMailFailed(false);
       setEmailError(undefined);
@@ -164,7 +167,7 @@ export function FeedbackSheet({ open, onClose, chip = false, post, fixture }: Pr
   };
 
   const send = async () => {
-    if (locked.current || !body.trim() || stage === 'limit') return;
+    if (locked.current || !body.trim() || refused) return;
     locked.current = true;
     Keyboard.dismiss();
     playActionHaptic();
@@ -221,64 +224,65 @@ export function FeedbackSheet({ open, onClose, chip = false, post, fixture }: Pr
     </PidroText>
   );
   const alert =
-    stage === 'failed' || stage === 'limit' ? (
+    stage === 'failed' || refused ? (
       <View style={styles.alert} accessibilityRole="alert" accessibilityLiveRegion="polite">
         <Icon name="alert" size={20} strokeWidth={2.4} color={PidroColors.danger} />
         <PidroText role="body" style={styles.alertText}>
-          {t(stage === 'limit' ? 'tell.limit' : 'tell.failed')}
+          {t(
+            stage === 'limit' ? 'tell.limit' : stage === 'account' ? 'tell.account' : 'tell.failed'
+          )}
         </PidroText>
       </View>
     ) : null;
-  const reply =
-    stage === 'limit' ? null : emailOpen ? (
-      <Input
-        label={t('tell.email')}
-        value={email}
-        onChangeText={(value) => {
-          setEmail(value);
-          draft.email = value;
-          setEmailError(undefined);
-        }}
-        error={emailError}
-        compact={landscape}
-        editable={!sending}
-        keyboardType="email-address"
-        autoComplete="email"
-        textContentType="emailAddress"
-        autoCapitalize="none"
-        autoCorrect={false}
-        testID="feedback-email"
-      />
-    ) : accountEmail ? (
-      <View style={styles.reply}>
-        <Icon name="mail" size={18} color={PidroColors.cyanText} />
-        <PidroText
-          role="label"
-          tone="soft"
-          numberOfLines={landscape ? 2 : 1}
-          style={styles.replyText}>
-          {t('tell.reply', { email: accountEmail })}
-        </PidroText>
-        <TextLink
-          label={t('tell.change')}
-          size={15}
-          accessibilityRole="button"
-          onPress={() => {
-            setEmail(accountEmail);
-            setEmailOpen(true);
-          }}
-          style={styles.tight}
-        />
-      </View>
-    ) : (
+  const reply = refused ? null : emailOpen ? (
+    <Input
+      label={t('tell.email')}
+      value={email}
+      onChangeText={(value) => {
+        setEmail(value);
+        draft.email = value;
+        setEmailError(undefined);
+      }}
+      error={emailError}
+      compact={landscape}
+      editable={!sending}
+      keyboardType="email-address"
+      autoComplete="email"
+      textContentType="emailAddress"
+      autoCapitalize="none"
+      autoCorrect={false}
+      testID="feedback-email"
+    />
+  ) : accountEmail ? (
+    <View style={styles.reply}>
+      <Icon name="mail" size={18} color={PidroColors.cyanText} />
+      <PidroText
+        role="label"
+        tone="soft"
+        numberOfLines={landscape ? 2 : 1}
+        style={styles.replyText}>
+        {t('tell.reply', { email: accountEmail })}
+      </PidroText>
       <TextLink
-        label={t('tell.addEmail')}
+        label={t('tell.change')}
         size={15}
         accessibilityRole="button"
-        onPress={() => setEmailOpen(true)}
-        style={[styles.tight, styles.addEmail]}
+        onPress={() => {
+          setEmail(accountEmail);
+          setEmailOpen(true);
+        }}
+        style={styles.tight}
       />
-    );
+    </View>
+  ) : (
+    <TextLink
+      label={t('tell.addEmail')}
+      size={15}
+      accessibilityRole="button"
+      onPress={() => setEmailOpen(true)}
+      style={[styles.tight, styles.addEmail]}
+    />
+  );
   const mailApp =
     stage !== 'failed' ? null : mailFailed ? (
       <PidroText role="label" tone="cyan" align="center" selectable style={styles.address}>
@@ -300,7 +304,7 @@ export function FeedbackSheet({ open, onClose, chip = false, post, fixture }: Pr
         stage === 'limit' ? 'tell.limitButton' : stage === 'failed' ? 'tell.retry' : 'tell.send'
       )}
       fullWidth={!landscape}
-      disabled={!body.trim() || stage === 'limit' || sending}
+      disabled={!body.trim() || refused || sending}
       onPress={() => void send()}
       style={landscape && styles.sendLandscape}
     />

@@ -85,7 +85,8 @@ const tellCases = [
     authFixture: guestAuthFixture,
     tellViewports: [...TELL_VIEWPORTS, 'compact-portrait'],
   },
-  ...['open', 'typing', 'chip', 'sent', 'failed', 'limit'].map((state) => ({
+  // PID-348: account is a guest the server turned away, should one reach the sheet.
+  ...['open', 'typing', 'chip', 'sent', 'failed', 'limit', 'account'].map((state) => ({
     name: `tell-${state}`,
     path: `/home?fixture=tell-${state}`,
     testId: 'feedback-sheet',
@@ -531,6 +532,15 @@ const allCases = [
       feedback: true,
       // PID-348: only an account has Tell us.
       authenticated: true,
+    },
+    {
+      name: `settings-feedback-guest-${locale}`,
+      path: `/ui-dev?state=settings&locale=${locale}`,
+      testId: 'settings-screen',
+      locale,
+      feedback: 'none',
+      authenticated: true,
+      authFixture: guestAuthFixture,
     },
   ]),
   // The real thing: a signed-in player who has not seen it meets it on Home.
@@ -2293,6 +2303,12 @@ async function assertFeedbackRow(page, testCase, viewport) {
   if (!testCase.feedback) return;
   const sv = testCase.locale === 'sv';
   const row = page.getByTestId('settings-tell');
+  if (testCase.feedback === 'none') {
+    // PID-348: a guest has Settings without Tell us; Language comes first.
+    await page.getByTestId('settings-language').waitFor();
+    assert.equal(await row.count(), 0, `${testCase.name}: no Tell us for a guest`);
+    return;
+  }
   await row.getByText(sv ? 'Berätta för oss' : 'Tell us', { exact: true }).waitFor();
   await row
     .getByText(
@@ -6823,6 +6839,7 @@ const tellCopy = (testCase) =>
         mailApp: 'Använd min e-postapp',
         limit: 'Det räcker för i dag, tack. Dina ord ligger kvar till i morgon.',
         limitButton: 'Skicka i morgon',
+        account: 'Skapa ett gratiskonto för att berätta för oss.',
         pace: 'Tempot i ditt senaste spel',
         paceAnswers: ['för långsamt', 'lagom', 'för snabbt'],
         old: 'Jämfört med gamla Pidro',
@@ -6848,6 +6865,7 @@ const tellCopy = (testCase) =>
         mailApp: 'Use my mail app',
         limit: "That's plenty for today, thank you. Your words stay here for tomorrow.",
         limitButton: 'Send tomorrow',
+        account: 'Create a free account to tell us.',
         chip: 'About your last game',
         pace: 'Pace in your last game',
         paceAnswers: ['too slow', 'right', 'too fast'],
@@ -6955,7 +6973,7 @@ async function assertTellState(page, testCase, viewport) {
     return;
   }
   const landscape = viewport.width > viewport.height && viewport.height < 500;
-  if (!(landscape && ['failed', 'limit'].includes(state))) await see(copy.ask);
+  if (!(landscape && ['failed', 'limit', 'account'].includes(state))) await see(copy.ask);
   const ink = page.getByTestId('feedback-body');
   assert.equal(await ink.getAttribute('placeholder'), copy.placeholder);
   const words = ['open', 'chip'].includes(state) ? '' : TELL_WORDS;
@@ -6963,18 +6981,21 @@ async function assertTellState(page, testCase, viewport) {
   const send = page.getByTestId('feedback-send');
   const label = state === 'failed' ? copy.retry : state === 'limit' ? copy.limitButton : copy.send;
   assert.equal((await send.innerText()).trim(), label);
+  const refused = state === 'limit' || state === 'account';
   assert.equal(
     await send.isDisabled(),
-    state === 'limit' || words === '',
-    `${testCase.name}: Send is ${state === 'limit' || !words ? 'off' : 'on'}`
+    refused || words === '',
+    `${testCase.name}: Send is ${refused || !words ? 'off' : 'on'}`
   );
   if (state === 'guest') {
     assert.equal(await page.getByTestId('feedback-email').inputValue(), 'bengt@example.com');
     await see(copy.email);
     assert.equal(await sheet.getByText(/answer at/).count(), 0, 'no account address to answer at');
-  } else if (state === 'limit') {
-    await see(copy.limit);
+  } else if (refused) {
+    await see(state === 'limit' ? copy.limit : copy.account);
     assert.equal(await sheet.getByText(copy.reply, { exact: true }).count(), 0);
+    assert.equal(await sheet.getByText(copy.failed, { exact: true }).count(), 0);
+    assert.equal(await sheet.getByRole('button', { name: copy.mailApp }).count(), 0);
   } else {
     await see(copy.reply);
     await sheet.getByRole('button', { name: copy.change, exact: true }).waitFor();

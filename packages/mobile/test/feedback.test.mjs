@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
+  canTell,
   feedbackMailto,
   feedbackNote,
   nextAskCard,
@@ -130,6 +131,28 @@ describe('a posted note', () => {
       'failed'
     );
     expect(sendFailure(new Error('Network Error'))).toBe('failed');
+  });
+
+  it('asks a guest the server turned away for an account, not to try again', () => {
+    expect(sendFailure({ response: { status: 403, data: { error: 'ACCOUNT_REQUIRED' } } })).toBe(
+      'account'
+    );
+    // A server that is down, or a signed-out 401 the client handles, is not that.
+    expect(sendFailure({ response: { status: 503 } })).toBe('failed');
+    expect(sendFailure({ response: { status: 401 } })).toBe('failed');
+    // Only the server's word for it: any other 403 is an ordinary failure.
+    expect(sendFailure({ response: { status: 403, data: { error: 'FORBIDDEN' } } })).toBe('failed');
+    expect(sendFailure({ response: { status: 403 } })).toBe('failed');
+  });
+});
+
+describe('who may tell us', () => {
+  it('is an account only: not a guest, not nobody', () => {
+    expect(canTell({ id: 'u-1', guest: false })).toBe(true);
+    expect(canTell({ id: 'u-1' })).toBe(true);
+    expect(canTell({ id: 'g-1', guest: true })).toBe(false);
+    expect(canTell(null)).toBe(false);
+    expect(canTell(undefined)).toBe(false);
   });
 });
 

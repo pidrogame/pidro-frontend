@@ -1,4 +1,5 @@
 import type { FeedbackAnswer, FeedbackAsk, FeedbackAskKind, FeedbackRequest } from '@pidro/shared';
+import { apiErrorInfo } from '@/utils/apiErrors';
 
 /**
  * Beta feedback goes straight to Marcel: a note posted from the Tell us sheet,
@@ -65,11 +66,20 @@ export function feedbackNote(
   };
 }
 
-/** A note the server refused for today waits for tomorrow; anything else can be tried again. */
-export function sendFailure(error: unknown): 'limit' | 'failed' {
+/** Only an account sends notes (PID-348): a guest or nobody gets no Tell us. */
+export function canTell(user: { guest?: boolean } | null | undefined): boolean {
+  return Boolean(user && !user.guest);
+}
+
+/**
+ * A note the server refused for today waits for tomorrow, one it refused to a
+ * guest needs an account; anything else can be tried again.
+ */
+export function sendFailure(error: unknown): 'limit' | 'account' | 'failed' {
   const response = (error as { response?: { status?: number; data?: { code?: string } } })
     ?.response;
-  return response?.status === 429 || response?.data?.code === 'RATE_LIMITED' ? 'limit' : 'failed';
+  if (response?.status === 429 || response?.data?.code === 'RATE_LIMITED') return 'limit';
+  return apiErrorInfo(error).code?.toUpperCase() === 'ACCOUNT_REQUIRED' ? 'account' : 'failed';
 }
 
 export const FEEDBACK_ANSWERS: Record<FeedbackAskKind, FeedbackAnswer[]> = {
@@ -104,7 +114,7 @@ export function nextAskCard(card: AskCard | null, event: AskEvent): AskCard | nu
   return card?.picked && !card.thanked ? { ...card, thanked: true } : null;
 }
 
-export type TellStage = 'write' | 'failed' | 'limit' | 'sent';
+export type TellStage = 'write' | 'failed' | 'limit' | 'account' | 'sent';
 
 /** Dev fixtures `?fixture=tell-<state>` on Home and Settings: the sheet open in that state, or a question. */
 export function tellFixture(fixture: string | undefined) {
@@ -120,7 +130,9 @@ export function tellFixture(fixture: string | undefined) {
       : 'The bid buttons are small on my phone. Otherwise lovely to have the game back.';
   return {
     sheet: {
-      stage: (['failed', 'limit', 'sent'].includes(state) ? state : 'write') as TellStage,
+      stage: (['failed', 'limit', 'account', 'sent'].includes(state)
+        ? state
+        : 'write') as TellStage,
       body: words,
       email: state === 'guest' ? 'bengt@example.com' : '',
       emailOpen: state === 'guest',
