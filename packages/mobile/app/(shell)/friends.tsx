@@ -360,6 +360,8 @@ export default function FriendsScreen() {
                         key={player.user_id}
                         name={player.display_name}
                         avatarUrl={player.avatar_url}
+                        level={player.level}
+                        prestige={player.prestige}
                         row={friendRowState(player, section.relation)}
                         onPress={() => onOpen(player)}
                         trailing={

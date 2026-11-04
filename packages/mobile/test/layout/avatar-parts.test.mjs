@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
-import { avatarLabel, avatarParts, nameType } from '../../src/features/avatar';
+import { avatarLabel, avatarParts, chipFor, nameType } from '../../src/features/avatar';
 
 describe('avatar parts by size', () => {
   it('matches the profile avatar on the board', () => {
@@ -150,5 +150,36 @@ describe('avatar label', () => {
 
   it('keeps level 0', () => {
     expect(avatarLabel({ name: 'New', level: 0 })).toBe('New, level 0');
+  });
+});
+
+describe('the chip under the face (PID-338)', () => {
+  it('shows the level, plain, up to 99', () => {
+    for (const level of [1, 12, 99])
+      expect(chipFor({ level, prestige: 0 })).toEqual({ text: String(level), legend: false });
+  });
+
+  it('turns gold at 100 before the first star', () => {
+    expect(chipFor({ level: 100, prestige: 0 })).toEqual({ text: '100', legend: true });
+    expect(chipFor({ level: 100 })).toEqual({ text: '100', legend: true });
+  });
+
+  it('shows the stars once a Legend has them', () => {
+    for (const prestige of [1, 4, 8, 12])
+      expect(chipFor({ level: 100, prestige })).toEqual({ text: `★${prestige}`, legend: true });
+  });
+
+  it('shows nothing without a level', () => {
+    expect(chipFor({ level: null, prestige: 4 })).toBeNull();
+    expect(chipFor({})).toBeNull();
+  });
+
+  it('says what the chip says', () => {
+    expect(avatarLabel({ name: 'Mikko', level: 44 })).toBe('Mikko, level 44');
+    expect(avatarLabel({ name: 'Kalle', level: 100, prestige: 0 })).toBe(
+      'Kalle, Legend, level 100'
+    );
+    expect(avatarLabel({ name: 'Bengt', level: 100, prestige: 4 })).toBe('Bengt, Legend, 4 stars');
+    expect(avatarLabel({ name: 'Ilse', level: 100, prestige: 1 })).toBe('Ilse, Legend, 1 star');
   });
 });

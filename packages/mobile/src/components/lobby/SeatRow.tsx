@@ -170,7 +170,13 @@ function SeatRowToken({ token, size }: { token: SeatToken; size: (typeof SIZES)[
           <PlayerAvatar size={s} uri={token.uri} accessibilityLabel="" style={styles.dimmed} />
         </>
       ) : (
-        <PlayerAvatar size={s} uri={token.uri} accessibilityLabel="" />
+        <PlayerAvatar
+          size={s}
+          uri={token.uri}
+          level={token.level}
+          prestige={token.prestige}
+          accessibilityLabel=""
+        />
       )}
     </View>
   );

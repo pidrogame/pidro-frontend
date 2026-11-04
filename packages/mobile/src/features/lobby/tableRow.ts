@@ -46,6 +46,9 @@ export function tableRow(room: Room, category: LobbyCategoryKey, gamesPlayed?: n
               ? t('social.sit_in')
               : t('social.open'),
       avatarUrl: kind === 'held' ? seat!.held_for!.avatar_url : player?.avatar_url,
+      // The chip under a person's face; a bot and a held chair have none.
+      level: kind === 'player' ? player?.level : null,
+      prestige: kind === 'player' ? player?.prestige : null,
       persona: kind === 'bot' ? (player?.bot_persona ?? null) : null,
       botProfile: kind === 'bot' ? player?.bot_profile : null,
       minGames,

@@ -19,6 +19,8 @@ export interface SeatLifecycleSnapshot {
       display_name?: string | null;
       avatar_url?: string | null;
       level?: number | null;
+      /** Legend stars past level 100 (PID-337); 0 below it, null for bots. */
+      prestige?: number | null;
       pin?: SeatPin | null;
       bot_persona?: BotPersona | null;
       bot_profile?: BotProfile | null;
@@ -263,6 +265,8 @@ export interface PlayerMeta {
   rank?: PlayerRank | null;
   /** All-time level; null for bots and open seats. */
   level?: number | null;
+  /** Legend stars past level 100 (PID-337); 0 below it, null for bots. */
+  prestige?: number | null;
   pin?: SeatPin | null;
   bot_persona?: BotPersona | null;
   bot_profile?: BotProfile | null;
@@ -285,6 +289,8 @@ export interface RelativePlayerView {
   rank?: PlayerRank | null;
   /** All-time level; null for bots and open seats. */
   level?: number | null;
+  /** Legend stars past level 100 (PID-337); 0 below it, null for bots. */
+  prestige?: number | null;
   pin?: SeatPin | null;
   bot_persona?: BotPersona | null;
   bot_profile?: BotProfile | null;

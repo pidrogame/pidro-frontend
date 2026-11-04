@@ -146,6 +146,7 @@ export function FriendSheet({
                         size={64}
                         uri={profile?.avatar_url ?? player.avatar_url}
                         level={profile?.veteran?.level}
+                        prestige={profile?.veteran?.prestige}
                       />
                       <View style={styles.copy}>
                         <PidroText role="display" accessibilityRole="header" style={styles.name}>

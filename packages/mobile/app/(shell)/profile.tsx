@@ -257,6 +257,7 @@ function ProfileContent() {
                   size={avatarSize}
                   uri={user?.avatar_url}
                   level={veteran?.level}
+                  prestige={veteran?.prestige}
                   pin={pin}
                 />
                 {!user?.guest ? (
@@ -714,6 +715,7 @@ function ProfileContent() {
         uri={user?.avatar_url}
         fixture={photoFixture}
         level={veteran?.level}
+        prestige={veteran?.prestige}
         classic={classic}
         pin={pin}
         onChoosePin={(choice) => user && setPin(user.id, choice)}

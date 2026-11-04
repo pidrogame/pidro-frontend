@@ -26,7 +26,7 @@ export type SeatToken =
   | { kind: 'open'; badge: string | null; locked: boolean }
   | { kind: 'bot'; persona: BotPersona | null; botProfile?: BotProfile | null }
   | { kind: 'friend'; uri: string | null }
-  | { kind: 'player'; uri: string | null };
+  | { kind: 'player'; uri: string | null; level?: number | null; prestige?: number | null };
 
 export type SeatRowWords = {
   token: SeatToken;
@@ -65,7 +65,12 @@ function describe(seat: SeatView): Omit<SeatRowWords, 'nameTone' | 'tappable' | 
   const { player, held_for, password } = seat;
   if (seat.team === 'you')
     return {
-      token: { kind: 'player', uri: player?.avatar_url ?? null },
+      token: {
+        kind: 'player',
+        uri: player?.avatar_url ?? null,
+        level: player?.level,
+        prestige: player?.prestige,
+      },
       name: t('social.you'),
       status: t(
         seat.host !== false ? 'social.host' : seat.ready ? 'seat_row.ready' : 'game.not_ready'
@@ -81,7 +86,12 @@ function describe(seat: SeatView): Omit<SeatRowWords, 'nameTone' | 'tappable' | 
             persona: player.bot_persona ?? null,
             ...(player.bot_profile ? { botProfile: player.bot_profile } : {}),
           }
-        : { kind: 'player', uri: player.avatar_url ?? null },
+        : {
+            kind: 'player',
+            uri: player.avatar_url ?? null,
+            level: player.level,
+            prestige: player.prestige,
+          },
       name: seatName(player, t('social.player'), bot),
       status: t(seat.ready === false ? 'game.not_ready' : 'seat_row.ready'),
       statusTone: seat.ready === false ? 'soft' : 'ready',

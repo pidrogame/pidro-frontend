@@ -120,8 +120,10 @@ function avatarFor(
   const onTurn = data.isCurrentTurn && kind !== 'open';
   return {
     uri: data.avatar_url,
-    level: data.level,
-    pin: data.pin,
+    // What you earned: one chip, and never on a bot. A bot sitting in for a
+    // player keeps their chip, dimmed. The pin stays off the table (PID-338).
+    level: kind === 'bot' ? null : data.level,
+    prestige: kind === 'bot' ? null : data.prestige,
     dealer,
     turn: onTurn
       ? {
@@ -442,7 +444,7 @@ export function SeatLayer({
         // A spectator sees North–South as the first team.
         const team = whosePoints(data.absolutePosition, viewer).column;
         const seat = quiet
-          ? { ...avatarFor(data, false, null, undefined, team), level: null, pin: null, turn: null }
+          ? { ...avatarFor(data, false, null, undefined, team), level: null, turn: null }
           : {
               ...avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team),
               ...(!levels && { level: null }),
@@ -481,13 +483,13 @@ export function SeatLayer({
               data.out && styles.out,
             ]}
             {...seat}
-            {...(tight && { level: null, pin: null })}
+            {...(tight && { level: null })}
             {...(tight &&
               rel === 'south' && {
                 label: 'below' as const,
                 name: null,
                 status: line?.short ?? null,
-                accessibilityLabel: avatarLabel({ ...spoken, level: null, pin: null }),
+                accessibilityLabel: avatarLabel({ ...spoken, level: null }),
               })}
             {...(!portrait &&
               (rel === 'south' || rel === 'north') &&
@@ -503,7 +505,7 @@ export function SeatLayer({
             accessibilityRole="button"
             accessibilityLabel={`${t('friends.view_profile', {
               name: data.username ?? t('social.player'),
-            })}, ${avatarLabel({ ...spoken, ...(tight && { level: null, pin: null }) })}`}
+            })}, ${avatarLabel({ ...spoken, ...(tight && { level: null }) })}`}
             onPress={onProfile[rel]}
             style={{ minHeight: PidroLayout.touchTarget, minWidth: PidroLayout.touchTarget }}>
             {identity}

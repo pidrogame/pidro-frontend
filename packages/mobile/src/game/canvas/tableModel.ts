@@ -41,6 +41,8 @@ export type TableSeat = {
   username: string | null;
   avatar_url: string | null;
   level: number | null;
+  /** Legend stars past level 100: the chip shows them instead of the level. */
+  prestige: number | null;
   pin: SeatPin | null;
   bot_persona: BotPersona | null;
   bot_profile?: BotProfile | null;
@@ -342,6 +344,7 @@ export function buildTableModel(input: TableModelInput): TableModel {
           username: p.username,
           avatar_url: p.avatar_url ?? null,
           level: p.level ?? null,
+          prestige: p.prestige ?? null,
           pin: p.pin ?? null,
           bot_persona: p.bot_persona ?? null,
           bot_profile: p.bot_profile ?? null,

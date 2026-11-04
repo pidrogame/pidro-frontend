@@ -144,6 +144,22 @@ export function nameType(
   return long && type.fontSize > SMALL_NAME.fontSize ? SMALL_NAME : type;
 }
 
+/**
+ * The one chip under the face (PID-338): the level up to 99, a gold "100" at
+ * level 100, and "★N" once a Legend has stars. No level, no chip.
+ */
+export function chipFor({
+  level,
+  prestige,
+}: {
+  level?: number | null;
+  prestige?: number | null;
+}): { text: string; legend: boolean } | null {
+  if (level == null) return null;
+  if (prestige && prestige > 0) return { text: `★${formatNumber(prestige)}`, legend: true };
+  return { text: formatNumber(level), legend: level >= 100 };
+}
+
 export type AvatarPin = 'classic' | 'founding_tester';
 export type AvatarAway = 'reconnecting' | 'bot';
 export type AvatarKind = 'player' | 'bot' | 'open';
@@ -153,6 +169,7 @@ export function avatarLabel({
   name,
   status,
   level,
+  prestige = null,
   pin,
   dealer,
   bid = null,
@@ -164,6 +181,7 @@ export function avatarLabel({
   name?: string | null;
   status?: string | null;
   level?: number | null;
+  prestige?: number | null;
   pin?: AvatarPin | null;
   dealer?: boolean;
   /** The winning bid the seat holds, on its corner. */
@@ -190,7 +208,13 @@ export function avatarLabel({
     kind === 'bot' && persona ? t('social.bot') : null,
     dealer ? t('social.avatar_dealer') : null,
     bid != null ? lower(t('game.bid', { amount: formatNumber(bid) })) : null,
-    level != null ? t('social.avatar_level', { number: formatNumber(level) }) : null,
+    level == null
+      ? null
+      : prestige && prestige > 0
+        ? t('social.avatar_legend_stars', { count: prestige, number: formatNumber(prestige) })
+        : level >= 100
+          ? t('social.avatar_legend', { number: formatNumber(level) })
+          : t('social.avatar_level', { number: formatNumber(level) }),
     pin ? t(pin === 'classic' ? 'profile.classic_app' : 'profile.founding_tester') : null,
     turn ? t(turn.urgent ? 'social.avatar_urgent' : 'social.avatar_turn') : null,
     statusText ?? awayText,

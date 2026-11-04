@@ -176,6 +176,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           username: seatPlayerName(seat, ''),
           avatar_url: seat.avatar_url !== undefined ? seat.avatar_url : (known?.avatar_url ?? null),
           level: seat.level !== undefined ? seat.level : (known?.level ?? null),
+          prestige: seat.prestige !== undefined ? seat.prestige : (known?.prestige ?? null),
           pin: seat.pin !== undefined ? seat.pin : (known?.pin ?? null),
           bot_persona: seat.bot_persona ?? null,
           bot_profile: seat.bot_profile ?? null,
@@ -268,6 +269,12 @@ export const useGameStore = create<GameState>((set, get) => ({
               : sameOccupant
                 ? previous.level
                 : null,
+          prestige:
+            seat?.player?.prestige !== undefined
+              ? seat.player.prestige
+              : sameOccupant
+                ? previous.prestige
+                : null,
           pin:
             seat?.player?.pin !== undefined ? seat.player.pin : sameOccupant ? previous.pin : null,
           bot_persona: seat?.player?.bot_persona ?? null,
@@ -318,6 +325,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           username: publicPlayerName(player.username, meta.username ?? '', player.display_name),
           ...(player.avatar_url !== undefined ? { avatar_url: player.avatar_url } : {}),
           ...(player.level !== undefined ? { level: player.level } : {}),
+          ...(player.prestige !== undefined ? { prestige: player.prestige } : {}),
           ...(player.pin !== undefined ? { pin: player.pin } : {}),
         };
       }
@@ -523,6 +531,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           avatar_url:
             seat.avatar_url !== undefined ? seat.avatar_url : (previous?.avatar_url ?? null),
           level: seat.level !== undefined ? seat.level : (previous?.level ?? null),
+          prestige: seat.prestige !== undefined ? seat.prestige : (previous?.prestige ?? null),
           pin: seat.pin !== undefined ? seat.pin : (previous?.pin ?? null),
           bot_persona: seat.bot_persona ?? null,
           bot_profile: seat.bot_profile ?? null,
@@ -615,6 +624,10 @@ export function roomWithReadiness(room: Room, snapshot: ReadinessSnapshot): Room
                 snapshot.seats[position].level !== undefined
                   ? snapshot.seats[position].level
                   : known?.level,
+              prestige:
+                snapshot.seats[position].prestige !== undefined
+                  ? snapshot.seats[position].prestige
+                  : known?.prestige,
               pin:
                 snapshot.seats[position].pin !== undefined
                   ? snapshot.seats[position].pin
@@ -679,6 +692,7 @@ export function useGameViewModel(): GameViewModel | null {
         seatStatus: meta.seatStatus,
         rank: meta.rank ?? null,
         level: meta.level ?? null,
+        prestige: meta.prestige ?? null,
         pin: meta.pin ?? null,
         bot_persona: meta.bot_persona ?? null,
         bot_profile: botProfile,

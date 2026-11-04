@@ -55,6 +55,8 @@ export interface ReadinessSnapshot {
       display_name?: string | null;
       avatar_url?: string | null;
       level?: number | null;
+      /** Legend stars past level 100 (PID-337); 0 below it, null for bots. */
+      prestige?: number | null;
       pin?: SeatPin | null;
       bot_persona?: BotPersona | null;
       bot_profile?: BotProfile | null;
@@ -87,6 +89,8 @@ export interface Player {
   display_name?: string | null;
   avatar_url?: string | null;
   level?: number | null;
+  /** Legend stars past level 100 (PID-337); 0 below it, null for bots. */
+  prestige?: number | null;
   pin?: SeatPin | null;
   is_bot?: boolean;
   /** Set for a real bot (Marcel, Antti, Jocke); null for humans and substitute bots. */

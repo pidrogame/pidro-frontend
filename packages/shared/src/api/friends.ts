@@ -6,6 +6,9 @@ export interface FriendPlayer {
   user_id: string;
   display_name: string;
   avatar_url: string | null;
+  /** All-time level and Legend stars (PID-337). */
+  level?: number | null;
+  prestige?: number | null;
   presence: 'online' | 'at_table' | 'offline';
   /** Who else is at their table, when they are at one (PID-251). */
   table_company?: 'bots' | 'people';

@@ -395,6 +395,11 @@ export const en = {
   "social.avatar_open": "Open seat",
   "social.avatar_dealer": "dealer",
   "social.avatar_level": "level %{number}",
+  "social.avatar_legend": "Legend, level %{number}",
+  "social.avatar_legend_stars": {
+    one: "Legend, %{number} star",
+    other: "Legend, %{number} stars",
+  },
   "social.avatar_reconnecting": "reconnecting",
   "social.avatar_bot": "a bot is playing",
   "social.avatar_turn": "their turn",
@@ -817,6 +822,11 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "social.avatar_open": "Ledig plats",
   "social.avatar_dealer": "givare",
   "social.avatar_level": "nivå %{number}",
+  "social.avatar_legend": "Legend, nivå %{number}",
+  "social.avatar_legend_stars": {
+    one: "Legend, %{number} stjärna",
+    other: "Legend, %{number} stjärnor",
+  },
   "social.avatar_reconnecting": "återansluter",
   "social.avatar_bot": "en bot spelar",
   "social.avatar_turn": "spelarens tur",

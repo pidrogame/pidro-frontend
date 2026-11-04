@@ -20,6 +20,9 @@ export interface FriendRowProps {
   name: string;
   avatarUrl?: string | null;
   ring?: AvatarRing;
+  /** The chip under the face: the level, or a Legend's stars. */
+  level?: number | null;
+  prestige?: number | null;
   row: FriendRowState;
   /** Opens the friend's sheet, or picks them for a seat. */
   onPress?: () => void;
@@ -42,6 +45,8 @@ export function FriendRow({
   name,
   avatarUrl,
   ring = 'glass',
+  level,
+  prestige,
   row,
   onPress,
   accessibilityLabel,
@@ -54,7 +59,13 @@ export function FriendRow({
   const identity = (
     <>
       <View style={row.variant === 'sent' && styles.faded}>
-        <PlayerAvatar size={dense ? 40 : 44} uri={avatarUrl} ring={ring} />
+        <PlayerAvatar
+          size={dense ? 40 : 44}
+          uri={avatarUrl}
+          ring={ring}
+          level={level}
+          prestige={prestige}
+        />
         {row.dot ? (
           <View style={[styles.dot, row.dot === 'online' ? styles.dotOnline : styles.dotTable]} />
         ) : null}

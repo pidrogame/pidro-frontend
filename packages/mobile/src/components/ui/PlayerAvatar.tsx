@@ -31,6 +31,7 @@ import { formatNumber, useTranslation } from '@/i18n';
 import {
   avatarLabel,
   avatarParts,
+  chipFor,
   nameType,
   type AvatarAway,
   type AvatarKind,
@@ -45,12 +46,14 @@ import { BoxShadow } from '@/game/canvas/bakedBlur';
  * A player, drawn the same way everywhere: the photo in a ring, with up to
  * five signals around it. The ring says whether they pay (glass, gold, or
  * gold with a gem for lifetime), the pin where they come from, the chip their
- * all-time level. At the table the turn light runs down as their timer, the
- * only light there, and the name's colour says the team. Each corner has one
- * meaning (PID-304): the dealer chip bottom left, the bot badge bottom right,
- * the winning bid top right (over the pin while it shows), and top left
- * nothing, where the turn light sweeps. Smaller sizes drop parts, never the
- * ring (`avatarParts`). Read-only: wrap it in a pressable to make it tappable.
+ * all-time level, gold from level 100 and with Legend stars after (`chipFor`).
+ * At the table the turn light runs down as their timer, the only light there,
+ * and the name's colour says the team. Each corner has one meaning (PID-304,
+ * PID-338): the dealer chip bottom left, the bot badge bottom right, the
+ * winning bid top right, and top left nothing, where the turn light sweeps.
+ * The table passes no pin, so the bid has its corner alone. Smaller sizes
+ * drop parts, never the ring (`avatarParts`). Read-only: wrap it in a
+ * pressable to make it tappable.
  */
 export type AvatarRing = 'glass' | 'gold' | 'lifetime';
 export type DealerTrail = { current: { x: number; y: number } | null };
@@ -61,6 +64,8 @@ export interface PlayerAvatarProps {
   ring?: AvatarRing;
   pin?: AvatarPin | null;
   level?: number | null;
+  /** Legend stars: with one or more the chip shows "★N" instead of the level. */
+  prestige?: number | null;
   dealer?: boolean;
   /**
    * Where the dealer chip last stood on screen, shared by a table's seats: a
@@ -129,6 +134,7 @@ export function PlayerAvatar({
   ring = 'glass',
   pin = null,
   level = null,
+  prestige = null,
   dealer = false,
   dealerTrail,
   bid = null,
@@ -158,7 +164,8 @@ export function PlayerAvatar({
   const portrait = botPortrait(crew, profile, failedUri);
   const seated = kind !== 'open';
   const gold = ring !== 'glass' && kind === 'player';
-  const chip = seated && level != null ? parts.level : null;
+  const earned = chipFor({ level, prestige });
+  const chip = seated && earned ? parts.level : null;
   const arc = turn && seated ? parts.turn : null;
   const spoken =
     accessibilityLabel ??
@@ -167,6 +174,7 @@ export function PlayerAvatar({
           name,
           status,
           level,
+          prestige,
           pin,
           dealer,
           bid: bid?.amount,
@@ -304,11 +312,16 @@ export function PlayerAvatar({
             testID={testID ? `${testID}-level` : undefined}
             style={[
               styles.level,
+              earned?.legend && gradientBg(PidroBevel.goldRimGradient),
               {
                 minWidth: chip.minWidth,
                 height: chip.height,
                 paddingHorizontal: chip.padding,
-                borderColor: gold ? PidroBevel.rim : PidroBevel.avatarGlassEdge,
+                borderColor: earned?.legend
+                  ? PidroBevel.rimDeep
+                  : gold
+                    ? PidroBevel.rim
+                    : PidroBevel.avatarGlassEdge,
                 opacity: away ? AWAY_OPACITY : 1,
               },
             ]}>
@@ -318,12 +331,16 @@ export function PlayerAvatar({
                 {
                   fontSize: chip.fontSize,
                   lineHeight: chip.height - 3,
-                  color: gold ? PidroBevel.textGold : PidroColors.text,
+                  color: earned?.legend
+                    ? PidroBevel.keyline
+                    : gold
+                      ? PidroBevel.textGold
+                      : PidroColors.text,
                 },
               ]}
               numberOfLines={1}
               maxFontSizeMultiplier={1}>
-              {level}
+              {earned?.text}
             </PidroText>
           </View>
         </View>

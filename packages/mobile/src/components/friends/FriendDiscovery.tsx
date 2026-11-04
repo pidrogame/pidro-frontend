@@ -143,6 +143,8 @@ export function FriendDiscovery({
               key={player.user_id}
               name={player.display_name}
               avatarUrl={player.avatar_url}
+              level={player.level}
+              prestige={player.prestige}
               row={discoveryRowState(player, dayOnly ? 'day' : 'together')}
               trailing={
                 player.relation === 'friend' ? (

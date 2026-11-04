@@ -35,6 +35,7 @@ export function BadgeSheet({
   onClose,
   uri,
   level,
+  prestige,
   classic,
   pin,
   onChoosePin,
@@ -44,6 +45,7 @@ export function BadgeSheet({
   onClose: () => void;
   uri?: string | null;
   level?: number | null;
+  prestige?: number | null;
   classic: ClassicProfile | null;
   pin: 'classic' | null;
   onChoosePin: (pin: PinChoice) => void;
@@ -109,6 +111,7 @@ export function BadgeSheet({
                     size={compact ? 72 : 92}
                     uri={photo.preview ?? currentUri}
                     level={level}
+                    prestige={prestige}
                     pin={pin}
                     photoProgress={progress}
                     accessibilityLabel={t(pin ? 'profile.wearing_classic' : 'profile.wearing_none')}

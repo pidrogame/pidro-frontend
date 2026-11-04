@@ -94,6 +94,8 @@ export const RoomCard = memo(function RoomCard({
                   <PlayerAvatar
                     size={44}
                     uri={seat.avatarUrl}
+                    level={seat.level}
+                    prestige={seat.prestige}
                     kind={seat.kind === 'bot' ? 'bot' : 'player'}
                     persona={seat.persona}
                     botProfile={seat.botProfile}

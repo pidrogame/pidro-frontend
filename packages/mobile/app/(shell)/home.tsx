@@ -119,6 +119,7 @@ export default function HomeScreen() {
 
   const games = identity?.games_played;
   const level = identity?.veteran?.level;
+  const prestige = identity?.veteran?.prestige;
   const gamesLabel = t('social.games', { count: games ?? 0, number: formatNumber(games ?? 0) });
   const identityMeta = guest
     ? games != null
@@ -155,6 +156,7 @@ export default function HomeScreen() {
               uri={user?.avatar_url}
               size={tablet ? 56 : compactLandscape ? 44 : 48}
               level={level}
+              prestige={prestige}
               accessibilityLabel={t('social.profile_picture')}
             />
             {waiting > 0 ? (
