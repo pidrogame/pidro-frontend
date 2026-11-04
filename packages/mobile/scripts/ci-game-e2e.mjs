@@ -22,6 +22,10 @@
  * table with the seat open. The guest (now the host) fills
  * it with a bot, readies up, and a third game starts in the same room.
  *
+ * Stage 4: a player with 2,800,000 XP in the backend's database sits down, and
+ * the seat shows ★4; the dealer chip and the bid keep their corners. Needs the
+ * backend checkout (BACKEND_DIR, default ../../backend) to write that XP.
+ *
  * Requires a running backend (API_BASE_URL/WS_BASE_URL) and Expo web
  * (MOBILE_BASE_URL). Artifacts land in E2E_ARTIFACT_DIR.
  *
@@ -786,6 +790,109 @@ async function stageThreeTableTalk() {
   }
 }
 
+// PID-338: a Legend at a real table. The server keeps 2,800,000 XP for this
+// player, which is level 100 and four stars, and the seat says so with the
+// server's numbers: "★4" under the face while the dealer is cut. During the
+// hand the dealer chip holds the bottom left and the bid the top right.
+async function stageFourLegendSeat() {
+  const legend = `ci_${suffix}e`;
+  log(`stage 4: ${legend} sits at a table with 2,800,000 XP`);
+  const token = await registerOrLogin(legend);
+  const me = await api('/api/v1/auth/me', 'GET', token);
+  const userId = (me.payload?.data ?? me.payload)?.user?.id;
+  if (!/^[0-9a-f-]{36}$/.test(userId ?? '')) throw new Error(`no user id: ${JSON.stringify(me)}`);
+  await seedXp(userId, 2_800_000);
+  const own = await api('/api/v1/profile', 'GET', token);
+  const veteran = (own.payload?.data ?? own.payload)?.veteran;
+  if (veteran?.level !== 100 || veteran?.prestige !== 4) {
+    throw new Error(`the server does not count four stars: ${JSON.stringify(veteran)}`);
+  }
+  await api('/api/v1/rooms/current/leave', 'DELETE', token).catch(() => {});
+  const created = await api('/api/v1/rooms', 'POST', token, {
+    name: `CI legend ${suffix}`,
+    seats: { seat_2: 'ai', seat_3: 'ai', seat_4: 'ai' },
+  });
+  const roomCode = created.payload?.data?.code ?? created.payload?.code;
+  if (!roomCode) throw new Error(`create legend room failed: ${JSON.stringify(created.payload)}`);
+
+  const browser = await chromium.launch({
+    headless: true,
+    args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  });
+  try {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    await signInThroughUi(page, legend);
+    await page.goto(`${mobileBaseUrl}/game/${roomCode}`, { waitUntil: 'domcontentloaded' });
+    await confirmInitialTable([page], '[data-testid="game-table"]');
+    // The cut lasts three seconds; the chip shows only until the deal.
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="seat-south-level"]')?.textContent?.trim() === '★4',
+      null,
+      { timeout: 20_000 }
+    );
+    await page.screenshot({ path: resolve(artifactDir, 'legend-cut.png') });
+    log('stage 4: the seat shows ★4 from the server');
+
+    const dealer = page.locator('[data-testid^="seat-"][data-testid$="-dealer"]').first();
+    const bid = page.locator('[data-testid^="seat-"][data-testid$="-bid"]').first();
+    await dealer.waitFor({ timeout: 30_000 });
+    await bid.waitFor({ timeout: 30_000 });
+    // A badge's centre against the centre of the avatar it sits on.
+    const offset = (badge) =>
+      badge.evaluate((node) => {
+        const b = node.getBoundingClientRect();
+        const a = node.parentElement.getBoundingClientRect();
+        return {
+          seat: node.dataset.testid,
+          x: b.x + b.width / 2 - (a.x + a.width / 2),
+          y: b.y + b.height / 2 - (a.y + a.height / 2),
+        };
+      });
+    const [d, b] = [await offset(dealer), await offset(bid)];
+    await page.screenshot({ path: resolve(artifactDir, 'legend-hand.png') });
+    if (!(d.x < 0 && d.y > 0))
+      throw new Error(`the dealer chip left the bottom left: ${JSON.stringify(d)}`);
+    if (!(b.x > 0 && b.y < 0)) throw new Error(`the bid left the top right: ${JSON.stringify(b)}`);
+    if (await page.locator('[data-testid^="seat-"][data-testid$="-pin"]').count()) {
+      throw new Error('a pin is drawn at the table');
+    }
+    log(
+      `stage 4 passed: ${d.seat} at (${Math.round(d.x)}, ${Math.round(d.y)}), ${b.seat} at (${Math.round(b.x)}, ${Math.round(b.y)})`
+    );
+  } finally {
+    await browser.close();
+    await api('/api/v1/rooms/current/leave', 'DELETE', token).catch(() => {});
+  }
+}
+
+// XP lives only on the server, so the journey writes it there, the way a long
+// Classic career would have. One row in the backend's own database.
+function seedXp(userId, xp) {
+  const backend = process.env.BACKEND_DIR ?? resolve(mobileRoot, '../../backend');
+  const code = `
+    Application.ensure_all_started(:postgrex)
+    Application.ensure_all_started(:ecto_sql)
+    {:ok, _} = PidroServer.Repo.start_link(pool_size: 1)
+    Ecto.Adapters.SQL.query!(PidroServer.Repo, """
+    INSERT INTO player_profiles (id, user_id, veteran_xp, inserted_at, updated_at)
+    VALUES (gen_random_uuid(), $1::text::uuid, $2, now(), now())
+    ON CONFLICT (user_id) DO UPDATE SET veteran_xp = EXCLUDED.veteran_xp
+    """, [System.fetch_env!("SEED_USER_ID"), String.to_integer(System.fetch_env!("SEED_XP"))])
+  `;
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn('mix', ['run', '--no-start', '-e', code], {
+      cwd: backend,
+      env: { ...process.env, SEED_USER_ID: userId, SEED_XP: String(xp) },
+      stdio: ['ignore', 'inherit', 'inherit'],
+    });
+    child.on('close', (status) =>
+      status === 0 ? resolvePromise() : rejectPromise(new Error(`seeding XP exited ${status}`))
+    );
+    child.on('error', rejectPromise);
+  });
+}
+
 function writeStepSummary(result, elapsedSeconds) {
   if (!process.env.GITHUB_STEP_SUMMARY) return;
   const lines = [
@@ -796,6 +903,7 @@ function writeStepSummary(result, elapsedSeconds) {
     `- UI milestones captured: ${result.milestones.join(', ')}`,
     `- Page errors during the UI game: ${result.pageErrors}`,
     '- Table talk: two players, a word sent from one phone landed at its seat on the other, the Thanks! it offered came back, and a typed line landed too (`talk/`, `talk-*.png`).',
+    '- A Legend at the table: 2,800,000 XP on the server shows ★4 at the seat during the cut; the dealer chip sat bottom left and the bid top right during the hand (`legend-*.png`).',
     '- Video + screenshots: see the `game-e2e-artifacts` artifact on this run.',
     '',
   ];
@@ -814,6 +922,7 @@ async function main() {
   await stageOneSoloGame();
   const result = await stageTwoMultiplayerVideo();
   await stageThreeTableTalk();
+  await stageFourLegendSeat();
 
   clearTimeout(watchdog);
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
