@@ -1226,6 +1226,25 @@ const allCases = [
     twoRows,
     ...(name === 'trick' && { levels: false }),
   })),
+  // PID-333: upright phones draw cards as big as Classic's. Nothing on the
+  // table touches anything else, the chat band stays free, and the card
+  // heights print in dp.
+  ...[
+    ['bidding', 'phase=bidding', 'bidding-window', {}],
+    [
+      'second-deal',
+      'deal=draw&holdMs=600000',
+      'seat-south',
+      { thrown: ['north', 'east', 'south'], mark: true },
+    ],
+    ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
+    ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
+  ].map(([name, query, testId, upright]) => ({
+    name: `table-upright-${name}`,
+    path: `/table-dev?${query}`,
+    testId,
+    upright,
+  })),
   // PID-267: the bots bid while the cards are still being dealt. Until the
   // deal ends no seat and no log line shows a bid; then all three show.
   {
@@ -5555,7 +5574,7 @@ async function assertTwoRows(page, testCase, viewport) {
     // Pushed down to the bottom edge, past it on short phones, but its rank
     // and suit (the top 58% of a card) and a 44pt tap target always show.
     const rest = await page.getByTestId('player-hand-top').boundingBox();
-    const cardH = cardSize(Math.min(viewport.width, viewport.height)) * (110 / 78);
+    const cardH = cardSize(viewport.width, viewport.height) * (110 / 78);
     assert.ok(
       viewport.height - rest.y >= Math.max(44, cardH * 0.58) - 0.01,
       `${testCase.name}: your hand shows ${viewport.height - rest.y}pt`
@@ -5566,7 +5585,7 @@ async function assertTwoRows(page, testCase, viewport) {
   const table = [...seats, ...[...handRows, ...fronts].map((b) => [b])];
   if (mark) {
     const center = await page.getByTestId('table-trick-center').boundingBox();
-    const size = cardSize(Math.min(viewport.width, viewport.height)) * TRUMP_MARK;
+    const size = cardSize(viewport.width, viewport.height) * TRUMP_MARK;
     const markBox = {
       label: 'the trump mark',
       x: center.x - size / 2,
@@ -5632,6 +5651,136 @@ async function assertTwoRows(page, testCase, viewport) {
     0,
     'landscape phones: no bid line'
   );
+}
+
+// PID-333: on upright phones every seat (its badges included), back fan,
+// played card, throw, the trump mark, your hand and the chat band keep off
+// one another; the bid window and hand result keep off your hand and the
+// band. The rectangles and the drawn card heights print in dp.
+async function assertUpright(page, testCase, viewport) {
+  if (!testCase.upright) return;
+  const { thrown = [], played = 0, result = false, mark = false } = testCase.upright;
+  const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
+  const union = (label, boxes) => {
+    const x = Math.min(...boxes.map((b) => b.x));
+    const y = Math.min(...boxes.map((b) => b.y));
+    const r = Math.max(...boxes.map((b) => b.x + b.width));
+    const btm = Math.max(...boxes.map((b) => b.y + b.height));
+    return { label, x, y, width: r - x, height: btm - y };
+  };
+  const images = async (testId) => {
+    const boxes = [];
+    for (const image of await page.getByTestId(testId).locator('img').all()) {
+      const box = await image.boundingBox();
+      if (box) boxes.push(box);
+    }
+    return boxes;
+  };
+  for (const rel of thrown) {
+    await page.getByTestId(`second-deal-thrown-${rel}`).waitFor({ timeout: 20_000 });
+  }
+  if (thrown.length) await page.waitForTimeout(700);
+  await page.getByTestId(`rendered-played-card-count-${played}`).waitFor({ timeout: 20_000 });
+  await page.waitForTimeout(600);
+  const sprites = await page.evaluate(() => window.__pidroCardMotion?.() ?? []);
+  const spriteBox = (s) => {
+    const c = Math.abs(Math.cos(s.rotation));
+    const n = Math.abs(Math.sin(s.rotation));
+    const width = (s.width * c + s.height * n) * s.renderedScale;
+    const height = (s.width * n + s.height * c) * s.renderedScale;
+    return { label: s.key, x: s.x - width / 2, y: s.y - height / 2, width, height };
+  };
+  const table = [];
+  for (const rel of ['north', 'east', 'south', 'west']) {
+    const seat = [
+      named(`${rel}'s seat`, await getStableBox(page.getByTestId(`seat-${rel}`).first(), page)),
+    ];
+    for (const badge of ['dealer', 'bid', 'bot', 'level']) {
+      const node = page.getByTestId(`seat-${rel}-${badge}`);
+      const part = (await node.count()) ? await node.first().boundingBox() : null;
+      if (part) seat.push(named(`${rel}'s ${badge}`, part));
+    }
+    for (const part of seat) assertInsideViewport(`${testCase.name} ${part.label}`, part, viewport);
+    table.push(seat);
+    if (rel !== 'south') {
+      const backs = await images(`seat-${rel}-cards`);
+      if (backs.length) table.push([union(`${rel}'s backs`, backs)]);
+    }
+    const throws = await images(`second-deal-thrown-${rel}`);
+    if (throws.length) table.push([union(`${rel}'s throw`, throws)]);
+  }
+  const cards = sprites.filter((s) => s.kind === 'played');
+  assert.equal(cards.length, played, `${testCase.name}: every played card is measured`);
+  for (const card of cards) table.push([spriteBox(card)]);
+  // The hand's result shows once the last trick has taken the last cards.
+  const held = sprites.filter((s) => s.kind === 'hand');
+  assert.ok(result || held.length > 0, `${testCase.name}: your hand is measured`);
+  let hand = null;
+  if (held.length) {
+    // Playable cards rise out of the row: the hand is where they rest too.
+    const rest = await page.getByTestId('player-hand-top').boundingBox();
+    const handBoxes = held.map(spriteBox);
+    hand = union('your hand', [...handBoxes, { ...handBoxes[0], y: rest.y }]);
+    assertInsideViewport(`${testCase.name} your hand`, hand, viewport);
+    table.push([hand]);
+  }
+  const dock = named(
+    'the chat band',
+    await getStableBox(page.getByTestId('table-utility-dock').first(), page)
+  );
+  table.push([dock]);
+  if (mark) {
+    const center = await page.getByTestId('table-trick-center').boundingBox();
+    const size = cardSize(viewport.width, viewport.height) * TRUMP_MARK;
+    table.push([
+      {
+        label: 'the trump mark',
+        x: center.x - size / 2,
+        y: center.y - size / 2,
+        width: size,
+        height: size,
+      },
+    ]);
+  }
+  const gap = (a, b) =>
+    Math.max(
+      b.x - (a.x + a.width),
+      a.x - (b.x + b.width),
+      b.y - (a.y + a.height),
+      a.y - (b.y + b.height)
+    );
+  const pairs = table.flatMap((a, i) =>
+    table.slice(i + 1).flatMap((b) => a.flatMap((pa) => b.map((pb) => [pa, pb, gap(pa, pb)])))
+  );
+  const closest = pairs.reduce((min, pair) => (pair[2] < min[2] ? pair : min));
+  const dp = (v) => v.toFixed(1).padStart(6);
+  const tall = (s) => (s.height * s.scale).toFixed(1);
+  console.log(
+    [
+      `upright ${testCase.name} ${viewport.name} (${viewport.width}×${viewport.height}), in dp:`,
+      `  card heights: your hand ${held.length ? held[0].height.toFixed(1) : '–'}, played ${cards.length ? tall(cards[0]) : '–'}`,
+      ...table
+        .flat()
+        .map(
+          (b) => `  ${b.label.padEnd(20)} x${dp(b.x)} y${dp(b.y)} w${dp(b.width)} h${dp(b.height)}`
+        ),
+      `  smallest gap ${closest[2].toFixed(1)}: ${closest[0].label} – ${closest[1].label}`,
+    ].join('\n')
+  );
+  for (const [a, b, apart] of pairs)
+    assert.ok(
+      apart >= -0.5,
+      `${testCase.name}: ${a.label} overlaps ${b.label} in ${viewport.name}: ${JSON.stringify({ a, b })}`
+    );
+  const windows = [];
+  for (const id of ['bidding-window', 'hand-result-panel']) {
+    const node = page.getByTestId(id);
+    if (await node.count()) windows.push(named(id, await getStableBox(node.first(), page)));
+  }
+  if (result) assert.equal(windows.length, 1, `${testCase.name}: the hand result shows`);
+  for (const w of windows)
+    for (const b of [hand ?? dock, dock])
+      assert.ok(gap(w, b) >= 0, `${testCase.name}: ${w.label} overlaps ${b.label}`);
 }
 
 // Folded backs stay in their seat's hand area, never on any Skia played card,
@@ -6786,6 +6935,7 @@ async function main() {
           );
         if (testCase.twoRows)
           return ['landscape', 'android-landscape', 'small-landscape'].includes(viewport.name);
+        if (testCase.upright) return ['portrait', 'small-portrait'].includes(viewport.name);
         if (testCase.newTableFixture)
           return [
             'portrait',
@@ -7306,6 +7456,7 @@ async function main() {
           await assertTalk(page, testCase, caseViewport);
           await assertPlayLines(page, testCase, caseViewport);
           await assertTwoRows(page, testCase, caseViewport);
+          await assertUpright(page, testCase, caseViewport);
           if (testCase.locale && testCase.path.includes('game_over')) {
             await page
               .getByTestId('victory-confetti')

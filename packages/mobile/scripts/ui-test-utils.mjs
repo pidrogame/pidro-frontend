@@ -189,6 +189,7 @@ export const UI_VIEWPORTS = [
       'update-notice',
       'update-notice-friends-guest',
       ...appUpdateCases,
+      ...['bidding', 'second-deal', 'trick', 'hand-end'].map((name) => `table-upright-${name}`),
       'table-hand-made',
       'table-hand-set',
       'table-hand-they-set',
