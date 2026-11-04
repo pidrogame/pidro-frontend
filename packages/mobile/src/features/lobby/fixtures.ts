@@ -35,6 +35,14 @@ export const BOT_CREW = [
   { bot_persona: 'jocke', username: 'Jocke', display_name: 'Jocke' },
 ] as const;
 
+/** The chips the rows show: two Legends, the rest by the length of the name. */
+const fixtureLevel = (name: string) =>
+  name === 'Claas'
+    ? { level: 100, prestige: 4 }
+    : name === 'Kalle'
+      ? { level: 100, prestige: 0 }
+      : { level: (name.length * 11) % 97, prestige: 0 };
+
 /** `Bot` in `names` seats the next of the crew. */
 function room(code: string, names: (string | null)[], louisiana = false, playing = false): Room {
   const positions: Position[] = ['north', 'south', 'east', 'west'];
@@ -57,7 +65,9 @@ function room(code: string, names: (string | null)[], louisiana = false, playing
       player: name
         ? {
             id: `${code}-${positions[index]}`,
-            ...(name === 'Bot' ? { is_bot: true, ...BOT_CREW[bots++ % 3] } : { username: name }),
+            ...(name === 'Bot'
+              ? { is_bot: true, ...BOT_CREW[bots++ % 3] }
+              : { username: name, ...fixtureLevel(name) }),
           }
         : null,
     })),

@@ -16,6 +16,13 @@ const friendNoticeCases = [
   'too-late',
 ].map((kind) => `friend-notice-${kind}`);
 // Table talk (PID-114): every state of the band, the sheet and a landing.
+// PID-338: the Status-Seats players, on every table layout.
+export const statusSeatCases = [
+  'table-status-a',
+  'table-status-b',
+  'table-status-a-cut',
+  'table-status-b-cut',
+];
 export const talkCases = [
   'quiet',
   'landed',
@@ -165,6 +172,7 @@ export const UI_VIEWPORTS = [
     width: 375,
     height: 667,
     cases: [
+      ...statusSeatCases,
       'table-dealer-late',
       'table-loading',
       'welcome',
@@ -228,6 +236,7 @@ export const UI_VIEWPORTS = [
     height: 780,
     safeArea: 'android',
     cases: [
+      ...statusSeatCases,
       'table-small-west-deals',
       'table-small-north-bid',
       'table-small-your-turn',
@@ -307,6 +316,7 @@ export const UI_VIEWPORTS = [
     width: 768,
     height: 1024,
     cases: [
+      ...statusSeatCases,
       'table-dealer-late',
       'table-loading',
       'welcome',
@@ -382,6 +392,7 @@ export const UI_VIEWPORTS = [
     height: 768,
     lobbyViewport: { name: 'lobby-tablet-landscape', width: 1194, height: 834 },
     cases: [
+      ...statusSeatCases,
       ...talkCases,
       ...seatPickerCases,
       'table-bidding',

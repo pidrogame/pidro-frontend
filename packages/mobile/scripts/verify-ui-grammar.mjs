@@ -1161,6 +1161,25 @@ const allCases = [
     details: phase === 'game_over' ? 'ended' : phase === 'declaring' ? 'south' : 'east',
     detailsPhase: phase,
   })),
+  // PID-338: the six players of Status-Seats over the four seats, Bengt dealing
+  // and Aino holding the bid at 9; measured on every table layout.
+  // The chips show at the cut (PID-334 hides them during a hand), so the cut
+  // measures the chips and the hand measures the dealer and the bid.
+  ...['a', 'b'].flatMap((seats) => [
+    {
+      name: `table-status-${seats}`,
+      path: `/table-dev?fixture=status&role=player&seats=${seats}`,
+      testId: 'seat-north-bid',
+      statusSeats: seats,
+    },
+    {
+      name: `table-status-${seats}-cut`,
+      path: `/table-dev?fixture=status&role=player&seats=${seats}&cut=true`,
+      testId: 'seat-north',
+      statusSeats: seats,
+      statusCut: true,
+    },
+  ]),
   // PID-304: small phones, from Marcel's TCL. ironman3001 deals at West and a
   // long North name holds the bid in one; no seat may touch a played card,
   // your hand or the chat band, and every corner keeps its one meaning.
@@ -5381,19 +5400,121 @@ async function assertPlayLines(page, testCase, viewport) {
 // others, every played card, your hand and the chat band under it; the dealer
 // chip sits bottom left, the winning bid top right at the bot badge's size.
 // Tight phones show no ticker or Last trick: the score panel opens the log.
+const STATUS_SEATS = {
+  a: {
+    south: { name: 'Bengt', chip: '★4' },
+    west: { name: 'Mikko', chip: '12' },
+    north: { name: 'Aino', chip: '6' },
+    east: { name: 'Kalle', chip: '100' },
+  },
+  b: {
+    south: { name: 'Bengt', chip: '★4' },
+    west: { name: 'Antti', bot: true },
+    north: { name: 'Aino', chip: '6' },
+    east: { name: 'Jussi', chip: '31' },
+  },
+};
+
+// PID-338: three layers, never mixed, read from the real boxes. The chip is
+// centred under its avatar and says what `chipFor` gives for the seat's
+// level and stars (level 100 with 4 stars reads ★4), bots have none, no
+// pin is drawn at the table, the dealer chip holds the bottom-left quadrant
+// clear of cards, the name and the chip, and the bid holds the top right.
+async function assertStatusSeats(page, testCase, viewport) {
+  if (!testCase.statusSeats) return;
+  const players = STATUS_SEATS[testCase.statusSeats];
+  const where = `${testCase.name} in ${viewport.name}`;
+  await page.waitForTimeout(450);
+  // A badge and the avatar it sits on: the badge's own box, and its avatar's.
+  const onAvatar = (id, up = 1) =>
+    page.getByTestId(id).evaluate((node, up) => {
+      let avatar = node;
+      for (let i = 0; i < up; i++) avatar = avatar.parentElement;
+      const box = (r) => ({ x: r.x, y: r.y, width: r.width, height: r.height });
+      return {
+        badge: box(node.getBoundingClientRect()),
+        avatar: box(avatar.getBoundingClientRect()),
+      };
+    }, up);
+  // Tight phones drop your own name under your hand: then there is none to clear.
+  const nameBox = async (rel, name) => {
+    const text = page.getByTestId(`seat-${rel}`).getByText(name, { exact: true });
+    return (await text.count()) ? text.boundingBox() : null;
+  };
+  const centre = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+  const overlap = (a, b) =>
+    a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  assert.equal(
+    await page.locator('[data-testid^="seat-"][data-testid$="-pin"]').count(),
+    0,
+    `${where}: a pin is drawn at the table`
+  );
+  const chips = {};
+  // A tight phone shows no chips at the table and drops your name too.
+  const tight = !(await nameBox('south', 'Bengt'));
+  for (const [rel, player] of Object.entries(players)) {
+    const level = page.getByTestId(`seat-${rel}-level`);
+    if (player.bot) {
+      assert.equal(await level.count(), 0, `${where}: the bot at ${rel} has a level chip`);
+      continue;
+    }
+    if (!testCase.statusCut || tight) {
+      assert.equal(await level.count(), 0, `${where}: ${rel} shows a level during the hand`);
+      continue;
+    }
+    assert.equal(await level.count(), 1, `${where}: ${rel} has no chip at the cut`);
+    // The chip sits in a full-width row inside the avatar.
+    const { badge, avatar } = await onAvatar(`seat-${rel}-level`, 2);
+    chips[rel] = badge;
+    assert.equal((await level.innerText()).trim(), player.chip, `${where}: ${rel}'s chip`);
+    assert.ok(
+      Math.abs(centre(badge).x - centre(avatar).x) <= 1,
+      `${where}: ${rel}'s chip is ${centre(badge).x - centre(avatar).x}pt off centre`
+    );
+    const name = await nameBox(rel, player.name);
+    if (name) assert.ok(!overlap(badge, name), `${where}: ${rel}'s chip overlaps the name`);
+  }
+  if (testCase.statusCut) {
+    console.log(
+      `status-seats ${where}: ${tight ? 'tight, no chips' : `chips ${JSON.stringify(Object.fromEntries(Object.keys(chips).map((rel) => [rel, players[rel].chip])))}`}`
+    );
+    return;
+  }
+  const dealer = await onAvatar('seat-south-dealer');
+  const d = centre(dealer.badge);
+  const a = centre(dealer.avatar);
+  assert.ok(d.x < a.x && d.y > a.y, `${where}: the dealer chip leaves the bottom-left quadrant`);
+  const sprites = await page.evaluate(() => window.__pidroCardMotion());
+  for (const card of sprites.map(spriteBox))
+    assert.ok(!overlap(dealer.badge, card), `${where}: the dealer chip overlaps ${card.label}`);
+  const bengt = await nameBox('south', 'Bengt');
+  if (bengt)
+    assert.ok(!overlap(dealer.badge, bengt), `${where}: the dealer chip overlaps the name`);
+  const bid = await onAvatar('seat-north-bid');
+  const b = centre(bid.badge);
+  const n = centre(bid.avatar);
+  assert.ok(b.x > n.x && b.y < n.y, `${where}: the bid leaves the top-right quadrant`);
+  assert.equal((await page.getByTestId('seat-north-bid').innerText()).trim(), '9');
+  console.log(
+    `status-seats ${where}: chips ${JSON.stringify(Object.keys(chips))}, dealer (${Math.round(d.x - a.x)}, ${Math.round(d.y - a.y)}) from centre, bid (${Math.round(b.x - n.x)}, ${Math.round(b.y - n.y)})`
+  );
+}
+
+/** A card sprite's screen box, rotation included. */
+function spriteBox(s) {
+  const c = Math.abs(Math.cos(s.rotation));
+  const n = Math.abs(Math.sin(s.rotation));
+  const width = (s.width * c + s.height * n) * s.renderedScale;
+  const height = (s.width * n + s.height * c) * s.renderedScale;
+  return { label: s.key, x: s.x - width / 2, y: s.y - height / 2, width, height };
+}
+
 async function assertSmallTable(page, testCase, viewport) {
   if (!testCase.smallTable) return;
   const { dealer, bidder, played = 0 } = testCase.smallTable;
   await page.getByTestId(`rendered-played-card-count-${played}`).waitFor();
   await page.waitForTimeout(450);
   const sprites = await page.evaluate(() => window.__pidroCardMotion());
-  const spriteBox = (s) => {
-    const c = Math.abs(Math.cos(s.rotation));
-    const n = Math.abs(Math.sin(s.rotation));
-    const width = (s.width * c + s.height * n) * s.renderedScale;
-    const height = (s.width * n + s.height * c) * s.renderedScale;
-    return { label: s.key, x: s.x - width / 2, y: s.y - height / 2, width, height };
-  };
   const cards = sprites.filter((s) => s.kind === 'played').map(spriteBox);
   const hand = sprites.filter((s) => s.kind === 'hand').map(spriteBox);
   assert.equal(cards.length, played, `${testCase.name}: every played card is measured`);
@@ -7639,6 +7760,7 @@ async function main() {
           await assertSwitchInteractions(page, testCase.name, screenshotDir);
           await assertTableDetails(page, testCase, caseViewport);
           await assertSmallTable(page, testCase, caseViewport);
+          await assertStatusSeats(page, testCase, caseViewport);
           await assertTeams(page, testCase);
           await assertRowControls(page, testCase.name, screenshotDir);
           await assertFriendComponents(page, testCase.name, screenshotDir);

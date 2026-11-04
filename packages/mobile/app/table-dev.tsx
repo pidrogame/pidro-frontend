@@ -18,7 +18,7 @@ import { TableInvitation } from '@/components/invites/TableInvitation';
 import { DevOverlays, handHistory } from '@/game/canvas/DevOverlays';
 import { loadGameCanvasDev } from '@/game/canvas/loadGameCanvasDev';
 import type { GameCanvasDevProps } from '@/game/canvas/GameCanvasDev';
-import type { Position, Room } from '@/types/lobby';
+import type { Player, Position, Room } from '@/types/lobby';
 import type {
   Card,
   Invite,
@@ -314,6 +314,57 @@ const LONG_NAMES_ROOM: Room = {
         ? { ...seat, player: { id: 'p-north', username: 'Margaretha Lindqvist', level: 31 } }
         : seat
   ),
+};
+
+// `fixture=status&seats=a|b` (PID-338): the six players of `Status-Seats`
+// over the four real seats. Bengt (you, Legend ★4) deals and Aino holds the
+// bid at 9 in both; `a` has Mikko on turn and Kalle at level 100, `b` the bot
+// Antti and Jussi reconnecting.
+const statusSeat = (position: Position, player: Player) => ({
+  seat_index: ['south', 'west', 'north', 'east'].indexOf(position) + 1,
+  status: 'occupied' as const,
+  player,
+  position,
+});
+const STATUS_ROOMS: Record<'a' | 'b', Room> = {
+  a: {
+    ...BOT_ROOM,
+    positions: { north: 'p-north', east: 'p-east', south: 'p-south', west: 'p-west' },
+    seats: [
+      statusSeat('south', {
+        id: 'p-south',
+        username: 'Bengt',
+        level: 100,
+        prestige: 4,
+        pin: 'classic',
+      }),
+      statusSeat('west', { id: 'p-west', username: 'Mikko', level: 12 }),
+      statusSeat('north', { id: 'p-north', username: 'Aino', level: 6 }),
+      statusSeat('east', {
+        id: 'p-east',
+        username: 'Kalle',
+        level: 100,
+        prestige: 0,
+        pin: 'classic',
+      }),
+    ],
+  },
+  b: {
+    ...BOT_ROOM,
+    positions: { north: 'p-north', east: 'p-east', south: 'p-south', west: 'b-west' },
+    seats: [
+      statusSeat('south', {
+        id: 'p-south',
+        username: 'Bengt',
+        level: 100,
+        prestige: 4,
+        pin: 'classic',
+      }),
+      statusSeat('west', { id: 'b-west', is_bot: true, ...BOT_CREW[1] }),
+      statusSeat('north', { id: 'p-north', username: 'Aino', level: 6 }),
+      statusSeat('east', { id: 'p-east', username: 'Jussi', level: 31 }),
+    ],
+  },
 };
 
 // JA36's seating, unlike the usual quick-game bot order.
@@ -655,6 +706,8 @@ function TableDevHarness() {
     invitation?: string;
     botTurn?: Position;
     botHand?: string;
+    seats?: string;
+    cut?: string;
   }>();
   const fixture = params.fixture;
   const ruleSet: RuleSet = fixture?.startsWith('louisiana') ? 'louisiana' : 'finnish';
@@ -665,9 +718,11 @@ function TableDevHarness() {
       ? 'bidding'
       : fixture?.includes('waiting')
         ? 'waiting'
-        : typeof params.phase === 'string'
-          ? params.phase
-          : 'playing';
+        : fixture === 'status' && params.cut === 'true'
+          ? 'dealer_selection'
+          : typeof params.phase === 'string'
+            ? params.phase
+            : 'playing';
   const autoPlay = params.autoplay === 'true';
   const [isHandReady, setIsHandReady] = useState(false);
   const [dismissed, setDismissed] = useState(0);
@@ -765,6 +820,7 @@ function TableDevHarness() {
             }
             countHelp={params.count === 'on'}
             details={fixture === 'details'}
+            status={fixture === 'status' ? (params.seats === 'b' ? 'b' : 'a') : undefined}
             bidder={params.bidder}
             longNames={params.names === 'long'}
             scoreHistory={fixture === 'scores'}
@@ -1000,6 +1056,7 @@ function RolePreview({
   outPlayers = null,
   countHelp = false,
   details = false,
+  status,
   bidder = 'east',
   longNames = false,
   botTrick = false,
@@ -1031,6 +1088,8 @@ function RolePreview({
   outPlayers?: (typeof OUT_PLAYERS)[keyof typeof OUT_PLAYERS] | null;
   countHelp?: boolean;
   details?: boolean;
+  /** `fixture=status&seats=a|b`: the players of `Status-Seats` (PID-338). */
+  status?: 'a' | 'b';
   bidder?: Position;
   /** `names=long`: ironman3001 at West and a long North name. */
   longNames?: boolean;
@@ -1058,15 +1117,17 @@ function RolePreview({
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
-  const tableRoom = talk
-    ? TALK_ROOM
-    : longNames
-      ? LONG_NAMES_ROOM
-      : fold === 'trick' || fold === 'trick-self'
-        ? FOLD_TRICK_ROOM
-        : bidRound || botTrick || botCrew || outPlayers || invitation || fold
-          ? BOT_ROOM
-          : WAITING_ROOM;
+  const tableRoom = status
+    ? STATUS_ROOMS[status]
+    : talk
+      ? TALK_ROOM
+      : longNames
+        ? LONG_NAMES_ROOM
+        : fold === 'trick' || fold === 'trick-self'
+          ? FOLD_TRICK_ROOM
+          : bidRound || botTrick || botCrew || outPlayers || invitation || fold
+            ? BOT_ROOM
+            : WAITING_ROOM;
   useEffect(() => {
     let active = true;
     const store = useGameStore.getState();
@@ -1079,7 +1140,9 @@ function RolePreview({
             ? 'declaring'
             : phase === 'second_deal'
               ? 'second_deal'
-              : 'playing';
+              : status && phase === 'dealer_selection'
+                ? 'dealer_selection'
+                : 'playing';
     const dealerPosition = ['north', 'east', 'south', 'west'].includes(dealer ?? '')
       ? (dealer as Position)
       : bidRound
@@ -1116,6 +1179,26 @@ function RolePreview({
     store.setChannelStatus(connected);
     // A guest or a 13 to 17 does not read typed talk.
     if (talk) store.setReadiness(talkReadiness(!talkGuest && !talkTeen));
+    // `Status-Seats` b: Antti is a bot, and Jussi's connection dropped.
+    if (status === 'b') {
+      const seated = (position: Position) => {
+        const player = tableRoom.seats!.find((seat) => seat.position === position)!.player!;
+        return { player_id: player.id, username: player.username, decision: null };
+      };
+      store.applySeatLifecycle({
+        room_id: 'status-b',
+        room_code: tableRoom.code,
+        revision: 1,
+        owner_id: 'p-south',
+        room_status: 'playing',
+        seats: {
+          south: { status: 'normal', ...seated('south') },
+          west: { status: 'permanent_bot', player_id: null, ...BOT_CREW[1], decision: null },
+          north: { status: 'normal', ...seated('north') },
+          east: { status: 'reconnecting', ...seated('east') },
+        },
+      });
+    }
     if (botCrew) {
       store.applySeatLifecycle({
         room_id: 'bot-crew',
@@ -1237,8 +1320,18 @@ function RolePreview({
           south: { hand: DETAILS_HAND },
         },
       }),
-      ...(details && {
-        highest_bid: { position: bidder, amount: 7 },
+      // Bengt deals; Aino bid 9 and everyone else passed.
+      ...(status && {
+        dealer: 'south',
+        bid_order: [
+          { position: 'west', amount: 'pass' },
+          { position: 'north', amount: 9 },
+          { position: 'east', amount: 'pass' },
+          { position: 'south', amount: 'pass' },
+        ],
+      }),
+      ...((details || status) && {
+        highest_bid: status ? { position: 'north', amount: 9 } : { position: bidder, amount: 7 },
         players: {
           north: { hand: 6 },
           east: { hand: 6 },
@@ -1347,6 +1440,7 @@ function RolePreview({
     outPlayers,
     countHelp,
     details,
+    status,
     bidder,
     botTrick,
     trick,

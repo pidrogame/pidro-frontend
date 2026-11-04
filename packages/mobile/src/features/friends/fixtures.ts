@@ -14,11 +14,21 @@ function daysAgo(days: number) {
 }
 
 const players: FriendResult[] = [
-  { user_id: 'nora', display_name: 'Nora', avatar_url: null, presence: 'online', relation: 'none' },
+  {
+    user_id: 'nora',
+    display_name: 'Nora',
+    avatar_url: null,
+    level: 44,
+    prestige: 0,
+    presence: 'online',
+    relation: 'none',
+  },
   {
     user_id: 'pekka',
     display_name: 'Pekka',
     avatar_url: null,
+    level: 100,
+    prestige: 12,
     presence: 'at_table',
     relation: 'friend',
   },
@@ -26,6 +36,8 @@ const players: FriendResult[] = [
     user_id: 'liisa',
     display_name: 'Liisa',
     avatar_url: null,
+    level: 100,
+    prestige: 0,
     presence: 'offline',
     relation: 'added_you',
   },
@@ -33,6 +45,8 @@ const players: FriendResult[] = [
     user_id: 'kalle',
     display_name: 'Kalle',
     avatar_url: null,
+    level: 7,
+    prestige: 0,
     presence: 'offline',
     relation: 'added',
   },
