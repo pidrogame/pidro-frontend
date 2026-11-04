@@ -319,13 +319,13 @@ const allCases = [
   {
     name: 'friends-link-profile',
     path: '/friends?fixture=link-profile',
-    testId: 'player-profile-modal',
+    testId: 'player-sheet',
     authenticated: true,
   },
   ...['profile', 'remove', 'block'].map((state) => ({
     name: `friends-${state}`,
     path: '/friends?fixture=list',
-    testId: state === 'profile' ? 'player-profile-modal' : 'friend-sheet',
+    testId: state === 'profile' ? 'player-sheet' : 'friend-sheet',
     authenticated: true,
     open: 'View Nora’s profile',
   })),
@@ -343,10 +343,24 @@ const allCases = [
     testId: 'blocked-players-screen',
     authenticated: true,
   })),
+  // PID-340: Kalle's sheet from `Status-Player`, over the `Status-Seats` table.
+  {
+    name: 'player-sheet-kalle',
+    path: '/table-dev?fixture=status&role=player&seats=a&sheet=kalle',
+    testId: 'player-sheet',
+    authenticated: true,
+  },
+  // A seated player in a lobby row opens their sheet.
+  {
+    name: 'lobby-player-sheet',
+    path: '/lobby?fixture=open',
+    testId: 'lobby-screen',
+    authenticated: true,
+  },
   ...['playing', 'game_over'].map((phase) => ({
     name: `block-profile-${phase}`,
     path: `/table-dev?phase=${phase}&role=player`,
-    testId: 'player-profile-modal',
+    testId: 'player-sheet',
     authenticated: true,
     open: /^View mfios1’s profile/,
     playerProfile: true,
@@ -392,7 +406,7 @@ const allCases = [
   {
     name: 'block-profile-guest',
     path: '/table-dev?phase=game_over&role=player',
-    testId: 'player-profile-modal',
+    testId: 'player-sheet',
     authenticated: true,
     authFixture: guestAuthFixture,
     open: 'View mfios1’s profile',
@@ -3044,17 +3058,60 @@ async function assertFriendsPresentation(page, name) {
     }
     return;
   }
-  if (name.startsWith('block-profile-')) {
-    await page.getByText('mfios1', { exact: true }).last().waitFor();
+  // PID-340: Kalle's sheet over the table, in the words of `Status-Player`.
+  if (name === 'player-sheet-kalle') {
+    const sheet = page.getByTestId('player-sheet');
+    for (const words of [
+      'Kalle',
+      'Legend · Level 100',
+      'At your table · Old Pidro since 2014',
+      '10,420',
+      '53%',
+      '7',
+      'medals',
+      'You two: 23 games together',
+      '14 won as partners · 4 of 9 against each other',
+      'Add friend',
+    ])
+      await sheet.getByText(words, { exact: true }).waitFor();
+    assert.equal((await sheet.getByTestId('player-sheet-avatar-level').innerText()).trim(), '100');
     assert.equal(
-      await page.getByRole('button', { name: 'Block', exact: true }).count(),
-      name === 'block-profile-guest' ? 0 : 1
+      await sheet.getByTestId('player-sheet-avatar-pin').count(),
+      1,
+      'the pin is on the sheet'
     );
+    return;
+  }
+  if (name === 'lobby-player-sheet') {
+    // Only people open a sheet: OPEN2 seats Yaya beside a bot and two open chairs.
+    assert.equal(await page.locator('[data-testid^="lobby-player-OPEN2-"]').count(), 1);
+    await page.getByRole('button', { name: 'View Claas’s profile', exact: true }).first().click();
+    const sheet = page.getByTestId('player-sheet');
+    await sheet.getByText('Claas', { exact: true }).waitFor();
+    await sheet.getByText('Legend ★4', { exact: true }).waitFor();
+    await sheet.getByText('Online now', { exact: true }).waitFor();
+    return;
+  }
+  // PID-340: Block waits behind the sheet's "…"; a guest has neither and
+  // reads that a free account is needed to add anyone.
+  if (name.startsWith('block-profile-')) {
+    const sheet = page.getByTestId('player-sheet');
+    await sheet.getByText('mfios1', { exact: true }).waitFor();
+    await sheet.getByText('Apprentice · Level 12', { exact: true }).waitFor();
+    if (name === 'block-profile-guest') {
+      assert.equal(await sheet.getByTestId('player-sheet-more').count(), 0);
+      await sheet.getByText('Needs a free account', { exact: true }).waitFor();
+      return;
+    }
+    await sheet.getByTestId('player-sheet-add').waitFor();
+    await sheet.getByTestId('player-sheet-more').click();
+    await sheet.getByTestId('player-sheet-block').click();
+    await sheet.getByRole('button', { name: 'Block', exact: true }).waitFor();
     return;
   }
   if (!name.startsWith('friends-')) return;
   if (name === 'friends-link-profile') {
-    const profile = page.getByTestId('player-profile-modal');
+    const profile = page.getByTestId('player-sheet');
     const add = profile.getByRole('button', {
       name: swedish ? 'Lägg till Nora' : 'Add Nora',
       exact: true,
@@ -3262,7 +3319,7 @@ async function assertFriendsPresentation(page, name) {
             'Skickad',
             'Skicka din länk',
           ],
-          'friends-profile': ['Spelarprofil', 'Nora'],
+          'friends-profile': ['Nora', 'Vänner'],
           'friends-remove': ['Ta bort Nora från dina vänner?', 'Behåll Nora'],
           'friends-block': ['Blockera Nora?', 'Avbryt'],
           'friends-guest': ['Spara din spelare', 'Spara konto'],
@@ -3315,7 +3372,7 @@ async function assertFriendsPresentation(page, name) {
             'Sent',
             'Send your link',
           ],
-          'friends-profile': ['Player profile', 'Nora'],
+          'friends-profile': ['Nora', 'Friends'],
           'friends-remove': ['Remove Nora from your friends?', 'Keep Nora'],
           'friends-block': ['Block Nora?', 'Cancel'],
           'friends-guest': ['Save your player', 'Save account'],
@@ -4477,7 +4534,9 @@ async function assertTrickStays(page) {
       assert.ok(Math.hypot(s.x - first.x, s.y - first.y) < 0.5, `${s.key} moved`);
     }
   }
-  const lit = JSON.parse(await page.getByTestId('play-presentation').getAttribute('aria-label')).lit;
+  const lit = JSON.parse(
+    await page.getByTestId('play-presentation').getAttribute('aria-label')
+  ).lit;
   assert.equal(lit, 'south', 'the server-selected leader is not lit');
   console.log(
     `trick stays: 4 cards still and opaque for ${(frames.at(-1).at - frames[0].at + 500).toFixed(0)}ms after completion`
@@ -4826,9 +4885,9 @@ async function assertTalkPerson(page, testCase, viewport) {
   } else if (state === 'face-tap') {
     // Your own face still opens your profile; a person's opens their sheet.
     await page.getByTestId('seat-south').click();
-    await page.getByTestId('player-profile-modal').waitFor();
+    await page.getByTestId('player-sheet').waitFor();
     assert.equal(await page.getByTestId('talk-sheet-person').count(), 0, 'no sheet for you');
-    const profile = page.getByTestId('player-profile-modal');
+    const profile = page.getByTestId('player-sheet');
     await profile.getByRole('button', { name: 'Close', exact: true }).last().click();
     await profile.waitFor({ state: 'detached' });
     await page.getByTestId('talk-landed').getByText('Well played').waitFor();
@@ -7267,6 +7326,29 @@ async function main() {
           // These deterministic fixtures need no server, even beside a live e2e backend.
           await page.route('**/api/v1/**', (route) => route.abort());
         }
+        if (testCase.name === 'lobby-player-sheet') {
+          await page.route('**/api/v1/profiles/**', (route) =>
+            route.fulfill({
+              json: {
+                data: {
+                  user_id: 'claas',
+                  username: 'Claas',
+                  display_name: 'Claas',
+                  avatar_url: null,
+                  bio: null,
+                  level: 100,
+                  prestige: 4,
+                  title: 'Legend',
+                  pin: null,
+                  classic: null,
+                  record: { games: 2400, win_rate: 0.52 },
+                  medals: 5,
+                  together: { games: 0, won_as_partners: 0, against_games: 0, against_won: 0 },
+                },
+              },
+            })
+          );
+        }
         if (testCase.playerProfile) {
           await page.route('**/api/v1/profiles/p-west', (route) =>
             route.fulfill({
@@ -7277,7 +7359,14 @@ async function main() {
                   display_name: 'mfios1',
                   avatar_url: null,
                   bio: null,
+                  level: 12,
+                  prestige: 0,
+                  title: 'Apprentice',
+                  pin: null,
                   classic: null,
+                  record: { games: 120, win_rate: 0.5 },
+                  medals: 2,
+                  together: { games: 0, won_as_partners: 0, against_games: 0, against_won: 0 },
                 },
               },
             })
@@ -7576,6 +7665,7 @@ async function main() {
             testCase.newTableFixture ||
             testCase.testId === 'password-keypad' ||
             testCase.testId === 'friend-sheet' ||
+            testCase.testId === 'player-sheet' ||
             testCase.testId === 'feedback-sheet'
           ) {
             await page.getByTestId(testCase.testId).waitFor();

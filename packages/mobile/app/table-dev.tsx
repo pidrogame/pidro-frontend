@@ -13,6 +13,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { NewTableScreen } from '@/components/lobby/NewTableScreen';
 import { BOT_CREW } from '@/features/lobby/fixtures';
+import { playerSheetFixture } from '@/features/profileFixtures';
+import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { InviteLinkModal } from '@/components/invites/InviteLinkModal';
 import { TableInvitation } from '@/components/invites/TableInvitation';
 import { DevOverlays, handHistory } from '@/game/canvas/DevOverlays';
@@ -708,6 +710,7 @@ function TableDevHarness() {
     botHand?: string;
     seats?: string;
     cut?: string;
+    sheet?: string;
   }>();
   const fixture = params.fixture;
   const ruleSet: RuleSet = fixture?.startsWith('louisiana') ? 'louisiana' : 'finnish';
@@ -724,6 +727,8 @@ function TableDevHarness() {
             ? params.phase
             : 'playing';
   const autoPlay = params.autoplay === 'true';
+  // `sheet=kalle` (PID-340): Kalle's sheet from `Status-Player` over the table.
+  const sheet = playerSheetFixture(params.sheet);
   const [isHandReady, setIsHandReady] = useState(false);
   const [dismissed, setDismissed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -839,6 +844,14 @@ function TableDevHarness() {
             talkGuest={fixture === 'talk-person-guest' || fixture === 'talk-guest'}
             talkTeen={fixture === 'talk-teen'}
           />
+          {sheet ? (
+            <PlayerSheet
+              playerId={sheet.user_id}
+              presence="table"
+              fixture={sheet}
+              onClose={() => undefined}
+            />
+          ) : null}
         </FixtureInsets>
       </SafeAreaProvider>
     );

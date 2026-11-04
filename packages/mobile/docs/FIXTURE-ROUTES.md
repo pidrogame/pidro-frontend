@@ -836,8 +836,8 @@ and sent requests, last played and Classic. Ignore/Undo, Accept and cancel work
 locally in this fixture. `friends-all` checks it at 390×844, 375×667, 844×390 and
 768×1024, including toast dismissal. Long lists scroll clear of the tab pill.
 Tap a row in `list` for the short friend sheet, with a fixture profile level.
-See full profile opens the profile without Remove or Block; table profiles keep
-their existing actions. `sheet-partner`, `sheet-opponent`, `sheet-full`,
+See full profile opens the player sheet (PID-340): Friends instead of Add, and
+Block behind its "…". `sheet-partner`, `sheet-opponent`, `sheet-full`,
 `sheet-online`, `sheet-bots`, `sheet-offline`, and `sheet-request` open each
 situation directly. `sheet-remove` and `sheet-block` open the inline confirms.
 The `friends-sheet-*` grammar cases cover these at 390×844, 375×667, 844×390
@@ -860,8 +860,8 @@ payload, including share failure and retry; it never opens a real share sheet.
 Every Friends state ends with the Send your link card (PID-247); `friends-classic`
 checks it sits below the Classic card and shares the player's own link.
 
-`link-profile` opens Nora's profile as her own link (`/play/<slug>`) opens it for
-a signed-in player who is not her friend yet: Add, then Sent, without the backend.
+`link-profile` opens Nora's player sheet as her own link (`/play/<slug>`) opens it
+for a signed-in player who is not her friend yet: Add, then Sent, without the backend.
 Grammar case `friends-link-profile` covers 390×844, 375×667, 844×390 and 768×1024.
 
 ## `/blocked-players?fixture=<state>`
@@ -871,9 +871,19 @@ has no presence labels; Unblock is inert in fixtures. Grammar cases are
 `blocked-empty`, `blocked-filled`, `blocked-loading`, and `blocked-error`.
 `friends-block` opens the confirmation from the short friend sheet. The
 `block-profile-playing` and `block-profile-game_over`
-cases open a human profile through `/table-dev?phase=<phase>&role=player`, mocking
-only the profile response. `block-profile-guest` checks that guests see no Block
-action in the post-game sheet.
+cases open a human's player sheet through `/table-dev?phase=<phase>&role=player`,
+mocking only the profile response, and reach Block through the sheet's "…".
+`block-profile-guest` checks that guests see no "…" and read that a free account
+is needed.
+
+`/table-dev?fixture=status&role=player&seats=a|b` (PID-338) seats the six players
+of `Status-Seats` over the four seats: Bengt ★4 deals, Aino holds the bid at 9; in
+`b` Antti is a bot and Jussi reconnecting. `&cut=true` shows the dealer cut, where
+the level chips show. Grammar cases `table-status-a|b` and `-cut` measure them on
+every table layout.
+`/table-dev?fixture=status&role=player&seats=a&sheet=kalle` opens Kalle's player
+sheet from `Status-Player` over the `Status-Seats` table (`player-sheet-kalle`,
+every table layout). `lobby-player-sheet` taps a seated player in a lobby row.
 The old waiting profile-entry case is retired: occupied new-table rows open kick
 confirmation, not a profile.
 

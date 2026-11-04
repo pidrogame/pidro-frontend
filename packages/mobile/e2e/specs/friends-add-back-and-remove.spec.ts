@@ -254,11 +254,18 @@ test('Friends receives a live request, accepts, removes after confirmation, and 
   await page.getByRole('button', { name: `View ${otherPlayer.name}’s profile` }).click();
   await expect(sheet).toBeVisible();
   await sheet.getByRole('button', { name: 'See full profile', exact: true }).click();
-  const profile = page.getByTestId('player-profile-modal');
+  // PID-340: the player sheet says you are friends; Block waits behind its "…".
+  const profile = page.getByTestId('player-sheet');
   await expect(profile).toBeVisible();
   await expect(profile.getByText(otherPlayer.name, { exact: true })).toBeVisible();
+  await expect(profile.getByText('Friends', { exact: true })).toBeVisible();
   await expect(profile.getByRole('button', { name: /^(Remove|Block)/ })).toHaveCount(0);
-  await profile.getByRole('button', { name: 'Close', exact: true }).click();
+  // Out of the sheet, as a tap above it does.
+  await page
+    .getByLabel('Close', { exact: true })
+    .first()
+    .click({ position: { x: 20, y: 20 } });
+  await expect(profile).toHaveCount(0);
   await page.getByRole('button', { name: `View ${otherPlayer.name}’s profile` }).click();
   await sheet.getByRole('button', { name: 'Remove from friends', exact: true }).click();
   await expect(

@@ -22,6 +22,7 @@ export const statusSeatCases = [
   'table-status-b',
   'table-status-a-cut',
   'table-status-b-cut',
+  'player-sheet-kalle',
 ];
 export const talkCases = [
   'quiet',
