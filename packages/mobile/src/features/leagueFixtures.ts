@@ -84,6 +84,33 @@ export function leagueFixture(value?: string): LeagueState | null {
     }));
   }
   if (state === 'intro') data.intro_seen = false;
+  if (state === 'friends' || state === 'friends-not_placed') {
+    data.friends = [
+      {
+        user_id: 'friend-mirja',
+        username: 'Mirja',
+        avatar: { url: null },
+        level: 44,
+        prestige: 0,
+        league: 'ace',
+        place: 3,
+      },
+      {
+        user_id: 'friend-kalle',
+        username: 'Kalle',
+        avatar: { url: null },
+        level: 43,
+        prestige: 0,
+        league: 'ten',
+        place: 12,
+      },
+    ];
+    if (state === 'friends-not_placed') {
+      data.status = 'not_placed';
+      data.room = null;
+      data.me = null;
+    }
+  }
   if (state === '27') {
     data.me = { place: 27, points: 480 };
     data.room!.standings = data.room!.standings.map((row) => ({

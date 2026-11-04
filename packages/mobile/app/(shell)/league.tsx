@@ -5,6 +5,7 @@ import { AuthSheet } from '@/components/auth/AuthSheet';
 import { LeagueCard, LeagueStrip } from '@/components/league/LeagueCard';
 import { useLeague } from '@/components/league/LeagueHost';
 import { LeagueIntro } from '@/components/league/LeagueIntro';
+import { LeagueFriends } from '@/components/league/LeagueFriends';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { usePillClearance } from '@/components/shell/TabPill';
 import { PidroText } from '@/components/ui/PidroText';
@@ -135,6 +136,7 @@ export default function LeagueScreen() {
                     ) : null}
                   </View>
                 ))}
+                <LeagueFriends />
               </ScrollView>
               {pinned ? (
                 <View testID="league-pinned" style={styles.pinned}>
@@ -154,7 +156,10 @@ export default function LeagueScreen() {
             ) : null}
           </Surface>
         ) : data?.status !== 'off' ? (
-          <View testID="league-empty" style={styles.empty}>
+          <ScrollView
+            testID="league-empty"
+            style={styles.list}
+            contentContainerStyle={styles.empty}>
             <PidroText role="body" tone="soft">
               {t(
                 !data
@@ -197,7 +202,8 @@ export default function LeagueScreen() {
                 {t('league.failed')}
               </PidroText>
             ) : null}
-          </View>
+            <LeagueFriends />
+          </ScrollView>
         ) : null}
       </View>
       <PlayerSheet playerId={selected} onClose={() => setSelected(null)} />
@@ -282,5 +288,5 @@ const styles = StyleSheet.create({
     right: 6,
     backgroundColor: PidroColors.panelStrong,
   },
-  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: PidroSpacing.md },
+  empty: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: PidroSpacing.md },
 });

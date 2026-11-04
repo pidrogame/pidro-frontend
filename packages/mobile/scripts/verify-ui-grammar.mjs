@@ -657,6 +657,16 @@ const allCases = [
       locale,
     }))
   ),
+  ...['friends', 'friends-not_placed', 'friends-sheet'].flatMap((state) =>
+    ['en', 'sv'].map((locale) => ({
+      name: `league-${state}-${locale}`,
+      path: `/league?fixture=league-${state === 'friends-sheet' ? 'friends' : state}`,
+      testId: 'league-screen',
+      authenticated: true,
+      league: state,
+      locale,
+    }))
+  ),
   { name: 'device-settings', path: '/device-settings', testId: 'settings-screen' },
   ...[
     'list',
@@ -7426,6 +7436,8 @@ async function assertLeague(page, testCase, viewport) {
     const faults = [];
     for (const child of node.querySelectorAll('*')) {
       if (child.closest('[data-testid="league-list"]')) continue;
+      // Avatar glow is noninteractive decoration, not clipped copy or a hit target.
+      if (!child.textContent && getComputedStyle(child).pointerEvents === 'none') continue;
       const rect = child.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
       if (
@@ -7476,6 +7488,24 @@ async function assertLeague(page, testCase, viewport) {
     assert.equal(await root.evaluate((node) => node.scrollHeight > node.clientHeight + 2), false);
   }
   await assertMinimumTouchTargets(page, testCase.testId, viewport);
+  if (state.startsWith('friends')) {
+    const friends = page.getByTestId('league-friends');
+    await friends.scrollIntoViewIfNeeded();
+    assertInsideViewport('league friends', await friends.boundingBox(), viewport);
+    const mirja = page.getByTestId('league-friend-friend-mirja');
+    assert.match(await mirja.innerText(), testCase.locale === 'sv' ? /Esset.*3:e/s : /Ace.*3rd/s);
+    await assertMinimumTouchTargets(page, testCase.testId, viewport);
+    if (state === 'friends-sheet') {
+      await mirja.click();
+      const sheet = page.getByTestId('friend-sheet');
+      await sheet.waitFor();
+      await page.waitForTimeout(400);
+      await assertAccountSurfaceFits(sheet, testCase.name, viewport);
+      assert.match(await sheet.innerText(), /Mirja/);
+    }
+  } else if (!state.startsWith('result-')) {
+    assert.equal(await page.getByTestId('league-friends').count(), 0, 'no empty friends section');
+  }
 }
 
 async function main() {
