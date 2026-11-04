@@ -4877,14 +4877,19 @@ async function assertTalk(page, testCase, viewport) {
       assertInsideViewport('talk landing', box, viewport);
       for (const card of cards) assert.ok(!overlaps(box, card), 'a landing never covers cards');
       // Beside its own ring, in numbers: iOS once put North's and yours ~120 pt off.
-      const ring = await landing.evaluate((node) => node.parentElement.getBoundingClientRect().toJSON());
+      const ring = await landing.evaluate((node) =>
+        node.parentElement.getBoundingClientRect().toJSON()
+      );
       const gap =
         Math.max(0, ring.x - (box.x + box.width), box.x - (ring.x + ring.width)) +
         Math.max(0, ring.y - (box.y + box.height), box.y - (ring.y + ring.height));
       assert.ok(gap <= 14, `a landing sits by its own ring: ${JSON.stringify({ box, ring })}`);
       // Faces and words are plain bubbles, nothing gold.
       assert.equal(
-        await landing.locator(':scope > *').first().evaluate((node) => getComputedStyle(node).backgroundImage),
+        await landing
+          .locator(':scope > *')
+          .first()
+          .evaluate((node) => getComputedStyle(node).backgroundImage),
         'none',
         'a landing has no gradient'
       );
@@ -4897,8 +4902,14 @@ async function assertTalk(page, testCase, viewport) {
     assert.equal(await landed.count(), 2, 'North and you');
     await landed.getByText('❤️').waitFor();
     await landed.getByText('😂').waitFor();
-    const labels = await landed.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label')));
-    assert.deepEqual(labels.sort(), ['Jocke: Love it', 'You: Ha'].sort(), 'each landing speaks its word');
+    const labels = await landed.evaluateAll((nodes) =>
+      nodes.map((node) => node.getAttribute('aria-label'))
+    );
+    assert.deepEqual(
+      labels.sort(),
+      ['Jocke: Love it', 'You: Ha'].sort(),
+      'each landing speaks its word'
+    );
     // Phones on their side keep only the speech button; elsewhere the band says You 😂.
     if (!landscape) {
       const band = page.getByTestId('talk-band').first();
