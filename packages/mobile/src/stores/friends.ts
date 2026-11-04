@@ -15,9 +15,11 @@ export { useFriendsStore };
 
 let revision = 0;
 let requests: Promise<unknown> = Promise.resolve();
+let focusedAt = 0;
 authStore.subscribe((state, previous) => {
   if (state.accessToken !== previous.accessToken) {
     revision++;
+    focusedAt = 0;
     requests = Promise.resolve();
     useFriendsStore.getState().reset();
   }
@@ -87,4 +89,11 @@ export function queueLinkedFriend(friend: FriendPlayer | undefined) {
         useFriendsStore.getState().queueNotice({ kind: 'sent', player: friend });
     })
     .catch(() => undefined);
+}
+
+/** Home asks again as it comes into focus, at most every 30 s; the lobby channel's join covers the foreground. */
+export function refreshFriendsOnFocus() {
+  if (Date.now() - focusedAt < 30_000) return;
+  focusedAt = Date.now();
+  void refreshFriends().catch(() => undefined);
 }

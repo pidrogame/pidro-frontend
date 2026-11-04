@@ -22,6 +22,7 @@ import { CountBadge } from '@/components/ui/CountBadge';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { STILL_LAYER } from '@/components/ui/StillLayer';
 import { gradientBg } from '@/components/ui/Bevel';
+import { friendsTabCount } from '@/features/friends/waitingCount';
 import { useTranslation } from '@/i18n';
 import { playSelectionHaptic } from '@/utils/haptics';
 
@@ -85,6 +86,8 @@ export interface TabPillProps {
   active: ShellTab;
   tableBadge?: boolean;
   invitationCount?: number;
+  /** Friends online now; shown only while no answer waits. */
+  onlineCount?: number;
   onSelect: (tab: ShellTab) => void;
   style?: StyleProp<ViewStyle>;
 }
@@ -108,21 +111,23 @@ function TabItem({
   tab,
   active,
   onSelect,
-  count = 0,
+  badge = null,
 }: {
   tab: Exclude<ShellTab, 'table'>;
   active: boolean;
   onSelect: (tab: ShellTab) => void;
-  count?: number;
+  badge?: ReturnType<typeof friendsTabCount>;
 }) {
   const { t } = useTranslation();
   return (
     <PressableFX
       accessibilityRole="button"
       accessibilityLabel={
-        count > 0
-          ? `${t(`shell.${tab}`)}, ${t('friend_notice.badge', { count })}`
-          : t(`shell.${tab}`)
+        badge?.tone === 'alert'
+          ? `${t(`shell.${tab}`)}, ${t('friend_notice.badge', { count: badge.count })}`
+          : badge?.tone === 'online'
+            ? t('shell.friendsOnline', { count: badge.count })
+            : t(`shell.${tab}`)
       }
       accessibilityState={{ selected: active }}
       onPress={() => {
@@ -138,9 +143,11 @@ function TabItem({
       <PidroText style={[styles.itemLabel, active && styles.itemLabelActive]}>
         {t(`shell.${tab}`)}
       </PidroText>
-      {count > 0 ? (
-        <View testID="friends-invitation-count" style={styles.countBadge}>
-          <CountBadge count={count} size="sm" />
+      {badge ? (
+        <View
+          testID={badge.tone === 'alert' ? 'friends-invitation-count' : 'friends-online-count'}
+          style={styles.countBadge}>
+          <CountBadge count={badge.count} size="sm" tone={badge.tone} />
         </View>
       ) : null}
     </PressableFX>
@@ -151,7 +158,8 @@ export function TabPill({
   orientation,
   active,
   tableBadge,
-  invitationCount,
+  invitationCount = 0,
+  onlineCount = 0,
   onSelect,
   style,
 }: TabPillProps) {
@@ -216,7 +224,7 @@ export function TabPill({
           <TabItem
             tab="friends"
             active={active === 'friends'}
-            count={invitationCount}
+            badge={friendsTabCount(invitationCount, onlineCount)}
             onSelect={onSelect}
           />
           <TabItem tab="settings" active={active === 'settings'} onSelect={onSelect} />

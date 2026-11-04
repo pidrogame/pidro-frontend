@@ -125,6 +125,15 @@ export const PidroColors = {
   noticeCyanBorder: 'rgba(91, 221, 255, 0.55)',
   noticeQuietBorder: 'rgba(184, 225, 246, 0.35)',
   noticeShadow: '0px 12px 28px rgba(0, 0, 0, 0.55)',
+  // Doors (PID-347): the green count of friends online, and the filled talk bubble with its
+  // darker copy below as a bevel.
+  onlineCount: '#2fbf71',
+  onlineCountInk: '#05240f',
+  onlineCountDot: '#eafff2',
+  talkBubble: '#EAF8FF',
+  talkBubbleBevel: '#5fa9cf',
+  talkBubbleInk: '#0E3158',
+  newsDotRing: '0px 0px 0px 3px rgba(70, 220, 255, 0.22)',
 } as const;
 
 /**

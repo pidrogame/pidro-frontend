@@ -149,6 +149,20 @@ const tellCases = [
   })),
 ].map((testCase) => ({ authenticated: true, authFixture: tellAuthFixture, ...testCase }));
 
+// PID-347: News on Home. The fixtures carry their posts; Write back posts to the routed feedback.
+const newsCases = ['home', 'request', 'sheet', 'reply', 'empty', 'error'].map((state) => ({
+  name: `news-${state}`,
+  path: `/home?fixture=news-${state}`,
+  testId: ['home', 'request'].includes(state)
+    ? 'home-screen'
+    : state === 'reply'
+      ? 'feedback-sheet'
+      : 'news-sheet',
+  news: state,
+  authenticated: true,
+  authFixture: tellAuthFixture,
+}));
+
 // iPad portrait and landscape for game over, on CI's existing tablet shards.
 const GAME_OVER_TABLETS = {
   'tablet-portrait': { width: 834, height: 1194 },
@@ -492,6 +506,7 @@ const allCases = [
   },
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
   ...tellCases,
+  ...newsCases,
   // PID-295: Marcel's welcome, and PID-316: Settings → Tell us, in both languages.
   ...['en', 'sv'].flatMap((locale) => [
     {
@@ -3926,14 +3941,19 @@ async function assertHomeProfile(page, testCase, viewport) {
   }
   if (name === 'home-waiting' || name === 'home-waiting-guest') {
     const count = name.endsWith('-guest') ? '2' : '3';
-    assert.equal(await page.getByTestId('home-waiting-count').innerText(), count);
-    assertInsideViewport(
-      name,
-      await page.getByTestId('home-waiting-count').boundingBox(),
-      viewport
-    );
-    if (name.endsWith('-guest')) assert.equal(await page.getByTestId('tab-pill').count(), 0);
-    else assert.equal(await page.getByTestId('friends-invitation-count').innerText(), count);
+    if (name.endsWith('-guest')) {
+      assert.equal(await page.getByTestId('home-waiting-count').innerText(), count);
+      assertInsideViewport(
+        name,
+        await page.getByTestId('home-waiting-count').boundingBox(),
+        viewport
+      );
+      assert.equal(await page.getByTestId('tab-pill').count(), 0);
+    } else {
+      // PID-347: the Friends tab carries the count; the face on Home no longer does.
+      assert.equal(await page.getByTestId('home-waiting-count').count(), 0);
+      assert.equal(await page.getByTestId('friends-invitation-count').innerText(), count);
+    }
   }
   if (name === 'home' || name === 'home-guest')
     assert.equal(await page.getByTestId('home-waiting-count').count(), 0);
@@ -6631,8 +6651,8 @@ async function assertRowControls(page, name, screenshotDir) {
   assert.equal(await finnish.getAttribute('aria-checked'), 'false');
   assert.deepEqual(
     await page.getByTestId('ui-count-badges').locator('[dir="auto"]').allInnerTexts(),
-    ['1', '12', '99', '99+', '3', '99+'],
-    'A zero count hides; past 99 reads 99+'
+    ['1', '12', '99', '99+', '3', '99+', '2', '99+'],
+    'A zero count hides; past 99 reads 99+, the green online count too'
   );
   await panel.getByRole('button', { name: 'Add', exact: true }).first().focus();
   await panel.screenshot({ path: resolve(screenshotDir, 'ui-row-controls-focus.png') });
@@ -6778,7 +6798,7 @@ async function routeFeedback(page, testCase) {
 const tellCopy = (testCase) =>
   testCase.tellLocale === 'sv'
     ? {
-        door: 'Berätta för oss',
+        door: 'Nyheter',
         title: 'Hej, jag är Marcel.',
         ask: 'Vad har du lagt märke till? Kändes det fel är det vårt fel, inte ditt.',
         placeholder: 'Skriv här, eller tryck på mikrofonen på tangentbordet och säg det.',
@@ -6801,7 +6821,7 @@ const tellCopy = (testCase) =>
         close: 'Stäng',
       }
     : {
-        door: 'Tell us',
+        door: 'News',
         title: "Hey, I'm Marcel.",
         ask: "What did you notice? If it felt wrong, that's on us, not you.",
         placeholder: 'Write it here, or tap the microphone on your keyboard and say it.',
@@ -6967,7 +6987,14 @@ async function assertTellInteractions(page, testCase, viewport) {
   if (!testCase.tell || testCase.tellLocale) return;
   const copy = tellCopy(testCase);
   const sheet = page.getByTestId('feedback-sheet');
-  const door = page.getByRole('button', { name: copy.door, exact: true });
+  // PID-347: Tell us is the first row in News.
+  const door = {
+    click: async () => {
+      if (!(await page.getByTestId('news-sheet').count()))
+        await page.getByRole('button', { name: copy.door, exact: true }).click();
+      await page.getByTestId('news-tell').click();
+    },
+  };
   const close = () => sheet.getByRole('button', { name: copy.close, exact: true }).first().click();
   const state = testCase.tell;
   if (state === 'home') {
@@ -7088,6 +7115,9 @@ async function assertTellInteractions(page, testCase, viewport) {
     return;
   }
   if (state === 'send-fails') {
+    // Typed, so the words are the draft that outlives this sheet: Tell us opens again from News.
+    await page.getByTestId('feedback-body').fill('');
+    await page.getByTestId('feedback-body').fill(TELL_WORDS);
     await page.getByTestId('feedback-send').click();
     await sheet.getByText(copy.failed, { exact: true }).waitFor();
     assert.equal(await page.getByTestId('feedback-body').inputValue(), TELL_WORDS);
@@ -7101,6 +7131,135 @@ async function assertTellInteractions(page, testCase, viewport) {
   }
 }
 
+const NEWS_TITLES = [
+  'The table sounds like Pidro again',
+  'Bigger cards, a calmer table',
+  'Welcome to the new Pidro',
+];
+
+// PID-347: the News door and the Friends tab's count on Home, and every state of the sheet.
+async function assertNewsState(page, testCase, viewport) {
+  const state = testCase.news;
+  if (!state) return;
+  if (state === 'home' || state === 'request') {
+    const red = state === 'request';
+    const door = page.getByRole('button', {
+      name: red ? 'News' : 'News, new posts',
+      exact: true,
+    });
+    const box = await getStableBox(door, page);
+    assert.ok(box.width >= 44 && box.height >= 44, `${testCase.name}: the door is a 44pt target`);
+    assertInsideViewport(`${testCase.name} door`, box, viewport);
+    if (red) assert.equal(await page.getByTestId('home-news-dot').count(), 0, 'nothing new');
+    else {
+      const dot = await getStableBox(page.getByTestId('home-news-dot'), page);
+      assert.ok(
+        dot.x + dot.width > box.x + box.width - 8 && dot.y < box.y + 8,
+        `${testCase.name}: the dot sits on the door's top-right corner`
+      );
+      assertInsideViewport(`${testCase.name} dot`, dot, viewport);
+    }
+    assert.equal(await page.getByTestId('home-waiting-count').count(), 0, 'no count on the face');
+    const badge = page.getByTestId(red ? 'friends-invitation-count' : 'friends-online-count');
+    assert.equal((await badge.innerText()).trim(), red ? '1' : '2');
+    assert.equal(
+      await page.getByTestId(red ? 'friends-online-count' : 'friends-invitation-count').count(),
+      0,
+      `${testCase.name}: one count on the tab`
+    );
+    const tab = page.getByRole('button', {
+      name: red ? 'Friends, 1 waiting for your answer' : 'Friends, 2 online now',
+      exact: true,
+    });
+    const label = await getStableBox(tab.getByText('Friends', { exact: true }), page);
+    const count = await getStableBox(badge, page);
+    assert.ok(!boxesOverlap(label, count), `${testCase.name}: the count clears the tab's label`);
+    assertInsideViewport(`${testCase.name} count`, count, viewport);
+    return;
+  }
+  if (state === 'reply') {
+    const sheet = page.getByTestId('feedback-sheet');
+    await sheet.getByText(NEWS_TITLES[0], { exact: true }).waitFor();
+    assertInsideViewport(`${testCase.name} sheet`, await getStableBox(sheet, page), viewport);
+    return;
+  }
+  const sheet = page.getByTestId('news-sheet');
+  const box = await getStableBox(sheet, page);
+  assertInsideViewport(`${testCase.name} sheet`, box, viewport);
+  // Nearly the full height, so the list has room to scroll.
+  assert.ok(
+    box.height >= Math.min(viewport.height * 0.75, 820),
+    `${testCase.name}: the sheet is ${box.height} tall`
+  );
+  await sheet.getByText('News', { exact: true }).waitFor();
+  const close = await getStableBox(sheet.getByRole('button', { name: 'Close', exact: true }), page);
+  assert.ok(close.width >= 44 && close.height >= 44, `${testCase.name}: Close is a 44pt target`);
+  const posts = page.getByTestId('news-post');
+  const feed = page.getByTestId('news-feed');
+  const tell = await getStableBox(page.getByTestId('news-tell'), page);
+  assert.ok(tell.height >= 44, `${testCase.name}: Tell us is a 44pt target`);
+  await page.getByTestId('news-tell').getByText('Something off, or something you love?').waitFor();
+  if (state !== 'sheet') {
+    assert.equal(await posts.count(), 0, `${testCase.name}: no posts`);
+    const failed = await sheet.getByText("News didn't load.", { exact: true }).count();
+    assert.equal(failed, state === 'error' ? 1 : 0, `${testCase.name}: the error only on error`);
+    if (state === 'error') await sheet.getByRole('button', { name: 'Try again' }).waitFor();
+    return;
+  }
+  assert.equal(await posts.count(), 3);
+  for (const [index, title] of NEWS_TITLES.entries())
+    await posts.nth(index).getByText(title, { exact: true }).waitFor();
+  assert.equal(await page.getByTestId('news-post-new').count(), 2, 'the two new posts keep a dot');
+  assert.equal(await posts.nth(2).getByTestId('news-post-new').count(), 0);
+  await posts.nth(0).getByText('Today', { exact: true }).waitFor();
+  // The welcome keeps its line breaks.
+  const welcome = await posts.nth(2).innerText();
+  assert.match(welcome, /still being built\.\nHere today/);
+  const tellRow = await getStableBox(page.getByTestId('news-tell'), page);
+  const first = await getStableBox(posts.first(), page);
+  assert.ok(tellRow.y + tellRow.height <= first.y, `${testCase.name}: Tell us comes first`);
+  for (const button of await sheet.getByRole('button', { name: /^Write back/ }).all()) {
+    const target = await button.boundingBox();
+    assert.ok(target.height >= 44, `${testCase.name}: Write back is a 44pt target`);
+  }
+  // The list scrolls inside the sheet rather than run past it.
+  // On phones the three posts run past the sheet; an iPad holds them all.
+  const scrolls = await feed.evaluate((node) => node.scrollHeight > node.clientHeight + 2);
+  if (Math.min(viewport.width, viewport.height) < 700)
+    assert.ok(scrolls, `${testCase.name}: the posts scroll`);
+  await feed.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
+  const lastWriteBack = await getStableBox(
+    sheet.getByRole('button', { name: `Write back: ${NEWS_TITLES[2]}`, exact: true }),
+    page
+  );
+  assertInsideViewport(`${testCase.name} last Write back`, lastWriteBack, viewport);
+  await feed.evaluate((node) => {
+    node.scrollTop = 0;
+  });
+}
+
+/** Write back answers the post, and Done lands back in News. */
+async function assertNewsInteractions(page, testCase, viewport) {
+  if (testCase.news !== 'sheet' || viewport.name !== 'portrait') return;
+  const tell = page.getByTestId('feedback-sheet');
+  await page.getByRole('button', { name: `Write back: ${NEWS_TITLES[0]}`, exact: true }).click();
+  await tell.getByText(NEWS_TITLES[0], { exact: true }).waitFor();
+  await page.getByTestId('feedback-body').fill('Lovely to hear the shuffle again.');
+  await page.getByTestId('feedback-send').click();
+  await tell.getByRole('button', { name: 'Done', exact: true }).click();
+  await tell.waitFor({ state: 'detached' });
+  await page.getByTestId('news-sheet').waitFor();
+  assert.equal(page.tellPosts.length, 1);
+  assert.equal(page.tellPosts[0].news_post_id, 3, 'the note answers the sounds post');
+  assert.equal(page.tellPosts[0].body, 'Lovely to hear the shuffle again.');
+  // Tell us from the row is a plain note.
+  await page.getByTestId('news-tell').click();
+  await tell.waitFor();
+  assert.equal(await tell.getByText(NEWS_TITLES[0], { exact: true }).count(), 0, 'no chip');
+}
+
 async function main() {
   if (process.argv[2] === '--list-cases') {
     console.log(JSON.stringify(allCases.map(({ name, path }) => ({ name, path }))));
@@ -7112,6 +7271,7 @@ async function main() {
       .filter((testCase) => {
         if (testCase.tell)
           return (testCase.tellViewports ?? TELL_VIEWPORTS).includes(viewport.name);
+        if (testCase.news) return TELL_VIEWPORTS.includes(viewport.name);
         if (
           (testCase.welcome || testCase.name.startsWith('age')) &&
           ['small-portrait', 'compact-portrait', 'tablet-portrait'].includes(viewport.name)
@@ -7392,6 +7552,7 @@ async function main() {
           testCase.homeProfile ||
           testCase.photo ||
           testCase.tell ||
+          testCase.news ||
           testCase.name.startsWith('edge-home-') ||
           testCase.name.startsWith('edge-profile-')
         ) {
@@ -7444,7 +7605,7 @@ async function main() {
             });
           });
         }
-        if (testCase.tell) await routeFeedback(page, testCase);
+        if (testCase.tell || testCase.news) await routeFeedback(page, testCase);
         const pageErrors = [];
         page.on('pageerror', (error) => pageErrors.push(String(error?.message ?? error)));
 
@@ -7666,7 +7827,8 @@ async function main() {
             testCase.testId === 'password-keypad' ||
             testCase.testId === 'friend-sheet' ||
             testCase.testId === 'player-sheet' ||
-            testCase.testId === 'feedback-sheet'
+            testCase.testId === 'feedback-sheet' ||
+            testCase.testId === 'news-sheet'
           ) {
             await page.getByTestId(testCase.testId).waitFor();
             await waitForScreenshotReady(page);
@@ -7764,6 +7926,7 @@ async function main() {
           await assertFirstLaunchScreens(page, testCase, caseViewport);
           await assertFeedbackRow(page, testCase, caseViewport);
           await assertTellState(page, testCase, caseViewport);
+          await assertNewsState(page, testCase, caseViewport);
           await assertPhotoSheet(page, testCase, caseViewport);
           await waitForScreenshotReady(page);
           if (testCase.name.startsWith('edge-') || testCase.testId === 'game-loading-screen') {
@@ -7827,7 +7990,11 @@ async function main() {
           });
           // The welcome covers Home on purpose until Let's play.
           // So does an open sheet, on purpose.
-          if (!testCase.welcome && testCase.testId !== 'feedback-sheet')
+          if (
+            !testCase.welcome &&
+            testCase.testId !== 'feedback-sheet' &&
+            testCase.testId !== 'news-sheet'
+          )
             await assertHomeHeaderClear(page, testCase.path, caseViewport);
           await assertHomeProfile(page, testCase, caseViewport);
           await assertLocalization(page, testCase, caseViewport);
@@ -7856,6 +8023,7 @@ async function main() {
           await assertFriendComponents(page, testCase.name, screenshotDir);
           await assertRuleInteractions(page, testCase, viewport, screenshotDir);
           await assertTellInteractions(page, testCase, caseViewport);
+          await assertNewsInteractions(page, testCase, caseViewport);
           if (testCase.verifyReadiness) {
             const panel = await getStableBox(
               page.getByRole('button', { name: "I'm ready", exact: true }),

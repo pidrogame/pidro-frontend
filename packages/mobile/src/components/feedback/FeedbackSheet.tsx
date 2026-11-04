@@ -60,6 +60,8 @@ interface Props {
   onClose: () => void;
   /** Opened from the question about the last game. */
   chip?: boolean;
+  /** Opened from Write back: the chip names the post, and the note answers it. */
+  post?: { id: number; title: string } | null;
   fixture?: { stage: TellStage; body: string; email: string; emailOpen: boolean; chip: boolean };
 }
 
@@ -68,7 +70,7 @@ interface Props {
  * lies face down while the note travels; it only leaves once the server has it,
  * and turns back with the words on it if not.
  */
-export function FeedbackSheet({ open, onClose, chip = false, fixture }: Props) {
+export function FeedbackSheet({ open, onClose, chip = false, post, fixture }: Props) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const landscape = width > height && height < PidroLayout.compactHeight;
@@ -105,7 +107,7 @@ export function FeedbackSheet({ open, onClose, chip = false, fixture }: Props) {
   const lift = height;
   const replyTo = emailOpen ? email.trim() : accountEmail;
   const sending = stage === 'sending';
-  const showChip = chip || Boolean(fixture?.chip);
+  const showChip = chip || Boolean(fixture?.chip) || Boolean(post);
 
   const card = useAnimatedStyle(() => {
     if (reduceMotion) return { opacity: interpolate(beat.value, [0, 1, 2], [1, 0.5, 0]) };
@@ -177,7 +179,7 @@ export function FeedbackSheet({ open, onClose, chip = false, fixture }: Props) {
     );
     try {
       await Promise.all([
-        feedbackApi.send(feedbackNote(body, replyTo, feedbackDetails())),
+        feedbackApi.send(feedbackNote(body, replyTo, feedbackDetails(), post?.id)),
         new Promise((resolve) => setTimeout(resolve, FLIP_MS)),
       ]);
       playSuccessHaptic();
@@ -309,8 +311,11 @@ export function FeedbackSheet({ open, onClose, chip = false, fixture }: Props) {
         style={[styles.note, tablet && styles.noteTablet, focused && styles.noteFocused, face]}>
         {showChip ? (
           <View style={styles.chip}>
-            <PidroText role="label" style={styles.chipText}>
-              {t('tell.chip')}
+            {post ? (
+              <Icon name="reply" size={14} strokeWidth={2.6} color={PidroNote.chipInk} />
+            ) : null}
+            <PidroText role="label" numberOfLines={1} style={styles.chipText}>
+              {post ? post.title : t('tell.chip')}
             </PidroText>
           </View>
         ) : null}
@@ -422,9 +427,11 @@ export function FeedbackSheet({ open, onClose, chip = false, fixture }: Props) {
       visible={open}
       supportedOrientations={['portrait', 'landscape']}
       animationType={reduceMotion ? 'none' : 'slide'}
-      // The sheet lands first; then the box takes focus and the keyboard rises.
+      // The sheet lands first; then the box takes focus and the keyboard rises. On web a
+      // moment later, once a sheet under it (News) has handed over focus.
       onShow={() => {
-        if (stage === 'write') ink.current?.focus();
+        if (stage === 'write')
+          setTimeout(() => ink.current?.focus(), Platform.OS === 'web' ? 50 : 0);
       }}
       onRequestClose={close}>
       <SafeAreaProvider>
@@ -547,13 +554,16 @@ const styles = StyleSheet.create({
   chip: {
     alignSelf: 'flex-start',
     flexShrink: 0,
+    maxWidth: '100%',
     height: 26,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     paddingHorizontal: 10,
     borderRadius: PidroRadii.full,
     backgroundColor: PidroNote.chip,
   },
-  chipText: { fontSize: 13, lineHeight: 17, color: PidroNote.chipInk },
+  chipText: { flexShrink: 1, fontSize: 13, lineHeight: 17, color: PidroNote.chipInk },
   ink: {
     flex: 1,
     minHeight: 0,

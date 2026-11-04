@@ -168,7 +168,9 @@ test.describe('Tell us', () => {
       await page.route('**/api/v1/feedback', (route) => route.fulfill({ status: 503, json: {} }));
       await startSignedIn(page, session);
       await page.goto('/home');
-      await page.getByRole('button', { name: 'Tell us', exact: true }).click({ timeout: 30_000 });
+      // Tell us is the first row in News (PID-347).
+      await page.getByRole('button', { name: /^News/ }).click({ timeout: 30_000 });
+      await page.getByTestId('news-tell').click();
       await page.getByTestId('feedback-body').fill('The bid buttons are small.');
       await page.getByRole('button', { name: 'Send', exact: true }).click();
       const tell = page.getByTestId('feedback-sheet');

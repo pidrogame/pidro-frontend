@@ -768,9 +768,30 @@ only where it starts; Send, the answers and the next question go to the server
 | `old`    | Home's question card: Compared to the old Pidro                         |
 
 testIDs `feedback-sheet`, `feedback-body`, `feedback-email`, `feedback-send`,
-`feedback-ask`, `home-tell`, `settings-tell`. UI grammar: the `tell-*` cases at
+`feedback-ask`, `news-tell`, `settings-tell`. On Home, Tell us is the first row in
+News (PID-347). UI grammar: the `tell-*` cases at
 390×844, 375×667, 844×390 and 768×1024 (`tell-keyboard` takes the keyboard's height
 off each), Swedish at 390×844; `TELL_FRAMES_DIR=<dir>` saves the send frame by frame.
+
+## `/home?fixture=news-<state>` — News and who is online (PID-347)
+
+Home's News door and the Friends tab's count, or the News sheet open. The posts come
+from the fixture, not `GET /api/v1/news`, and opening sends no Seen; Write back posts
+to `POST /api/v1/feedback` with `news_post_id`, which the UI-grammar cases route.
+
+| `state`   | Shows                                                                  |
+| --------- | ---------------------------------------------------------------------- |
+| `home`    | The door with its dot (two new posts), the tab's green count: 2 online |
+| `request` | A friend request and nothing new: the tab's red 1 wins over 2 online   |
+| `sheet`   | News open: Tell us, then three posts, the two new ones with a dot      |
+| `reply`   | Write back open over News on the sounds post, its title on the chip    |
+| `empty`   | News open with only the Tell us row                                    |
+| `error`   | News open: Tell us, "News didn't load." and Try again                  |
+
+testIDs `home-news`, `home-news-dot`, `news-sheet`, `news-feed`, `news-tell`,
+`news-post`, `news-post-new`, `friends-online-count`.
+UI grammar: the `news-*` cases at 390×844, 375×667, 844×390 and 768×1024. The talk button with talk on and off is on
+`/ui-dev?state=components` (`ui-doors`).
 
 ## `/home?fixture=table-unknown`
 

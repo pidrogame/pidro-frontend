@@ -24,6 +24,9 @@ import { useAppUpdate } from '@/hooks/useAppUpdate';
 import { PidroSpacing } from '@/design/tokens';
 import { useAuthStore } from '@/stores/auth';
 import { useWaitingCount } from '@/hooks/useWaitingCount';
+import { onlineCount } from '@/features/friends/waitingCount';
+import { newsFixture } from '@/features/news';
+import { useFriendsStore } from '@/stores/friends';
 import { useLobbyStore } from '@/stores/lobby';
 import { gameRoute } from '@/navigation/gameRoute';
 import { useLobbyChannel } from '@/channels/hooks/useLobbyChannel';
@@ -69,6 +72,8 @@ function Shell({ forceUpdateNotice, fixture }: { forceUpdateNotice: boolean; fix
   const focused = useIsFocused();
   const guest = useAuthStore((state) => Boolean(state.user?.guest));
   const invitationCount = useWaitingCount(fixture);
+  const friendsOnline = useFriendsStore((state) => onlineCount(state.friends));
+  const online = newsFixture(fixture)?.online ?? friendsOnline;
   const friend = useShellFriendNotice(focused && !guest, fixture);
   const rejoinable = useLobbyStore((state) => state.lobby.my_rejoinable);
   const waitingGame = rejoinable.length > 0 ? rejoinable[0] : null;
@@ -167,6 +172,7 @@ function Shell({ forceUpdateNotice, fixture }: { forceUpdateNotice: boolean; fix
           active={active}
           tableBadge={Boolean(waitingGame)}
           invitationCount={invitationCount}
+          onlineCount={online}
           onSelect={handleSelect}
         />
       ) : null}

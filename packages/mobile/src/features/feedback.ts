@@ -37,11 +37,15 @@ export function feedbackMailto(details: FeedbackDetails, body = ''): string {
   return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('Pidro beta feedback')}&body=${encodeURIComponent(mail)}`;
 }
 
-/** The note as the server takes it; an empty reply address is left out, unknown details too. */
+/**
+ * The note as the server takes it; an empty reply address is left out, unknown details too.
+ * A Write back names the news post it answers.
+ */
 export function feedbackNote(
   body: string,
   replyEmail: string,
-  details: FeedbackDetails
+  details: FeedbackDetails,
+  newsPostId?: number
 ): FeedbackRequest {
   const value = (known: string | null) => known || undefined;
   return {
@@ -57,6 +61,7 @@ export function feedbackNote(
       os_version: value(details.osVersion),
       device_model: value(details.deviceModel),
     },
+    news_post_id: newsPostId,
   };
 }
 

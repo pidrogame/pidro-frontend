@@ -1,6 +1,7 @@
 import { friendNoticeFixture } from '@/features/friends/fixtures';
 import { waitingCount } from '@/features/friends/waitingCount';
 import { seatInvitationsFixture } from '@/features/lobby/fixtures';
+import { newsFixture } from '@/features/news';
 import { useAuthStore } from '@/stores/auth';
 import { useFriendsStore } from '@/stores/friends';
 
@@ -13,6 +14,8 @@ export function useWaitingCount(fixture?: string) {
   const waiting = useFriendsStore((state) => state.waiting_for_you);
   const notices = friendNoticeFixture(fixture);
   const previewSeats = seatInvitationsFixture(fixture);
+  const news = newsFixture(fixture);
+  if (news) return news.requests;
   if (notices) {
     return waitingCount(
       {

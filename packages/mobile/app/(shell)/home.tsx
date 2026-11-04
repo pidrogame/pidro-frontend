@@ -1,10 +1,18 @@
 import { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  AppState,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { SeatInvitations } from '@/components/invites/SeatInvitations';
 import { friendNoticeFixture } from '@/features/friends/fixtures';
 import { unnoticedInvitations } from '@/features/invites/tableInvitation';
 import { seatInvitationsFixture } from '@/features/lobby/fixtures';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useShallow } from 'zustand/react/shallow';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { publicPlayerName, type ProfileIdentity } from '@pidro/shared';
 import { lobbyApi } from '@/api/lobby';
@@ -15,6 +23,7 @@ import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { ClassicPlaque } from '@/components/home/ClassicPlaque';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { LogoGlow } from '@/components/home/LogoGlow';
+import { NewsSheet } from '@/components/news/NewsSheet';
 import { useNoticeInset, usePillClearance } from '@/components/shell/TabPill';
 import { UpdateNoticeSlot } from '@/components/shell/UpdateNotice';
 import { Background } from '@/components/ui/Background';
@@ -32,8 +41,10 @@ import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useWaitingCount } from '@/hooks/useWaitingCount';
 import { TABLE_UNKNOWN_ERROR, useQuickGame } from '@/hooks/useQuickGame';
 import { tellFixture } from '@/features/feedback';
+import { newsFixture } from '@/features/news';
 import { useAuthStore } from '@/stores/auth';
-import { useFriendsStore } from '@/stores/friends';
+import { refreshFriendsOnFocus, useFriendsStore } from '@/stores/friends';
+import { closeNews, loadNews, openNews, useNewsStore } from '@/stores/news';
 import { useLobbyStore } from '@/stores/lobby';
 import { formatNumber, useTranslation } from '@/i18n';
 
@@ -68,6 +79,20 @@ export default function HomeScreen() {
   const [accountSheetReason, setAccountSheetReason] = useState<AuthSheetReason | null>(null);
   const tell = useMemo(() => tellFixture(fixture), [fixture]);
   const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
+  const newsPreview = useMemo(() => newsFixture(fixture), [fixture]);
+  const storedNews = useNewsStore(
+    useShallow(({ posts, unread, marked, status, open }) => ({
+      posts,
+      unread,
+      marked,
+      status,
+      open,
+    }))
+  );
+  const news = newsPreview?.news ?? storedNews;
+  const newsStatus = newsPreview ? (newsPreview.failed ? 'failed' : 'ready') : storedNews.status;
+  const [previewOpen, setPreviewOpen] = useState(Boolean(newsPreview?.open));
+  const newsOpen = newsPreview ? previewOpen : storedNews.open;
   // Opened from the question about the last game, the note says so.
   const [tellChip, setTellChip] = useState(false);
   const [identity, setIdentity] = useState<ProfileIdentity | null>(null);
@@ -96,7 +121,13 @@ export default function HomeScreen() {
         })
         .catch(() => undefined);
 
+      // News on focus at most once a minute, and again each time the app comes back.
+      if (!newsPreview) void loadNews({ maxAge: 60_000 });
+      const foreground = AppState.addEventListener('change', (state) => {
+        if (state === 'active' && !newsPreview) void loadNews();
+      });
       if (!guest) {
+        refreshFriendsOnFocus();
         setLobbyCountState('loading');
         void lobbyApi
           .listLobby()
@@ -113,8 +144,9 @@ export default function HomeScreen() {
 
       return () => {
         active = false;
+        foreground.remove();
       };
-    }, [guest, refreshIdentity, setLobby, setStats])
+    }, [guest, newsPreview, refreshIdentity, setLobby, setStats])
   );
 
   const games = identity?.games_played;
@@ -145,7 +177,7 @@ export default function HomeScreen() {
         <PressableFX
           accessibilityRole="button"
           accessibilityLabel={
-            waiting > 0
+            guest && waiting > 0
               ? `${t('social.open_profile')}, ${t('friend_notice.badge', { count: waiting })}`
               : t('social.open_profile')
           }
@@ -159,7 +191,8 @@ export default function HomeScreen() {
               prestige={prestige}
               accessibilityLabel={t('social.profile_picture')}
             />
-            {waiting > 0 ? (
+            {/* Without a tab bar a guest's answers wait here; the Friends tab carries everyone else's. */}
+            {guest && waiting > 0 ? (
               <View testID="home-waiting-count" pointerEvents="none" style={styles.waitingBadge}>
                 <CountBadge count={waiting} size="sm" />
               </View>
@@ -206,15 +239,20 @@ export default function HomeScreen() {
               </BevelButton>
             </>
           ) : null}
-          <BevelButton
-            testID="home-tell"
-            accessibilityLabel={t('tell.door')}
-            material="glass"
-            size="icon"
-            onPress={() => setTellOpen(true)}
-            style={tablet && styles.settingsTablet}>
-            <Icon name="chat" size={tablet ? 22 : 20} />
-          </BevelButton>
+          <View>
+            <BevelButton
+              testID="home-news"
+              accessibilityLabel={t(news.unread > 0 ? 'news.doorNew' : 'news.door')}
+              material="glass"
+              size="icon"
+              onPress={() => (newsPreview ? setPreviewOpen(true) : void openNews())}
+              style={tablet && styles.settingsTablet}>
+              <Icon name="news" size={tablet ? 24 : 22} strokeWidth={2.1} />
+            </BevelButton>
+            {news.unread > 0 ? (
+              <View testID="home-news-dot" pointerEvents="none" style={styles.newsDot} />
+            ) : null}
+          </View>
         </View>
       </View>
     </StillLayer>
@@ -404,6 +442,14 @@ export default function HomeScreen() {
           router.push('/join-code');
         }}
       />
+      <NewsSheet
+        open={newsOpen}
+        news={news}
+        status={newsStatus}
+        reply={newsPreview?.reply}
+        onRetry={() => (newsPreview ? undefined : void openNews())}
+        onClose={() => (newsPreview ? setPreviewOpen(false) : closeNews())}
+      />
       <FeedbackSheet
         open={tellOpen}
         chip={tellChip}
@@ -446,6 +492,17 @@ const styles = StyleSheet.create({
   },
   topBarTablet: { gap: 14 },
   waitingBadge: { position: 'absolute', top: 0, right: -PidroSpacing.xxs },
+  newsDot: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: PidroColors.feltBottom,
+    backgroundColor: PidroColors.cyan,
+  },
   identity: {
     minWidth: 0,
     flex: 1,

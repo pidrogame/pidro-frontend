@@ -1,4 +1,4 @@
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 import { PidroColors } from '@/design/tokens';
 
 /**
@@ -43,7 +43,9 @@ export type IconName =
   | 'enter'
   | 'share'
   | 'clock'
-  | 'chat';
+  | 'chat'
+  | 'news'
+  | 'reply';
 
 const ICONS: Record<IconName, { path: string; mode: 'fill' | 'stroke' }> = {
   home: { path: 'M3 11l9-8 9 8M5 9v12h5v-7h4v7h5V9', mode: 'stroke' },
@@ -110,6 +112,11 @@ const ICONS: Record<IconName, { path: string; mode: 'fill' | 'stroke' }> = {
     path: 'M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4A2.5 2.5 0 0 1 4 13.5z',
     mode: 'stroke',
   },
+  news: {
+    path: 'M4 5.5A1.5 1.5 0 0 1 5.5 4h10A1.5 1.5 0 0 1 17 5.5V18a2 2 0 0 0 2 2H6a2 2 0 0 1-2-2zM17 9h2.5A1.5 1.5 0 0 1 21 10.5V18a2 2 0 0 1-4 0M7.5 8h6M7.5 11.5h6M7.5 15h3.5',
+    mode: 'stroke',
+  },
+  reply: { path: 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11', mode: 'stroke' },
   clock: { path: 'M20.5 12a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0M12 7.5V12l3 2', mode: 'stroke' },
   'arrow-left': { path: 'M19 12H5m7-7-7 7 7 7', mode: 'stroke' },
   star: {
@@ -153,6 +160,52 @@ export function Icon({
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" {...paint}>
       <Path d={path} />
+    </Svg>
+  );
+}
+
+const BUBBLE =
+  'M7.5 3.5h9a5 5 0 0 1 5 5V13a5 5 0 0 1-5 5H11l-4.6 3.4c-.6.4-1.3-.1-1.2-.8l.5-2.9A5 5 0 0 1 2.5 13V8.5a5 5 0 0 1 5-5z';
+
+/**
+ * Talk at the table (PID-347): a filled bubble with three dots, a darker copy
+ * 1.3 below as its bevel, so it reads as a thing to tap. Muted, the bubble
+ * fades and a red no-sign sits on its corner.
+ */
+export function TalkIcon({ size = 26, muted = false }: { size?: number; muted?: boolean }) {
+  const dots = [7.6, 12, 16.4].map((cx) => (
+    <Circle key={cx} cx={cx} cy={10.8} r={1.55} fill={PidroColors.talkBubbleInk} />
+  ));
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {muted ? (
+        <>
+          <G opacity={0.45}>
+            <Path d={BUBBLE} fill={PidroColors.talkBubble} />
+            {dots}
+          </G>
+          <Circle
+            cx={18.6}
+            cy={6}
+            r={4.6}
+            fill={PidroColors.countBadge}
+            stroke={PidroColors.text}
+            strokeWidth={1.4}
+          />
+          <Path
+            d="M15.4 9.2l6.4-6.4"
+            stroke={PidroColors.text}
+            strokeWidth={1.6}
+            strokeLinecap="round"
+          />
+        </>
+      ) : (
+        <>
+          <Path d={BUBBLE} transform="translate(0 1.3)" fill={PidroColors.talkBubbleBevel} />
+          <Path d={BUBBLE} fill={PidroColors.talkBubble} />
+          {dots}
+        </>
+      )}
     </Svg>
   );
 }

@@ -185,7 +185,7 @@ enters and leaves like the update notice. Sheet: `/ui-dev?state=components`.
 | Quiet text action              | `TextLink` (cyan, 800, always a 44px target)                            |
 | Row action, rules choice chip  | `ActionPill` (light cyan; `gold` answers someone; `selected` for chips) |
 | Remove a row                   | `DismissButton` (borderless 44px ×; label names what it dismisses)      |
-| A count on a tab or a title    | `CountBadge` (red; hides at 0, `99+` past 99)                           |
+| A count on a tab or a title    | `CountBadge` (red; `online` green with a dot; hides at 0, `99+`)        |
 | Choice with confirm/cancel     | `DecisionWindow` / `Modal`                                              |
 | Home navigation                | `HomeTabBar` (bottom bar portrait, right rail landscape)                |
 | Player identity                | `PlayerAvatar` (ring, pin, level, turn light, dealer; sizes drop parts) |

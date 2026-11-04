@@ -21,6 +21,7 @@ import { CtaBadge } from '@/components/home/CtaBadge';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
 import { RatingPlaque } from '@/components/home/RatingPlaque';
 import { Icon, type IconName } from '@/components/ui/Icon';
+import { TalkSpeech } from '@/components/game/TableTalk';
 import { AuthProviderButtons } from '@/components/auth/AuthProviderButtons';
 import { ActionPill } from '@/components/ui/ActionPill';
 import { BevelButton } from '@/components/ui/BevelButton';
@@ -149,6 +150,31 @@ function RowControlsGallery() {
         <CountBadge count={0} />
         <CountBadge count={3} size="sm" />
         <CountBadge count={120} size="sm" />
+        <CountBadge count={2} size="sm" tone="online" />
+        <CountBadge count={120} size="sm" tone="online" />
+      </View>
+      {/* PID-347: News on Home, and the table's talk button with talk on and off. */}
+      <View testID="ui-doors" style={styles.row}>
+        <View style={styles.swatch}>
+          <BevelButton accessibilityLabel="News" material="glass" size="icon" onPress={noop}>
+            <Icon name="news" size={22} strokeWidth={2.1} />
+          </BevelButton>
+          <PidroText role="metadata" tone="muted">
+            news
+          </PidroText>
+        </View>
+        <View style={styles.swatch}>
+          <TalkSpeech label="Say something" onPress={noop} />
+          <PidroText role="metadata" tone="muted">
+            talk
+          </PidroText>
+        </View>
+        <View style={styles.swatch}>
+          <TalkSpeech label="Talk is off" muted onPress={noop} />
+          <PidroText role="metadata" tone="muted">
+            talk off
+          </PidroText>
+        </View>
       </View>
       <View style={styles.row}>
         {ROW_ICONS.map((name) => (

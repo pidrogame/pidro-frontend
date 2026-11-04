@@ -113,6 +113,15 @@ describe('a posted note', () => {
     expect(feedbackNote('Hi', ' a@b.c ', details).reply_email).toBe('a@b.c');
   });
 
+  it('names the news post a Write back answers, as a number', () => {
+    const sent = JSON.parse(JSON.stringify(feedbackNote('Love the sounds', '', details, 3)));
+    expect(sent.news_post_id).toBe(3);
+    expect(sent.kind).toBe('note');
+    expect('news_post_id' in JSON.parse(JSON.stringify(feedbackNote('Hi', '', details)))).toBe(
+      false
+    );
+  });
+
   it('waits for tomorrow only when the server says enough for today', () => {
     expect(sendFailure({ response: { status: 429, data: { code: 'RATE_LIMITED' } } })).toBe(
       'limit'

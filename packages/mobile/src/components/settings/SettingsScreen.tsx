@@ -15,9 +15,8 @@ import { Surface } from '@/components/ui/Surface';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { AppUpdateSection } from '@/components/settings/AppUpdateSection';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
-import { Icon } from '@/components/ui/Icon';
-import { PressableFX } from '@/components/ui/PressableFX';
-import { PidroColors, PidroNote, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { TellRow } from '@/components/feedback/TellRow';
+import { PidroSpacing } from '@/design/tokens';
 import { tellFixture } from '@/features/feedback';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
@@ -64,26 +63,7 @@ export function SettingsScreen({
       }}>
       <ScreenHeader title={t('settings.title')} subtitle={t('settings.subtitle')} onBack={onBack} />
       <Surface variant="window" style={styles.panel} padded>
-        <PressableFX
-          testID="settings-tell"
-          accessibilityRole="button"
-          accessibilityLabel={`${t('tell.door')}. ${t('tell.rowHint')}`}
-          onPress={() => setTellOpen(true)}
-          style={styles.tell}
-          pressedStyle={styles.tellPressed}>
-          <View style={styles.disc}>
-            <Icon name="chat" size={22} color={PidroColors.cyanText} />
-          </View>
-          <View style={styles.rowCopy}>
-            <PidroText role="label" style={styles.tellTitle}>
-              {t('tell.door')}
-            </PidroText>
-            <PidroText role="metadata" tone="soft" style={styles.tellHint}>
-              {t('tell.rowHint')}
-            </PidroText>
-          </View>
-          <Icon name="chevron-right" size={20} strokeWidth={2.6} color={PidroColors.cyanText} />
-        </PressableFX>
+        <TellRow testID="settings-tell" onPress={() => setTellOpen(true)} />
         <View style={styles.languageColumn}>
           <LanguageSelector />
         </View>
@@ -184,30 +164,4 @@ const styles = StyleSheet.create({
     padding: PidroSpacing.sm,
   },
   rowCopy: { minWidth: 0, flex: 1, gap: PidroSpacing.xxs },
-  tell: {
-    width: '100%',
-    minHeight: 76,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: PidroSpacing.sm,
-    paddingVertical: 10,
-    paddingHorizontal: PidroSpacing.sm,
-    borderRadius: PidroRadii.panel,
-    borderWidth: 1,
-    borderColor: PidroNote.rowBorder,
-    backgroundColor: PidroColors.panelSoft,
-  },
-  tellPressed: { backgroundColor: PidroColors.actionPillPressed },
-  disc: {
-    width: 44,
-    height: 44,
-    borderRadius: PidroRadii.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: PidroNote.rowBorder,
-    backgroundColor: PidroNote.disc,
-  },
-  tellTitle: { fontSize: 18, lineHeight: 23 },
-  tellHint: { fontSize: 14, lineHeight: 19, fontWeight: '600' },
 });

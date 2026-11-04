@@ -12,7 +12,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { Icon } from '@/components/ui/Icon';
+import { TalkIcon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import {
@@ -121,8 +121,16 @@ export function TalkWord({
   );
 }
 
-/** The quiet speech button: opens the hand of words. */
-export function TalkSpeech({ onPress, label }: { onPress: () => void; label: string }) {
+/** The quiet speech button: opens the hand of words. `muted` draws talk off (no table has that state yet). */
+export function TalkSpeech({
+  onPress,
+  label,
+  muted = false,
+}: {
+  onPress: () => void;
+  label: string;
+  muted?: boolean;
+}) {
   return (
     <PressableFX
       accessibilityRole="button"
@@ -130,7 +138,7 @@ export function TalkSpeech({ onPress, label }: { onPress: () => void; label: str
       testID="talk-speech"
       onPress={onPress}
       style={styles.speech}>
-      <Icon name="chat" size={22} color={PidroColors.cyanText} strokeWidth={2.2} />
+      <TalkIcon size={26} muted={muted} />
     </PressableFX>
   );
 }
