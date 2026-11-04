@@ -5,11 +5,12 @@ import * as game from './sections/game';
 import * as shell from './sections/shell';
 import * as errors from './sections/errors';
 import * as bots from './sections/bots';
+import * as league from './sections/league';
 
 // One composition for every platform. Section owners add keys in their module.
 export const catalogs = {
-  en: { ...core.en, ...auth.en, ...social.en, ...game.en, ...shell.en, ...errors.en, ...bots.en },
-  sv: { ...core.sv, ...auth.sv, ...social.sv, ...game.sv, ...shell.sv, ...errors.sv, ...bots.sv },
+  en: { ...core.en, ...auth.en, ...social.en, ...game.en, ...shell.en, ...errors.en, ...bots.en, ...league.en },
+  sv: { ...core.sv, ...auth.sv, ...social.sv, ...game.sv, ...shell.sv, ...errors.sv, ...bots.sv, ...league.sv },
 };
 export type TranslationKey = keyof typeof catalogs.en;
 

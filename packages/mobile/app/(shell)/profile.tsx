@@ -8,6 +8,8 @@ import { localizedError, localizedFieldErrors } from '@/utils/apiErrors';
 import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BadgeSheet } from '@/components/profile/BadgeSheet';
+import { useLeague } from '@/components/league/LeagueHost';
+import { leagueLine, leagueMarkName } from '@/features/league';
 import { BackButton } from '@/components/ui/BackButton';
 import { gradientBg } from '@/components/ui/Bevel';
 import { BevelButton } from '@/components/ui/BevelButton';
@@ -55,6 +57,8 @@ export default function ProfileScreen() {
 
 function ProfileContent() {
   const { t } = useTranslation();
+  const { data: league } = useLeague();
+  const leagueCaption = league ? leagueLine(league) : null;
   const bioValidation = (value: string) =>
     !bioError(value)
       ? null
@@ -420,12 +424,15 @@ function ProfileContent() {
                             <PidroText role="title" style={styles.number}>
                               {formatNumber(identity.xp.this_week)} XP
                             </PidroText>
-                            <TextLink
-                              label={t('profile.leagues_coming')}
-                              size={14}
-                              onPress={() => router.replace('/league')}
-                              style={styles.leagueLink}
-                            />
+                            {leagueCaption ? (
+                              <TextLink
+                                testID="profile-league"
+                                label={`${leagueCaption} ›`}
+                                size={14}
+                                onPress={() => router.replace('/league')}
+                                style={styles.leagueLink}
+                              />
+                            ) : null}
                           </View>
                           <View style={[styles.figure, styles.month]}>
                             <PidroText role="metadata" tone="cyan" style={styles.eyebrow}>
@@ -434,6 +441,13 @@ function ProfileContent() {
                             <PidroText role="title" style={styles.number}>
                               {formatNumber(identity.xp.this_month)} XP
                             </PidroText>
+                            {league?.ribbons.current ? (
+                              <PidroText role="metadata" tone="soft">
+                                {t('league.ribbon_so_far', {
+                                  league: leagueMarkName(league.ribbons.current.league),
+                                })}
+                              </PidroText>
+                            ) : null}
                           </View>
                         </View>
                       </>

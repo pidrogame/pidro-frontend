@@ -21,6 +21,9 @@ import { AuthSheet, type AuthSheetReason } from '@/components/auth/AuthSheet';
 import { FeedbackAsk } from '@/components/feedback/FeedbackAsk';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { ClassicPlaque } from '@/components/home/ClassicPlaque';
+import { LeagueCard } from '@/components/league/LeagueCard';
+import { useLeague } from '@/components/league/LeagueHost';
+import { leagueLine } from '@/features/league';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { LogoGlow } from '@/components/home/LogoGlow';
 import { NewsSheet } from '@/components/news/NewsSheet';
@@ -72,6 +75,8 @@ export default function HomeScreen() {
   const [showInvitations, setShowInvitations] = useState(invitations.length > 0);
   if (invitations.length > 0 && !showInvitations) setShowInvitations(true);
   const guest = Boolean(user?.guest);
+  const { data: league } = useLeague();
+  const leagueCaption = league ? leagueLine(league) : null;
   const lobby = useLobbyStore((state) => state.lobby);
   const setLobby = useLobbyStore((state) => state.setLobby);
   const setStats = useLobbyStore((state) => state.setStats);
@@ -303,6 +308,20 @@ export default function HomeScreen() {
           </Surface>
         ) : null}
 
+        {leagueCaption && league?.league ? (
+          <PressableFX
+            testID="home-league"
+            accessibilityRole="button"
+            onPress={() => router.replace('/league')}
+            style={styles.leagueCard}>
+            <LeagueCard league={league.league} size={26} />
+            <PidroText role="label" style={styles.leagueCopy}>
+              {leagueCaption}
+            </PidroText>
+            <Icon name="chevron-right" size={18} color={PidroColors.cyanText} />
+          </PressableFX>
+        ) : null}
+
         <View style={[styles.tiles, tablet && styles.tilesTablet]}>
           <HomeTileButton
             material={guest ? 'wood' : 'glass'}
@@ -465,6 +484,22 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  leagueCard: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: PidroColors.panel,
+    borderWidth: 1,
+    borderColor: PidroColors.borderStrong,
+    borderRadius: 10,
+    width: '100%',
+    maxWidth: 380,
+    alignSelf: 'center',
+  },
+  leagueCopy: { flex: 1, minWidth: 0 },
   invitationScroll: { flex: 1, width: '100%', maxWidth: 794 },
   invitationContent: { gap: PidroSpacing.md },
   scrim: { flex: 1, backgroundColor: PidroColors.screenScrim },

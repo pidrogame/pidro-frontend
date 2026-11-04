@@ -595,7 +595,48 @@ const allCases = [
     authenticated: true,
     authFixture: guestAuthFixture,
   },
-  { name: 'league', path: '/league', testId: 'league-screen', authenticated: true },
+  ...[
+    'placed',
+    '27',
+    'deuce',
+    'pidro',
+    'small',
+    'not_placed',
+    'opted_out',
+    'guest',
+    'off',
+    'intro',
+  ].flatMap((state) =>
+    ['en', 'sv'].map((locale) => ({
+      name: `league-${state}-${locale}`,
+      path: `/league?fixture=league-${state}`,
+      testId: state === 'intro' ? 'league-intro' : 'league-screen',
+      authenticated: true,
+      league: state,
+      locale,
+    }))
+  ),
+  {
+    name: 'league',
+    path: '/league?fixture=league-placed',
+    testId: 'league-screen',
+    authenticated: true,
+    league: 'placed',
+  },
+  ...['placed', 'not_placed', 'off', 'guest', 'opted_out'].map((state) => ({
+    name: `league-home-${state}`,
+    path: `/home?fixture=league-${state}`,
+    testId: 'home-screen',
+    authenticated: true,
+    league: `home-${state}`,
+  })),
+  {
+    name: 'league-profile',
+    path: '/profile?fixture=league-placed',
+    testId: 'profile-screen',
+    authenticated: true,
+    league: 'profile',
+  },
   { name: 'device-settings', path: '/device-settings', testId: 'settings-screen' },
   ...[
     'list',
@@ -7315,6 +7356,84 @@ async function assertNewsInteractions(page, testCase, viewport) {
   assert.equal(await tell.getByText(NEWS_TITLES[0], { exact: true }).count(), 0, 'no chip');
 }
 
+async function assertLeague(page, testCase, viewport) {
+  const state = testCase.league;
+  const root = page.getByTestId(testCase.testId);
+  assertInsideViewport(testCase.name, await root.boundingBox(), viewport);
+  if (state === 'intro') await assertAccountSurfaceFits(root, testCase.name, viewport);
+  if (state.startsWith('home-')) {
+    const visible = ['home-placed', 'home-not_placed'].includes(state);
+    assert.equal(await page.getByTestId('home-league').count(), visible ? 1 : 0);
+    if (visible)
+      assertInsideViewport(
+        'Home league card',
+        await page.getByTestId('home-league').boundingBox(),
+        viewport
+      );
+    return;
+  }
+  if (state === 'profile') {
+    const link = page.getByTestId('profile-league');
+    await link.scrollIntoViewIfNeeded();
+    assert.match(await link.innerText(), /6th in Jack league/);
+    return;
+  }
+  const overflow = await root.evaluate((node) => {
+    const faults = [];
+    for (const child of node.querySelectorAll('*')) {
+      if (child.closest('[data-testid="league-list"]')) continue;
+      const rect = child.getBoundingClientRect();
+      if (!rect.width || !rect.height) continue;
+      if (
+        rect.left < -1 ||
+        rect.right > innerWidth + 1 ||
+        rect.top < -1 ||
+        rect.bottom > innerHeight + 1
+      )
+        faults.push(child.textContent?.slice(0, 80));
+    }
+    return faults;
+  });
+  assert.deepEqual(overflow, [], `${testCase.name}: no content outside the viewport`);
+  const list = page.getByTestId('league-list');
+  if (await list.count()) {
+    const promote = state === 'deuce' ? 10 : state === 'small' ? 1 : 5;
+    if (state === 'pidro') assert.equal(await page.getByTestId('league-up-divider').count(), 0);
+    else {
+      const row = await page.getByTestId(`league-row-${promote}`).boundingBox();
+      const divider = await page.getByTestId('league-up-divider').boundingBox();
+      assert.ok(
+        Math.abs(divider.y - (row.y + row.height)) <= 4,
+        'up divider directly follows last promoted row'
+      );
+    }
+    if (state === 'deuce') assert.equal(await page.getByTestId('league-demotion').count(), 0);
+    if (state === 'small')
+      assert.equal(
+        await page.getByTestId('league-demotion').innerText(),
+        testCase.locale === 'sv'
+          ? 'Plats 4 flyttar ner till Knektens liga.'
+          : 'Place 4 moves down to Jack league.'
+      );
+    if (state === 'pidro')
+      assert.match(
+        await page.getByTestId('league-demotion').innerText(),
+        testCase.locale === 'sv' ? /23.*30/ : /Places 23 to 30/
+      );
+    if (state === '27') {
+      const pin = page.getByTestId('league-pinned');
+      await pin.waitFor();
+      assertInsideViewport('27th place pinned row', await pin.boundingBox(), viewport);
+      assert.match(await pin.innerText(), /Bengt/);
+    }
+    const bounds = await list.boundingBox();
+    assertInsideViewport('standings scroll', bounds, viewport);
+    // Offscreen rows may scroll, but the enclosing shell must not.
+    assert.equal(await root.evaluate((node) => node.scrollHeight > node.clientHeight + 2), false);
+  }
+  await assertMinimumTouchTargets(page, testCase.testId, viewport);
+}
+
 async function main() {
   if (process.argv[2] === '--list-cases') {
     console.log(JSON.stringify(allCases.map(({ name, path }) => ({ name, path }))));
@@ -7326,7 +7445,7 @@ async function main() {
       .filter((testCase) => {
         if (testCase.tell)
           return (testCase.tellViewports ?? TELL_VIEWPORTS).includes(viewport.name);
-        if (testCase.news) return TELL_VIEWPORTS.includes(viewport.name);
+        if (testCase.news || testCase.league) return TELL_VIEWPORTS.includes(viewport.name);
         if (
           (testCase.welcome || testCase.name.startsWith('age')) &&
           ['small-portrait', 'compact-portrait', 'tablet-portrait'].includes(viewport.name)
@@ -7419,7 +7538,8 @@ async function main() {
     for (const viewport of selectViewports()) {
       const context = await browser.newContext({
         viewport: { width: viewport.width, height: viewport.height },
-        deviceScaleFactor: 1,
+        deviceScaleFactor: Number(process.env.UI_DEVICE_SCALE ?? 1),
+        timezoneId: process.env.UI_TIMEZONE,
       });
       // Endless motion (your breathing turn light) holds its resting frame, so a
       // baseline never catches it mid-breath. See src/utils/stillCapture.ts.
@@ -7480,7 +7600,10 @@ async function main() {
             pendingInvite: testCase.pendingInvite === true,
             welcomeSeen: !testCase.welcomeUnseen,
             photoLocale:
-              testCase.photo || testCase.path === '/welcome' || testCase.path.startsWith('/(auth)/')
+              testCase.photo ||
+              testCase.league ||
+              testCase.path === '/welcome' ||
+              testCase.path.startsWith('/(auth)/')
                 ? (testCase.locale ?? 'en')
                 : testCase.tell
                   ? (testCase.tellLocale ?? 'en')
@@ -7608,6 +7731,7 @@ async function main() {
           testCase.photo ||
           testCase.tell ||
           testCase.news ||
+          testCase.league ||
           testCase.name.startsWith('edge-home-') ||
           testCase.name.startsWith('edge-profile-')
         ) {
@@ -7983,6 +8107,7 @@ async function main() {
           await assertTellState(page, testCase, caseViewport);
           await assertNewsState(page, testCase, caseViewport);
           await assertPhotoSheet(page, testCase, caseViewport);
+          if (testCase.league) await assertLeague(page, testCase, caseViewport);
           await waitForScreenshotReady(page);
           if (testCase.name.startsWith('edge-') || testCase.testId === 'game-loading-screen') {
             const background = await page.evaluate(() =>

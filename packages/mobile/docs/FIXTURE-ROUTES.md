@@ -1030,3 +1030,25 @@ capture comes out portrait-shaped; rotate the PNG.
 > a device. On a simulator `/table-dev` uses the REAL insets — never pass `safeArea=`
 > there, it would hide the clearance you are checking. Overlay clearance, gestures and
 > rotation are only proven on a device.
+
+## Weekly leagues (PID-353)
+
+`/league?fixture=league-<state>` renders contract-shaped data without league reads or
+mutations. States: `placed` (Bengt, 6th in Jack with 1,240), `27` (own row pinned),
+`deuce`, `pidro`, `small` (four in Ace, one promoted), `not_placed` (last week's place),
+`opted_out`, `guest`, `off`, and `intro` (Classic plaque). Home and Profile accept
+the same fixture prefix for their league card/cells. Profile XP remains from the
+profile endpoint, not the league response.
+
+Grammar cases `league-<state>-en|sv`, `league-home-<status>` and `league-profile`
+run at 390×844, 375×667, 844×390 and 768×1024. They measure the divider after the
+server's last promoted row, own-row visibility at place 27, absent Deuce/Pidro
+bands, 44pt controls and viewport containment. The shell does not scroll; the
+standings do. The demotion footer stays visible below them. Avatar rows use today's
+ring and level chip, not the boards' stand-in gems/coins.
+
+For board comparison captures, use `UI_DEVICE_SCALE=2 UI_TIMEZONE=Europe/Helsinki`.
+These options only change the browser, never the client's date rules. As elsewhere,
+the route ignores `locale=`; grammar seeds the persisted Settings language instead.
+`league-intro` checks clipped text against real ancestor boxes as well as viewport
+fit. Browser checks do not certify native safe areas or maximum system text scaling.

@@ -1,180 +1,286 @@
-import { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { useFocusEffect } from 'expo-router';
-import type { ProfileIdentity } from '@/api/profile';
-import { gradientBg } from '@/components/ui/Bevel';
-import { Icon } from '@/components/ui/Icon';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import type { LeagueStanding } from '@pidro/shared';
+import { AuthSheet } from '@/components/auth/AuthSheet';
+import { LeagueCard, LeagueStrip } from '@/components/league/LeagueCard';
+import { useLeague } from '@/components/league/LeagueHost';
+import { LeagueIntro } from '@/components/league/LeagueIntro';
+import { PlayerSheet } from '@/components/profile/PlayerSheet';
+import { usePillClearance } from '@/components/shell/TabPill';
 import { PidroText } from '@/components/ui/PidroText';
+import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
+import { PressableFX } from '@/components/ui/PressableFX';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
-import { usePillClearance } from '@/components/shell/TabPill';
+import { TextLink } from '@/components/ui/TextLink';
 import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@/design/tokens';
-import { monthName } from '@/features/profile';
-import { useProfileIdentity } from '@/hooks/useProfileIdentity';
-import { useTranslation, formatNumber } from '@/i18n';
-
-// The ladder, bottom to top. Pidro, the card worth five, is the top league.
-const LEAGUES = [
-  { name: 'Jack', rank: 'J', suit: '♣', red: false },
-  { name: 'Queen', rank: 'Q', suit: '♦', red: true },
-  { name: 'King', rank: 'K', suit: '♥', red: true },
-  { name: 'Ace', rank: 'A', suit: '♠', red: false },
-] as const;
+import {
+  closeTimeText,
+  leagueBands,
+  leagueName,
+  nextLeague,
+  ordinal,
+  previousLeague,
+} from '@/features/league';
+import { LEAGUE_FIXTURE_NOW } from '@/features/leagueFixtures';
+import { formatNumber, useTranslation } from '@/i18n';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 export default function LeagueScreen() {
   const { t } = useTranslation();
-  const leagueLabels = [
-    t('social.league_jack'),
-    t('social.league_queen'),
-    t('social.league_king'),
-    t('social.league_ace'),
-  ];
-  const pillClearance = usePillClearance();
-  const refreshIdentity = useProfileIdentity();
-  const [xp, setXp] = useState<ProfileIdentity['xp']>(undefined);
-
-  useFocusEffect(
-    useCallback(() => {
-      void refreshIdentity()
-        .then((identity) => identity?.xp && setXp(identity.xp))
-        .catch(() => {});
-    }, [refreshIdentity])
-  );
+  const router = useRouter();
+  const { data, error, busy, refresh, setHidden } = useLeague();
+  const { fixture } = useLocalSearchParams<{ fixture?: string }>();
+  const { width, height } = useWindowDimensions();
+  const wide = width > height;
+  const clearance = usePillClearance();
+  const [selected, setSelected] = useState<string | null>(null);
+  const [register, setRegister] = useState(false);
+  const [actionError, setActionError] = useState(false);
+  const [viewport, setViewport] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [ownBox, setOwnBox] = useState({ y: 0, height: 0 });
+  const room = data?.room;
+  const league = data?.league;
+  const up = league ? nextLeague(league) : null;
+  const down = league ? previousLeague(league) : null;
+  const bands = league && room ? leagueBands(league, room) : null;
+  const own = room?.standings.find((row) => row.me);
+  const pinned =
+    own && ownBox.height > 0 && (ownBox.y < offset || ownBox.y + ownBox.height > offset + viewport);
+  const footer =
+    down && bands?.demoteFrom && room
+      ? t(room.demote === 1 ? 'league.demote_one' : 'league.demote', {
+          from: bands.demoteFrom,
+          to: room.size,
+          league: leagueName(down),
+        })
+      : null;
 
   return (
     <ScreenShell
       testID="league-screen"
-      compact
-      scroll
       contentStyle={[
         styles.shell,
         {
-          paddingBottom: PidroSpacing.md + pillClearance.bottom,
-          paddingRight: PidroSpacing.md + pillClearance.right,
+          paddingBottom: clearance.bottom + PidroSpacing.md,
+          paddingRight: clearance.right + PidroSpacing.md,
         },
       ]}>
-      <Surface variant="window" style={styles.panel} padded>
-        <View
-          style={styles.cards}
-          accessibilityRole="list"
-          accessibilityLabel={t('social.leagues')}>
-          {LEAGUES.map((league, index) => (
-            <View
-              key={league.name}
-              accessible
-              accessibilityLabel={leagueLabels[index]}
-              style={[styles.card, styles.paper]}>
-              <PidroText style={[styles.rank, league.red && styles.red]}>{league.rank}</PidroText>
-              <PidroText style={[styles.suit, league.red && styles.red]}>{league.suit}</PidroText>
-            </View>
-          ))}
-          <View
-            accessible
-            accessibilityLabel={t('social.league_top')}
-            style={[styles.card, styles.pidro, gradientBg(PidroBevel.goldRimGradient)]}>
-            <Icon name="spade" size={18} color={PidroBevel.woodDeep} />
-          </View>
+      <View style={[styles.layout, wide && styles.columns]}>
+        <View testID="league-summary" style={[styles.summary, wide && styles.side]}>
+          {data?.status === 'off' ? (
+            <PidroText role="body" tone="soft">
+              {t('league.off')}
+            </PidroText>
+          ) : (
+            <>
+              {league ? (
+                <View style={styles.header}>
+                  <LeagueCard league={league} lit />
+                  <View style={styles.copy}>
+                    <PidroText
+                      role="display"
+                      tone="gold"
+                      style={styles.title}
+                      accessibilityRole="header">
+                      {t('league.title', { league: leagueName(league) })}
+                    </PidroText>
+                    {data?.week ? (
+                      <PidroText role="metadata" tone="soft">
+                        {closeTimeText(
+                          data.week.closes_at,
+                          __DEV__ && fixture?.startsWith('league-')
+                            ? LEAGUE_FIXTURE_NOW
+                            : new Date()
+                        )}
+                      </PidroText>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+              {data ? <LeagueStrip league={league ?? null} /> : null}
+              {room && league ? (
+                <PidroText role="metadata" tone="soft">
+                  {t('league.room', { size: room.size, league: leagueName(league) })}
+                  {up && room.promote > 0
+                    ? ` ${t(room.promote === 1 ? 'league.promote_one' : 'league.promote', { count: room.promote, league: leagueName(up) })}`
+                    : ''}
+                </PidroText>
+              ) : null}
+            </>
+          )}
         </View>
-        <PidroText style={styles.title}>{t('social.league_coming')}</PidroText>
-        <PidroText role="body" tone="soft" align="center" style={styles.copy}>
-          {t('social.league_counts')}
-        </PidroText>
-        {xp ? (
-          <View style={styles.periods}>
-            <View style={styles.figure}>
-              <PidroText role="metadata" tone="cyan" align="center" style={styles.eyebrow}>
-                {t('social.this_week')}
-              </PidroText>
-              <PidroText role="title" align="center" style={styles.number}>
-                {formatNumber(xp.this_week)} XP
-              </PidroText>
+        {room ? (
+          <Surface testID="league-standings" variant="window" style={styles.standings}>
+            <View style={styles.list}>
+              <ScrollView
+                testID="league-list"
+                style={styles.list}
+                contentContainerStyle={styles.rows}
+                onLayout={(event) => setViewport(event.nativeEvent.layout.height)}
+                onScroll={(event) => setOffset(event.nativeEvent.contentOffset.y)}
+                scrollEventThrottle={16}>
+                {room.standings.map((row) => (
+                  <View
+                    key={row.user_id}
+                    onLayout={row.me ? (event) => setOwnBox(event.nativeEvent.layout) : undefined}>
+                    <StandingRow row={row} onPress={() => setSelected(row.user_id)} />
+                    {row.place === bands?.promoteAfter && up ? (
+                      <View testID="league-up-divider" style={styles.divider}>
+                        <PidroText role="metadata" tone="gold">
+                          {t('league.move_up', { league: leagueName(up) })}
+                        </PidroText>
+                      </View>
+                    ) : null}
+                  </View>
+                ))}
+              </ScrollView>
+              {pinned ? (
+                <View testID="league-pinned" style={styles.pinned}>
+                  <StandingRow row={own} onPress={() => setSelected(own.user_id)} />
+                </View>
+              ) : null}
             </View>
-            <View style={[styles.figure, styles.month]}>
-              <PidroText role="metadata" tone="cyan" align="center" style={styles.eyebrow}>
-                {monthName()}
+            {footer ? (
+              <PidroText
+                testID="league-demotion"
+                role="metadata"
+                tone="soft"
+                align="center"
+                style={styles.footer}>
+                {footer}
               </PidroText>
-              <PidroText role="title" align="center" style={styles.number}>
-                {formatNumber(xp.this_month)} XP
+            ) : null}
+          </Surface>
+        ) : data?.status !== 'off' ? (
+          <View testID="league-empty" style={styles.empty}>
+            <PidroText role="body" tone="soft">
+              {t(
+                !data
+                  ? error
+                    ? 'league.failed'
+                    : 'league.loading'
+                  : data.status === 'guest'
+                    ? 'league.guest'
+                    : data.status === 'opted_out'
+                      ? 'league.opted_out'
+                      : 'league.not_placed'
+              )}
+            </PidroText>
+            {data?.last_week && data.status === 'not_placed' ? (
+              <PidroText role="metadata" tone="soft">
+                {t('league.last_week', {
+                  place: ordinal(data.last_week.place),
+                  league: leagueName(data.last_week.league),
+                })}
               </PidroText>
-            </View>
+            ) : null}
+            {data?.status === 'guest' ? (
+              <TextLink label={t('league.register')} onPress={() => setRegister(true)} />
+            ) : null}
+            {data?.status === 'opted_out' ? (
+              <TextLink
+                label={t('league.join_again')}
+                disabled={busy}
+                onPress={() => {
+                  setActionError(false);
+                  void setHidden(false).catch(() => setActionError(true));
+                }}
+              />
+            ) : null}
+            {!data && error ? (
+              <TextLink label={t('league.retry')} onPress={() => void refresh()} />
+            ) : null}
+            {actionError ? (
+              <PidroText accessibilityRole="alert" tone="danger">
+                {t('league.failed')}
+              </PidroText>
+            ) : null}
           </View>
         ) : null}
-      </Surface>
+      </View>
+      <PlayerSheet playerId={selected} onClose={() => setSelected(null)} />
+      <AuthSheet
+        isOpen={register}
+        reason="save"
+        onClose={() => setRegister(false)}
+        onClaimClassic={(name) => {
+          setRegister(false);
+          router.push({ pathname: '/(auth)/claim-classic', params: { name } });
+        }}
+      />
+      <LeagueIntro />
     </ScreenShell>
   );
 }
 
+function StandingRow({ row, onPress }: { row: LeagueStanding; onPress: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <PressableFX
+      testID={`league-row-${row.place}`}
+      accessibilityRole="button"
+      accessibilityLabel={`${row.place}. ${row.username}${row.me ? ` (${t('league.you')})` : ''}, ${formatNumber(row.points)} XP`}
+      onPress={onPress}
+      style={[styles.row, row.me && styles.me]}>
+      <PidroText role="label" style={[styles.place, row.me && styles.gold]}>
+        {row.place}
+      </PidroText>
+      <PlayerAvatar size={44} uri={row.avatar.url} level={row.level} prestige={row.prestige} />
+      <PidroText role="label" numberOfLines={1} style={[styles.name, row.me && styles.gold]}>
+        {row.username}
+        {row.me ? ` (${t('league.you')})` : ''}
+      </PidroText>
+      <PidroText role="label" style={row.me && styles.gold}>
+        {formatNumber(row.points)}
+      </PidroText>
+    </PressableFX>
+  );
+}
+
 const styles = StyleSheet.create({
-  shell: {
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  panel: {
-    alignItems: 'center',
-    gap: PidroSpacing.sm,
-  },
-  cards: {
+  shell: { flex: 1, minHeight: 0 },
+  layout: { flex: 1, minHeight: 0, gap: 14, width: '100%', maxWidth: 1000, alignSelf: 'center' },
+  columns: { flexDirection: 'row', gap: PidroSpacing.lg },
+  summary: { gap: PidroSpacing.sm, paddingHorizontal: PidroSpacing.xxs },
+  side: { width: '38%', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  title: { fontFamily: PidroFonts.display, fontWeight: '400', lineHeight: 42 },
+  copy: { flex: 1, minWidth: 0, gap: 2 },
+  standings: { flex: 1, minHeight: 0, padding: 6 },
+  list: { flex: 1, minHeight: 0 },
+  rows: { gap: 2, paddingBottom: 58 },
+  row: {
+    minHeight: 54,
     flexDirection: 'row',
-    gap: PidroSpacing.xs,
-    paddingVertical: PidroSpacing.xxs,
-  },
-  card: {
-    width: 32,
-    height: 44,
-    borderRadius: PidroRadii.tight,
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: PidroRadii.surface,
     borderWidth: 1,
-    alignItems: 'center',
+    borderColor: PidroColors.panelStrong,
+  },
+  me: { backgroundColor: PidroColors.chosenBg, borderColor: PidroBevel.rim },
+  place: { width: 22, fontVariant: ['tabular-nums'] },
+  name: { flex: 1, minWidth: 0 },
+  gold: { color: PidroBevel.textGold },
+  divider: {
+    minHeight: 28,
     justifyContent: 'center',
-    boxShadow: '0px 2px 6px rgba(0,0,0,0.4)',
-  },
-  paper: {
-    backgroundColor: PidroColors.leagueCardFace,
-    borderColor: PidroColors.leagueCardEdge,
-  },
-  pidro: {
-    borderColor: PidroBevel.rimDeep,
-  },
-  rank: {
-    fontFamily: PidroFonts.display,
-    fontWeight: '400',
-    fontSize: 16,
-    lineHeight: 18,
-    color: PidroColors.leagueCardInk,
-  },
-  suit: {
-    fontSize: 13,
-    lineHeight: 15,
-    color: PidroColors.leagueCardInk,
-  },
-  red: {
-    color: PidroColors.leagueCardRed,
-  },
-  title: {
-    fontFamily: PidroFonts.display,
-    fontWeight: '400',
-    fontSize: 24,
-    lineHeight: 31,
-    color: PidroBevel.textGold,
-    textShadowColor: 'rgba(20, 8, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 3,
-  },
-  copy: {
-    maxWidth: 300,
-  },
-  periods: {
-    alignSelf: 'stretch',
-    flexDirection: 'row',
-    gap: PidroSpacing.sm,
-    paddingTop: PidroSpacing.sm,
+    paddingHorizontal: 8,
     borderTopWidth: 1,
-    borderTopColor: PidroColors.border,
+    borderTopColor: PidroBevel.rim,
+    marginTop: 2,
   },
-  figure: { flex: 1, gap: 2 },
-  month: {
-    borderLeftWidth: 1,
-    borderLeftColor: PidroColors.border,
+  footer: { paddingVertical: PidroSpacing.sm, paddingHorizontal: 4 },
+  pinned: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    right: 6,
+    backgroundColor: PidroColors.panelStrong,
   },
-  eyebrow: { letterSpacing: 1, textTransform: 'uppercase' },
-  number: { fontWeight: '900', fontVariant: ['tabular-nums'] },
+  empty: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: PidroSpacing.md },
 });
