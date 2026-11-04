@@ -651,6 +651,7 @@ function TableDevHarness() {
     you?: string;
     kill?: string;
     end?: string;
+    pace?: string;
     invitation?: string;
     botTurn?: Position;
     botHand?: string;
@@ -700,6 +701,8 @@ function TableDevHarness() {
                 ? params.end
                 : 'they-made'
             }
+            countHelp={params.count === 'on'}
+            own={params.pace === 'own'}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -1813,9 +1816,20 @@ const HAND_ENDS: Record<HandEnd, { bidder: Position; bid: number; ns: number }> 
  * once the result closes, on a loop. The server sends the next hand with the
  * one that ended; the table holds the ended hand while its result shows.
  * `end=they-made|we-made|we-missed|they-missed`; Tune changes how long
- * the result stays (`showMs=` in the link).
+ * the result stays (`showMs=` in the link). `count=on` shows the result's
+ * panel; off, Classic's end (PID-332). `pace=own` waits for a tap.
  */
-function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
+function HandEndPreview({
+  room,
+  result,
+  countHelp,
+  own,
+}: {
+  room: Room;
+  result: HandEnd;
+  countHelp: boolean;
+  own: boolean;
+}) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
   useEffect(() => {
@@ -1843,6 +1857,42 @@ function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
     };
     const before = { north_south: result === 'game-over' ? 48 : 30, east_west: 21 };
     const heart = (rank: number): Card => ({ rank, suit: 'hearts' });
+    const play = (player: Position, card: Card) => ({ player, card });
+    // Three tricks taken; the last is played out in the first frame.
+    const earlier = [
+      {
+        winner: 'east',
+        cards: [
+          play('north', heart(12)),
+          play('east', heart(14)),
+          play('south', heart(4)),
+          play('west', heart(3)),
+        ],
+      },
+      {
+        winner: 'north',
+        cards: [
+          play('east', heart(8)),
+          play('south', heart(2)),
+          play('west', heart(9)),
+          play('north', heart(10)),
+        ],
+      },
+      {
+        winner: 'north',
+        cards: [
+          play('north', heart(13)),
+          play('east', heart(6)),
+          play('south', { rank: 6, suit: 'diamonds' }),
+          play('west', { rank: 4, suit: 'diamonds' }),
+        ],
+      },
+    ];
+    const last = [
+      play('west', heart(5)),
+      play('north', { rank: 5, suit: 'diamonds' }),
+      play('east', heart(7)),
+    ];
     const scored = (card: Card, points: number, position: Position) => ({
       card,
       points,
@@ -1870,6 +1920,7 @@ function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
         scored(heart(5), 5, 'west'),
         scored({ rank: 5, suit: 'diamonds' }, 5, 'north'),
       ],
+      tricks: [...earlier, { winner: 'south', cards: [...last, play('south', heart(11))] }],
     };
     const base = {
       variant: 'finnish',
@@ -1887,12 +1938,8 @@ function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
           hand_number: 5,
           current_player: 'south',
           scores: before,
-          tricks: [],
-          current_trick: [
-            { player: 'west', card: heart(5) },
-            { player: 'north', card: { rank: 5, suit: 'diamonds' } },
-            { player: 'east', card: heart(7) },
-          ],
+          tricks: earlier,
+          current_trick: last,
           players: {
             north: { hand: 0 },
             east: { hand: 0 },
@@ -1912,6 +1959,7 @@ function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
           current_player: 'east',
           scores: lastHand.scores,
           last_hand: lastHand,
+          ...(own ? { pace: 'own', awaiting_continue: true } : {}),
           tricks: [],
           current_trick: [],
           bid_order: [],
@@ -1939,6 +1987,7 @@ function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
         },
       ],
     ];
+    useSettingsStore.setState({ countHelp });
     store.reset();
     store.initFromRoom({ room, youPlayerId: 'p-south' });
     store.setRole('player');
@@ -1948,9 +1997,11 @@ function HandEndPreview({ room, result }: { room: Room; result: HandEnd }) {
     const timers = frames.map(([at, state]) =>
       setTimeout(() => store.setServerState(state as unknown as ServerGameState), at)
     );
-    timers.push(setTimeout(() => setRun((n) => n + 1), 1500 + handResultTiming.showMs + 6_000));
+    // Own pace waits for a tap; Tune replays it.
+    if (!own)
+      timers.push(setTimeout(() => setRun((n) => n + 1), 1500 + handResultTiming.showMs + 6_000));
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, room, result]);
+  }, [Table, run, room, result, countHelp, own]);
 
   return (
     <View style={{ flex: 1 }}>

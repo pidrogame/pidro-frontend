@@ -1039,6 +1039,21 @@ const allCases = [
     ownPace: true,
   },
   { name: 'table-hand-set', path: '/table-dev?phase=playing&hand=set', testId: 'hand-result' },
+  // PID-332: count help off, a hand ends as Classic's did. Our missed 10 and
+  // their 6 between the hand's 16 cards; then, at own pace, our made 8 and
+  // their 6 alone over the trump mark, waiting for a tap.
+  {
+    name: 'table-hand-classic',
+    path: '/table-dev?deal=hand&end=we-missed&showMs=600000',
+    testId: 'hand-points',
+    classicEnd: { us: '−10', them: '6', played: 16 },
+  },
+  {
+    name: 'table-hand-classic-alone',
+    path: '/table-dev?deal=hand&end=we-made&pace=own&showMs=0',
+    testId: 'hand-points-continue',
+    classicEnd: { us: '8', them: '6', played: 0, own: true },
+  },
   {
     name: 'table-hand-they-set',
     path: '/table-dev?phase=playing&hand=they-set',
@@ -5561,6 +5576,79 @@ async function assertFoldGeometry(page, testCase, viewport) {
   }
 }
 
+// PID-332: no panel, no scrim and no headline; ours | theirs over the trump
+// mark, clear of the seats and of every card still on the table.
+async function assertClassicEnd(page, testCase, viewport) {
+  if (!testCase.classicEnd) return;
+  const { us, them, played, own = false } = testCase.classicEnd;
+  await page.getByTestId(`rendered-played-card-count-${played}`).waitFor({ timeout: 20_000 });
+  if (played) await page.waitForTimeout(600);
+  assert.equal(await page.getByTestId('hand-result').count(), 0, `${testCase.name}: no panel`);
+  const points = page.getByTestId('hand-points');
+  const figures = page.getByTestId('hand-points').getByText(/^−?\d+$/);
+  assert.deepEqual(await figures.allInnerTexts(), [us, them], `${testCase.name}: ours | theirs`);
+  const label = await page.getByLabel(/^Us .*, Them .*$/).getAttribute('aria-label');
+  assert.equal(label, `Us ${us}, Them ${them}`, `${testCase.name}: spoken points`);
+  const first = await getStableBox(figures.first(), page);
+  const last = await getStableBox(figures.last(), page);
+  const row = {
+    x: first.x,
+    y: Math.min(first.y, last.y),
+    width: last.x + last.width - first.x,
+    height: Math.max(first.height, last.height),
+  };
+  assertInsideViewport(`${testCase.name} points`, row, viewport);
+  const center = await page.getByTestId('table-trick-center').boundingBox();
+  assert.ok(
+    Math.abs(row.y + row.height / 2 - (center.y + center.height / 2)) < 2 &&
+      Math.abs(row.x + row.width / 2 - (center.x + center.width / 2)) < 2,
+    `${testCase.name}: the points sit over the trump mark`
+  );
+  // About as tall as a card's corner rank, or larger.
+  const size = Number.parseFloat(
+    await figures.first().evaluate((el) => getComputedStyle(el).fontSize)
+  );
+  assert.ok(size >= 28, `${testCase.name}: figures ${size}px`);
+  const sprites = await page.evaluate(() => window.__pidroCardMotion?.() ?? []);
+  for (const s of sprites.filter((sprite) => sprite.kind === 'played')) {
+    const c = Math.abs(Math.cos(s.rotation));
+    const n = Math.abs(Math.sin(s.rotation));
+    const width = (s.width * c + s.height * n) * s.renderedScale;
+    const height = (s.width * n + s.height * c) * s.renderedScale;
+    const card = { x: s.x - width / 2, y: s.y - height / 2, width, height };
+    assert.ok(!overlaps(row, card), `${testCase.name}: the points clear ${s.key}`);
+  }
+  for (const rel of ['north', 'east', 'south', 'west']) {
+    const seat = await page.getByTestId(`seat-${rel}`).first().boundingBox();
+    assert.ok(!overlaps(row, seat), `${testCase.name}: the points clear ${rel}'s seat`);
+  }
+  // Beside its cards each seat says the last one it played; alone, nothing.
+  for (const rel of ['north', 'east', 'south', 'west']) {
+    const said = await page.getByTestId(`seat-${rel}`).first().getAttribute('aria-label');
+    assert.equal(/plays/.test(said), played > 0, `${testCase.name}: ${rel} says ${said}`);
+  }
+  // Seats stay lit: nothing dims the table.
+  assert.equal(
+    await page
+      .getByTestId('seat-north')
+      .first()
+      .evaluate((el) => {
+        for (let node = el; node; node = node.parentElement)
+          if (Number(getComputedStyle(node).opacity) < 1) return false;
+        return true;
+      }),
+    true,
+    `${testCase.name}: the seats do not fade`
+  );
+  const tap = page.getByTestId('hand-points-continue');
+  assert.equal(await tap.count(), own ? 1 : 0, `${testCase.name}: tap to continue`);
+  assert.equal(
+    await points.getByText('Tap to continue', { exact: true }).count(),
+    own ? 1 : 0,
+    `${testCase.name}: the quiet line`
+  );
+}
+
 // Count help (PID-220): the bid line reads in full and, with "Last trick",
 // keeps off every seat and North's cards. An out seat says so aloud and lays
 // its cards face down on the felt.
@@ -6548,6 +6636,7 @@ async function main() {
         if (
           testCase.words ||
           testCase.ownPace ||
+          testCase.classicEnd ||
           testCase.homeProfile ||
           testCase.details ||
           testCase.scores ||
@@ -7076,6 +7165,7 @@ async function main() {
               .waitFor({ state: 'detached', timeout: 7000 });
           }
           await assertCountHelp(page, testCase, caseViewport);
+          await assertClassicEnd(page, testCase, caseViewport);
           if (testCase.fold) {
             if (testCase.fold.south) await page.getByTestId('rendered-hand-card-count-0').waitFor();
             for (const [seat, count] of Object.entries(testCase.fold)) {

@@ -67,7 +67,13 @@ hand's result, and the next hand dealt once it closes (the server sends the
 next hand with the one that ended; the table holds the ended hand meanwhile).
 `end=they-made|we-made|we-missed|they-missed`; **Tune** changes how long the
 result stays (`showMs=` in the link). The server's `hand_transition_delay_ms`
-must cover the result and the deal.
+must cover the result and the deal. `count=on` shows the PID-236 panel; without
+it the hand ends as Classic's did (PID-332): ours | theirs over the trump mark
+between the hand's cards, which clear halfway through `showMs`. `pace=own`
+waits for a tap. Grammar cases `table-hand-classic`
+(`end=we-missed&showMs=600000`, −10 | 6 among 16 cards) and
+`table-hand-classic-alone` (`end=we-made&pace=own&showMs=0`, 8 | 6 alone) cover
+both beats at 390×844, 375×667, 844×390 and 768×1024.
 
 PID-214 bid presentation uses `/table-dev?phase=bidding&role=player&bids=round|high&locale=sv`.
 `table-bid-*` and `locale-sv-table-bid-*` check every seat's visible/spoken bid,
