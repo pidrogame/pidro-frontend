@@ -742,10 +742,10 @@ const allCases = [
       locale,
     }))
   ),
-  ...['friends', 'friends-not_placed', 'friends-sheet'].flatMap((state) =>
+  ...['friends', 'friends-not_placed', 'friends-sheet', 'friends-pin'].flatMap((state) =>
     ['en', 'sv'].map((locale) => ({
       name: `league-${state}-${locale}`,
-      path: `/league?fixture=league-${state === 'friends-sheet' ? 'friends' : state}`,
+      path: `/league?fixture=league-${['friends-sheet', 'friends-pin'].includes(state) ? 'friends' : state}`,
       testId: 'league-screen',
       authenticated: true,
       league: state,
@@ -8259,6 +8259,50 @@ async function assertLeague(page, testCase, viewport) {
         await mirja.evaluate((node) => getComputedStyle(node).backgroundColor),
         'own row is highlighted'
       );
+    }
+    if (state === 'friends-pin') {
+      const pin = page.getByTestId('league-pinned');
+      const standing = list.getByTestId('league-row-6');
+      const assertOwnCopy = async (fullyVisible) => {
+        await waitForScreenshotReady(page);
+        const bounds = await list.boundingBox();
+        const row = await own.boundingBox();
+        const original = await standing.boundingBox();
+        assert.ok(original.y + original.height < bounds.y, 'standings copy is offscreen');
+        assert.equal(
+          row.y >= bounds.y && row.y + row.height <= bounds.y + bounds.height,
+          fullyVisible,
+          'friends copy full visibility from actual element boxes'
+        );
+        assert.equal(await pin.count(), fullyVisible ? 0 : 1, 'pin only without a full own copy');
+      };
+      await assertOwnCopy(true);
+      await list.evaluate((node) => (node.scrollTop = 500));
+      await pin.waitFor();
+      await waitForScreenshotReady(page);
+      const row = await own.boundingBox();
+      const bounds = await list.boundingBox();
+      await list.evaluate(
+        (node, delta) => (node.scrollTop += delta),
+        row.y + row.height / 2 - bounds.y - bounds.height
+      );
+      await assertOwnCopy(false);
+      const partial = await own.boundingBox();
+      const partialBounds = await list.boundingBox();
+      assert.ok(
+        partial.y < partialBounds.y + partialBounds.height &&
+          partial.y + partial.height > partialBounds.y + partialBounds.height,
+        'partially visible friends copy still needs the pin'
+      );
+      await list.evaluate(
+        (node, delta) => (node.scrollTop += delta),
+        partial.y + partial.height - partialBounds.y - partialBounds.height + 4
+      );
+      await assertOwnCopy(true);
+      await list.evaluate((node) => (node.scrollTop = 0));
+      await waitForScreenshotReady(page);
+      await list.evaluate((node) => (node.scrollTop = node.scrollHeight));
+      await assertOwnCopy(true);
     }
     await assertLeagueSymbolCopy(friends);
     await assertMinimumTouchTargets(page, testCase.testId, viewport);

@@ -254,6 +254,25 @@ test('own row pins at either partial edge, unpins only when fully visible, and y
   assert.equal(shouldPinLeagueRow({ y: 999, height: 0 }, 0, 350, 4), false);
 });
 
+test('a fully visible friends copy hides the pin, but a partial or unmeasured copy does not', () => {
+  const standing = { y: 300, height: 56 };
+  for (const pinned of [false, true]) {
+    const bottom = 750 - (pinned ? 60 : 0);
+    for (const [y, height, expected] of [
+      [400, 56, false],
+      [399, 56, true],
+      [bottom - 56, 56, false],
+      [bottom - 55, 56, true],
+      [500, 0, true],
+    ] as const)
+      assert.equal(shouldPinLeagueRow(standing, 400, 350, 60, pinned, { y, height }), expected);
+  }
+  assert.equal(
+    shouldPinLeagueRow({ y: 400, height: 56 }, 400, 350, 60, true, { y: 800, height: 56 }),
+    false
+  );
+});
+
 test('countdown floors whole minutes, keeps both units, and clamps expiry in both languages', () => {
   const close = '2026-11-08T19:00:00Z';
   for (const [now, en, sv] of [

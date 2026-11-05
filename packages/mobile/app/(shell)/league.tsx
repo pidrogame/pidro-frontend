@@ -42,6 +42,8 @@ export default function LeagueScreen() {
   const [viewport, setViewport] = useState(0);
   const [offset, setOffset] = useState(0);
   const [ownBox, setOwnBox] = useState({ y: 0, height: 0 });
+  const [friendsY, setFriendsY] = useState(0);
+  const [friendsOwnBox, setFriendsOwnBox] = useState({ y: 0, height: 0 });
   const [pinned, setPinned] = useState(false);
   const [, setMinute] = useState(0);
   useFocusEffect(
@@ -58,7 +60,15 @@ export default function LeagueScreen() {
   const own = room?.standings.find((row) => row.me);
   const selectedRow = room?.standings.find((row) => row.user_id === selected);
   const needsPin = Boolean(
-    own && shouldPinLeagueRow(ownBox, offset, viewport, ownBox.height + PidroSpacing.xs, pinned)
+    own &&
+    shouldPinLeagueRow(
+      ownBox,
+      offset,
+      viewport,
+      ownBox.height + PidroSpacing.xs,
+      pinned,
+      data?.friends?.length ? { ...friendsOwnBox, y: friendsY + friendsOwnBox.y } : undefined
+    )
   );
   if (needsPin !== pinned) setPinned(needsPin);
   return (
@@ -141,7 +151,11 @@ export default function LeagueScreen() {
                     ) : null}
                   </Fragment>
                 ))}
-                <LeagueFriends />
+                <View onLayout={(event) => setFriendsY(event.nativeEvent.layout.y)}>
+                  <LeagueFriends
+                    onOwnLayout={(event) => setFriendsOwnBox(event.nativeEvent.layout)}
+                  />
+                </View>
               </ScrollView>
               {pinned && own ? (
                 <View testID="league-pinned" style={styles.pinned}>

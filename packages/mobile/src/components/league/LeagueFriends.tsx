@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, type ViewProps } from 'react-native';
 import { useGlobalSearchParams, useNavigation, useRouter } from 'expo-router';
 import type { LeagueFriend } from '@pidro/shared';
 import { friendsApi } from '@/api/friends';
@@ -25,7 +25,7 @@ import { useLobbyStore } from '@/stores/lobby';
 import { LeagueCard } from './LeagueCard';
 import { useLeague } from './LeagueHost';
 
-export function LeagueFriends() {
+export function LeagueFriends({ onOwnLayout }: { onOwnLayout?: ViewProps['onLayout'] }) {
   const { t } = useTranslation();
   const { data, refresh } = useLeague();
   const router = useRouter();
@@ -66,6 +66,7 @@ export function LeagueFriends() {
         <PressableFX
           key={player.user_id}
           testID={`league-friend-${player.user_id}`}
+          onLayout={player.me ? onOwnLayout : undefined}
           accessibilityRole="button"
           accessibilityLabel={`${player.username}${player.me ? ` (${t('league.you')})` : ''} · ${leagueName(player.league)} · ${formatNumber(player.points)}`}
           onPress={() => {

@@ -1122,7 +1122,10 @@ not-placed fixture has only the two friends, not a fabricated own standing. Tap 
 friend row for the existing FriendSheet; own rows are not friends. Mirja and Kalle
 also have standings marks `league-friend-mark-${row.user_id}`. Grammar
 cases `league-friends|friends-not_placed|friends-sheet-en|sv` cover all four sizes;
-empty friend sections stay absent. `league-player-sheet-en|sv` taps Mirja's first
+empty friend sections stay absent. `league-friends-pin-en|sv` uses the same friends
+fixture at all four sizes: the pin hides while your friends row is fully visible,
+returns for a partial row, then hides again when the row is fully visible. It also
+checks scrolling away and back to the end of the list. `league-player-sheet-en|sv` taps Mirja's first
 standings row and checks the contextual `player-sheet-league` chip: card plus
 **1st this week** / **1:a den här veckan**, with no rendered card name.
 

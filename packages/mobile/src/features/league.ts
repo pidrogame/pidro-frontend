@@ -94,12 +94,19 @@ export function shouldPinLeagueRow(
   offset: number,
   viewport: number,
   footerHeight: number,
-  pinned = false
+  pinned = false,
+  friendsRow?: { y: number; height: number }
 ): boolean {
   return (
     row.height > 0 &&
     viewport > footerHeight &&
-    (row.y < offset || row.y + row.height > offset + viewport - (pinned ? footerHeight : 0))
+    ![row, friendsRow].some(
+      (copy) =>
+        copy &&
+        copy.height > 0 &&
+        copy.y >= offset &&
+        copy.y + copy.height <= offset + viewport - (pinned ? footerHeight : 0)
+    )
   );
 }
 
