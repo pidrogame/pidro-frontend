@@ -8,6 +8,7 @@ import { LeagueRules } from '@/components/league/LeagueRules';
 import { LeagueFriends } from '@/components/league/LeagueFriends';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { usePillClearance } from '@/components/shell/TabPill';
+import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
@@ -15,7 +16,13 @@ import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
 import { PidroBevel, PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
-import { closeTimeText, leagueBands, nextLeague, previousLeague } from '@/features/league';
+import {
+  closeTimeText,
+  leagueBands,
+  nextLeague,
+  previousLeague,
+  shouldPinLeagueRow,
+} from '@/features/league';
 import { LEAGUE_FIXTURE_NOW } from '@/features/leagueFixtures';
 import { formatNumber, useTranslation } from '@/i18n';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -35,6 +42,7 @@ export default function LeagueScreen() {
   const [viewport, setViewport] = useState(0);
   const [offset, setOffset] = useState(0);
   const [ownBox, setOwnBox] = useState({ y: 0, height: 0 });
+  const [pinned, setPinned] = useState(false);
   const [, setMinute] = useState(0);
   useFocusEffect(
     useCallback(() => {
@@ -49,11 +57,10 @@ export default function LeagueScreen() {
   const bands = league && room ? leagueBands(league, room) : null;
   const own = room?.standings.find((row) => row.me);
   const selectedRow = room?.standings.find((row) => row.user_id === selected);
-  const pinned =
-    own &&
-    ownBox.height > 0 &&
-    viewport > ownBox.height + PidroSpacing.xs &&
-    (ownBox.y + ownBox.height <= offset || ownBox.y >= offset + viewport);
+  const needsPin = Boolean(
+    own && shouldPinLeagueRow(ownBox, offset, viewport, ownBox.height + PidroSpacing.xs, pinned)
+  );
+  if (needsPin !== pinned) setPinned(needsPin);
   return (
     <ScreenShell
       testID="league-screen"
@@ -136,7 +143,7 @@ export default function LeagueScreen() {
                 ))}
                 <LeagueFriends />
               </ScrollView>
-              {pinned ? (
+              {pinned && own ? (
                 <View testID="league-pinned" style={styles.pinned}>
                   <StandingRow row={own} onPress={() => setSelected(own.user_id)} />
                 </View>
@@ -222,6 +229,11 @@ function StandingRow({ row, onPress }: { row: LeagueStanding; onPress: () => voi
         {row.username}
         {row.me ? ` (${t('league.you')})` : ''}
       </PidroText>
+      {row.friend ? (
+        <View testID={`league-friend-mark-${row.user_id}`} accessibilityLabel={t('social.friends')}>
+          <Icon name="friends" size={16} color={PidroColors.cyanText} />
+        </View>
+      ) : null}
       <PidroText role="label" style={row.me && styles.gold}>
         {formatNumber(row.points)}
       </PidroText>

@@ -19,26 +19,22 @@ const LeagueContext = createContext<{
   data: LeagueState | null;
   error: boolean;
   busy: boolean;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<LeagueState | null>;
   setHidden: (hidden: boolean) => Promise<void>;
   resultSeen: (id: string) => Promise<void>;
 }>({
   data: null,
   error: false,
   busy: false,
-  refresh: async () => {},
+  refresh: async () => null,
   setHidden: async () => {},
   resultSeen: async () => {},
 });
 
-/** One server answer for the shell. Nothing authoritative is persisted on the device. */
+/** One server answer shared by the shell and the game. */
 export function LeagueHost({ children }: { children: ReactNode }) {
   const token = useAuthStore((state) => state.accessToken);
-  return (
-    <LeagueSession key={token} token={token}>
-      {children}
-    </LeagueSession>
-  );
+  return <LeagueSession token={token}>{children}</LeagueSession>;
 }
 
 function LeagueSession({ children, token }: { children: ReactNode; token: string | null }) {
@@ -46,37 +42,40 @@ function LeagueSession({ children, token }: { children: ReactNode; token: string
   const preview = useMemo(() => leagueFixture(fixture), [fixture]);
   const path = usePathname();
   const [answer, setAnswer] = useState<{ token: string; data: LeagueState } | null>(null);
-  const [error, setError] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [errorToken, setErrorToken] = useState<string | null>(null);
+  const [busyToken, setBusyToken] = useState<string | null>(null);
   const [fixtureAnswer, setFixtureAnswer] = useState<{
     fixture?: string;
     data: LeagueState;
   } | null>(null);
   const current = useRef(token);
-  const locked = useRef(false);
+  const locked = useRef<string | null>(null);
   const refreshPending = useRef(false);
   const request = useRef(0);
   const refresh = useCallback(async () => {
-    if (!token || preview) return;
-    if (locked.current) {
+    if (preview) return preview;
+    if (!token) return null;
+    if (locked.current === token) {
       refreshPending.current = true;
-      return;
+      return null;
     }
     const version = ++request.current;
     try {
       const data = await leagueApi.get();
       if (current.current === token && request.current === version) {
         setAnswer({ token, data });
-        setError(false);
+        setErrorToken(null);
         if (data.pending_result?.move === 'stayed') {
           await leagueApi.markResultSeen(data.pending_result.id);
           if (current.current === token && request.current === version)
             setAnswer({ token, data: { ...data, pending_result: null } });
         }
+        if (current.current === token && request.current === version) return data;
       }
     } catch {
-      if (current.current === token && request.current === version) setError(true);
+      if (current.current === token && request.current === version) setErrorToken(token);
     }
+    return null;
   }, [token, preview]);
   useEffect(() => {
     current.current = token;
@@ -103,22 +102,24 @@ function LeagueSession({ children, token }: { children: ReactNode; token: string
     action: () => Promise<LeagueState | void>,
     next: (data: LeagueState) => LeagueState
   ) => {
-    if (locked.current || !token) throw new Error('League action unavailable');
-    locked.current = true;
+    if (!token || locked.current === token) throw new Error('League action unavailable');
+    locked.current = token;
     request.current++;
-    setBusy(true);
+    setBusyToken(token);
     try {
       const result = preview ? undefined : await action();
       if (current.current !== token) throw new Error('League session changed');
       if (preview) setFixtureAnswer({ fixture, data: next(data!) });
       else if (data) setAnswer({ token, data: result ?? next(data) });
-      setError(false);
+      setErrorToken(null);
     } finally {
-      locked.current = false;
-      setBusy(false);
-      if (refreshPending.current) {
-        refreshPending.current = false;
-        void refresh();
+      if (current.current === token) {
+        locked.current = null;
+        setBusyToken(null);
+        if (refreshPending.current) {
+          refreshPending.current = false;
+          void refresh();
+        }
       }
     }
   };
@@ -126,8 +127,8 @@ function LeagueSession({ children, token }: { children: ReactNode; token: string
     <LeagueContext.Provider
       value={{
         data,
-        error,
-        busy,
+        error: token != null && errorToken === token,
+        busy: token != null && busyToken === token,
         refresh,
         resultSeen: (id) =>
           mutate(

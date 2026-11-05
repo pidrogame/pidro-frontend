@@ -8,11 +8,11 @@ import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { PidroText } from '@/components/ui/PidroText';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
-import { PidroSpacing } from '@/design/tokens';
-import { leagueName, ordinal } from '@/features/league';
+import { PidroBevel, PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { leagueName } from '@/features/league';
 import { roomHasUser } from '@/features/lobby/newTable';
 import { friendSheetFixture } from '@/features/profileFixtures';
-import { useTranslation } from '@/i18n';
+import { formatNumber, useTranslation } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
 import {
   addFriend,
@@ -52,37 +52,43 @@ export function LeagueFriends() {
       })
     : null;
   if (!data?.friends?.length) return null;
+  const me = data.status === 'placed' ? data.room?.standings.find((standing) => standing.me) : null;
+  const players = [
+    ...data.friends.map((player) => ({ ...player, me: false })),
+    ...(me && data.league ? [{ ...me, league: data.league }] : []),
+  ].sort((a, b) => b.points - a.points || a.user_id.localeCompare(b.user_id));
   return (
     <View testID="league-friends" style={styles.section}>
       <PidroText role="eyebrow" tone="cyan">
         {t('league.friends.title')}
       </PidroText>
-      {data.friends.map((player) => (
+      {players.map((player) => (
         <PressableFX
           key={player.user_id}
           testID={`league-friend-${player.user_id}`}
           accessibilityRole="button"
-          accessibilityLabel={`${player.username} · ${leagueName(player.league)} · ${ordinal(player.place)}`}
+          accessibilityLabel={`${player.username}${player.me ? ` (${t('league.you')})` : ''} · ${leagueName(player.league)} · ${formatNumber(player.points)}`}
           onPress={() => {
-            setSelected(player);
-            if (!preview) void refreshFriends().catch(() => undefined);
+            if (player.me) setProfile(player);
+            else {
+              setSelected(player);
+              if (!preview) void refreshFriends().catch(() => undefined);
+            }
           }}
-          style={styles.row}>
+          style={[styles.row, player.me && styles.me]}>
           <PlayerAvatar
             size={44}
             uri={player.avatar.url}
             level={player.level}
             prestige={player.prestige}
           />
-          <View style={styles.name}>
-            <PidroText role="label" numberOfLines={1}>
-              {player.username}
-            </PidroText>
-            <PidroText role="metadata" tone="soft">
-              {t('league.line.placed', { place: ordinal(player.place) })}
-            </PidroText>
-          </View>
+          <PidroText role="label" numberOfLines={1} style={[styles.name, player.me && styles.gold]}>
+            {player.username}
+          </PidroText>
           <LeagueCard league={player.league} size={26} />
+          <PidroText role="label" style={player.me && styles.gold}>
+            {formatNumber(player.points)}
+          </PidroText>
         </PressableFX>
       ))}
       {friend ? (
@@ -154,6 +160,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: PidroSpacing.sm,
     paddingVertical: PidroSpacing.xs,
+    paddingHorizontal: PidroSpacing.xs,
+    borderRadius: PidroRadii.tight,
   },
-  name: { flex: 1, minWidth: 0, gap: 2 },
+  me: { backgroundColor: PidroColors.goldSoft },
+  gold: { color: PidroBevel.textGold },
+  name: { flex: 1, minWidth: 0 },
 });

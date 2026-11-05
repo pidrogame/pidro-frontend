@@ -30,6 +30,8 @@ import { GameOverOverlay } from '@/components/game/GameOverOverlay';
 import { useTableReserves, useTableSize } from './TableChrome';
 import { computeLayout, northSeatBottom } from './layout';
 import { useTranslation } from '@/i18n';
+import { leagueFixture } from '@/features/leagueFixtures';
+import { leagueGameLine } from '@/features/league';
 
 const noop = () => {};
 
@@ -368,6 +370,7 @@ export function DevOverlays({
   guest = false,
   crew,
   people,
+  leagueChange,
 }: {
   phase: string;
   isHandReady: boolean;
@@ -379,10 +382,22 @@ export function DevOverlays({
   guest?: boolean;
   crew?: 'win' | 'loss';
   people?: 'win' | 'loss';
+  leagueChange?: string;
 }) {
   const { t } = useTranslation();
   const router = useRouter();
   const [voted, setVoted] = useState(false);
+  const [leagueReady, setLeagueReady] = useState(leagueChange !== 'delayed');
+  useEffect(() => {
+    if (leagueChange !== 'delayed') return;
+    const timer = setTimeout(() => setLeagueReady(true), 1000);
+    return () => clearTimeout(timer);
+  }, [leagueChange]);
+  const before = leagueFixture(leagueChange === 'new' ? 'league-not_placed' : 'league-placed');
+  const after = leagueChange
+    ? leagueFixture(`league-game-${leagueChange === 'delayed' ? 'up' : leagueChange}`)
+    : null;
+  const leagueLine = after ? leagueGameLine(before, after, 20) : null;
   const insets = useSafeAreaInsets();
   const { topReserve, bottomReserve } = useTableReserves();
   const { width, height } = useTableSize();
@@ -491,6 +506,11 @@ export function DevOverlays({
         <GameOverOverlay
           viewModel={resultModel}
           serverState={resultState}
+          leagueProgress={
+            leagueReady && after?.league && leagueLine
+              ? { league: after.league, line: leagueLine }
+              : null
+          }
           onHome={() => router.replace('/home')}
           onPlayAgain={() => setVoted(true)}
           rematch={asked && vote(voted ? [...asked, viewer] : asked, viewer, !!crew)}

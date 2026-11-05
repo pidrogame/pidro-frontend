@@ -9,11 +9,11 @@ import {
 
 /** Display order only; promotion and demotion counts always come from the server. */
 export const LEAGUES = [
-  { id: 'deuce', rank: '2', suit: '♣', red: false, labelKey: 'league.name.deuce' },
-  { id: 'ten', rank: '10', suit: '♦', red: true, labelKey: 'league.name.ten' },
+  { id: 'deuce', rank: '2', suit: '♥', red: true, labelKey: 'league.name.deuce' },
+  { id: 'ten', rank: '10', suit: '♥', red: true, labelKey: 'league.name.ten' },
   { id: 'jack', rank: 'J', suit: '♥', red: true, labelKey: 'league.name.jack' },
-  { id: 'ace', rank: 'A', suit: '♠', red: false, labelKey: 'league.name.ace' },
-  { id: 'pidro', rank: '', suit: '♠', red: false, labelKey: 'league.name.pidro' },
+  { id: 'ace', rank: 'A', suit: '♥', red: true, labelKey: 'league.name.ace' },
+  { id: 'pidro', rank: '5', suit: '♥', red: true, labelKey: 'league.name.pidro' },
 ] as const;
 
 export function leagueName(id: LeagueId): string {
@@ -64,6 +64,43 @@ export function leagueLine(data: LeagueState): string | null {
 
 export function shouldShowLeagueResult(result: LeagueResult | null): boolean {
   return result?.move === 'up' || result?.move === 'down';
+}
+
+export function placeArrow(before: number | null, after: number): string {
+  return before == null || before === after ? '' : after < before ? ' ↑' : ' ↓';
+}
+
+export function leagueGameLine(
+  before: LeagueState | null,
+  after: LeagueState,
+  points: number
+): string | null {
+  if (
+    after.status !== 'placed' ||
+    !after.me ||
+    !after.league ||
+    (before && !['placed', 'not_placed'].includes(before.status))
+  )
+    return null;
+  const place = ordinal(after.me.place);
+  if (before?.status === 'not_placed') return t('league.game.joined', { place });
+  const comparable =
+    before?.league === after.league && before?.week?.starts_at === after.week?.starts_at;
+  return `${t('league.game.points', { points, place })}${placeArrow(comparable ? (before?.me?.place ?? null) : null, after.me.place)}`;
+}
+
+export function shouldPinLeagueRow(
+  row: { y: number; height: number },
+  offset: number,
+  viewport: number,
+  footerHeight: number,
+  pinned = false
+): boolean {
+  return (
+    row.height > 0 &&
+    viewport > footerHeight &&
+    (row.y < offset || row.y + row.height > offset + viewport - (pinned ? footerHeight : 0))
+  );
 }
 
 export function ribbonMonth(month: string, short = false): string {

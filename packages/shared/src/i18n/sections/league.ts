@@ -19,6 +19,8 @@ export const en = {
   "league.name.ace": "Ace",
   "league.name.pidro": "Pidro",
   "league.line.placed": "%{place} this week",
+  "league.game.points": "+%{points} · %{place} this week",
+  "league.game.joined": "You’re on the board · %{place} this week",
   "league.close.days": "Ends in %{days}d %{hours}h",
   "league.close.hours": "Ends in %{hours}h %{minutes}m",
   "league.rules.title": "League",
@@ -37,7 +39,7 @@ export const en = {
   "league.ribbons.so_far": "%{month} so far",
   "league.ribbons.label": "%{month}, %{league}",
   "league.ribbons.label_star": "%{month}, %{league}, star",
-  "league.friends.title": "Your friends this week",
+  "league.friends.title": "Friends this week",
   "league.settings.hidden": "Hide me from leagues",
   "league.settings.help": "You won’t show up in anyone’s standings.",
   "league.settings.midweek":
@@ -64,6 +66,8 @@ export const sv = {
   "league.name.ace": "Ess",
   "league.name.pidro": "Pidro",
   "league.line.placed": "%{place} den här veckan",
+  "league.game.points": "+%{points} · %{place} den här veckan",
+  "league.game.joined": "Du är med på listan · %{place} den här veckan",
   "league.close.days": "Slutar om %{days} d %{hours} h",
   "league.close.hours": "Slutar om %{hours} h %{minutes} min",
   "league.rules.title": "Liga",
@@ -82,10 +86,11 @@ export const sv = {
   "league.ribbons.so_far": "%{month} hittills",
   "league.ribbons.label": "%{month}, %{league}",
   "league.ribbons.label_star": "%{month}, %{league}, stjärna",
-  "league.friends.title": "Dina vänner den här veckan",
+  "league.friends.title": "Vänner den här veckan",
   "league.settings.hidden": "Dölj mig i ligorna",
   "league.settings.help": "Du syns inte på någon annans topplista.",
   "league.settings.midweek":
     "Om du har spelat den här veckan räknas din nuvarande plats.",
-  "league.settings.error": "Det gick inte att ändra inställningen. Försök igen.",
+  "league.settings.error":
+    "Det gick inte att ändra inställningen. Försök igen.",
 } as const satisfies Record<keyof typeof en, TranslationEntry>;

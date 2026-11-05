@@ -18,6 +18,7 @@ export interface LeagueStanding {
   pin: SeatPin | null;
   points: number;
   me: boolean;
+  friend: boolean;
 }
 
 export interface LeagueFriend {
@@ -28,6 +29,7 @@ export interface LeagueFriend {
   prestige: number;
   league: LeagueId;
   place: number;
+  points: number;
 }
 
 export interface LeagueRibbon {

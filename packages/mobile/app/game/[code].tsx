@@ -14,7 +14,16 @@ import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLobbyStore } from '@/stores/lobby';
 import { useGameStore } from '@/stores/game';
-import { publicPlayerName, rematchVote, roomWithReadiness, type RematchVote } from '@pidro/shared';
+import {
+  publicPlayerName,
+  rematchVote,
+  roomWithReadiness,
+  type RematchVote,
+  type LeagueId,
+  type LeagueState,
+} from '@pidro/shared';
+import { useLeague } from '@/components/league/LeagueHost';
+import { leagueGameLine } from '@/features/league';
 import { useAuthStore } from '@/stores/auth';
 import { lobbyApi } from '@/api/lobby';
 import { api } from '@/api/client';
@@ -47,6 +56,7 @@ import { useTableAnalytics } from '@/analytics/useTableAnalytics';
 type SkiaTableProps = {
   room: Room;
   progressionSummary?: ProgressionSummary | null;
+  leagueProgress?: { league: LeagueId; line: string } | null;
   onLeave: () => void;
   onPlayAgain?: () => void;
   rematch?: RematchVote | null;
@@ -248,10 +258,20 @@ export default function GameScreen() {
   }, [room]);
   const [progressionResult, setProgressionResult] = useState<{
     roomCode: string;
+    instance?: string;
     summary: ProgressionSummary;
+    league?: { league: LeagueId; line: string };
+    leagueBefore?: LeagueState | null;
+    leaguePending?: boolean;
   } | null>(null);
+  const gameInstance = useGameStore((state) => state.serverState?.game_instance_id);
   const progressionSummary =
-    progressionResult?.roomCode === code ? progressionResult.summary : null;
+    progressionResult?.roomCode === code && progressionResult.instance === gameInstance
+      ? progressionResult.summary
+      : null;
+  const leagueProgress = progressionSummary ? progressionResult?.league : null;
+  const { data: league, refresh: refreshLeague } = useLeague();
+  const leagueCompletion = useRef<string | null>(null);
   const [restoreFailureCode, setRestoreFailureCode] = useState<string | null>(null);
   const [restoreAttempt, setRestoreAttempt] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
@@ -387,10 +407,67 @@ export default function GameScreen() {
 
   const handleProgressionSummary = useCallback(
     (summary: ProgressionSummary) => {
-      if (code) setProgressionResult({ roomCode: code, summary });
+      if (!code) return;
+      const game = useGameStore.getState();
+      const instance = game.serverState?.game_instance_id;
+      setProgressionResult((previous) => ({
+        ...(previous?.roomCode === code && previous.instance === instance ? previous : {}),
+        roomCode: code,
+        instance,
+        summary,
+      }));
+      const humans = game.readiness
+        ? Object.values(game.readiness.seats).filter((seat) => seat.occupant_type === 'human')
+            .length
+        : Object.values(game.playerMeta).filter(
+            (player) => player.playerId && !player.playerId.startsWith('bot_')
+          ).length;
+      const completion = `${code}:${instance ?? JSON.stringify(game.serverState?.scores)}`;
+      if (
+        currentUser?.guest ||
+        game.role !== 'player' ||
+        humans < 2 ||
+        (league && !['placed', 'not_placed'].includes(league.status))
+      )
+        return;
+      if (leagueCompletion.current === completion) {
+        void refreshLeague();
+        return;
+      }
+      leagueCompletion.current = completion;
+      setProgressionResult({
+        roomCode: code,
+        instance,
+        summary,
+        leagueBefore: league,
+        leaguePending: true,
+      });
+      void refreshLeague();
     },
-    [code]
+    [code, currentUser?.guest, league, refreshLeague]
   );
+
+  useEffect(() => {
+    if (
+      !progressionResult?.leaguePending ||
+      progressionResult.roomCode !== code ||
+      progressionResult.instance !== gameInstance ||
+      !league?.league ||
+      league === progressionResult.leagueBefore
+    )
+      return;
+    const line = leagueGameLine(
+      progressionResult.leagueBefore ?? null,
+      league,
+      progressionResult.summary.xp_earned
+    );
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- settle against the next successful same-session server answer
+    setProgressionResult({
+      ...progressionResult,
+      leaguePending: false,
+      ...(line ? { league: { league: league.league, line } } : {}),
+    });
+  }, [league, progressionResult, code, gameInstance]);
 
   const refreshWaitingRoom = useCallback(async () => {
     if (!code || waitingRoomExitRef.current) return;
@@ -771,6 +848,7 @@ export default function GameScreen() {
         <SkiaGameTable
           room={room}
           progressionSummary={progressionSummary}
+          leagueProgress={leagueProgress}
           onLeave={() => handleLeaveGame()}
           onPlayAgain={handlePlayAgain}
           rematch={rematch}

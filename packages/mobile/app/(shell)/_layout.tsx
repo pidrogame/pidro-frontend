@@ -21,7 +21,6 @@ import {
 import { UpdateNotice, UpdateNoticeHost } from '@/components/shell/UpdateNotice';
 import { FriendNoticeHost, useShellFriendNotice } from '@/components/shell/FriendNoticeHost';
 import { useAppUpdate } from '@/hooks/useAppUpdate';
-import { LeagueHost } from '@/components/league/LeagueHost';
 import { LeagueResult } from '@/components/league/LeagueResult';
 import { PidroSpacing } from '@/design/tokens';
 import { useAuthStore } from '@/stores/auth';
@@ -54,13 +53,11 @@ export default function ShellLayout() {
   const params = useGlobalSearchParams<{ fixture?: string; safeArea?: string }>();
   return (
     <FixtureInsets preset={__DEV__ ? params.safeArea : undefined}>
-      <LeagueHost>
-        <Shell
-          forceUpdateNotice={__DEV__ && params.fixture === 'update-notice'}
-          fixture={__DEV__ ? params.fixture : undefined}
-        />
-        <LeagueResult />
-      </LeagueHost>
+      <Shell
+        forceUpdateNotice={__DEV__ && params.fixture === 'update-notice'}
+        fixture={__DEV__ ? params.fixture : undefined}
+      />
+      <LeagueResult />
     </FixtureInsets>
   );
 }

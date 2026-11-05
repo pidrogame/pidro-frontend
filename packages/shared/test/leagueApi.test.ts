@@ -72,6 +72,7 @@ describe("league API contract", () => {
             pin: "classic",
             points: 3120,
             me: true,
+            friend: false,
           },
         ],
       },
@@ -85,6 +86,7 @@ describe("league API contract", () => {
           prestige: 0,
           league: "ace",
           place: 3,
+          points: 2715,
         },
       ],
       ribbons: {
@@ -121,6 +123,8 @@ describe("league API contract", () => {
     expect(received.ribbons.past[0].star_possible).toBe(false);
     expect(received.pending_result?.ribbon.star_possible).toBe(true);
     expect(received.room?.standings[0].avatar).toEqual({ url: null });
+    expect(received.room?.standings[0].friend).toBe(false);
+    expect(received.friends?.[0].points).toBe(2715);
     expect(received.friends?.[0].avatar.url).toBe(
       "https://example.com/avatar.jpg",
     );

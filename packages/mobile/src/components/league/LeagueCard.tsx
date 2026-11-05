@@ -1,7 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import type { LeagueId } from '@pidro/shared';
 import { gradientBg } from '@/components/ui/Bevel';
-import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { LEAGUES, leagueName } from '@/features/league';
@@ -30,28 +29,22 @@ export function LeagueCard({
         lit && styles.lit,
         faded && styles.faded,
       ]}>
-      {pidro ? (
-        <Icon name="spade" size={size * 0.56} color={PidroBevel.woodDeep} />
-      ) : (
-        <>
-          <PidroText
-            style={[
-              styles.rank,
-              { fontSize: size * 0.56, lineHeight: size * 0.66 },
-              card.red && styles.red,
-            ]}>
-            {card.rank}
-          </PidroText>
-          <PidroText
-            style={[
-              styles.suit,
-              { fontSize: size * 0.43, lineHeight: size * 0.5 },
-              card.red && styles.red,
-            ]}>
-            {card.suit}
-          </PidroText>
-        </>
-      )}
+      <PidroText
+        style={[
+          styles.rank,
+          { fontSize: size * 0.56, lineHeight: size * 0.66 },
+          card.red && styles.red,
+        ]}>
+        {card.rank}
+      </PidroText>
+      <PidroText
+        style={[
+          styles.suit,
+          { fontSize: size * 0.43, lineHeight: size * 0.5 },
+          card.red && styles.red,
+        ]}>
+        {card.suit}
+      </PidroText>
     </View>
   );
 }

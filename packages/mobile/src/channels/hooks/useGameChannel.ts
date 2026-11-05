@@ -271,15 +271,14 @@ export const useGameChannel = ({
             }
 
             if (response?.readiness) setReadiness(response.readiness as ReadinessSnapshot);
-            // A rejoin after game over carries the summary the push did (PID-234).
-            const summary = parseProgressionSummary(response?.progression_summary);
-            if (summary) onProgressionSummaryRef.current?.(summary);
-
             const gameState = extractGameState(response);
             if (gameState) {
               setServerState(gameState);
               observed(gameState);
             }
+            // A rejoin summary belongs to the state in this reply, not the previous game.
+            const summary = parseProgressionSummary(response?.progression_summary);
+            if (summary) onProgressionSummaryRef.current?.(summary);
             gameDiagnostics.record({ type: 'connection', code: 'connected', action: 'join' });
             setPresentation(extractGamePresentation(response));
 

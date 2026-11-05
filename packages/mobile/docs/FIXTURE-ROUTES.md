@@ -1039,6 +1039,8 @@ mutations. States: `placed` (Bengt, 6th with 1,240), `27` (own row pinned),
 `opted_out`, `guest`, and `off`. Home and Profile accept the same fixture prefix
 for their league card/cells. Card names are visible only in the optional rules,
 never on standings, Home, Profile, friends or results. No room/tier wording remains.
+All five cards use hearts, in order **2♥, 10♥, J♥, A♥, 5♥** (including dividers,
+Home, Profile, rules, contextual chips and postgame).
 
 Grammar cases `league-<state>-en|sv`, `league-home-<status>` and `league-profile`
 run at 390×844, 375×667, 844×390 and 768×1024. Both dividers are inside the
@@ -1069,11 +1071,16 @@ These options only change the browser, never the client's date rules. As elsewhe
 the route ignores `locale=`; grammar seeds the persisted Settings language instead.
 Browser checks do not certify native safe areas or maximum system text scaling.
 
-`league-pin-scroll-en|sv` checks a 27th-place row entering partially and leaving
-the list, then a height-starved resize and restore. Placed cases also scroll the
-sixth-place row fully above the list. Pinned rows occupy a separate footer slot;
-real boxes must show no overlap with standings or either divider. The partial-row,
-both-direction pinning and starvation-resize regressions remain in force.
+`league-pin-scroll-en|sv` checks a 27th-place row entering and leaving the list,
+then a height-starved resize and restore. Reclaiming its footer can make an entering
+row fully visible; only that full-visibility state may unpin. Placed cases explicitly
+scroll the sixth-place row partly above (still pinned), then fully above the list.
+`league-pin-first-partial-en|sv` runs in landscape: a grammar-only init hook sets
+an initial restored scroll offset so the sixth-place row is partly above the list before
+test interactions, then verifies the pin and full-visibility unpin. The stable
+outer allocation and height guard remain: height-starved lists never oscillate.
+Pinned rows occupy a separate footer slot; real boxes must show no overlap with
+standings or either divider. Partial **or** fully offscreen rows pin in either direction.
 
 `/profile?fixture=league-profile` deliberately supplies 2,700 league points against
 1,240 profile-week XP: placed Profile uses the former. The
@@ -1108,7 +1115,12 @@ measure the sheets at all four league sizes. The Profile itself retains its
 existing scrolling layout; only the expanded ribbon sheet must fit without scrolling.
 
 `/league?fixture=league-friends` and `league-friends-not_placed` add Mirja (Ace,
-third) and Kalle (Ten, twelfth). Tap a row for the existing friend sheet. Grammar
+third) and Kalle (Ten, twelfth). The strip title is **Friends this week** /
+**Vänner den här veckan**. Its rows show names, cards and points, never ordinals:
+Mirja 3,120, your highlighted Bengt row 1,240, Kalle 900, sorted by points. The
+not-placed fixture has only the two friends, not a fabricated own standing. Tap a
+friend row for the existing FriendSheet; own rows are not friends. Mirja and Kalle
+also have standings marks `league-friend-mark-${row.user_id}`. Grammar
 cases `league-friends|friends-not_placed|friends-sheet-en|sv` cover all four sizes;
 empty friend sections stay absent. `league-player-sheet-en|sv` taps Mirja's first
 standings row and checks the contextual `player-sheet-league` chip: card plus
@@ -1124,7 +1136,7 @@ four sizes. Settings keeps its existing scrolling layout.
 `/league?fixture=league-sample-<name>` consumes the eight unchanged backend samples
 in `src/features/leagueSamples/`: `placed`, `not_placed`, `opted_out`, `guest`,
 `off`, `pending_up`, `pending_stayed`, `pending_down`. Source: backend `main`
-commit `f79cdf90cbc227219025546d73d8b35747006e48`,
+commit `9a61abcb1b1f1ed65624f58e7c0c1527dcd4fb21`,
 `apps/pidro_server/priv/league_samples/`. The board fixture starts from the published
 placed response, overriding its presentation data for the exact board comparison.
 The `league-sample-*` grammar cases dismiss only up/down results before measuring
@@ -1132,7 +1144,51 @@ the supplied standings and both server bands. Stayed is invisible; no intro is
 acknowledged. League grammar cases isolate unrelated HTTP calls so fake fixture
 tokens cannot sign themselves out against a running real backend.
 
-### Marcel Round3 proof captures
+### Round4 postgame and Home movement
+
+Use `/table-dev?phase=game_over&people=win&xp=earned&rematch=one&leagueChange=<change>`.
+`leagueChange=up|down|same|new|delayed|off|opted_out|guest` supplies the real
+GameOverOverlay `leagueProgress` prop, not a second league overlay. Expected copy:
+
+| Change    | English                              | Swedish (`locale=sv`)                     |
+| --------- | ------------------------------------ | ----------------------------------------- |
+| `up`      | +20 · 5th this week ↑                | +20 · 5:e den här veckan ↑                |
+| `down`    | +20 · 7th this week ↓                | +20 · 7:e den här veckan ↓                |
+| `same`    | +20 · 6th this week                  | +20 · 6:e den här veckan                  |
+| `new`     | You're on the board · 12th this week | Du är med på listan · 12:e den här veckan |
+| `delayed` | the `up` line after 1,000ms          | the `up` line after 1,000ms               |
+
+Human seated viewers retain `game-over-league-slot` even without eligible progress;
+only the eligible line has `game-over-league`. Off, opted-out (hidden), guest and
+solo/bot-crew games show no league line. Guest viewers (`guest=true`) and solo
+crew viewers (`crew=win`, without `people=win`) do not reserve the human slot.
+`league-game-<change>-en|sv` checks the line, card, one-line unclipped copy,
+non-overlap, rematch seats and buttons. The additional `solo` case is an account
+against the crew; `crew` is a guest against the crew. Delayed cases use reduced
+motion and sample actual button boxes from first render, before generic animation
+readiness waits can consume the delay; boxes must stay within 1px before/after.
+
+`league-game-up-island`, `league-game-up-island-left`,
+`league-game-up-island-right` and `league-game-up-android-gesture` add synthetic
+native-sized inset containment checks at the four browser sizes. These are browser
+approximations, **not native proof**. Omit `safeArea` for real-device checks.
+
+`/home?fixture=league-home-tick-up` places Bengt fifth with 1,260 points;
+`league-home-tick-down` places him seventh. The grammar preloads AsyncStorage's
+web backing store (localStorage, **no prefix**) once per page session:
+
+```json
+{ "week": "2026-11-01T19:00:00Z", "league": "jack", "place": 6 }
+```
+
+Key: `league-home:v1:ui-grammar-user`. Cases
+`league-home-tick-{up,down}-{en,sv}` sample the Animated.View
+`home-league-tick` from first render, proving old sixth → new place and motion.
+Their `-reduced` counterparts prove no animation. Each saves an extra
+`-first-change.png` capture with the arrow before reloading; the ordinary capture
+then proves reload has neither another arrow nor repeated animation.
+
+### Marcel Round4 proof captures
 
 After the UI migration settles, run from `packages/mobile` against Expo web.
 Four-size English proof (390×844, 375×667, 844×390, 768×1024):
@@ -1153,3 +1209,12 @@ node scripts/verify-ui-grammar.mjs
 ```
 
 Add `--list` to either command to check selected capture IDs without a browser.
+
+Round4 additions, all four sizes (first-partial cases select landscape only):
+
+```sh
+UI_DEVICE_SCALE=2 UI_TIMEZONE=Europe/Helsinki \
+UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+UI_CASES=league-friends-en,league-friends-sv,league-friends-not_placed-en,league-friends-not_placed-sv,league-friends-sheet-en,league-friends-sheet-sv,league-pin-scroll-en,league-pin-scroll-sv,league-pin-first-partial-en,league-pin-first-partial-sv,league-game-up-en,league-game-up-sv,league-game-down-en,league-game-down-sv,league-game-same-en,league-game-same-sv,league-game-new-en,league-game-new-sv,league-game-delayed-en,league-game-delayed-sv,league-game-off-en,league-game-off-sv,league-game-opted_out-en,league-game-opted_out-sv,league-game-guest-en,league-game-guest-sv,league-game-solo-en,league-game-solo-sv,league-game-crew-en,league-game-crew-sv,league-game-up-island,league-game-up-island-left,league-game-up-island-right,league-game-up-android-gesture,league-home-tick-up-en,league-home-tick-up-en-reduced,league-home-tick-down-en,league-home-tick-down-en-reduced,league-home-tick-up-sv,league-home-tick-up-sv-reduced,league-home-tick-down-sv,league-home-tick-down-sv-reduced \
+node scripts/verify-ui-grammar.mjs
+```

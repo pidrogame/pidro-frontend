@@ -34,6 +34,7 @@ const standings: LeagueStanding[] = Array.from({ length: 30 }, (_, index) => ({
   pin: index === 0 || index === 5 ? 'classic' : null,
   points: points[index] ?? 1000 - index * 20,
   me: index === 5,
+  friend: index === 0 || index === 1,
 }));
 
 const placed: LeagueState = {
@@ -68,6 +69,19 @@ export function leagueFixture(value?: string): LeagueState | null {
   if (state === 'profile') {
     data.me!.points = 2700;
     data.room!.standings.find((row) => row.me)!.points = 2700;
+  }
+  if (state.startsWith('home-tick-') || state.startsWith('game-')) {
+    const change = state.split('-').at(-1);
+    if (['off', 'opted_out', 'guest'].includes(change!)) {
+      data.status = change as LeagueState['status'];
+      data.room = null;
+      data.me = null;
+    } else {
+      data.me = {
+        place: change === 'up' ? 5 : change === 'down' ? 7 : change === 'new' ? 12 : 6,
+        points: 1260,
+      };
+    }
   }
   if (state.startsWith('result-')) {
     const move = state.slice(7) as 'up' | 'stayed' | 'down';
@@ -116,6 +130,7 @@ export function leagueFixture(value?: string): LeagueState | null {
         prestige: 0,
         league: 'ace',
         place: 3,
+        points: 3120,
       },
       {
         user_id: 'friend-kalle',
@@ -125,6 +140,7 @@ export function leagueFixture(value?: string): LeagueState | null {
         prestige: 0,
         league: 'ten',
         place: 12,
+        points: 900,
       },
     ];
     if (state === 'friends-not_placed') {

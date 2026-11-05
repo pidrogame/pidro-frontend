@@ -54,7 +54,7 @@ export function LeagueRibbon({
       </PidroText>
       <PidroText
         style={[styles.mark, { color: ink, fontSize: size * 0.5, lineHeight: size * 0.6 }]}>
-        {ribbon.league === 'pidro' ? '5' : LEAGUES.find(({ id }) => id === ribbon.league)!.rank}
+        {LEAGUES.find(({ id }) => id === ribbon.league)!.rank}
       </PidroText>
       {ribbon.star ? (
         <View testID="league-ribbon-star">

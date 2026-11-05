@@ -12,14 +12,17 @@ import {
   LEAGUES,
   closeTimeText,
   leagueBands,
+  leagueGameLine,
   leagueLine,
   leagueName,
   nextLeague,
   ordinal,
+  placeArrow,
   previousLeague,
   ribbonHistory,
   ribbonMonth,
   shouldShowLeagueResult,
+  shouldPinLeagueRow,
 } from '../src/features/league';
 
 afterEach(() => setLocale('en'));
@@ -70,11 +73,11 @@ test('five card identities, translated bare names and neighbours without wraparo
   assert.deepEqual(
     LEAGUES.map(({ id, rank, suit, red }) => [id, rank, suit, red]),
     [
-      ['deuce', '2', '♣', false],
-      ['ten', '10', '♦', true],
+      ['deuce', '2', '♥', true],
+      ['ten', '10', '♥', true],
       ['jack', 'J', '♥', true],
-      ['ace', 'A', '♠', false],
-      ['pidro', '', '♠', false],
+      ['ace', 'A', '♥', true],
+      ['pidro', '5', '♥', true],
     ]
   );
   assert.deepEqual(
@@ -183,6 +186,72 @@ test('public league line handles every server status in both languages', () => {
     assert.equal(leagueLine({ ...placed, league: null }), null);
     assert.equal(leagueLine({ ...placed, me: null }), null);
   }
+});
+
+test('postgame placement shows points, movement or first placement in both languages', () => {
+  for (const locale of ['en', 'sv'] as const) {
+    setLocale(locale);
+    const after = { ...placed, me: { place: 5, points: 1260 } };
+    const line = locale === 'en' ? '+20 · 5th this week' : '+20 · 5:e den här veckan';
+    assert.equal(leagueGameLine(placed, after, 20), `${line} ↑`);
+    assert.equal(
+      leagueGameLine({ ...placed, me: { place: 4, points: 1240 } }, after, 20),
+      `${line} ↓`
+    );
+    assert.equal(leagueGameLine({ ...placed, me: { place: 5, points: 1240 } }, after, 20), line);
+    assert.equal(
+      leagueGameLine(
+        { ...placed, status: 'not_placed', me: null, room: null },
+        { ...after, me: { place: 12, points: 20 } },
+        20
+      ),
+      locale === 'en'
+        ? 'You’re on the board · 12th this week'
+        : 'Du är med på listan · 12:e den här veckan'
+    );
+    assert.equal(leagueGameLine(null, after, 20), line, 'unknown baseline never invents movement');
+    assert.equal(
+      leagueGameLine({ ...placed, league: 'ten' }, after, 20),
+      line,
+      'different cards are not comparable places'
+    );
+    assert.equal(
+      leagueGameLine(
+        { ...placed, week: { ...placed.week!, starts_at: '2026-10-25T19:00:00Z' } },
+        after,
+        20
+      ),
+      line,
+      'a new week is not a place drop'
+    );
+    for (const status of ['guest', 'off', 'opted_out'] as const) {
+      assert.equal(leagueGameLine({ ...placed, status }, after, 20), null);
+      assert.equal(leagueGameLine(placed, { ...after, status }, 20), null);
+    }
+    assert.equal(leagueGameLine(placed, { ...after, status: 'not_placed', me: null }, 20), null);
+  }
+  assert.equal(placeArrow(6, 5), ' ↑');
+  assert.equal(placeArrow(6, 7), ' ↓');
+  assert.equal(placeArrow(6, 6), '');
+  assert.equal(placeArrow(null, 1), '');
+});
+
+test('own row pins at either partial edge, unpins only when fully visible, and yields in a starved slot', () => {
+  for (const [y, offset, viewport, expected] of [
+    [300, 0, 350, true],
+    [294, 0, 350, false],
+    [293.5, 0, 350, false],
+    [294.5, 0, 350, true],
+    [99.5, 100, 350, true],
+    [100, 100, 350, false],
+    [450, 100, 350, true],
+    [20, 0, 60, false],
+    [20, 0, 61, true],
+  ] as const)
+    assert.equal(shouldPinLeagueRow({ y, height: 56 }, offset, viewport, 60), expected);
+  assert.equal(shouldPinLeagueRow({ y: 235, height: 56 }, 0, 350, 60, true), true);
+  assert.equal(shouldPinLeagueRow({ y: 234, height: 56 }, 0, 350, 60, true), false);
+  assert.equal(shouldPinLeagueRow({ y: 999, height: 0 }, 0, 350, 4), false);
 });
 
 test('countdown floors whole minutes, keeps both units, and clamps expiry in both languages', () => {
