@@ -610,6 +610,20 @@ const NORA_LOST: TableNotice = {
   variant: 'warning',
 };
 
+const FLAKY_NOTICES: Record<string, TableNotice> = {
+  'auto-card': {
+    variant: 'warning',
+    autoTurn: { scope: 'you', action: { type: 'play_card', card: { rank: 5, suit: 'clubs' } } },
+  },
+  'auto-pass': { variant: 'warning', autoTurn: { scope: 'you', action: { type: 'pass' } } },
+  'auto-bid': {
+    variant: 'warning',
+    autoTurn: { scope: 'you', action: { type: 'bid', amount: 7 } },
+  },
+  refused: { variant: 'error', error: { reason: 'not_your_turn' } },
+  settling: { variant: 'warning', key: 'game.tap_wait' },
+};
+
 /** The real notice queue: `timed` replays a burst, otherwise one notice shows until tapped. */
 function FixtureTableFeedback({ timed, notice }: { timed?: boolean; notice?: TableNotice | null }) {
   const { notice: shown, addNotice, dismissNotice } = useTableNotices(WAITING_ROOM.code);
@@ -806,14 +820,14 @@ function TableDevHarness() {
           <RolePreview
             role={params.role === 'spectator' ? 'spectator' : 'player'}
             phase={phase}
-            feedback={params.feedback}
+            feedback={fixture?.startsWith('flaky-') ? fixture.slice(6) : params.feedback}
             canPass={params.pass !== 'disabled'}
             deal={params.deal}
             dealer={params.dealer}
             autoClear={params.clear === 'true'}
             ruleSet={ruleSet}
             rulesFixtureSeen={rulesFixtureSeen}
-            connected={params.connection !== 'lost'}
+            connected={params.connection !== 'lost' && fixture !== 'flaky-offline'}
             bidRound={BID_ROUNDS[params.bids ?? ''] ?? null}
             outPlayers={OUT_PLAYERS[params.out as keyof typeof OUT_PLAYERS] ?? null}
             botTrick={params.trick === 'bots' || !!TRICKS[params.trick ?? '']}
@@ -1289,19 +1303,21 @@ function RolePreview({
         west: { hand: deal === 'true' ? 0 : deal === 'cold' ? 9 : 6 },
         south: {
           hand:
-            previewPhase === 'second_deal' && dealerPosition === 'south'
-              ? DEALER_POOL
-              : phase === 'auto_rob'
-                ? automaticKept
-                : deal === 'true'
-                  ? []
-                  : deal === 'cold'
-                    ? DEAL_HAND
-                    : [
-                        { rank: 14, suit: 'spades' },
-                        { rank: 13, suit: 'hearts' },
-                        ...(ruleSet === 'louisiana' ? [{ rank: 5, suit: 'clubs' as const }] : []),
-                      ],
+            feedback === 'spectator'
+              ? 7
+              : previewPhase === 'second_deal' && dealerPosition === 'south'
+                ? DEALER_POOL
+                : phase === 'auto_rob'
+                  ? automaticKept
+                  : deal === 'true'
+                    ? []
+                    : deal === 'cold'
+                      ? DEAL_HAND
+                      : [
+                          { rank: 14, suit: 'spades' },
+                          { rank: 13, suit: 'hearts' },
+                          ...(ruleSet === 'louisiana' ? [{ rank: 5, suit: 'clubs' as const }] : []),
+                        ],
         },
       },
       current_trick:
@@ -1453,6 +1469,7 @@ function RolePreview({
   }, [
     role,
     phase,
+    feedback,
     canPass,
     deal,
     dealer,
@@ -1733,6 +1750,7 @@ function RolePreview({
           topDock={invitation ? invitationHeight : 0}
           loading={loading}
           talkFixture={talk}
+          notice={FLAKY_NOTICES[feedback ?? '']}
           guest={talkGuest}
           // The account sheet is the game screen's; here the link only shows.
           onSaveGuest={talkGuest ? () => undefined : undefined}

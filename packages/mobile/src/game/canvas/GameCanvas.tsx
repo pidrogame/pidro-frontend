@@ -46,6 +46,7 @@ type Props = {
   model: TableModel;
   textures: CardTextures;
   onPlayCard: (card: Card) => void;
+  onBlockedPlay?: (reason: string) => void;
   topReserve?: number;
   bottomReserve?: number;
   /** Picking trump: lift the cards this suit would make trump. */
@@ -56,6 +57,7 @@ export default function GameCanvas({
   model,
   textures,
   onPlayCard,
+  onBlockedPlay,
   topReserve = 0,
   bottomReserve = 0,
   previewSuit = null,
@@ -82,6 +84,7 @@ export default function GameCanvas({
     textures,
     L,
     onPlayCard,
+    onBlockedPlay,
     enabled: true,
     previewSuit,
   });

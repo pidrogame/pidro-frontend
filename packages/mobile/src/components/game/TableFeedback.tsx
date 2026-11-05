@@ -23,6 +23,8 @@ import { useTranslation } from '@/i18n';
 import { localizedError } from '@pidro/shared';
 import { PidroSpacing } from '@/design/tokens';
 import { isStillCapture } from '@/utils/stillCapture';
+import { PidroText } from '@/components/ui/PidroText';
+import { PressableFX } from '@/components/ui/PressableFX';
 
 /** How long a notice lingers when nothing newer is waiting behind it. */
 const NOTICE_LINGER_MS = 4500;
@@ -174,7 +176,7 @@ export function TableFeedback({
       pointerEvents="box-none"
       style={[styles.noticeOverlay, top === undefined ? noticeSlot : { top }]}>
       {notice ? (
-        <Pressable
+        <PressableFX
           testID="table-feedback"
           accessible={Platform.OS !== 'ios'}
           accessibilityRole="button"
@@ -184,30 +186,16 @@ export function TableFeedback({
           aria-live="polite"
           aria-atomic
           onPress={onDismiss}
-          className="flex-row items-center gap-2 rounded-xl border border-white/20 bg-slate-950 px-3 shadow-lg"
           style={{
             width: noticeWidth,
             minHeight: landscape ? 44 : 52,
+            justifyContent: 'center',
             paddingVertical: PidroSpacing.xs,
           }}>
-          <View
-            className={
-              notice.variant === 'error'
-                ? 'h-2 w-2 rounded-full bg-red-300'
-                : notice.variant === 'success'
-                  ? 'h-2 w-2 rounded-full bg-emerald-300'
-                  : 'h-2 w-2 rounded-full bg-amber-300'
-            }
-          />
-          <Text
-            className={
-              notice.variant === 'error'
-                ? 'flex-1 text-sm text-red-100'
-                : 'flex-1 text-sm text-white'
-            }>
+          <PidroText role="metadata" align="center" tone="default">
             {message}
-          </Text>
-        </Pressable>
+          </PidroText>
+        </PressableFX>
       ) : null}
     </View>
   );

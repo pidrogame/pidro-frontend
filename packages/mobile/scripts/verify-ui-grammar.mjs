@@ -1194,6 +1194,20 @@ const allCases = [
     testId: 'connection-banner',
     protectNorthSeat: true,
   },
+  ...['en', 'sv'].flatMap((locale) =>
+    ['offline', 'auto-card', 'auto-pass', 'auto-bid', 'refused', 'spectator', 'settling'].map((state) => ({
+      name: `table-flaky-${state}-${locale}`,
+      path: `/table-dev?phase=playing&fixture=flaky-${state}&role=${state === 'spectator' ? 'spectator' : 'player'}&locale=${locale}`,
+      locale,
+      testId:
+        state === 'offline'
+          ? 'connection-banner'
+          : state === 'spectator'
+            ? 'seat-south-cards'
+            : 'table-feedback',
+      flaky: state,
+    }))
+  ),
   ...['island-left', 'island-right'].map((safeArea) => ({
     name: `table-playing-${safeArea}`,
     path: `/table-dev?phase=playing&safeArea=${safeArea}`,
@@ -2034,6 +2048,36 @@ async function assertTargetGeometry(page, testCase, viewport) {
 
     if (testCase.name === 'table-playing') {
       await assertSeatPlacement(page, viewport);
+    }
+    if (testCase.flaky) {
+      const sv = testCase.locale === 'sv';
+      const words = {
+        offline: sv ? 'Återansluter…' : 'Reconnecting…',
+        'auto-card': sv
+          ? 'Tiden tog slut – vi spelade 5♣ åt dig'
+          : 'Time ran out — we played 5♣ for you',
+        'auto-pass': sv ? 'Tiden tog slut – vi passade åt dig' : 'Time ran out — we passed for you',
+        'auto-bid': sv ? 'Tiden tog slut – vi bjöd 7 åt dig' : 'Time ran out — we bid 7 for you',
+        refused: sv ? 'Det är inte din tur.' : 'It is not your turn.',
+        settling: sv ? 'Ett ögonblick – försök igen strax' : 'One moment — please try again',
+      };
+      if (words[testCase.flaky]) assert.equal(await target.innerText(), words[testCase.flaky]);
+      if (testCase.flaky === 'spectator') {
+        const badge = await page.getByTestId('watching-badge').boundingBox();
+        assertInsideViewport('watching badge', badge, viewport);
+        for (const seat of ['north', 'east', 'south', 'west']) {
+          const backs = page.getByTestId(`seat-${seat}-cards`);
+          assert.equal(await backs.locator('img').count(), seat === 'south' ? 7 : 6, `${seat} has every card back`);
+          // Side stacks intentionally bleed at the bare edge; their wrapper spans the screen.
+          if (seat === 'south' || seat === 'north')
+            assertInsideViewport(`${seat} backs`, await backs.boundingBox(), viewport);
+          for (const image of await backs.locator('img').all()) {
+            const box = await image.boundingBox();
+            assert.ok(box && box.x < viewport.width && box.x + box.width > 0 && box.y >= 0 && box.y + box.height <= viewport.height, `${seat} back remains visible`);
+            assert.ok(!boxesOverlap(box, badge), `${seat} backs clear the watching badge`);
+          }
+        }
+      }
     }
     if (testCase.longNames) {
       await assertNamesFit(page, viewport, testCase.northNameMin);
@@ -8386,6 +8430,7 @@ async function main() {
           testCase.details ||
           testCase.scores ||
           testCase.botVoice ||
+          testCase.flaky ||
           testCase.photo
         )
           return ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(

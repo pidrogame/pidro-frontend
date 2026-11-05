@@ -23,7 +23,8 @@ export function playHoldUntil(
 
 export function usePlayGuard(
   play: (card: Card) => unknown,
-  { presentation, handReady }: { presentation: DealerRobPresentation | null; handReady: boolean }
+  { presentation, handReady }: { presentation: DealerRobPresentation | null; handReady: boolean },
+  onBlocked?: (reason: string) => void
 ): (card: Card) => void {
   const holdUntil = useRef(0);
   const ready = useRef(handReady);
@@ -47,10 +48,11 @@ export function usePlayGuard(
     (card: Card) => {
       if (!ready.current || Date.now() < holdUntil.current) {
         blockedPlay('pending');
+        onBlocked?.('pending');
         return;
       }
       void play(card);
     },
-    [play]
+    [play, onBlocked]
   );
 }

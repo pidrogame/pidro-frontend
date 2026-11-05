@@ -22,7 +22,7 @@ const source = buildTableModel({
 });
 
 describe('optimistic play is presentation only', () => {
-  it('moves the selected card, closes its gap, then restores the exact server hand on rejection or timeout', () => {
+  it('keeps the sent card through a timeout, restoring it only on refusal or a changed turn', () => {
     for (const card of source.yourHand) {
       const pending = { card, startedAt: 1000, rejected: false };
       const view = optimisticPlay(source, pending, 1001);
@@ -35,7 +35,9 @@ describe('optimistic play is presentation only', () => {
       expect(source.playedCards).toEqual({});
       expect(optimisticPlay(source, { ...pending, rejected: true }, 1100)).toBe(source);
       expect(optimisticPlay(source, pending, 5999)).not.toBe(source);
-      expect(optimisticPlay(source, pending, 6000)).toBe(source);
+      expect(optimisticPlay(source, pending, 60_000)).not.toBe(source);
+      const movedOn = { ...source, currentTurnRelative: 'east' };
+      expect(optimisticPlay(movedOn, pending, 6000)).toBe(movedOn);
       expect(optimisticPlay({ ...source, phase: 'bidding' }, pending, 1001).playedCards).toEqual(
         {}
       );

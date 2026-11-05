@@ -15,8 +15,8 @@ export class PhoenixSocket {
   private disconnecting = false;
 
   private reconnectDelay(tries: number) {
-    const schedule = [1000, 2000, 3000, 5000, 8000, 10_000];
-    return schedule[Math.max(0, Math.min(tries - 1, schedule.length - 1))] ?? 10_000;
+    const schedule = [500, 1000, 2000, 3000];
+    return schedule[Math.max(0, Math.min(tries - 1, schedule.length - 1))] ?? 3000;
   }
 
   init({ config, getToken }: PhoenixSocketOptions) {
@@ -26,8 +26,9 @@ export class PhoenixSocket {
     const token = getToken();
     this.socket = new Socket(config.wsURL, {
       ...(token ? { authToken: token } : {}),
-      heartbeatIntervalMs: 15_000,
+      heartbeatIntervalMs: 5_000,
       reconnectAfterMs: (tries: number) => this.reconnectDelay(tries),
+      rejoinAfterMs: (tries: number) => this.reconnectDelay(tries),
     });
 
     return this.socket;
@@ -48,6 +49,13 @@ export class PhoenixSocket {
     this.connectionRequested = true;
     if (!this.socket || this.disconnecting) return;
     this.openConnection();
+  }
+
+  /** A known network change or lost reply must not wait for the heartbeat/backoff. */
+  reconnect() {
+    if (!this.connectionRequested || !this.socket || this.disconnecting) return;
+    this.disconnect();
+    this.connect();
   }
 
   private openConnection() {

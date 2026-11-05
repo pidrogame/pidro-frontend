@@ -166,6 +166,7 @@ type Opts = {
   textures?: CardTextures;
   L: TableLayout;
   onPlayCard?: (card: Card) => void;
+  onBlockedPlay?: (reason: string) => void;
   enabled: boolean;
   /** Picking trump: the suit under the finger, whose trumps lift in the hand. */
   previewSuit?: Suit | null;
@@ -176,6 +177,7 @@ export function useCardSprites({
   textures,
   L,
   onPlayCard,
+  onBlockedPlay,
   enabled,
   previewSuit = null,
 }: Opts) {
@@ -206,8 +208,10 @@ export function useCardSprites({
   const prevLayout = useRef(L);
   const modelRef = useRef<TableModel | undefined>(model);
   const onPlayRef = useRef(onPlayCard);
+  const onBlockedRef = useRef(onBlockedPlay);
   modelRef.current = model;
   onPlayRef.current = onPlayCard;
+  onBlockedRef.current = onBlockedPlay;
 
   const handTargets = useSharedValue<HandTarget[]>([]);
   // Observational hit targets only; legal hit testing and press feedback stay unchanged.
@@ -911,6 +915,11 @@ export function useCardSprites({
     });
   }, []);
 
+  const blockedTap = useCallback((code: DiagnosticCode) => {
+    blockedCardTap(code);
+    onBlockedRef.current?.(code === 'illegal_action' ? 'invalid_action' : code);
+  }, []);
+
   const gesture = useMemo(() => {
     const hit = (px: number, py: number): HandTarget | null => {
       'worklet';
@@ -966,7 +975,7 @@ export function useCardSprites({
       .onEnd((_e, success) => {
         'worklet';
         if (success && pressSlot.value >= 0) runOnJS(playByKey)(pressKey.value);
-        else if (success && blockedPress.value) runOnJS(blockedCardTap)(blockedPress.value);
+        else if (success && blockedPress.value) runOnJS(blockedTap)(blockedPress.value);
       })
       .onFinalize((_e, success) => {
         'worklet';
@@ -979,7 +988,7 @@ export function useCardSprites({
         settle(slot, success ? PRESS_UNPLAYED_MS : 0);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playByKey]);
+  }, [playByKey, blockedTap]);
 
   // Every card's shadow and gold glow, blurred once per card size.
   useKeptBlurs();

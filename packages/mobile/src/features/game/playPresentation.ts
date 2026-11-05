@@ -1,16 +1,15 @@
 import type { RelativePosition } from '@/types/game';
 import type { TableCard, TableModel } from '@/game/canvas/tableModel';
-import { PLAY_CONFIRM_TIMEOUT_MS } from '@/game/canvas/animationTiming';
 
 export type PendingPlay = { card: TableCard; startedAt: number; rejected: boolean };
 
 /** Only the picture moves early. Confirmation, including a late one, always wins. */
-export function optimisticPlay(model: TableModel, pending: PendingPlay | null, now: number) {
+export function optimisticPlay(model: TableModel, pending: PendingPlay | null, _now: number) {
   if (
     !pending ||
     pending.rejected ||
-    now >= pending.startedAt + PLAY_CONFIRM_TIMEOUT_MS ||
     model.phase !== 'playing' ||
+    model.currentTurnRelative !== 'south' ||
     !model.yourHand.some((card) => card.key === pending.card.key)
   )
     return model;

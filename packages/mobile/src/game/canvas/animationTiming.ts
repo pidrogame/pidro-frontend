@@ -24,7 +24,6 @@ export const TRICK_GATHER_PROGRESS = 0.3;
 export const TRICK_GATHER_CURVE = [0.2, 0.65, 0.3, 1] as const;
 export const TRICK_SWEEP_CURVE = [0.4, 0, 0.75, 1] as const;
 export const TRICK_SWEEP_SCALE = 0.8;
-export const PLAY_CONFIRM_TIMEOUT_MS = 5_000;
 // Older snapshots without transition metadata.
 export const TRICK_TRANSITION_MS = 1_500;
 

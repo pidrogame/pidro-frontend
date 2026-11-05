@@ -1,17 +1,18 @@
 import { Feather } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from '@/i18n';
+import { useTableReserves } from '@/game/canvas/TableChrome';
 
-/** Lives in the table's existing utility space, independent of transient notices. */
+/** Lives in the notice slot, yielding to connection and action feedback. */
 export function WatchingBadge() {
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
+  const { noticeSlot } = useTableReserves();
   return (
     <View
+      testID="watching-badge"
       pointerEvents="none"
       className="absolute inset-x-0 z-50 items-center"
-      style={{ bottom: insets.bottom + 12 }}>
+      style={noticeSlot}>
       <View
         accessible
         accessibilityLabel={t('game.watching_accessibility')}

@@ -4,6 +4,9 @@ import {
   errorPayload,
   type TranslationKey,
   type TranslationValues,
+  SUIT_SYMBOLS,
+  getRankLabel,
+  type Suit,
 } from '@pidro/shared';
 
 export type TableNotice = {
@@ -84,7 +87,10 @@ function autoTurnText({ scope, action }: NonNullable<TableNotice['autoTurn']>): 
   return t(`game.auto_${scope}_${detail}`, {
     amount: typeof action?.amount === 'number' ? action.amount : '',
     suit: suit ?? '',
-    card: rank && cardSuit ? t('game.card_accessibility', { rank, suit: cardSuit }) : '',
+    card:
+      rank && cardSuit
+        ? `${getRankLabel(card!.rank as number)}${SUIT_SYMBOLS[card!.suit as Suit]}`
+        : '',
     position: dealer ?? '',
   });
 }

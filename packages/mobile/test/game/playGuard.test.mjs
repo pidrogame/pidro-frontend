@@ -21,14 +21,22 @@ describe('card play guard', () => {
     gameDiagnostics.observe({ game_instance_id: 'guard-instance', state_revision: 6 });
     let calls = 0;
     let play;
+    let reason;
     function Hand() {
-      play = usePlayGuard(() => calls++, { presentation: null, handReady: false });
+      play = usePlayGuard(
+        () => calls++,
+        { presentation: null, handReady: false },
+        (blocked) => {
+          reason = blocked;
+        }
+      );
       return null;
     }
     renderToString(createElement(Hand));
     cardTap(() => play({ rank: 14, suit: 'spades' }));
     const events = gameDiagnostics.snapshot().events.slice(1);
     expect(calls).toBe(0);
+    expect(reason).toBe('pending');
     expect(events.map(({ type, code }) => [type, code])).toEqual([
       ['tap', 'pending'],
       ['blocked', 'pending'],

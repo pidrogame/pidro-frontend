@@ -85,6 +85,14 @@ PID-214 bid presentation uses `/table-dev?phase=bidding&role=player&bids=round|h
 `table-bid-*` and `locale-sv-table-bid-*` check every seat's visible/spoken bid,
 the high-bid tone and compact south status without changing bid event identities.
 
+Flaky connections use `/table-dev?phase=playing&fixture=flaky-offline&locale=en|sv`.
+Replace `offline` with `auto-card`, `auto-pass`, `auto-bid`, `refused`, or `settling` for the
+quiet notices, or `spectator&role=spectator` for all four hands of card backs.
+`table-flaky-{offline,auto-card,auto-pass,auto-bid,refused,spectator,settling}-{en,sv}` checks
+the band, no scrolling, and all four spectators' hands at 390×844, 375×667,
+844×390 and 768×1024. These are presentation fixtures; socket-drop verification
+uses the real game route and local backend.
+
 PID-277 uses `/table-dev?fixture=bot-crew&locale=en|sv`: Marcel is thinking,
 and all three drawn bots open their short card through their avatar or nameplate.
 It applies the server's seat lifecycle shape: bots have a persona but no account ID.

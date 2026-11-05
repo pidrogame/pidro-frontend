@@ -81,6 +81,7 @@ import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExpla
 import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { t, useTranslation } from '@/i18n';
 import { TableFeedback } from '@/components/game/TableFeedback';
+import type { TableNotice } from '@/game/tableNotices';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
 import { TalkBand, TalkLanding, TalkOffer, type TalkPlace } from '@/components/game/TableTalk';
 import { TalkSheet } from '@/components/game/TalkSheet';
@@ -111,6 +112,8 @@ type Props = {
   loading?: number;
   /** Fixtures: table talk as it stands (`?fixture=talk-*`). */
   talkFixture?: TalkFixture;
+  notice?: TableNotice | null;
+  onDismissNotice?: () => void;
 };
 
 /** `value` as it was when `hold` began, for as long as it holds. */
@@ -352,6 +355,8 @@ export function GameCanvasTable({
   topDock = 0,
   loading,
   talkFixture,
+  notice,
+  onDismissNotice,
 }: Props) {
   const { locale } = useTranslation();
   const controller = useGameTableController();
@@ -474,7 +479,15 @@ export function GameCanvasTable({
     isPrivateDealerRob ? dealerRobPresentation : null
   );
   const turnTimer = useGameStore((state) => state.turnTimer);
-  const playPresentation = usePlayPresentation(presented, controller.handlePlayCard, turnTimer);
+  const onBlockedPlay = (reason: string) => {
+    if (!controller.isPlayingCard) controller.showActionError('Play card', { reason });
+  };
+  const playPresentation = usePlayPresentation(
+    presented,
+    controller.handlePlayCard,
+    turnTimer,
+    onBlockedPlay
+  );
   const model = useMemo(
     () => (held ? { ...playPresentation.model, held } : playPresentation.model),
     [playPresentation.model, held]
@@ -516,10 +529,11 @@ export function GameCanvasTable({
   const [pointedSuit, setPointedSuit] = useState<Suit | null>(null);
   const previewSuit = showTrumpSelection ? pointedSuit : null;
 
-  const playCard = usePlayGuard(playPresentation.playCard, {
-    presentation: dealerRobPresentation,
-    handReady: isHandReady,
-  });
+  const playCard = usePlayGuard(
+    playPresentation.playCard,
+    { presentation: dealerRobPresentation, handReady: isHandReady },
+    onBlockedPlay
+  );
 
   // Until the deal has played, the log and the seats show no bids (PID-267),
   // also while the last hand's result holds the next hand back.
@@ -746,6 +760,7 @@ export function GameCanvasTable({
             model={model}
             textures={textures}
             onPlayCard={playCard}
+            onBlockedPlay={onBlockedPlay}
             topReserve={topReserve}
             bottomReserve={bottomReserve}
             previewSuit={previewSuit}
@@ -798,7 +813,12 @@ export function GameCanvasTable({
 
           <TableChromeBars reserves={reserves} />
           {/* The band shares its slot with the loading bar and the connection banner; they win. */}
-          {talking && isChannelJoined && loading == null && !textures.loading ? (
+          {talking &&
+          isChannelJoined &&
+          !notice &&
+          !controller.actionNotice &&
+          loading == null &&
+          !textures.loading ? (
             <View
               pointerEvents="box-none"
               style={[
@@ -998,7 +1018,12 @@ export function GameCanvasTable({
           ) : null}
 
           {/* Connection banner, in the notice slot */}
-          {isChannelJoined && <TableFeedback notice={controller.actionNotice ?? null} />}
+          {isChannelJoined && (
+            <TableFeedback
+              notice={controller.actionNotice ?? notice ?? null}
+              onDismiss={controller.actionNotice ? controller.dismissActionNotice : onDismissNotice}
+            />
+          )}
           {!isGameOver && (
             <View style={[styles.bannerWrap, reserves.noticeSlot]} pointerEvents="box-none">
               <ConnectionBanner isConnected={isChannelJoined} />
@@ -1014,7 +1039,9 @@ export function GameCanvasTable({
                 isGameOver={isGameOver}
                 onRules={rules.show}
               />
-              {isSpectator && <WatchingBadge />}
+              {isSpectator && isChannelJoined && !notice && !controller.actionNotice && (
+                <WatchingBadge />
+              )}
             </>
           )}
 

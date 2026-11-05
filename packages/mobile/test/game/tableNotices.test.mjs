@@ -1,7 +1,35 @@
 import { describe, expect, it } from 'bun:test';
-import { enqueueTableNotice } from '../../src/game/tableNotices.ts';
+import { enqueueTableNotice, tableNoticeText } from '../../src/game/tableNotices.ts';
+import { setLocale, t } from '@pidro/shared';
 
 const notice = (message, variant = 'warning') => ({ message, variant });
+
+it('says which card, pass or bid the timer made, in both table languages', () => {
+  try {
+    for (const locale of ['en', 'sv']) {
+      setLocale(locale);
+      const text = (action) =>
+        tableNoticeText({ variant: 'warning', autoTurn: { scope: 'you', action } });
+      expect(text({ type: 'play_card', card: { rank: 5, suit: 'clubs' } })).toBe(
+        locale === 'en'
+          ? 'Time ran out — we played 5♣ for you'
+          : 'Tiden tog slut – vi spelade 5♣ åt dig'
+      );
+      expect(text({ type: 'pass' })).toBe(
+        locale === 'en' ? 'Time ran out — we passed for you' : 'Tiden tog slut – vi passade åt dig'
+      );
+      expect(text({ type: 'bid', amount: 7 })).toBe(
+        locale === 'en' ? 'Time ran out — we bid 7 for you' : 'Tiden tog slut – vi bjöd 7 åt dig'
+      );
+      expect(t('ui.reconnecting')).toBe(locale === 'en' ? 'Reconnecting…' : 'Återansluter…');
+      expect(tableNoticeText({ variant: 'error', error: { reason: 'not_your_turn' } })).toBe(
+        locale === 'en' ? 'It is not your turn.' : 'Det är inte din tur.'
+      );
+    }
+  } finally {
+    setLocale('en');
+  }
+});
 
 describe('table notice queue', () => {
   it('coalesces only consecutive exact repeats', () => {

@@ -49,7 +49,8 @@ import { tableInvitation } from '@/features/invites/tableInvitation';
 import { readingTimeMs } from '@/features/game/readingTime';
 import { t, useTranslation } from '@/i18n';
 import { useSeatDecisions } from '@pidro/shared';
-import { TableFeedback, TableSeatDecision, useTableNotices } from '@/components/game/TableFeedback';
+import { TableSeatDecision, useTableNotices } from '@/components/game/TableFeedback';
+import type { TableNotice } from '@/game/tableNotices';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
 import { useTableAnalytics } from '@/analytics/useTableAnalytics';
 
@@ -68,6 +69,8 @@ type SkiaTableProps = {
   showGuestSave?: boolean;
   onSaveGuest?: () => void;
   topDock?: number;
+  notice?: TableNotice | null;
+  onDismissNotice?: () => void;
 };
 
 /**
@@ -860,6 +863,8 @@ export default function GameScreen() {
           showGuestSave={showGuestSave && Boolean(currentUser?.guest)}
           onSaveGuest={() => setAccountSheetOpen(true)}
           topDock={invitation ? invitationHeight : 0}
+          notice={notice}
+          onDismissNotice={dismissNotice}
         />
         <AuthSheet
           isOpen={accountSheetOpen}
@@ -870,7 +875,6 @@ export default function GameScreen() {
             router.push('/(auth)/claim-classic');
           }}
         />
-        <TableFeedback notice={notice} onDismiss={dismissNotice} />
         <TableSeatDecision key={room.code} decisions={decisions} />
         {invitation ? (
           <TableInvitation

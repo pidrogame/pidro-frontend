@@ -19,12 +19,13 @@ import type {
   ServerGameState,
 } from '@/types/game';
 import { useGameStore, useGameViewModel } from '@/stores/game';
-import { pushGameAction } from '@/channels/hooks/useGameChannel';
+import { pushGameAction, sendCard } from '@/channels/hooks/useGameChannel';
 import { playActionHaptic } from './useGameHaptics';
 import { useTableNotices } from '@/components/game/TableFeedback';
 import type { TableNotice } from './tableNotices';
 import { blockedPlay } from '@/diagnostics/actions';
 import { gameDiagnostics } from '@/diagnostics/buffer';
+import { errorPayload } from '@pidro/shared';
 
 export type GameTableController = {
   viewModel: GameViewModel | null;
@@ -49,6 +50,7 @@ export type GameTableController = {
   canSelectHand: boolean;
   isPlayingCard: boolean;
   actionNotice?: TableNotice | null;
+  dismissActionNotice?: () => void;
   getCardCountForPlayer: (absPosition: Position | null) => number | null;
   handlePlayCard: (card: Card) => Promise<boolean>;
   handleDeclareTrump: (suit: Suit) => Promise<void> | void;
@@ -125,7 +127,10 @@ export function useGameTableController(): GameTableController {
   const isYourTurn =
     role === 'player' && isChannelJoined && (players.find((p) => p.isYou)?.isCurrentTurn ?? false);
   const isPlayingTurn =
-    isYourTurn && phase === 'playing' && legalActions.some((action) => action.type === 'play_card');
+    role === 'player' &&
+    (players.find((p) => p.isYou)?.isCurrentTurn ?? false) &&
+    phase === 'playing' &&
+    legalActions.some((action) => action.type === 'play_card');
   const isDeclaringPhase =
     phase === 'declaring' || phase === 'declaring_trump' || phase === 'trump_declaration';
   const showTrumpSelection =
@@ -143,10 +148,18 @@ export function useGameTableController(): GameTableController {
     legalActions.some((action) => action.type === 'select_hand');
 
   const [isPlayingCard, setIsPlayingCard] = useState(false);
-  const { notice: actionNotice, addNotice } = useTableNotices(viewModel?.roomCode ?? '');
+  const {
+    notice: actionNotice,
+    addNotice,
+    dismissNotice: dismissActionNotice,
+  } = useTableNotices(viewModel?.roomCode ?? '');
   const showActionError = useCallback(
     (action: string, err: unknown) => {
-      addNotice({ error: err, key: 'error.action_failed', variant: 'error' });
+      addNotice(
+        errorPayload(err).reason === 'pending'
+          ? { key: 'game.tap_wait', variant: 'warning' }
+          : { error: err, key: 'error.action_failed', variant: 'error' }
+      );
     },
     [addNotice]
   );
@@ -169,14 +182,12 @@ export function useGameTableController(): GameTableController {
     async (card: Card) => {
       if (isPlayingCard || !isPlayingTurn) {
         blockedPlay(isPlayingCard ? 'pending' : 'not_your_turn');
+        if (!isPlayingCard) showActionError('Play card', { reason: 'not_your_turn' });
         return false;
       }
       setIsPlayingCard(true);
       try {
-        const promise = pushGameAction('play_card', { card: { rank: card.rank, suit: card.suit } });
-        if (!promise) return false;
-        await promise;
-        return true;
+        return await sendCard({ rank: card.rank, suit: card.suit });
       } catch (error) {
         showActionError('Play card', error);
         return false;
@@ -226,6 +237,7 @@ export function useGameTableController(): GameTableController {
     canSelectHand,
     isPlayingCard,
     actionNotice,
+    dismissActionNotice,
     getCardCountForPlayer,
     handlePlayCard,
     handleDeclareTrump,

@@ -340,6 +340,28 @@ export function SeatLayer({
 
   return (
     <View style={[StyleSheet.absoluteFill, quiet && styles.quiet]} pointerEvents="box-none">
+      {seats.south && !seats.south.isYou ? (
+        <View
+          testID="seat-south-cards"
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: L.hand.cy - (northBackWidth(L.cardW, compactNorth(L)) * (110 / 78)) / 2,
+            alignItems: 'center',
+          }}>
+          <BacksFan
+            count={seats.south.out ? 0 : (seats.south.cardCount ?? 0)}
+            cardW={L.cardW}
+            compact={compactNorth(L)}
+            held={held}
+            dealing={dealing}
+            originX={from.x - width / 2}
+            originY={from.y - L.hand.cy}
+          />
+        </View>
+      ) : null}
       {secondDeal && secondDeal.pack > 0 ? (
         <Pack
           count={secondDeal.pack}

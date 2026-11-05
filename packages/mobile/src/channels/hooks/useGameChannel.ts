@@ -13,7 +13,7 @@ import { batchedUpdates as unstable_batchedUpdates } from '@/utils/batchedUpdate
 import { phoenixSocket } from '../socket';
 import { initRealtime } from '@/bootstrap/realtime';
 import { useGameStore } from '@/stores/game';
-import type { LegalAction, ServerGameState } from '@/types/game';
+import type { Card, LegalAction, ServerGameState } from '@/types/game';
 import type { Position } from '@/types/lobby';
 import { waitingRoomEvent, type WaitingRoomEvent } from '../gameRoomEvents';
 import { terminalGameJoinFailure } from '../gameJoinFailure';
@@ -22,11 +22,14 @@ import type { TableNotice } from '@/game/tableNotices';
 import { useSettingsStore } from '@/stores/settings';
 import { isSoloTable } from '@/features/game/tableHelp';
 import { authStore } from '@/stores/auth';
-import { diagnosticCode, gameDiagnostics } from '@/diagnostics/buffer';
+import { diagnosticAction, diagnosticCode, gameDiagnostics } from '@/diagnostics/buffer';
 import { pushAttempt } from '@/diagnostics/actions';
 import { diagnosticMetadata } from '@/diagnostics/metadata';
+import { pendingPlay } from '@/features/game/pendingPlay';
+import { randomUUID } from '@/diagnostics/uuid';
 
 let globalGameChannel: Channel | null = null;
+let pendingCard: ReturnType<typeof pendingPlay> | null = null;
 let notifySeatEvent: ((event: SeatEvent) => void) | undefined;
 let gameRefCount = 0;
 let currentTopic: string | null = null;
@@ -195,6 +198,8 @@ export const useGameChannel = ({
 
     const connect = () => {
       if (globalGameChannel && currentTopic && currentTopic !== topic) {
+        pendingCard?.cancel();
+        pendingCard = null;
         globalGameChannel.leave();
         globalGameChannel = null;
       }
@@ -290,6 +295,12 @@ export const useGameChannel = ({
               maybeAutoSelectDealer(gameState, legalActions, position ?? youPositionRef.current);
             }
           });
+          if (useGameStore.getState().role !== 'player') pendingCard?.cancel();
+          else {
+            const state = useGameStore.getState().serverState;
+            if (state) pendingCard?.observe(state);
+            pendingCard?.rejoin();
+          }
         })
         .receive('error', (resp) => {
           if (disposed || globalGameChannel !== channel) return;
@@ -299,6 +310,8 @@ export const useGameChannel = ({
             (resp as { reason?: string } | undefined)?.reason || 'Unable to join game room.';
 
           if (terminalGameJoinFailure(reason)) {
+            pendingCard?.cancel();
+            pendingCard = null;
             // A rejected seat or room cannot recover through another Phoenix
             // rejoin. Detach first so leave() cannot make onClose schedule the
             // hook's replacement channel.
@@ -337,6 +350,8 @@ export const useGameChannel = ({
             setLegalActions(legalActions);
             maybeAutoSelectDealer(gameState, legalActions, youPositionRef.current);
           });
+          const state = useGameStore.getState().serverState;
+          if (state) pendingCard?.observe(state);
         } else {
           console.warn('[GameChannel] Invalid game_state payload', payload);
         }
@@ -599,8 +614,7 @@ export const useGameChannel = ({
         globalGameChannel = null;
         currentTopic = null;
         setChannelStatus(false, false);
-        // Keep the last confirmed read-only role visible while reconnecting.
-        setRole(useGameStore.getState().role === 'spectator' ? 'spectator' : null);
+        // Keep the last confirmed seat and hand so a tap can wait for rejoin.
         // An unexpected close (socket drop, server restart) leaves no channel
         // behind and nothing re-runs the effect — reconnect ourselves while a
         // screen still needs this topic. Intentional leave() sets refCount 0,
@@ -625,9 +639,11 @@ export const useGameChannel = ({
       disposed = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       gameRefCount--;
-      if (gameRefCount === 0 && globalGameChannel) {
+      if (gameRefCount === 0) {
+        pendingCard?.cancel();
+        pendingCard = null;
         gameDiagnostics.record({ type: 'connection', code: 'disconnected', action: 'leave' });
-        globalGameChannel.leave();
+        globalGameChannel?.leave();
         globalGameChannel = null;
         notifySeatEvent = undefined;
         currentTopic = null;
@@ -654,13 +670,38 @@ export const useGameChannel = ({
   ]);
 };
 
-export function pushGameAction(event: string, payload: object) {
+export function sendCard(card: Card): Promise<boolean> {
+  if (pendingCard) return pendingCard.promise;
+  const { serverState, youPositionAbs, role } = useGameStore.getState();
+  if (!serverState || !youPositionAbs || role !== 'player') return Promise.resolve(false);
+  const attempt = pushAttempt('play_card');
+  const actionId = attempt.id ?? randomUUID();
+  const intent = pendingPlay({
+    card,
+    position: youPositionAbs,
+    state: serverState,
+    send: () => pushGameAction('play_card', { card }, actionId),
+    reconnect: () => {
+      useGameStore.getState().setChannelStatus(false, true);
+      phoenixSocket.reconnect();
+    },
+  });
+  pendingCard = intent;
+  intent.rejoin();
+  return intent.promise.finally(() => {
+    if (pendingCard === intent) pendingCard = null;
+  });
+}
+
+export function pushGameAction(event: string, payload: object, actionId?: string) {
   const channel = globalGameChannel;
-  const attempt = pushAttempt(event);
+  const attempt = actionId
+    ? { id: actionId, record: gameDiagnostics.attempt(diagnosticAction(event), actionId) }
+    : pushAttempt(event);
   if (!channel || channel.state !== 'joined') {
     attempt.record('blocked', 'disconnected');
     console.warn('[GameChannel] Cannot push, no active channel');
-    return Promise.reject(new Error('No active game channel'));
+    return Promise.reject({ reason: 'disconnected' });
   }
   if (event !== 'get_seat_lifecycle' && useGameStore.getState().role !== 'player') {
     attempt.record('blocked', 'unavailable');
@@ -670,7 +711,11 @@ export function pushGameAction(event: string, payload: object) {
   attempt.record('push', 'pending');
   return new Promise<void>((resolve, reject) => {
     channel
-      .push(event, { ...payload, ...(attempt.id ? { action_id: attempt.id } : {}) })
+      .push(
+        event,
+        { ...payload, ...((actionId ?? attempt.id) ? { action_id: actionId ?? attempt.id } : {}) },
+        event === 'play_card' ? 4000 : 10000
+      )
       .receive('ok', (response: { readiness?: ReadinessSnapshot }) => {
         attempt.record('push', 'ok');
         const snapshot = lifecycleFromReply(response);
@@ -694,7 +739,7 @@ export function pushGameAction(event: string, payload: object) {
       )
       .receive('timeout', () => {
         attempt.record('timeout', 'unavailable');
-        reject(new Error('Request timed out'));
+        reject({ reason: 'timeout' });
       });
   });
 }

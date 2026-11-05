@@ -3,11 +3,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import type { ActiveTurnTimer, Card } from '@/types/game';
 import { optimisticPlay, turnLight, type PendingPlay } from '@/features/game/playPresentation';
 import type { TableModel } from './tableModel';
-import {
-  PLAY_CARD_TRAVEL_MS,
-  PLAY_CONFIRM_TIMEOUT_MS,
-  TRICK_TRANSITION_MS,
-} from './animationTiming';
+import { PLAY_CARD_TRAVEL_MS, TRICK_TRANSITION_MS } from './animationTiming';
 import { cardKey } from './cardKey';
 import { blockedPlay } from '@/diagnostics/actions';
 import { cardPlayed, cardsHeard } from '@/features/game/sounds';
@@ -28,7 +24,8 @@ const transitionEnd = (timer: ActiveTurnTimer | null) =>
 export function usePlayPresentation(
   source: TableModel,
   send: (card: Card) => Promise<boolean | void> | boolean | void,
-  timer: ActiveTurnTimer | null = null
+  timer: ActiveTurnTimer | null = null,
+  onBlocked?: (reason: string) => void
 ) {
   const reduced = useReducedMotion();
   const [, tick] = useState(0);
@@ -136,10 +133,9 @@ export function usePlayPresentation(
   const collectUntil = motion.live
     ? motion.collectUntil
     : Math.max(motion.collectUntil, transitionEnd(timer));
-  const expiresAt = pending ? pending.startedAt + PLAY_CONFIRM_TIMEOUT_MS : 0;
   const pendingLandsAt = pending ? pending.startedAt + (reduced ? 0 : PLAY_CARD_TRAVEL_MS) : 0;
   useEffect(() => {
-    const deadlines = [motion.landsAt, pendingLandsAt, collectUntil, expiresAt].filter(
+    const deadlines = [motion.landsAt, pendingLandsAt, collectUntil].filter(
       (at) => Number.isFinite(at) && at > now
     );
     if (!deadlines.length) return;
@@ -148,7 +144,7 @@ export function usePlayPresentation(
       Math.max(0, Math.min(...deadlines) - Date.now()) + 1
     );
     return () => clearTimeout(id);
-  }, [motion.landsAt, pendingLandsAt, collectUntil, expiresAt, now]);
+  }, [motion.landsAt, pendingLandsAt, collectUntil, now]);
 
   const presented = optimisticPlay(source, pending, now);
   const optimistic = presented !== source;
@@ -164,18 +160,21 @@ export function usePlayPresentation(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the cards on the felt, not the object
   }, [shownCards, presented.lastTrick?.number]);
   useEffect(() => {
+    // A refusal and the tap can batch into null → null. Still release the ref.
     if (!pending) pendingRef.current = null;
-  }, [pending]);
+  });
 
   const playCard = useCallback(
     (card: Card) => {
       if (pendingRef.current || !source.canPlay) {
         blockedPlay(pendingRef.current ? 'pending' : 'not_your_turn');
+        if (!pendingRef.current) onBlocked?.('not_your_turn');
         return;
       }
       const held = source.yourHand.find((item) => item.textureKey === cardKey(card));
       if (!held?.isLegalPlay) {
         blockedPlay('illegal_action');
+        onBlocked?.('invalid_action');
         return;
       }
       const next = { card: held, startedAt: Date.now(), rejected: false };
@@ -183,17 +182,22 @@ export function usePlayPresentation(
       setPending(next);
       const reject = () => {
         if (pendingRef.current !== next) return;
+        pendingRef.current = null;
         setPending({ ...next, rejected: true });
       };
       try {
         Promise.resolve(send(card)).then((accepted) => {
           if (accepted === false) reject();
+          else if (accepted === true && pendingRef.current === next) {
+            pendingRef.current = null;
+            setPending(null);
+          }
         }, reject);
       } catch {
         reject();
       }
     },
-    [source, send, setPending]
+    [source, send, setPending, onBlocked]
   );
 
   const lit =
