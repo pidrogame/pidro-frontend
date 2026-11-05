@@ -26,7 +26,7 @@ export class PhoenixSocket {
     const token = getToken();
     this.socket = new Socket(config.wsURL, {
       ...(token ? { authToken: token } : {}),
-      heartbeatIntervalMs: 5_000,
+      heartbeatIntervalMs: 10_000,
       reconnectAfterMs: (tries: number) => this.reconnectDelay(tries),
       rejoinAfterMs: (tries: number) => this.reconnectDelay(tries),
     });

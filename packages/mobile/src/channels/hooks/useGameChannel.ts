@@ -243,13 +243,9 @@ export const useGameChannel = ({
         if (dealerSelectionRequestKey === key) return;
 
         dealerSelectionRequestKey = key;
-        const attempt = pushAttempt('select_dealer');
-        attempt.record('push', 'pending');
-        channel
-          .push('select_dealer', { ...(attempt.id ? { action_id: attempt.id } : {}) })
-          .receive('ok', () => attempt.record('push', 'ok'))
-          .receive('error', () => attempt.record('push', 'failed'))
-          .receive('timeout', () => attempt.record('timeout', 'unavailable'));
+        void pushGameAction('select_dealer', {}).catch((error) => {
+          if (error?.reason === 'timeout') dealerSelectionRequestKey = null;
+        });
       };
 
       channel
@@ -681,10 +677,6 @@ export function sendCard(card: Card): Promise<boolean> {
     position: youPositionAbs,
     state: serverState,
     send: () => pushGameAction('play_card', { card }, actionId),
-    reconnect: () => {
-      useGameStore.getState().setChannelStatus(false, true);
-      phoenixSocket.reconnect();
-    },
   });
   pendingCard = intent;
   intent.rejoin();
@@ -694,7 +686,7 @@ export function sendCard(card: Card): Promise<boolean> {
 }
 
 export function pushGameAction(event: string, payload: object, actionId?: string) {
-  const channel = globalGameChannel;
+  const channel = globalGameChannel as (Channel & { joinRef(): string }) | null;
   const attempt = actionId
     ? { id: actionId, record: gameDiagnostics.attempt(diagnosticAction(event), actionId) }
     : pushAttempt(event);
@@ -709,6 +701,7 @@ export function pushGameAction(event: string, payload: object, actionId?: string
   }
 
   attempt.record('push', 'pending');
+  const joinRef = channel.joinRef();
   return new Promise<void>((resolve, reject) => {
     channel
       .push(
@@ -740,6 +733,15 @@ export function pushGameAction(event: string, payload: object, actionId?: string
       .receive('timeout', () => {
         attempt.record('timeout', 'unavailable');
         reject({ reason: 'timeout' });
+        // A late timeout from the previous join must not tear down a healthy rejoin.
+        if (
+          globalGameChannel === channel &&
+          channel.state === 'joined' &&
+          channel.joinRef() === joinRef
+        ) {
+          useGameStore.getState().setChannelStatus(false, true);
+          phoenixSocket.reconnect();
+        }
       });
   });
 }

@@ -13,13 +13,11 @@ const state = {
 
 it('retains an unanswered intent, retries on rejoin, accepts once and ignores late failures', async () => {
   const replies = [];
-  let reconnects = 0;
   const intent = pendingPlay({
     card,
     position: 'west',
     state,
     send: () => new Promise((resolve, reject) => replies.push({ resolve, reject })),
-    reconnect: () => reconnects++,
   });
   let finished = false;
   intent.promise.then(() => (finished = true));
@@ -30,7 +28,6 @@ it('retains an unanswered intent, retries on rejoin, accepts once and ignores la
   intent.rejoin();
   replies[1].reject({ reason: 'timeout' });
   await Promise.resolve();
-  expect(reconnects).toBe(1);
   expect(finished).toBe(false);
   intent.rejoin();
   intent.rejoin();
@@ -53,7 +50,6 @@ it('refuses explicitly, clears a moot revision, and never replays into the next 
         pushes++;
         return new Promise((_, no) => (reject = no));
       },
-      reconnect: () => {},
     });
     const result = intent.promise.catch((error) => error.reason);
     intent.rejoin();

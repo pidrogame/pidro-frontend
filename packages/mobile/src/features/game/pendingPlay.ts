@@ -10,13 +10,11 @@ export function pendingPlay({
   position,
   state,
   send,
-  reconnect,
 }: {
   card: Card;
   position: Position;
   state: ServerGameState;
   send: () => Promise<void>;
-  reconnect: () => void;
 }) {
   let settled = false;
   let attempt = 0;
@@ -39,9 +37,8 @@ export function pendingPlay({
       () => finish(true),
       (error) => {
         if (settled || serial !== attempt) return;
-        if (error?.reason === 'disconnected') return;
-        if (error?.reason === 'timeout') reconnect();
-        else finish(false, error);
+        if (error?.reason === 'disconnected' || error?.reason === 'timeout') return;
+        finish(false, error);
       }
     );
   };

@@ -2,6 +2,15 @@ import { describe, expect, it } from 'bun:test';
 import { PhoenixSocket } from '../src/channels/socket';
 
 describe('PhoenixSocket connection lifecycle', () => {
+  it('uses a ten-second heartbeat', () => {
+    const client = new PhoenixSocket();
+    const socket = client.init({
+      config: { apiURL: 'https://example.test', wsURL: 'wss://example.test/socket' },
+      getToken: () => 'token',
+    }) as ReturnType<PhoenixSocket['init']> & { heartbeatIntervalMs: number };
+    expect(socket.heartbeatIntervalMs).toBe(10_000);
+  });
+
   it('refreshes the automatic reconnect token without dropping a live socket', () => {
     let token = 'guest-token';
     const client = new PhoenixSocket();
