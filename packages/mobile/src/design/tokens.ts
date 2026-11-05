@@ -406,6 +406,15 @@ export const PidroSpacing = {
   xxl: 40,
 } as const;
 
+/** Month ribbon ramps from the league boards, lowest league first. */
+export const PidroLeagueRibbons = {
+  deuce: ['#4f86b8', '#2f5f8c'],
+  ten: ['#35a091', '#1f6e63'],
+  jack: ['#c4475a', '#8a2433'],
+  ace: ['#4a4e6e', '#23263a'],
+  pidro: ['#F6DE9A', '#C4892A'],
+} as const;
+
 export const PidroLayout = {
   touchTarget: 44,
   contentMaxWidth: 520,

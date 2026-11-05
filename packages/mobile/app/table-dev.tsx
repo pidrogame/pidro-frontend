@@ -695,6 +695,7 @@ function TableDevHarness() {
     rematch?: string;
     result?: string;
     xp?: string;
+    leagueChange?: string;
     readyResult?: string;
     deal?: string;
     dealer?: string;
@@ -999,6 +1000,7 @@ function TableDevHarness() {
             rematch={params.rematch}
             result={params.result}
             xp={params.xp}
+            leagueChange={params.leagueChange}
             playerName={params.playerName}
             guest={params.guest === 'true'}
             crew={params.crew === 'win' || params.crew === 'loss' ? params.crew : undefined}

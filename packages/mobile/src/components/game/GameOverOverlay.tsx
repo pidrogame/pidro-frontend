@@ -10,6 +10,7 @@ import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
+import { LeagueCard } from '@/components/league/LeagueCard';
 import { HandHistory } from './HandHistory';
 import { all14Team } from '@/features/game/handResult';
 import {
@@ -37,7 +38,7 @@ import { playBigTrickHaptic, playOurPidroHaptic } from '@/game/useGameHaptics';
 import { play } from '@/game/sounds';
 import { gameOverSound } from '@/features/game/sounds';
 import { formatNumber, t, useTranslation } from '@/i18n';
-import type { BotPersona, RematchVote } from '@pidro/shared';
+import type { BotPersona, LeagueId, RematchVote } from '@pidro/shared';
 import type { GameViewModel, RelativePlayerView, ServerGameState, TeamKey } from '@/types/game';
 import { isNorthSouthTeam, resolveWinningTeam } from '@/utils/positions';
 import { isStillCapture } from '@/utils/stillCapture';
@@ -49,6 +50,7 @@ import { VictoryConfetti, VictoryRays } from './VictoryConfetti';
 interface GameOverOverlayProps {
   viewModel: GameViewModel;
   serverState: ServerGameState;
+  leagueProgress?: { league: LeagueId; line: string } | null;
   progressionSummary?:
     | (Pick<ProgressionSummary, 'xp_earned' | 'veteran_level' | 'leveled_up'> &
         Partial<Pick<ProgressionSummary, 'veteran_progress' | 'partner'>>)
@@ -213,6 +215,7 @@ export function GameOverOverlay({
   viewModel,
   serverState,
   progressionSummary,
+  leagueProgress,
   onHome,
   onPlayAgain,
   rematch,
@@ -668,6 +671,18 @@ export function GameOverOverlay({
       {plaque}
       {title}
       {score}
+      {!spectator && !guest && !othersAreBots(others) ? (
+        <View testID="game-over-league-slot" style={[styles.league, { height: z(28) }]}>
+          {leagueProgress ? (
+            <View testID="game-over-league" style={styles.league}>
+              <LeagueCard league={leagueProgress.league} size={16} />
+              <PidroText role="metadata" numberOfLines={1} style={styles.shrink}>
+                {leagueProgress.line}
+              </PidroText>
+            </View>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 
@@ -744,6 +759,13 @@ const styles = StyleSheet.create({
   side: { flex: 1, minWidth: 0, justifyContent: 'center' },
   sideRight: { flex: 1.1 },
   reveal: { alignItems: 'center' },
+  league: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: PidroSpacing.xs,
+    maxWidth: '100%',
+  },
   eyebrow: { fontWeight: '900', letterSpacing: 1.6, textTransform: 'uppercase' },
   stage: { alignItems: 'center' },
   plaque: {

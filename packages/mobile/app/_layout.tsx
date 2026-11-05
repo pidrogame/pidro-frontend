@@ -16,6 +16,7 @@ import { useAuthStore } from '../src/stores/auth';
 import { useAgeGateStore } from '../src/stores/ageGate';
 import { Background } from '../src/components/ui/Background';
 import { WelcomeSheet } from '../src/components/news/WelcomeSheet';
+import { LeagueHost } from '../src/components/league/LeagueHost';
 import { useLocaleBootstrap } from '../src/i18n';
 import { PidroColors } from '../src/design/tokens';
 
@@ -64,42 +65,44 @@ export default function RootLayout() {
           <View collapsable={false} style={styles.content} onLayout={hideSplash}>
             <AnalyticsProvider>
               <AnalyticsTracker />
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  animation: 'none', // Instant transitions for game feel
-                  // Keep the image visible while routes swap or the table loads.
-                  contentStyle: { backgroundColor: 'transparent' },
-                }}>
-                <Stack.Screen name="index" />
-                <Stack.Screen name="(onboarding)/age" />
-                <Stack.Screen name="welcome" />
-                <Stack.Screen name="device-settings" />
-                <Stack.Screen name="join-code" />
-                <Stack.Screen name="join/[code]" />
-                <Stack.Screen name="play/[slug]" />
-                <Stack.Screen name="(auth)" />
-                <Stack.Protected guard={canAccessApp}>
-                  <Stack.Screen name="(shell)" />
-                  <Stack.Screen name="new-table" options={{ animation: 'none' }} />
-                  <Stack.Screen
-                    name="lobby"
-                    options={{ animation: menuAnimation, gestureEnabled: !reduceMotion }}
-                  />
-                  <Stack.Screen
-                    name="help"
-                    options={{ animation: menuAnimation, gestureEnabled: !reduceMotion }}
-                  />
-                  <Stack.Screen
-                    name="game"
-                    options={{
-                      animation: 'none',
-                      gestureEnabled: false,
-                    }}
-                  />
-                </Stack.Protected>
-              </Stack>
-              <WelcomeSheet />
+              <LeagueHost>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    animation: 'none', // Instant transitions for game feel
+                    // Keep the image visible while routes swap or the table loads.
+                    contentStyle: { backgroundColor: 'transparent' },
+                  }}>
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="(onboarding)/age" />
+                  <Stack.Screen name="welcome" />
+                  <Stack.Screen name="device-settings" />
+                  <Stack.Screen name="join-code" />
+                  <Stack.Screen name="join/[code]" />
+                  <Stack.Screen name="play/[slug]" />
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Protected guard={canAccessApp}>
+                    <Stack.Screen name="(shell)" />
+                    <Stack.Screen name="new-table" options={{ animation: 'none' }} />
+                    <Stack.Screen
+                      name="lobby"
+                      options={{ animation: menuAnimation, gestureEnabled: !reduceMotion }}
+                    />
+                    <Stack.Screen
+                      name="help"
+                      options={{ animation: menuAnimation, gestureEnabled: !reduceMotion }}
+                    />
+                    <Stack.Screen
+                      name="game"
+                      options={{
+                        animation: 'none',
+                        gestureEnabled: false,
+                      }}
+                    />
+                  </Stack.Protected>
+                </Stack>
+                <WelcomeSheet />
+              </LeagueHost>
             </AnalyticsProvider>
           </View>
         ) : null}

@@ -1,6 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
+  Animated,
   AppState,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,6 +24,10 @@ import { AuthSheet, type AuthSheetReason } from '@/components/auth/AuthSheet';
 import { FeedbackAsk } from '@/components/feedback/FeedbackAsk';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { ClassicPlaque } from '@/components/home/ClassicPlaque';
+import { LeagueCard } from '@/components/league/LeagueCard';
+import { useLeague } from '@/components/league/LeagueHost';
+import { leagueLine, placeArrow } from '@/features/league';
+import { useReducedMotion } from 'react-native-reanimated';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { LogoGlow } from '@/components/home/LogoGlow';
 import { NewsSheet } from '@/components/news/NewsSheet';
@@ -72,6 +79,67 @@ export default function HomeScreen() {
   const [showInvitations, setShowInvitations] = useState(invitations.length > 0);
   if (invitations.length > 0 && !showInvitations) setShowInvitations(true);
   const guest = Boolean(user?.guest);
+  const { data: league } = useLeague();
+  const reduceMotion = useReducedMotion();
+  const [tick] = useState(() => new Animated.Value(1));
+  const userId = user?.id;
+  const [leagueTick, setLeagueTick] = useState<{
+    week: string;
+    league: string;
+    place: number;
+    arrow: string;
+  } | null>(null);
+  const place = league?.status === 'placed' ? league.me?.place : null;
+  const week = league?.week?.starts_at;
+  const card = league?.league;
+  useFocusEffect(
+    useCallback(() => {
+      if (place == null || !week || !card || !userId) return;
+      let active = true;
+      const key = `league-home:v1:${userId}`;
+      void AsyncStorage.getItem(key)
+        .then((stored) => {
+          if (!active) return;
+          const previous = stored
+            ? (JSON.parse(stored) as { week: string; league: string; place: number })
+            : null;
+          const from =
+            previous?.week === week && previous?.league === card ? previous.place : place;
+          const arrow = placeArrow(from, place);
+          const next = { week, league: card, place, arrow };
+          void AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => undefined);
+          if (!arrow || reduceMotion) {
+            tick.setValue(1);
+            setLeagueTick(next);
+            return;
+          }
+          setLeagueTick({ ...next, place: from });
+          tick.setValue(1);
+          Animated.timing(tick, {
+            toValue: 0,
+            duration: 90,
+            useNativeDriver: Platform.OS !== 'web',
+          }).start(({ finished }) => {
+            if (!finished || !active) return;
+            setLeagueTick(next);
+            Animated.timing(tick, {
+              toValue: 1,
+              duration: 160,
+              useNativeDriver: Platform.OS !== 'web',
+            }).start();
+          });
+        })
+        .catch(() => undefined);
+      return () => {
+        active = false;
+        tick.stopAnimation();
+      };
+    }, [place, week, card, userId, reduceMotion, tick])
+  );
+  const seenPlace = leagueTick?.week === week && leagueTick?.league === card ? leagueTick : null;
+  const leagueCaption = league
+    ? `${leagueLine(seenPlace && league.me ? { ...league, me: { ...league.me, place: seenPlace.place } } : league) ?? ''}${place != null ? (seenPlace?.arrow ?? '') : ''}`
+    : null;
   const lobby = useLobbyStore((state) => state.lobby);
   const setLobby = useLobbyStore((state) => state.setLobby);
   const setStats = useLobbyStore((state) => state.setStats);
@@ -303,6 +371,30 @@ export default function HomeScreen() {
           </Surface>
         ) : null}
 
+        {leagueCaption && league?.league ? (
+          <PressableFX
+            testID="home-league"
+            accessibilityRole="button"
+            onPress={() => router.replace('/league')}
+            style={styles.leagueCard}>
+            <LeagueCard league={league.league} size={26} />
+            <Animated.View
+              testID="home-league-tick"
+              style={[
+                styles.leagueCopy,
+                {
+                  opacity: tick.interpolate({ inputRange: [0, 1], outputRange: [0.25, 1] }),
+                  transform: [
+                    { translateY: tick.interpolate({ inputRange: [0, 1], outputRange: [3, 0] }) },
+                  ],
+                },
+              ]}>
+              <PidroText role="label">{leagueCaption}</PidroText>
+            </Animated.View>
+            <Icon name="chevron-right" size={18} color={PidroColors.cyanText} />
+          </PressableFX>
+        ) : null}
+
         <View style={[styles.tiles, tablet && styles.tilesTablet]}>
           <HomeTileButton
             material={guest ? 'wood' : 'glass'}
@@ -465,6 +557,22 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  leagueCard: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: PidroColors.panel,
+    borderWidth: 1,
+    borderColor: PidroColors.borderStrong,
+    borderRadius: 10,
+    width: '100%',
+    maxWidth: 380,
+    alignSelf: 'center',
+  },
+  leagueCopy: { flex: 1, minWidth: 0 },
   invitationScroll: { flex: 1, width: '100%', maxWidth: 794 },
   invitationContent: { gap: PidroSpacing.md },
   scrim: { flex: 1, backgroundColor: PidroColors.screenScrim },

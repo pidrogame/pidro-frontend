@@ -91,6 +91,7 @@ type Props = {
   room: Room;
   rulesFixtureSeen?: boolean;
   progressionSummary?: ProgressionSummary | null;
+  leagueProgress?: { league: import('@pidro/shared').LeagueId; line: string } | null;
   onLeave: () => void;
   onPlayAgain?: () => void;
   rematch?: RematchVote | null;
@@ -335,6 +336,7 @@ function TimedSeatLayer({
 export function GameCanvasTable({
   room,
   progressionSummary,
+  leagueProgress,
   onLeave,
   onPlayAgain,
   rematch,
@@ -1071,6 +1073,7 @@ export function GameCanvasTable({
               viewModel={viewModel}
               serverState={serverState}
               progressionSummary={progressionSummary}
+              leagueProgress={leagueProgress}
               onHome={onHome ?? onLeave}
               onPlayAgain={onPlayAgain ?? onLeave}
               rematch={rematch}

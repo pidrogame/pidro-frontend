@@ -8,6 +8,10 @@ import { localizedError, localizedFieldErrors } from '@/utils/apiErrors';
 import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BadgeSheet } from '@/components/profile/BadgeSheet';
+import { useLeague } from '@/components/league/LeagueHost';
+import { LeagueCard } from '@/components/league/LeagueCard';
+import { LeagueRibbonShelf } from '@/components/league/LeagueRibbon';
+import { leagueLine } from '@/features/league';
 import { BackButton } from '@/components/ui/BackButton';
 import { gradientBg } from '@/components/ui/Bevel';
 import { BevelButton } from '@/components/ui/BevelButton';
@@ -55,6 +59,8 @@ export default function ProfileScreen() {
 
 function ProfileContent() {
   const { t } = useTranslation();
+  const { data: league } = useLeague();
+  const leagueCaption = league ? leagueLine(league) : null;
   const bioValidation = (value: string) =>
     !bioError(value)
       ? null
@@ -418,14 +424,27 @@ function ProfileContent() {
                               {t('social.this_week')}
                             </PidroText>
                             <PidroText role="title" style={styles.number}>
-                              {formatNumber(identity.xp.this_week)} XP
+                              {formatNumber(
+                                league?.status === 'placed' && league.me
+                                  ? league.me.points
+                                  : identity.xp.this_week
+                              )}{' '}
+                              XP
                             </PidroText>
-                            <TextLink
-                              label={t('profile.leagues_coming')}
-                              size={14}
-                              onPress={() => router.replace('/league')}
-                              style={styles.leagueLink}
-                            />
+                            {leagueCaption ? (
+                              <View style={styles.leagueRow}>
+                                {league?.league ? (
+                                  <LeagueCard league={league.league} size={20} />
+                                ) : null}
+                                <TextLink
+                                  testID="profile-league"
+                                  label={`${leagueCaption} ›`}
+                                  size={14}
+                                  onPress={() => router.replace('/league')}
+                                  style={styles.leagueLink}
+                                />
+                              </View>
+                            ) : null}
                           </View>
                           <View style={[styles.figure, styles.month]}>
                             <PidroText role="metadata" tone="cyan" style={styles.eyebrow}>
@@ -440,6 +459,7 @@ function ProfileContent() {
                     ) : null}
                   </Surface>
                 ) : null}
+                <LeagueRibbonShelf />
                 {shelf.medals.length ? (
                   <Surface variant="subtle" style={styles.medals} testID="profile-medals">
                     <View style={styles.medalsHeading}>
@@ -812,7 +832,8 @@ const styles = StyleSheet.create({
     borderLeftColor: PidroColors.border,
     paddingLeft: PidroSpacing.sm,
   },
-  leagueLink: { alignSelf: 'flex-start', alignItems: 'flex-start', paddingHorizontal: 0 },
+  leagueRow: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
+  leagueLink: { flexShrink: 1, alignItems: 'flex-start', paddingHorizontal: 0 },
   record: { flexDirection: 'row', paddingVertical: 14, paddingHorizontal: 6 },
   stat: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2 },
   friendsCount: { flexDirection: 'row', alignItems: 'center', gap: 2 },

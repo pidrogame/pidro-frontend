@@ -79,6 +79,17 @@ export {
 } from './feedback';
 export { createNewsApi, type NewsApi, type NewsPage, type NewsPost } from './news';
 export {
+  createLeagueApi,
+  type LeagueApi,
+  type LeagueAvatar,
+  type LeagueId,
+  type LeagueState,
+  type LeagueStanding,
+  type LeagueFriend,
+  type LeagueRibbon,
+  type LeagueResult,
+} from './league';
+export {
   type CreateRoomResponse,
   createLobbyApi,
   type GetRoomResponse,
