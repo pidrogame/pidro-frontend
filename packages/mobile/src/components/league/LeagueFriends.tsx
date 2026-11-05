@@ -9,7 +9,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { PidroSpacing } from '@/design/tokens';
-import { leagueMarkName, ordinal } from '@/features/league';
+import { leagueName, ordinal } from '@/features/league';
 import { roomHasUser } from '@/features/lobby/newTable';
 import { friendSheetFixture } from '@/features/profileFixtures';
 import { useTranslation } from '@/i18n';
@@ -62,7 +62,7 @@ export function LeagueFriends() {
           key={player.user_id}
           testID={`league-friend-${player.user_id}`}
           accessibilityRole="button"
-          accessibilityLabel={`${player.username} · ${leagueMarkName(player.league)} · ${ordinal(player.place)}`}
+          accessibilityLabel={`${player.username} · ${leagueName(player.league)} · ${ordinal(player.place)}`}
           onPress={() => {
             setSelected(player);
             if (!preview) void refreshFriends().catch(() => undefined);
@@ -79,7 +79,7 @@ export function LeagueFriends() {
               {player.username}
             </PidroText>
             <PidroText role="metadata" tone="soft">
-              {leagueMarkName(player.league)} · {ordinal(player.place)}
+              {t('league.line.placed', { place: ordinal(player.place) })}
             </PidroText>
           </View>
           <LeagueCard league={player.league} size={26} />
@@ -130,6 +130,7 @@ export function LeagueFriends() {
       ) : null}
       <PlayerSheet
         playerId={profile?.user_id ?? null}
+        standing={profile ? { league: profile.league, place: profile.place } : undefined}
         onClose={() => setProfile(null)}
         fixture={
           preview && profile

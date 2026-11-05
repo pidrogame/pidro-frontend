@@ -70,13 +70,7 @@ export function leagueFixture(value?: string): LeagueState | null {
     data.room!.standings.find((row) => row.me)!.points = 2700;
   }
   if (state.startsWith('result-')) {
-    const earnedStar = state === 'result-star';
-    const move = earnedStar
-      ? 'stayed'
-      : state === 'result-first'
-        ? 'up'
-        : (state.slice(7) as 'up' | 'stayed' | 'down');
-    if (state === 'result-first') data.intro_seen = false;
+    const move = state.slice(7) as 'up' | 'stayed' | 'down';
     const next = move === 'up' ? 'ace' : move === 'down' ? 'ten' : 'jack';
     data.league = next;
     data.pending_result = {
@@ -93,9 +87,9 @@ export function leagueFixture(value?: string): LeagueState | null {
         month: '2026-10',
         league: move === 'up' ? 'ace' : 'jack',
         changed: move === 'up',
-        star: earnedStar,
-        star_possible: earnedStar || move === 'up',
-        weeks_played: earnedStar ? 4 : 3,
+        star: false,
+        star_possible: move === 'up',
+        weeks_played: 3,
         weeks_total: 4,
         so_far: true,
       },
@@ -112,7 +106,6 @@ export function leagueFixture(value?: string): LeagueState | null {
       so_far: false,
     }));
   }
-  if (state === 'intro') data.intro_seen = false;
   if (state === 'friends' || state === 'friends-not_placed') {
     data.friends = [
       {

@@ -1,4 +1,11 @@
-import { getLocale, t, type LeagueId, type LeagueState, type LeagueRibbon } from '@pidro/shared';
+import {
+  getLocale,
+  t,
+  type LeagueId,
+  type LeagueResult,
+  type LeagueState,
+  type LeagueRibbon,
+} from '@pidro/shared';
 
 /** Display order only; promotion and demotion counts always come from the server. */
 export const LEAGUES = [
@@ -11,11 +18,6 @@ export const LEAGUES = [
 
 export function leagueName(id: LeagueId): string {
   return t(LEAGUES.find((league) => league.id === id)!.labelKey);
-}
-
-/** Short name for ribbons, e.g. "Jack", not "Jack league". */
-export function leagueMarkName(id: LeagueId): string {
-  return t(`league.mark.${id}`);
 }
 
 export function nextLeague(id: LeagueId): LeagueId | null {
@@ -52,34 +54,16 @@ export function leagueLine(data: LeagueState): string | null {
   if (data.status === 'placed' && data.me) {
     return t('league.line.placed', {
       place: ordinal(data.me.place),
-      league: leagueName(data.league),
     });
   }
   if (data.status === 'not_placed') {
-    return t('league.line.not_placed', { league: leagueName(data.league) });
+    return t('league.not_placed');
   }
   return null;
 }
 
-/** The local Monday following the server's Sunday boundary, not the Sunday date. */
-export function resultWeekDate(
-  startsAt: string,
-  timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
-): string {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date(startsAt));
-  const part = (name: string) => Number(parts.find(({ type }) => type === name)!.value);
-  const monday = new Date(Date.UTC(part('year'), part('month') - 1, part('day')));
-  monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7));
-  return new Intl.DateTimeFormat(getLocale() === 'sv' ? 'sv-SE' : 'en-GB', {
-    day: 'numeric',
-    month: 'long',
-    timeZone: 'UTC',
-  }).format(monday);
+export function shouldShowLeagueResult(result: LeagueResult | null): boolean {
+  return result?.move === 'up' || result?.move === 'down';
 }
 
 export function ribbonMonth(month: string, short = false): string {
@@ -95,40 +79,13 @@ export function ribbonHistory(ribbons: LeagueState['ribbons']): LeagueRibbon[] {
     .slice(-12);
 }
 
-/** Local calendar day and clock; duration is elapsed time, including across DST. */
-export function closeTimeText(
-  closesAt: string,
-  now: Date = new Date(),
-  timeZone: string = Intl.DateTimeFormat().resolvedOptions().timeZone
-): string {
+/** Elapsed whole minutes, independent of local calendars and DST. */
+export function closeTimeText(closesAt: string, now: Date = new Date()): string {
   const close = new Date(closesAt);
   if (!Number.isFinite(close.getTime()) || !Number.isFinite(now.getTime())) return '';
-  const locale = getLocale();
-  const calendarDate = (date: Date) =>
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(date);
-  const day =
-    calendarDate(close) === calendarDate(now)
-      ? t('league.close.today')
-      : new Intl.DateTimeFormat(locale, { timeZone, weekday: 'long' }).format(close);
-  const time = new Intl.DateTimeFormat(locale, {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(close);
-  const minutes = Math.max(0, Math.ceil((close.getTime() - now.getTime()) / 60_000));
-  const duration =
-    minutes === 0
-      ? t('league.close.closed')
-      : minutes >= 1440
-        ? t('league.close.days', { count: Math.floor(minutes / 1440) })
-        : minutes >= 60
-          ? t('league.close.hours', { count: Math.floor(minutes / 60) })
-          : t('league.close.minutes', { count: minutes });
-  return t('league.close.line', { day, time, duration });
+  const minutes = Math.max(0, Math.floor((close.getTime() - now.getTime()) / 60_000));
+  const hours = Math.floor(minutes / 60);
+  return minutes >= 1440
+    ? t('league.close.days', { days: Math.floor(hours / 24), hours: hours % 24 })
+    : t('league.close.hours', { hours, minutes: minutes % 60 });
 }

@@ -14,7 +14,7 @@ import {
   PidroLeagueRibbons,
   PidroSpacing,
 } from '@/design/tokens';
-import { leagueMarkName, LEAGUES, ribbonHistory, ribbonMonth } from '@/features/league';
+import { leagueName, LEAGUES, ribbonHistory, ribbonMonth } from '@/features/league';
 import { useTranslation } from '@/i18n';
 import { useLeague } from './LeagueHost';
 
@@ -37,7 +37,7 @@ export function LeagueRibbon({
       accessible
       accessibilityLabel={t(ribbon.star ? 'league.ribbons.label_star' : 'league.ribbons.label', {
         month: ribbonMonth(ribbon.month),
-        league: leagueMarkName(ribbon.league),
+        league: leagueName(ribbon.league),
       })}
       style={[styles.ribbon, { width: size, height: size * 1.5 }, faded && styles.faded]}>
       <Svg style={StyleSheet.absoluteFill} viewBox="0 0 40 60" width={size} height={size * 1.5}>
@@ -61,23 +61,6 @@ export function LeagueRibbon({
           <Icon name="star" size={size * 0.27} color={ink} />
         </View>
       ) : null}
-    </View>
-  );
-}
-
-export function LeagueWeekDots({ ribbon }: { ribbon: Ribbon }) {
-  const { t } = useTranslation();
-  return (
-    <View
-      accessible
-      accessibilityLabel={t('league.ribbons.weeks', {
-        played: ribbon.weeks_played,
-        total: ribbon.weeks_total,
-      })}
-      style={styles.dots}>
-      {Array.from({ length: ribbon.weeks_total }, (_, index) => (
-        <View key={index} style={[styles.dot, index < ribbon.weeks_played && styles.played]} />
-      ))}
     </View>
   );
 }
@@ -129,7 +112,7 @@ export function LeagueRibbonShelf() {
             </View>
           ))}
         </View>
-        <TextLink label={t('league.result.close')} onPress={() => setOpen(false)} />
+        <TextLink label={t('profile.close')} onPress={() => setOpen(false)} />
       </Modal>
     </>
   );
@@ -140,15 +123,6 @@ const styles = StyleSheet.create({
   faded: { opacity: 0.55 },
   month: { fontFamily: PidroFonts.ui, fontWeight: '900', fontSize: 9, lineHeight: 12 },
   mark: { fontFamily: PidroFonts.display, fontWeight: '400' },
-  dots: { flexDirection: 'row', gap: 6 },
-  dot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: PidroColors.borderStrong,
-  },
-  played: { backgroundColor: PidroColors.gold, borderColor: PidroColors.goldLight },
   shelf: { gap: PidroSpacing.xs, minHeight: 44, padding: PidroSpacing.sm },
   shelfRow: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xs },
   history: { flexDirection: 'row', flexWrap: 'wrap', rowGap: PidroSpacing.sm, width: '100%' },

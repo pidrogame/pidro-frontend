@@ -86,9 +86,6 @@ export function createLeagueApi(api: ApiClient) {
     markResultSeen: async (id: string): Promise<void> => {
       await api.post(`/api/v1/league/results/${encodeURIComponent(id)}/seen`);
     },
-    introSeen: async (): Promise<void> => {
-      await api.post("/api/v1/league/intro_seen");
-    },
     setHidden: async (hidden: boolean): Promise<LeagueState> =>
       (await api.put<LeagueState>("/api/v1/league/hidden", { hidden })).data,
   };

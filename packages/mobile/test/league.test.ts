@@ -1,36 +1,35 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogs, setLocale, t, validateCatalogs, type LeagueState } from '@pidro/shared';
+import {
+  catalogs,
+  setLocale,
+  t,
+  validateCatalogs,
+  type LeagueResult,
+  type LeagueState,
+} from '@pidro/shared';
 import {
   LEAGUES,
   closeTimeText,
   leagueBands,
   leagueLine,
-  leagueMarkName,
   leagueName,
   nextLeague,
   ordinal,
   previousLeague,
-  resultWeekDate,
   ribbonHistory,
   ribbonMonth,
+  shouldShowLeagueResult,
 } from '../src/features/league';
 
 afterEach(() => setLocale('en'));
 
-test('result labels name Monday in the device calendar, across Sunday and Monday time zones', () => {
-  for (const zone of [
-    'Europe/Helsinki',
-    'Europe/Stockholm',
-    'America/New_York',
-    'Pacific/Auckland',
-  ]) {
-    assert.equal(resultWeekDate('2026-10-11T19:00:00Z', zone), '12 October');
-    assert.equal(resultWeekDate('2026-12-27T19:00:00Z', zone), '28 December');
-  }
+test('ribbon month names are localized', () => {
+  assert.equal(ribbonMonth('2026-10'), 'October');
+  assert.equal(ribbonMonth('2026-10', true), 'Oct');
   setLocale('sv');
-  assert.equal(resultWeekDate('2026-10-11T19:00:00Z', 'Europe/Stockholm'), '12 oktober');
   assert.equal(ribbonMonth('2026-10'), 'oktober');
+  assert.equal(ribbonMonth('2026-10', true), 'okt.');
 });
 
 test('ribbon history keeps the newest twelve in month order including current, without changing star eligibility', () => {
@@ -67,7 +66,7 @@ const placed: LeagueState = {
   classic: true,
 };
 
-test('five card identities, translated full/short names and neighbours without wraparound', () => {
+test('five card identities, translated bare names and neighbours without wraparound', () => {
   assert.deepEqual(
     LEAGUES.map(({ id, rank, suit, red }) => [id, rank, suit, red]),
     [
@@ -87,15 +86,15 @@ test('five card identities, translated full/short names and neighbours without w
     [null, 'deuce', 'ten', 'jack', 'ace']
   );
   for (const { id, labelKey } of LEAGUES) assert.equal(leagueName(id), t(labelKey));
-  assert.equal(leagueName('jack'), 'Jack league');
-  assert.equal(leagueMarkName('jack'), 'Jack');
-  assert.equal(
-    t('league.ribbon_so_far', { league: leagueMarkName('jack') }),
-    'Ribbon so far: Jack'
+  assert.deepEqual(
+    LEAGUES.map(({ id }) => leagueName(id)),
+    ['Deuce', 'Ten', 'Jack', 'Ace', 'Pidro']
   );
   setLocale('sv');
-  assert.equal(leagueName('jack'), 'Knektens liga');
-  assert.equal(leagueMarkName('jack'), 'Knekten');
+  assert.deepEqual(
+    LEAGUES.map(({ id }) => leagueName(id)),
+    ['Tvåa', 'Tia', 'Knekt', 'Ess', 'Pidro']
+  );
 });
 
 describe('server-owned bands', () => {
@@ -172,15 +171,12 @@ test('English and Swedish ordinals include teens and hundreds', () => {
 test('public league line handles every server status in both languages', () => {
   for (const locale of ['en', 'sv'] as const) {
     setLocale(locale);
-    assert.equal(
-      leagueLine(placed),
-      locale === 'en' ? '6th in Jack league' : '6:e i Knektens liga'
-    );
+    assert.equal(leagueLine(placed), locale === 'en' ? '6th this week' : '6:e den här veckan');
     assert.equal(
       leagueLine({ ...placed, status: 'not_placed', me: null, room: null }),
       locale === 'en'
-        ? 'Jack league · play a game to join'
-        : 'Knektens liga · spela ett parti för att gå med'
+        ? 'Play a game with people to get on the board'
+        : 'Spela ett parti med andra för att komma med på listan'
     );
     for (const status of ['opted_out', 'guest', 'off'] as const)
       assert.equal(leagueLine({ ...placed, status }), null);
@@ -189,95 +185,156 @@ test('public league line handles every server status in both languages', () => {
   }
 });
 
-describe('local closing clock, winter and summer', () => {
-  for (const [zone, winter, summer] of [
-    ['Europe/Helsinki', '21:00', '22:00'],
-    ['Europe/Stockholm', '20:00', '21:00'],
-    ['America/New_York', '14:00', '15:00'],
+test('countdown floors whole minutes, keeps both units, and clamps expiry in both languages', () => {
+  const close = '2026-11-08T19:00:00Z';
+  for (const [now, en, sv] of [
+    ['2026-11-05T14:47:01Z', 'Ends in 3d 4h', 'Slutar om 3 d 4 h'],
+    ['2026-11-08T14:47:01Z', 'Ends in 4h 12m', 'Slutar om 4 h 12 min'],
+    ['2026-11-07T19:00:00Z', 'Ends in 1d 0h', 'Slutar om 1 d 0 h'],
+    ['2026-11-07T19:00:01Z', 'Ends in 23h 59m', 'Slutar om 23 h 59 min'],
+    ['2026-11-08T18:00:00Z', 'Ends in 1h 0m', 'Slutar om 1 h 0 min'],
+    ['2026-11-08T18:58:01Z', 'Ends in 0h 1m', 'Slutar om 0 h 1 min'],
+    ['2026-11-08T18:59:59Z', 'Ends in 0h 0m', 'Slutar om 0 h 0 min'],
+    ['2026-11-08T19:00:00Z', 'Ends in 0h 0m', 'Slutar om 0 h 0 min'],
+    ['2026-11-08T19:01:00Z', 'Ends in 0h 0m', 'Slutar om 0 h 0 min'],
   ]) {
-    test(zone, () => {
-      assert.equal(
-        closeTimeText('2026-11-08T19:00:00Z', new Date('2026-11-06T19:00:00Z'), zone),
-        `Ends Sunday at ${winter} · 2 days left`
-      );
-      assert.equal(
-        closeTimeText('2026-07-05T19:00:00Z', new Date('2026-07-03T19:00:00Z'), zone),
-        `Ends Sunday at ${summer} · 2 days left`
-      );
-    });
+    setLocale('en');
+    assert.equal(closeTimeText(close, new Date(now)), en);
+    setLocale('sv');
+    assert.equal(closeTimeText(close, new Date(now)), sv);
+  }
+  assert.equal(closeTimeText('invalid'), '');
+  assert.equal(closeTimeText(close, new Date('invalid')), '');
+});
+
+test('winter, summer and DST boundaries use actual elapsed time, not calendar days', () => {
+  for (const [now, close, expected] of [
+    // Helsinki, Stockholm and New York, in winter and summer.
+    ['2026-01-08T20:00:00+02:00', '2026-01-11T21:00:00+02:00', 'Ends in 3d 1h'],
+    ['2026-07-02T20:00:00+03:00', '2026-07-05T22:00:00+03:00', 'Ends in 3d 2h'],
+    ['2026-01-08T20:00:00+01:00', '2026-01-11T21:00:00+01:00', 'Ends in 3d 1h'],
+    ['2026-07-02T20:00:00+02:00', '2026-07-05T22:00:00+02:00', 'Ends in 3d 2h'],
+    ['2026-01-08T20:00:00-05:00', '2026-01-11T21:00:00-05:00', 'Ends in 3d 1h'],
+    ['2026-07-02T20:00:00-04:00', '2026-07-05T22:00:00-04:00', 'Ends in 3d 2h'],
+    ['2026-03-28T20:00:00+02:00', '2026-03-29T20:00:00+03:00', 'Ends in 23h 0m'],
+    ['2026-10-24T20:00:00+03:00', '2026-10-25T20:00:00+02:00', 'Ends in 1d 1h'],
+    ['2026-03-07T20:00:00-05:00', '2026-03-08T20:00:00-04:00', 'Ends in 23h 0m'],
+    ['2026-10-31T20:00:00-04:00', '2026-11-01T20:00:00-05:00', 'Ends in 1d 1h'],
+  ]) {
+    assert.equal(closeTimeText(close, new Date(now)), expected);
   }
 });
 
-test('today uses local calendar dates, not UTC dates or rolling 24 hours', () => {
-  const now = new Date('2026-11-08T21:30:00Z');
-  const close = '2026-11-08T22:30:00Z';
-  assert.equal(closeTimeText(close, now, 'Europe/Helsinki'), 'Ends Monday at 00:30 · 1 hour left');
-  assert.equal(closeTimeText(close, now, 'Europe/Stockholm'), 'Ends today at 23:30 · 1 hour left');
-  assert.equal(closeTimeText(close, now, 'America/New_York'), 'Ends today at 17:30 · 1 hour left');
-  assert.equal(
-    closeTimeText('2026-11-09T00:30:00Z', new Date('2026-11-08T23:30:00Z'), 'America/New_York'),
-    'Ends today at 19:30 · 1 hour left'
-  );
-  assert.equal(
-    closeTimeText('2026-07-05T21:30:00Z', new Date('2026-07-05T20:30:00Z'), 'Europe/Helsinki'),
-    'Ends Monday at 00:30 · 1 hour left'
-  );
-  assert.equal(
-    closeTimeText('2026-07-05T21:30:00Z', new Date('2026-07-05T20:30:00Z'), 'Europe/Stockholm'),
-    'Ends today at 23:30 · 1 hour left'
-  );
+test('only up and down results are shown; stayed and null are silent', () => {
+  const result: LeagueResult = {
+    id: 'result-1',
+    week_starts_at: '2026-11-01T19:00:00Z',
+    week_closes_at: '2026-11-08T19:00:00Z',
+    old_league: 'jack',
+    new_league: 'ace',
+    move: 'up',
+    place: 2,
+    points: 1240,
+    room_size: 30,
+    ribbon: {
+      month: '2026-11',
+      league: 'ace',
+      star: false,
+      star_possible: true,
+      weeks_played: 1,
+      weeks_total: 5,
+      so_far: true,
+      changed: true,
+    },
+  };
+  assert.equal(shouldShowLeagueResult(result), true);
+  assert.equal(shouldShowLeagueResult({ ...result, move: 'down', new_league: 'ten' }), true);
+  assert.equal(shouldShowLeagueResult({ ...result, move: 'stayed', new_league: 'jack' }), false);
+  assert.equal(shouldShowLeagueResult(null), false);
 });
 
-test('duration units, expiry, invalid dates and default device zone', () => {
-  const close = '2026-11-08T19:00:00Z';
-  for (const [now, duration] of [
-    ['2026-11-07T19:00:00Z', '1 day left'],
-    ['2026-11-08T17:00:00Z', '2 hours left'],
-    ['2026-11-08T18:58:00Z', '2 minutes left'],
-    ['2026-11-08T18:59:59Z', '1 minute left'],
-    ['2026-11-08T19:00:00Z', 'week ended'],
-    ['2026-11-08T19:01:00Z', 'week ended'],
-  ])
-    assert.ok(closeTimeText(close, new Date(now), 'Europe/Helsinki').endsWith(`· ${duration}`));
-  assert.equal(closeTimeText('invalid'), '');
-  assert.equal(closeTimeText(close, new Date('invalid')), '');
-  const now = new Date('2026-11-08T18:00:00Z');
-  assert.equal(
-    closeTimeText(close, now),
-    closeTimeText(close, now, Intl.DateTimeFormat().resolvedOptions().timeZone)
-  );
-});
-
-test('Swedish close translates weekday, today, and all duration units', () => {
-  setLocale('sv');
-  const close = '2026-11-08T19:00:00Z';
-  for (const [now, expected] of [
-    ['2026-11-06T19:00:00Z', 'Slutar söndag kl. 21:00 · 2 dagar kvar'],
-    ['2026-11-07T19:00:00Z', 'Slutar söndag kl. 21:00 · 1 dag kvar'],
-    ['2026-11-08T17:00:00Z', 'Slutar i dag kl. 21:00 · 2 timmar kvar'],
-    ['2026-11-08T18:00:00Z', 'Slutar i dag kl. 21:00 · 1 timme kvar'],
-    ['2026-11-08T18:58:00Z', 'Slutar i dag kl. 21:00 · 2 minuter kvar'],
-    ['2026-11-08T18:59:00Z', 'Slutar i dag kl. 21:00 · 1 minut kvar'],
-  ])
-    assert.equal(closeTimeText(close, new Date(now), 'Europe/Helsinki'), expected);
-});
-
-test('elapsed duration remains correct across DST transitions', () => {
-  assert.equal(
-    closeTimeText('2026-03-29T19:00:00Z', new Date('2026-03-28T19:00:00Z'), 'Europe/Helsinki'),
-    'Ends Sunday at 22:00 · 1 day left'
-  );
-  assert.equal(
-    closeTimeText('2026-10-25T19:00:00Z', new Date('2026-10-24T20:00:00Z'), 'Europe/Stockholm'),
-    'Ends Sunday at 20:00 · 23 hours left'
-  );
-});
-
-test('registered catalogs match keys, plural branches and placeholders without hardcoded intro bands', () => {
+test('minimal copy translates actions, rules and results without obsolete keys', () => {
   assert.deepEqual(validateCatalogs(catalogs.en, catalogs.sv), []);
+  const copy = [
+    ['league.move_up', '↑ Move up', '↑ Flytta upp'],
+    ['league.move_down', '↓ Move down', '↓ Flytta ner'],
+    ['league.rules.title', 'League', 'Liga'],
+    [
+      'league.rules.points',
+      'Every game you play with other people earns points. Games with only bots don’t count.',
+      'Varje parti du spelar med andra ger poäng. Partier med bara botar räknas inte.',
+    ],
+    [
+      'league.rules.players',
+      'Each week you’re up against about 30 players at your level.',
+      'Varje vecka möter du ungefär 30 spelare på din nivå.',
+    ],
+    [
+      'league.rules.move',
+      'On Sunday evening the top players move up a card and the bottom ones move down.',
+      'På söndag kväll flyttar de bästa spelarna upp ett kort och de sista flyttar ner.',
+    ],
+    [
+      'league.rules.profile',
+      'Your best card each month shows on your profile.',
+      'Ditt bästa kort varje månad visas på din profil.',
+    ],
+    ['league.result.up', 'You moved up!', 'Du flyttade upp!'],
+    ['league.result.down', 'You moved down', 'Du flyttade ner'],
+    ['league.result.continue', 'Continue', 'Fortsätt'],
+    ['league.guest', 'Register to get on the board', 'Registrera dig för att komma med på listan'],
+    ['league.register', 'Create an account', 'Skapa ett konto'],
+    ['league.opted_out', 'You’re hidden from leagues.', 'Du är dold i ligorna.'],
+    ['league.join_again', 'Join again', 'Gå med igen'],
+    ['league.loading', 'Loading…', 'Laddar…'],
+    [
+      'league.failed',
+      'Couldn’t load the standings. Try again.',
+      'Det gick inte att ladda ställningen. Försök igen.',
+    ],
+    [
+      'league.settings.help',
+      'You won’t show up in anyone’s standings.',
+      'Du syns inte på någon annans topplista.',
+    ],
+    [
+      'league.settings.midweek',
+      'If you’ve played this week, your current place counts.',
+      'Om du har spelat den här veckan räknas din nuvarande plats.',
+    ],
+    [
+      'league.settings.error',
+      'Couldn’t change the setting. Try again.',
+      'Det gick inte att ändra inställningen. Försök igen.',
+    ],
+  ] as const;
   for (const locale of ['en', 'sv'] as const) {
     setLocale(locale);
-    assert.equal(t('league.title', { league: leagueName('jack') }), leagueName('jack'));
-    assert.doesNotMatch(t('league.intro_move_body'), /\d/);
+    for (const [key, en, sv] of copy) assert.equal(t(key), locale === 'en' ? en : sv);
+    assert.equal(
+      t('league.result.place', { place: ordinal(2), size: 30 }),
+      locale === 'en' ? '2nd of 30' : '2:a av 30'
+    );
+    const keys = Object.keys(catalogs[locale]).filter((key) => key.startsWith('league.'));
+    assert.deepEqual(keys.filter((key) => key.startsWith('league.rules.')).sort(), [
+      'league.rules.move',
+      'league.rules.players',
+      'league.rules.points',
+      'league.rules.profile',
+      'league.rules.title',
+    ]);
+    assert.deepEqual(keys.filter((key) => key.startsWith('league.result.')).sort(), [
+      'league.result.continue',
+      'league.result.down',
+      'league.result.place',
+      'league.result.up',
+    ]);
+    for (const key of keys) {
+      assert.doesNotMatch(
+        key,
+        /^league\.(intro|mark\.|footer\.|title$|room$|promote|demote|last_week$|ribbon_so_far$|got_it$|line\.not_placed$|friends\.empty$|settings\.title$|ribbons\.(weeks|best|star|history|no_race|empty)$)/
+      );
+      assert.doesNotMatch(String(catalogs[locale][key as keyof typeof catalogs.en]), /grupp/i);
+    }
   }
 });

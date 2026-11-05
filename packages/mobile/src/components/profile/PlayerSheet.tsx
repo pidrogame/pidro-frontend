@@ -10,10 +10,12 @@ import {
   useGameStore,
   type BotPersona,
   type FriendLists,
+  type LeagueId,
   type PlayerSheet as SheetData,
 } from '@pidro/shared';
 import { profileApi } from '@/api/profile';
 import { FriendState } from '@/components/friends/FriendRow';
+import { LeagueCard } from '@/components/league/LeagueCard';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { DismissButton } from '@/components/ui/DismissButton';
 import { Icon } from '@/components/ui/Icon';
@@ -26,6 +28,7 @@ import { botPersonas } from '@/components/ui/botPersonas';
 import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { useBotProfile } from '@/features/bots';
 import { linkProfileAction } from '@/features/friends';
+import { ordinal } from '@/features/league';
 import { presenceLine, sheetTitle, togetherLines, winRate } from '@/features/profile';
 import { formatNumber, useTranslation } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
@@ -42,13 +45,22 @@ interface Props {
   /** The friends lists the screen shows; elsewhere the store's. */
   lists?: Pick<FriendLists, 'friends' | 'requested'>;
   fixture?: SheetData;
+  standing?: { league: LeagueId; place: number };
 }
 
 /**
  * Anyone's sheet (PID-340): who they are, what they earned, and the two of you.
  * A bot keeps its persona sheet.
  */
-export function PlayerSheet({ playerId, persona, presence, onClose, lists, fixture }: Props) {
+export function PlayerSheet({
+  playerId,
+  persona,
+  presence,
+  onClose,
+  lists,
+  fixture,
+  standing,
+}: Props) {
   if (persona) return <BotSheet persona={persona} onClose={onClose} />;
   return playerId ? (
     <PersonSheet
@@ -58,6 +70,7 @@ export function PlayerSheet({ playerId, persona, presence, onClose, lists, fixtu
       onClose={onClose}
       lists={lists}
       fixture={__DEV__ ? fixture : undefined}
+      standing={standing}
     />
   ) : null;
 }
@@ -104,12 +117,14 @@ function PersonSheet({
   onClose,
   lists,
   fixture,
+  standing,
 }: {
   playerId: string;
   presence?: SheetPresence;
   onClose: () => void;
   lists?: Props['lists'];
   fixture?: SheetData;
+  standing?: Props['standing'];
 }) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
@@ -206,6 +221,14 @@ function PersonSheet({
           style={title.legend && styles.gold}>
           {title.text}
         </PidroText>
+      ) : null}
+      {standing ? (
+        <View testID="player-sheet-league" style={styles.presence}>
+          <LeagueCard league={standing.league} size={20} />
+          <PidroText role="metadata" tone="soft">
+            {t('league.line.placed', { place: ordinal(standing.place) })}
+          </PidroText>
+        </View>
       ) : null}
       {where ? (
         <View style={styles.presence}>

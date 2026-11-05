@@ -9,8 +9,9 @@ import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BadgeSheet } from '@/components/profile/BadgeSheet';
 import { useLeague } from '@/components/league/LeagueHost';
+import { LeagueCard } from '@/components/league/LeagueCard';
 import { LeagueRibbonShelf } from '@/components/league/LeagueRibbon';
-import { leagueLine, leagueMarkName } from '@/features/league';
+import { leagueLine } from '@/features/league';
 import { BackButton } from '@/components/ui/BackButton';
 import { gradientBg } from '@/components/ui/Bevel';
 import { BevelButton } from '@/components/ui/BevelButton';
@@ -431,13 +432,18 @@ function ProfileContent() {
                               XP
                             </PidroText>
                             {leagueCaption ? (
-                              <TextLink
-                                testID="profile-league"
-                                label={`${leagueCaption} ›`}
-                                size={14}
-                                onPress={() => router.replace('/league')}
-                                style={styles.leagueLink}
-                              />
+                              <View style={styles.leagueRow}>
+                                {league?.league ? (
+                                  <LeagueCard league={league.league} size={20} />
+                                ) : null}
+                                <TextLink
+                                  testID="profile-league"
+                                  label={`${leagueCaption} ›`}
+                                  size={14}
+                                  onPress={() => router.replace('/league')}
+                                  style={styles.leagueLink}
+                                />
+                              </View>
                             ) : null}
                           </View>
                           <View style={[styles.figure, styles.month]}>
@@ -447,13 +453,6 @@ function ProfileContent() {
                             <PidroText role="title" style={styles.number}>
                               {formatNumber(identity.xp.this_month)} XP
                             </PidroText>
-                            {league?.ribbons.current ? (
-                              <PidroText role="metadata" tone="soft">
-                                {t('league.ribbon_so_far', {
-                                  league: leagueMarkName(league.ribbons.current.league),
-                                })}
-                              </PidroText>
-                            ) : null}
                           </View>
                         </View>
                       </>
@@ -833,7 +832,8 @@ const styles = StyleSheet.create({
     borderLeftColor: PidroColors.border,
     paddingLeft: PidroSpacing.sm,
   },
-  leagueLink: { alignSelf: 'flex-start', alignItems: 'flex-start', paddingHorizontal: 0 },
+  leagueRow: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
+  leagueLink: { flexShrink: 1, alignItems: 'flex-start', paddingHorizontal: 0 },
   record: { flexDirection: 'row', paddingVertical: 14, paddingHorizontal: 6 },
   stat: { flex: 1, minWidth: 0, alignItems: 'center', justifyContent: 'center', gap: 2 },
   friendsCount: { flexDirection: 'row', alignItems: 'center', gap: 2 },

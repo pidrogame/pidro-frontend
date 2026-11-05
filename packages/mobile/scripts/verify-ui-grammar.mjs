@@ -605,12 +605,13 @@ const allCases = [
     'opted_out',
     'guest',
     'off',
-    'intro',
+    'rules',
+    'player-sheet',
   ].flatMap((state) =>
     ['en', 'sv'].map((locale) => ({
       name: `league-${state}-${locale}`,
-      path: `/league?fixture=league-${state}`,
-      testId: state === 'intro' ? 'league-intro' : 'league-screen',
+      path: `/league?fixture=league-${['rules', 'player-sheet'].includes(state) ? 'placed' : state}`,
+      testId: 'league-screen',
       authenticated: true,
       league: state,
       locale,
@@ -644,6 +645,22 @@ const allCases = [
     authenticated: true,
     league: 'profile-not-placed',
   },
+  ...['placed', 'not_placed'].map((state) => ({
+    name: `league-home-${state}-sv`,
+    path: `/home?fixture=league-${state}`,
+    testId: 'home-screen',
+    authenticated: true,
+    league: `home-${state}`,
+    locale: 'sv',
+  })),
+  ...['profile', 'profile-not-placed'].map((state) => ({
+    name: `league-${state}-sv`,
+    path: `/profile?fixture=league-${state === 'profile' ? 'profile' : 'not_placed'}`,
+    testId: 'profile-screen',
+    authenticated: true,
+    league: state,
+    locale: 'sv',
+  })),
   ...['en', 'sv'].map((locale) => ({
     name: `league-pin-scroll-${locale}`,
     path: '/league?fixture=league-27',
@@ -652,16 +669,24 @@ const allCases = [
     league: 'pin-scroll',
     locale,
   })),
-  ...['up', 'stayed', 'down', 'star', 'first'].flatMap((move) =>
+  ...['up', 'stayed', 'down'].flatMap((move) =>
     ['en', 'sv'].map((locale) => ({
       name: `league-result-${move}-${locale}`,
       path: `/home?fixture=league-result-${move}`,
-      testId: 'league-result',
+      testId: move === 'stayed' ? 'home-screen' : 'league-result',
       authenticated: true,
       league: `result-${move}`,
       locale,
     }))
   ),
+  ...['en', 'sv'].map((locale) => ({
+    name: `league-result-stayed-host-${locale}`,
+    path: '/home',
+    testId: 'home-screen',
+    authenticated: true,
+    league: 'result-stayed-host',
+    locale,
+  })),
   ...['shelf', 'expanded'].flatMap((state) =>
     ['en', 'sv'].map((locale) => ({
       name: `league-ribbons-${state}-${locale}`,
@@ -7428,10 +7453,73 @@ async function assertNewsInteractions(page, testCase, viewport) {
   assert.equal(await tell.getByText(NEWS_TITLES[0], { exact: true }).count(), 0, 'no chip');
 }
 
+// Visible copy only: card accessibility labels may still name their symbol.
+async function assertLeagueSymbolCopy(surface) {
+  assert.doesNotMatch(
+    await surface.innerText(),
+    /\b(?:room|rooms|grupp\w*|tier|tiers|Deuce|Ten|Jack|Ace|Pidro|Tvåa|Tia|Knekt|Ess|rummet|rummets|rum|nivå)\b/iu,
+    'league surfaces use card symbols, never room/tier text or rendered card names'
+  );
+}
+
+async function assertLeagueDividers(page, room, locale) {
+  const list = page.getByTestId('league-list');
+  const originalOffset = await list.evaluate((node) => node.scrollTop);
+  assert.equal(await page.getByTestId('league-demotion').count(), 0, 'no demotion footer');
+  for (const [direction, place] of [
+    ['up', room.promote || null],
+    ['down', room.demote ? room.size - room.demote + 1 : null],
+  ]) {
+    const divider = page.getByTestId(`league-${direction}-divider`);
+    assert.equal(await divider.count(), place ? 1 : 0, `${direction} band follows server counts`);
+    if (!place) continue;
+    await divider.scrollIntoViewIfNeeded();
+    await waitForScreenshotReady(page);
+    const box = await divider.boundingBox();
+    const row = await list.getByTestId(`league-row-${place}`).boundingBox();
+    const text =
+      locale === 'sv'
+        ? direction === 'up'
+          ? '↑ Flytta upp'
+          : '↓ Flytta ner'
+        : direction === 'up'
+          ? '↑ Move up'
+          : '↓ Move down';
+    assert.ok((await divider.innerText()).includes(text), `${direction} divider has exact label`);
+    assert.ok(await divider.locator('[aria-label]').count(), 'divider includes a card');
+    assert.ok(!boxesOverlap(box, row), `${direction} divider never overlaps its boundary row`);
+    assert.ok(
+      Math.abs(direction === 'up' ? box.y - row.y - row.height : row.y - box.y - box.height) <= 4,
+      direction === 'up'
+        ? 'up divider AFTER last promoted row'
+        : 'down divider BEFORE first demoted row'
+    );
+    const neighbor = list.getByTestId(`league-row-${direction === 'up' ? place + 1 : place - 1}`);
+    if (await neighbor.count()) {
+      const neighborBox = await neighbor.boundingBox();
+      assert.ok(
+        !boxesOverlap(box, neighborBox),
+        `divider clears both adjacent rows: ${JSON.stringify({ direction, box, row, neighborBox })}`
+      );
+    }
+    const pinned = page.getByTestId('league-pinned');
+    if (await pinned.count()) {
+      const bounds = await list.boundingBox();
+      assert.ok(
+        bounds.y + bounds.height <= (await pinned.boundingBox()).y + 1,
+        'both divider bands remain in the list, clear of the pinned footer'
+      );
+    }
+  }
+  await list.evaluate((node, offset) => (node.scrollTop = offset), originalOffset);
+  await waitForScreenshotReady(page);
+}
+
 async function assertLeague(page, testCase, viewport) {
   const state = testCase.league;
   const root = page.getByTestId(testCase.testId);
   assertInsideViewport(testCase.name, await root.boundingBox(), viewport);
+  assert.equal(await page.getByTestId('league-intro').count(), 0, 'intro is never presented');
   if (state.startsWith('sample-')) {
     const sample = JSON.parse(
       await readFile(
@@ -7439,26 +7527,17 @@ async function assertLeague(page, testCase, viewport) {
         'utf8'
       )
     );
-    if (sample.pending_result) {
+    if (sample.pending_result && sample.pending_result.move !== 'stayed') {
       const result = page.getByTestId('league-result');
       await result.waitFor();
       await page.waitForTimeout(400);
       await assertAccountSurfaceFits(result, testCase.name, viewport);
-      await page.getByTestId('league-result-close').click();
+      await page.getByTestId('league-result-backdrop').click({ position: { x: 2, y: 2 } });
       await result.waitFor({ state: 'detached' });
     }
-    if (['placed', 'not_placed'].includes(sample.status) && !sample.intro_seen) {
-      await page.getByTestId('league-got-it').click();
-      await page.getByTestId('league-intro').waitFor({ state: 'detached' });
-    }
-    if (sample.room?.promote) {
-      const row = await page.getByTestId(`league-row-${sample.room.promote}`).boundingBox();
-      const divider = await page.getByTestId('league-up-divider').boundingBox();
-      assert.ok(
-        Math.abs(divider.y - row.y - row.height) <= 4,
-        'published server band follows the supplied row'
-      );
-    }
+    assert.equal(await page.getByTestId('league-result').count(), 0, 'stayed never shows a sheet');
+    await assertLeagueSymbolCopy(root);
+    if (sample.room) await assertLeagueDividers(page, sample.room, testCase.locale);
     await assertMinimumTouchTargets(page, testCase.testId, viewport);
     return;
   }
@@ -7522,24 +7601,124 @@ async function assertLeague(page, testCase, viewport) {
     }
     return;
   }
-  if (state === 'intro') await assertAccountSurfaceFits(root, testCase.name, viewport);
+  if (state === 'rules') {
+    await assertLeagueSymbolCopy(root);
+    assert.equal(await page.getByTestId('league-rules').count(), 0, 'rules are optional');
+    await page.getByTestId('league-info').click();
+    const rules = page.getByTestId('league-rules');
+    await rules.waitFor();
+    await page.waitForTimeout(400);
+    await assertAccountSurfaceFits(rules, testCase.name, viewport);
+    const swedish = testCase.locale === 'sv';
+    const paragraphs = swedish
+      ? [
+          'Varje parti du spelar med andra ger poäng. Partier med bara botar räknas inte.',
+          'Varje vecka möter du ungefär 30 spelare på din nivå.',
+          'På söndag kväll flyttar de bästa spelarna upp ett kort och de sista flyttar ner.',
+          'Ditt bästa kort varje månad visas på din profil.',
+        ]
+      : [
+          'Every game you play with other people earns points. Games with only bots don’t count.',
+          'Each week you’re up against about 30 players at your level.',
+          'On Sunday evening the top players move up a card and the bottom ones move down.',
+          'Your best card each month shows on your profile.',
+        ];
+    const names = swedish
+      ? ['Tvåa', 'Tia', 'Knekt', 'Ess', 'Pidro']
+      : ['Deuce', 'Ten', 'Jack', 'Ace', 'Pidro'];
+    for (const text of [...names, ...paragraphs]) {
+      assert.equal(await rules.getByText(text, { exact: true }).count(), 1, `rules: ${text}`);
+    }
+    assert.equal(
+      await rules.locator('[aria-label]:not([role="button"]):not([role="link"])').count(),
+      5,
+      'five named cards'
+    );
+    // Lock the complete copy: no extra paragraphs, descriptions or Classic plaque.
+    const copy = await rules.evaluate((node) => {
+      const clone = node.cloneNode(true);
+      clone
+        .querySelectorAll('[aria-label]:not([role="button"]):not([role="link"])')
+        .forEach((card) => card.remove());
+      return clone.textContent;
+    });
+    assert.equal(
+      copy.replace(/\s+/gu, ''),
+      [swedish ? 'Liga' : 'League', ...names, ...paragraphs, swedish ? 'Stäng' : 'Close']
+        .join('')
+        .replace(/\s+/gu, '')
+    );
+    assert.equal(
+      await rules.evaluate((node) =>
+        [...node.querySelectorAll('*')].some(
+          (child) =>
+            ['auto', 'scroll'].includes(getComputedStyle(child).overflowY) &&
+            child.scrollHeight > child.clientHeight + 2
+        )
+      ),
+      false,
+      'rules fit without scrolling at all four standard sizes'
+    );
+    await assertMinimumTouchTargets(page, 'league-rules', viewport);
+    return;
+  }
+  if (state === 'result-stayed' || state === 'result-stayed-host') {
+    if (state === 'result-stayed-host') {
+      await page.waitForFunction(() => window.__leagueStayedAck === true);
+      assert.equal(page.leagueSeenPosts.length, 1, 'real Host silently acknowledges once');
+    }
+    assert.equal(await page.getByTestId('league-result').count(), 0, 'stayed stays invisible');
+    assert.equal(
+      await page.getByTestId('league-result-backdrop').count(),
+      0,
+      'no invisible modal blocks Home'
+    );
+    assert.equal(
+      await page.evaluate(() => window.__leagueStayedFlashed),
+      false,
+      'stayed never flashes a result'
+    );
+    return;
+  }
   if (state.startsWith('result-')) {
     // Reanimated's 350ms card entry is not a browser CSS transition.
     await page.waitForTimeout(400);
     await assertAccountSurfaceFits(root, testCase.name, viewport);
-    assert.match(await root.innerText(), testCase.locale === 'sv' ? /12 oktober/i : /12 October/i);
-    const promise = testCase.locale === 'sv' ? 'Spela nästa vecka också' : 'Play next week too';
+    const swedish = testCase.locale === 'sv';
+    const up = state === 'result-up';
+    const heading = swedish
+      ? up
+        ? 'Du flyttade upp!'
+        : 'Du flyttade ner'
+      : up
+        ? 'You moved up!'
+        : 'You moved down';
+    const place = swedish ? `${up ? '5:e' : '27:e'} av 30` : `${up ? '5th' : '27th'} of 30`;
+    const label = swedish ? 'Fortsätt' : 'Continue';
+    for (const text of [heading, place, label])
+      assert.equal(await root.getByText(text, { exact: true }).count(), 1);
+    const copy = await root.evaluate((node) => {
+      const clone = node.cloneNode(true);
+      clone
+        .querySelectorAll('[aria-label]:not([role="button"]):not([role="link"])')
+        .forEach((card) => card.remove());
+      return clone.textContent;
+    });
     assert.equal(
-      (await root.innerText()).includes(promise),
-      state === 'result-up' || state === 'result-first'
+      copy.replace(/\s+/gu, ''),
+      [heading, place, label].join('').replace(/\s+/gu, ''),
+      'only movement, ordinal of room size and Continue; no date, ribbon, star or promise'
     );
-    if (state === 'result-first') {
-      assert.equal(new URL(page.url()).pathname, '/home', 'first reveal is presented on Home');
-      assert.equal(await page.getByTestId('league-intro').count(), 0, 'reveal precedes intro');
-    }
-    const earned =
-      testCase.locale === 'sv' ? 'Ditt band har en stjärna.' : 'Your ribbon has a star.';
-    assert.equal((await root.innerText()).includes(earned), state === 'result-star');
+    assert.equal(await root.getByRole('button').count(), 1, 'Continue is the only result action');
+    assert.equal(await root.getByTestId('league-result-continue').innerText(), label);
+    assert.equal(
+      await root.locator('[aria-label]:not([role="button"]):not([role="link"])').count(),
+      2,
+      'old and new card only'
+    );
+    assert.equal(await page.getByTestId('league-result-close').count(), 0, 'no Close action');
+    assert.equal(await root.getByTestId('league-ribbon').count(), 0);
+    await assertLeagueSymbolCopy(root);
     await assertMinimumTouchTargets(page, testCase.testId, viewport);
     return;
   }
@@ -7564,25 +7743,61 @@ async function assertLeague(page, testCase, viewport) {
   if (state.startsWith('home-')) {
     const visible = ['home-placed', 'home-not_placed'].includes(state);
     assert.equal(await page.getByTestId('home-league').count(), visible ? 1 : 0);
-    if (visible)
+    if (visible) {
+      const card = page.getByTestId('home-league');
+      const caption =
+        state === 'home-placed'
+          ? testCase.locale === 'sv'
+            ? '6:e den här veckan'
+            : '6th this week'
+          : testCase.locale === 'sv'
+            ? 'Spela ett parti med andra för att komma med på listan'
+            : 'Play a game with people to get on the board';
+      assert.equal(await card.getByText(caption, { exact: true }).count(), 1);
+      assert.equal(
+        await card.locator('[aria-label]:not([role="button"]):not([role="link"])').count(),
+        1,
+        'Home shows a card'
+      );
+      await assertLeagueSymbolCopy(card);
       assertInsideViewport(
         'Home league card',
         await page.getByTestId('home-league').boundingBox(),
         viewport
       );
+    }
     return;
   }
   if (state === 'profile' || state === 'profile-not-placed') {
     const link = page.getByTestId('profile-league');
-    const cell = link.locator('..');
+    const cell = link.locator('../..');
     await cell.evaluate((node) => node.scrollIntoView({ block: 'center' }));
-    assert.match(
-      await link.innerText(),
-      state === 'profile' ? /6th in Jack league/ : /play a game to join/
+    const caption =
+      state === 'profile'
+        ? testCase.locale === 'sv'
+          ? '6:e den här veckan'
+          : '6th this week'
+        : testCase.locale === 'sv'
+          ? 'Spela ett parti med andra för att komma med på listan'
+          : 'Play a game with people to get on the board';
+    assert.equal(await link.innerText(), `${caption} ›`);
+    assert.equal(
+      await link
+        .locator('..')
+        .locator('[aria-label]:not([role="button"]):not([role="link"])')
+        .count(),
+      1,
+      'Profile shows a card'
+    );
+    await assertLeagueSymbolCopy(cell);
+    assert.doesNotMatch(
+      await root.innerText(),
+      /Your ribbon|Ditt band/u,
+      'no monthly ribbon sentence'
     );
     assert.match(
       await cell.innerText(),
-      state === 'profile' ? /2,700 XP/ : /1,240 XP/,
+      state === 'profile' ? /2[,\s]700 XP/u : /1[,\s]240 XP/u,
       'placed uses league points; not placed keeps profile XP'
     );
     assert.ok(
@@ -7611,30 +7826,17 @@ async function assertLeague(page, testCase, viewport) {
   });
   assert.deepEqual(overflow, [], `${testCase.name}: no content outside the viewport`);
   const list = page.getByTestId('league-list');
+  await assertLeagueSymbolCopy(root);
   if (await list.count()) {
-    const promote = state === 'deuce' ? 10 : state === 'small' ? 1 : 5;
-    if (state === 'pidro') assert.equal(await page.getByTestId('league-up-divider').count(), 0);
-    else {
-      const row = await page.getByTestId(`league-row-${promote}`).boundingBox();
-      const divider = await page.getByTestId('league-up-divider').boundingBox();
-      assert.ok(
-        Math.abs(divider.y - (row.y + row.height)) <= 4,
-        'up divider directly follows last promoted row'
-      );
-    }
-    if (state === 'deuce') assert.equal(await page.getByTestId('league-demotion').count(), 0);
-    if (state === 'small')
-      assert.equal(
-        await page.getByTestId('league-demotion').innerText(),
-        testCase.locale === 'sv'
-          ? 'Plats 4 flyttar ner till Knektens liga.'
-          : 'Place 4 moves down to Jack league.'
-      );
-    if (state === 'pidro')
-      assert.match(
-        await page.getByTestId('league-demotion').innerText(),
-        testCase.locale === 'sv' ? /23.*30/ : /Places 23 to 30/
-      );
+    await assertLeagueDividers(
+      page,
+      {
+        size: state === 'small' ? 4 : 30,
+        promote: state === 'pidro' ? 0 : state === 'deuce' ? 10 : state === 'small' ? 1 : 5,
+        demote: state === 'deuce' ? 0 : state === 'pidro' ? 8 : state === 'small' ? 1 : 5,
+      },
+      testCase.locale
+    );
     const ownRow = await list.getByRole('button', { name: /\((you|du)\)/ }).boundingBox();
     const listBounds = await list.boundingBox();
     const ownVisible =
@@ -7678,9 +7880,13 @@ async function assertLeague(page, testCase, viewport) {
           scrolled.y + scrolled.height <= (await pin.boundingBox()).y + 1,
           'fully offscreen own row returns to its separate footer slot'
         );
-        await page.setViewportSize({ width: 844, height: 140 });
+        await page.setViewportSize({ width: 844, height: 100 });
         await pin.waitFor({ state: 'detached' });
         await waitForScreenshotReady(page);
+        assert.ok(
+          (await list.boundingBox()).height < pinBox.height,
+          'stress viewport leaves less list height than the measured pinned footer'
+        );
         const changes = await page.getByTestId('league-standings').evaluate(
           (node) =>
             new Promise((resolve) => {
@@ -7724,12 +7930,35 @@ async function assertLeague(page, testCase, viewport) {
     assert.equal(await root.evaluate((node) => node.scrollHeight > node.clientHeight + 2), false);
   }
   await assertMinimumTouchTargets(page, testCase.testId, viewport);
+  if (state === 'player-sheet') {
+    await list.getByTestId('league-row-1').click();
+    const sheet = page.getByTestId('player-sheet');
+    await sheet.waitFor();
+    const chip = page.getByTestId('player-sheet-league');
+    await chip.waitFor();
+    await page.waitForTimeout(400);
+    assert.equal(
+      await chip
+        .getByText(testCase.locale === 'sv' ? '1:a den här veckan' : '1st this week', {
+          exact: true,
+        })
+        .count(),
+      1
+    );
+    assert.equal(await chip.locator('[aria-label]').count(), 1, 'contextual standing has a card');
+    await assertLeagueSymbolCopy(chip);
+    await assertAccountSurfaceFits(sheet, testCase.name, viewport);
+    return;
+  }
   if (state.startsWith('friends')) {
     const friends = page.getByTestId('league-friends');
     await friends.scrollIntoViewIfNeeded();
     assertInsideViewport('league friends', await friends.boundingBox(), viewport);
     const mirja = page.getByTestId('league-friend-friend-mirja');
-    assert.match(await mirja.innerText(), testCase.locale === 'sv' ? /Esset.*3:e/s : /Ace.*3rd/s);
+    assert.match(
+      await mirja.innerText(),
+      testCase.locale === 'sv' ? /3:e den här veckan/u : /3rd this week/u
+    );
     await assertMinimumTouchTargets(page, testCase.testId, viewport);
     if (state === 'friends-sheet') {
       await mirja.click();
@@ -7978,6 +8207,64 @@ async function main() {
           // These deterministic fixtures need no server, even beside a live e2e backend.
           await page.route('**/api/v1/**', (route) => route.abort());
         }
+        if (testCase.league?.startsWith('result-stayed')) {
+          await page.addInitScript(() => {
+            window.__leagueStayedFlashed = false;
+            new MutationObserver(() => {
+              if (
+                document.querySelector(
+                  '[data-testid="league-result"], [data-testid="league-result-backdrop"]'
+                )
+              )
+                window.__leagueStayedFlashed = true;
+            }).observe(document, { childList: true, subtree: true });
+          });
+        }
+        if (testCase.league === 'result-stayed-host') {
+          const data = JSON.parse(
+            await readFile(
+              resolve(mobileRoot, 'src/features/leagueSamples/pending_stayed.json'),
+              'utf8'
+            )
+          );
+          page.leagueSeenPosts = [];
+          await page.route('**/api/v1/league', (route) => route.fulfill({ json: data }));
+          await page.route('**/api/v1/league/results/*/seen', async (route) => {
+            assert.equal(route.request().method(), 'POST');
+            assert.equal(
+              decodeURIComponent(new URL(route.request().url()).pathname.split('/').at(-2)),
+              data.pending_result.id
+            );
+            page.leagueSeenPosts.push(route.request().url());
+            await route.fulfill({ status: 204 });
+            await page.evaluate(() => {
+              window.__leagueStayedAck = true;
+            });
+          });
+        }
+        if (testCase.league === 'player-sheet') {
+          await page.route('**/api/v1/profiles/**', (route) =>
+            route.fulfill({
+              json: {
+                data: {
+                  user_id: 'league-player-0',
+                  username: 'Mirja',
+                  display_name: 'Mirja',
+                  avatar_url: null,
+                  bio: null,
+                  level: 44,
+                  prestige: 0,
+                  title: null,
+                  pin: null,
+                  classic: null,
+                  record: { games: 2400, win_rate: 0.52 },
+                  medals: 5,
+                  together: { games: 0, won_as_partners: 0, against_games: 0, against_won: 0 },
+                },
+              },
+            })
+          );
+        }
         if (testCase.league?.startsWith('settings-')) {
           const state = testCase.league.slice(9);
           const sample =
@@ -7989,7 +8276,6 @@ async function main() {
           let data = JSON.parse(
             await readFile(resolve(mobileRoot, `src/features/leagueSamples/${sample}.json`), 'utf8')
           );
-          data.intro_seen = true;
           data.pending_result = null;
           await page.route('**/api/v1/league', (route) => route.fulfill({ json: data }));
           let failed = false;
@@ -8508,17 +8794,30 @@ async function main() {
             path: resolve(screenshotDir, `${testCase.name}.png`),
             fullPage: false,
           });
-          if (testCase.league === 'result-first') {
+          if (testCase.league === 'rules') {
+            await page.getByTestId('league-rules-close').click();
+            await page.getByTestId('league-rules').waitFor({ state: 'detached' });
+            assert.equal(await page.getByTestId('league-intro').count(), 0);
+            await assertLeagueSymbolCopy(page.getByTestId('league-screen'));
+          } else if (testCase.league === 'result-up') {
             await page.getByTestId('league-result-continue').click();
             await page.waitForURL((url) => url.pathname === '/league');
-            await page.getByTestId('league-intro').waitFor();
-            await waitForScreenshotReady(page);
-            await page.screenshot({ path: resolve(screenshotDir, `${testCase.name}-intro.png`) });
-            await page.getByTestId('league-got-it').click();
-            await page.getByTestId('league-intro').waitFor({ state: 'detached' });
-          } else if (testCase.league?.startsWith('result-')) {
-            await page.getByTestId('league-result-close').click();
             await page.getByTestId('league-result').waitFor({ state: 'detached' });
+            await waitForScreenshotReady(page);
+            assert.equal(
+              await page.getByTestId('league-intro').count(),
+              0,
+              'Continue goes straight to standings'
+            );
+            await assertLeagueSymbolCopy(page.getByTestId('league-screen'));
+          } else if (testCase.league === 'result-down') {
+            await page.getByTestId('league-result-backdrop').click({ position: { x: 2, y: 2 } });
+            await page.getByTestId('league-result').waitFor({ state: 'detached' });
+            assert.equal(
+              new URL(page.url()).pathname,
+              '/home',
+              'backdrop dismisses without navigation'
+            );
           }
           if (testCase.league === 'settings-failed') {
             await page.getByTestId('league-hide-confirm').getByRole('button').click();

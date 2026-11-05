@@ -1034,45 +1034,71 @@ capture comes out portrait-shaped; rotate the PNG.
 ## Weekly leagues (PID-353)
 
 `/league?fixture=league-<state>` renders contract-shaped data without league reads or
-mutations. States: `placed` (Bengt, 6th in Jack with 1,240), `27` (own row pinned),
-`deuce`, `pidro`, `small` (four in Ace, one promoted), `not_placed` (last week's place),
-`opted_out`, `guest`, `off`, and `intro` (Classic plaque). Home and Profile accept
-the same fixture prefix for their league card/cells. Profile XP remains from the
-profile endpoint, not the league response.
+mutations. States: `placed` (Bengt, 6th with 1,240), `27` (own row pinned),
+`deuce`, `pidro`, `small` (four players, one promoted and one demoted), `not_placed`,
+`opted_out`, `guest`, and `off`. Home and Profile accept the same fixture prefix
+for their league card/cells. Card names are visible only in the optional rules,
+never on standings, Home, Profile, friends or results. No room/tier wording remains.
 
 Grammar cases `league-<state>-en|sv`, `league-home-<status>` and `league-profile`
-run at 390×844, 375×667, 844×390 and 768×1024. They measure the divider after the
-server's last promoted row, own-row visibility at place 27, absent Deuce/Pidro
-bands, 44pt controls and viewport containment. The shell does not scroll; the
-standings do. The demotion footer stays visible below them. Avatar rows use today's
-ring and level chip, not the boards' stand-in gems/coins.
+run at 390×844, 375×667, 844×390 and 768×1024. Both dividers are inside the
+standings: `league-up-divider` AFTER the server's last promoted row and
+`league-down-divider` BEFORE its first demoted row. They say **↑ Move up** /
+**↓ Move down** (**↑ Flytta upp** / **↓ Flytta ner**) beside a card. Geometry
+checks cover both adjacent rows and the pinned footer, including absent bands at
+the lowest/highest card. There is no demotion footer. The shell does not scroll;
+the standings do. Avatar rows use today's ring and level chip.
+
+There is never an intro, including for the untouched backend samples. Tap
+`league-info` on `/league?fixture=league-placed` for `league-rules`;
+`league-rules-close` dismisses it. `league-rules-en|sv` replaces the old intro
+cases and checks exactly five bare card names and four paragraphs, clipped text,
+44pt controls and viewport containment. English names: Deuce, Ten, Jack, Ace,
+Pidro; Swedish: Tvåa, Tia, Knekt, Ess, Pidro. English paragraphs:
+
+1. Every game you play with other people earns points. Games with only bots don’t count.
+2. Each week you’re up against about 30 players at your level.
+3. On Sunday evening the top players move up a card and the bottom ones move down.
+4. Your best card each month shows on your profile.
+
+The Swedish case locks the four corresponding paragraphs from the shared league
+translations as well. Rules are opt-in only, not a gate based on a seen flag.
 
 For board comparison captures, use `UI_DEVICE_SCALE=2 UI_TIMEZONE=Europe/Helsinki`.
 These options only change the browser, never the client's date rules. As elsewhere,
 the route ignores `locale=`; grammar seeds the persisted Settings language instead.
-`league-intro` checks clipped text against real ancestor boxes as well as viewport
-fit. Browser checks do not certify native safe areas or maximum system text scaling.
+Browser checks do not certify native safe areas or maximum system text scaling.
 
 `league-pin-scroll-en|sv` checks a 27th-place row entering partially and leaving
 the list, then a height-starved resize and restore. Placed cases also scroll the
 sixth-place row fully above the list. Pinned rows occupy a separate footer slot;
-real boxes must show no overlap with standings or the promotion divider.
+real boxes must show no overlap with standings or either divider. The partial-row,
+both-direction pinning and starvation-resize regressions remain in force.
 
 `/profile?fixture=league-profile` deliberately supplies 2,700 league points against
 1,240 profile-week XP: placed Profile uses the former. The
 `league-profile-not-placed` case keeps the latter. Both capture the weekly cell
-scrolled clear of the navigation pill.
+scrolled clear of the navigation pill. Home and Profile show a card plus **6th this
+week** / **6:e den här veckan**. Not placed says **Play a game with people to get
+on the board** / **Spela ett parti med andra för att komma med på listan**.
+Swedish cases are `league-home-placed-sv`, `league-home-not_placed-sv`,
+`league-profile-sv`, and `league-profile-not-placed-sv`. The extra monthly ribbon
+sentence is absent from Profile; the actual ribbon shelf remains.
 
 `league-result-up`, `league-result-stayed`, and `league-result-down` on Home preview
-the pending-result sheet. Up uses the October board data: Jack → Ace, 5th of 30,
-2,630 XP and three of four ribbon weeks. Close and Meet your new room acknowledge
-the fixture locally; real accounts POST the result ID before dismissing it. A
-result never interrupts a screen pushed above the shell. Short screens keep a
-small new-league card instead of the large reveal illustration.
+the pending result. Only up/down render a sheet: two cards, **You moved up!** or
+**You moved down**, **5th of 30** or **27th of 30**, and **Continue**. Swedish uses
+**Du flyttade upp!** / **Du flyttade ner**, **5:e av 30** / **27:e av 30**, and
+**Fortsätt**. `league-result-continue` remains the action selector and goes straight
+to standings; `league-result-backdrop` dismisses without navigating. There is no
+Close action, date, result ribbon, star or next-week promise. Fixtures acknowledge
+locally; real accounts POST the result ID before dismissal. A result never
+interrupts a screen pushed above the shell.
 
-`/home?fixture=league-result-first` has both an unseen intro and a pending result.
-The `league-result-first-en|sv` cases check the reveal on Home, then Meet your new
-room → League intro → Got it. The result takes precedence over the intro.
+`league-result-stayed-en|sv` checks no modal/backdrop ever flashes, while
+`league-result-stayed-host-en|sv` drives real `LeagueHost` on `/home` with a routed
+pending-stayed response and checks its silent POST acknowledgement. Obsolete
+intro/first-reveal and earned-star result cases are retired, not duplicated.
 
 `/profile?fixture=league-ribbons` shows twelve monthly ribbons; tap the row to see
 the same twelve with full month names. The current ribbon is faded. Stars and
@@ -1084,7 +1110,9 @@ existing scrolling layout; only the expanded ribbon sheet must fit without scrol
 `/league?fixture=league-friends` and `league-friends-not_placed` add Mirja (Ace,
 third) and Kalle (Ten, twelfth). Tap a row for the existing friend sheet. Grammar
 cases `league-friends|friends-not_placed|friends-sheet-en|sv` cover all four sizes;
-empty friend sections stay absent.
+empty friend sections stay absent. `league-player-sheet-en|sv` taps Mirja's first
+standings row and checks the contextual `player-sheet-league` chip: card plus
+**1st this week** / **1:a den här veckan**, with no rendered card name.
 
 `/settings?fixture=league-placed` previews the registered player's switch and its
 midweek confirmation; `league-opted_out` previews it on. Grammar cases
@@ -1099,6 +1127,29 @@ in `src/features/leagueSamples/`: `placed`, `not_placed`, `opted_out`, `guest`,
 commit `f79cdf90cbc227219025546d73d8b35747006e48`,
 `apps/pidro_server/priv/league_samples/`. The board fixture starts from the published
 placed response, overriding its presentation data for the exact board comparison.
-The `league-sample-*` grammar cases acknowledge result/intro sheets before measuring
-the supplied standings. League grammar cases isolate unrelated HTTP calls so fake
-fixture tokens cannot sign themselves out against a running real backend.
+The `league-sample-*` grammar cases dismiss only up/down results before measuring
+the supplied standings and both server bands. Stayed is invisible; no intro is
+acknowledged. League grammar cases isolate unrelated HTTP calls so fake fixture
+tokens cannot sign themselves out against a running real backend.
+
+### Marcel Round3 proof captures
+
+After the UI migration settles, run from `packages/mobile` against Expo web.
+Four-size English proof (390×844, 375×667, 844×390, 768×1024):
+
+```sh
+UI_DEVICE_SCALE=2 UI_TIMEZONE=Europe/Helsinki \
+UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+UI_CASES=league-placed-en,league-27-en,league-small-en,league-deuce-en,league-pidro-en,league-not_placed-en,league-rules-en,league-result-up-en,league-result-down-en,league-result-stayed-en,league-result-stayed-host-en,league-home-placed,league-home-not_placed,league-profile,league-profile-not-placed,league-player-sheet-en,league-friends-en,league-pin-scroll-en \
+node scripts/verify-ui-grammar.mjs
+```
+
+Phone Swedish proof (390×844):
+
+```sh
+UI_DEVICE_SCALE=2 UI_TIMEZONE=Europe/Helsinki UI_VIEWPORTS=portrait \
+UI_CASES=league-placed-sv,league-27-sv,league-small-sv,league-deuce-sv,league-pidro-sv,league-not_placed-sv,league-rules-sv,league-result-up-sv,league-result-down-sv,league-result-stayed-sv,league-result-stayed-host-sv,league-home-placed-sv,league-home-not_placed-sv,league-profile-sv,league-profile-not-placed-sv,league-player-sheet-sv,league-friends-sv,league-pin-scroll-sv \
+node scripts/verify-ui-grammar.mjs
+```
+
+Add `--list` to either command to check selected capture IDs without a browser.

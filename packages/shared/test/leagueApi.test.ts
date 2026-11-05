@@ -142,10 +142,8 @@ describe("league API contract", () => {
   test("seen operations accept 204 and encode result IDs as one path segment", async () => {
     const { api, calls } = recordingApi();
     const league = createLeagueApi(api);
-    expect(await league.introSeen()).toBeUndefined();
     expect(await league.markResultSeen("result/one ?")).toBeUndefined();
     expect(calls).toEqual([
-      { method: "post", path: "/api/v1/league/intro_seen" },
       {
         method: "post",
         path: "/api/v1/league/results/result%2Fone%20%3F/seen",
@@ -170,7 +168,6 @@ describe("league API contract", () => {
     for (const action of [
       () => league.get(),
       () => league.setHidden(true),
-      () => league.introSeen(),
       () => league.markResultSeen("id"),
     ]) {
       await expect(action()).rejects.toBe(failure);

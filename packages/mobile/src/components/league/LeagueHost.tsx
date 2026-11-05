@@ -20,7 +20,6 @@ const LeagueContext = createContext<{
   error: boolean;
   busy: boolean;
   refresh: () => Promise<void>;
-  introSeen: () => Promise<void>;
   setHidden: (hidden: boolean) => Promise<void>;
   resultSeen: (id: string) => Promise<void>;
 }>({
@@ -28,7 +27,6 @@ const LeagueContext = createContext<{
   error: false,
   busy: false,
   refresh: async () => {},
-  introSeen: async () => {},
   setHidden: async () => {},
   resultSeen: async () => {},
 });
@@ -70,6 +68,11 @@ function LeagueSession({ children, token }: { children: ReactNode; token: string
       if (current.current === token && request.current === version) {
         setAnswer({ token, data });
         setError(false);
+        if (data.pending_result?.move === 'stayed') {
+          await leagueApi.markResultSeen(data.pending_result.id);
+          if (current.current === token && request.current === version)
+            setAnswer({ token, data: { ...data, pending_result: null } });
+        }
       }
     } catch {
       if (current.current === token && request.current === version) setError(true);
@@ -126,11 +129,6 @@ function LeagueSession({ children, token }: { children: ReactNode; token: string
         error,
         busy,
         refresh,
-        introSeen: () =>
-          mutate(
-            () => leagueApi.introSeen(),
-            (state) => ({ ...state, intro_seen: true })
-          ),
         resultSeen: (id) =>
           mutate(
             () => leagueApi.markResultSeen(id),

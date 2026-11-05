@@ -1,10 +1,10 @@
-import { Fragment, useState } from 'react';
+import { Fragment, useCallback, useState } from 'react';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { LeagueStanding } from '@pidro/shared';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { LeagueCard, LeagueStrip } from '@/components/league/LeagueCard';
 import { useLeague } from '@/components/league/LeagueHost';
-import { LeagueIntro } from '@/components/league/LeagueIntro';
+import { LeagueRules } from '@/components/league/LeagueRules';
 import { LeagueFriends } from '@/components/league/LeagueFriends';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { usePillClearance } from '@/components/shell/TabPill';
@@ -14,18 +14,11 @@ import { PressableFX } from '@/components/ui/PressableFX';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
-import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@/design/tokens';
-import {
-  closeTimeText,
-  leagueBands,
-  leagueName,
-  nextLeague,
-  ordinal,
-  previousLeague,
-} from '@/features/league';
+import { PidroBevel, PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { closeTimeText, leagueBands, nextLeague, previousLeague } from '@/features/league';
 import { LEAGUE_FIXTURE_NOW } from '@/features/leagueFixtures';
 import { formatNumber, useTranslation } from '@/i18n';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 
 export default function LeagueScreen() {
   const { t } = useTranslation();
@@ -37,30 +30,30 @@ export default function LeagueScreen() {
   const clearance = usePillClearance();
   const [selected, setSelected] = useState<string | null>(null);
   const [register, setRegister] = useState(false);
+  const [rules, setRules] = useState(false);
   const [actionError, setActionError] = useState(false);
   const [viewport, setViewport] = useState(0);
   const [offset, setOffset] = useState(0);
   const [ownBox, setOwnBox] = useState({ y: 0, height: 0 });
+  const [, setMinute] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      const timer = setInterval(() => setMinute((minute) => minute + 1), 60_000);
+      return () => clearInterval(timer);
+    }, [])
+  );
   const room = data?.room;
   const league = data?.league;
   const up = league ? nextLeague(league) : null;
   const down = league ? previousLeague(league) : null;
   const bands = league && room ? leagueBands(league, room) : null;
   const own = room?.standings.find((row) => row.me);
+  const selectedRow = room?.standings.find((row) => row.user_id === selected);
   const pinned =
     own &&
     ownBox.height > 0 &&
     viewport > ownBox.height + PidroSpacing.xs &&
     (ownBox.y + ownBox.height <= offset || ownBox.y >= offset + viewport);
-  const footer =
-    down && bands?.demoteFrom && room
-      ? t(room.demote === 1 ? 'league.demote_one' : 'league.demote', {
-          from: bands.demoteFrom,
-          to: room.size,
-          league: leagueName(down),
-        })
-      : null;
-
   return (
     <ScreenShell
       testID="league-screen"
@@ -79,39 +72,28 @@ export default function LeagueScreen() {
             </PidroText>
           ) : (
             <>
-              {league ? (
-                <View style={styles.header}>
-                  <LeagueCard league={league} lit />
-                  <View style={styles.copy}>
-                    <PidroText
-                      role="display"
-                      tone="gold"
-                      style={styles.title}
-                      accessibilityRole="header">
-                      {t('league.title', { league: leagueName(league) })}
+              <View style={styles.header}>
+                {league ? <LeagueCard league={league} size={56} lit /> : null}
+                <View style={styles.copy}>
+                  {data?.week ? (
+                    <PidroText role="label" tone="soft" testID="league-close">
+                      {closeTimeText(
+                        data.week.closes_at,
+                        __DEV__ && fixture?.startsWith('league-') ? LEAGUE_FIXTURE_NOW : new Date()
+                      )}
                     </PidroText>
-                    {data?.week ? (
-                      <PidroText role="metadata" tone="soft">
-                        {closeTimeText(
-                          data.week.closes_at,
-                          __DEV__ && fixture?.startsWith('league-')
-                            ? LEAGUE_FIXTURE_NOW
-                            : new Date()
-                        )}
-                      </PidroText>
-                    ) : null}
-                  </View>
+                  ) : null}
                 </View>
-              ) : null}
+                <TextLink
+                  testID="league-info"
+                  label="ⓘ"
+                  accessibilityLabel={t('league.rules.title')}
+                  accessibilityRole="button"
+                  size={16}
+                  onPress={() => setRules(true)}
+                />
+              </View>
               {data ? <LeagueStrip league={league ?? null} /> : null}
-              {room && league ? (
-                <PidroText role="metadata" tone="soft">
-                  {t('league.room', { size: room.size, league: leagueName(league) })}
-                  {up && room.promote > 0
-                    ? ` ${t(room.promote === 1 ? 'league.promote_one' : 'league.promote', { count: room.promote, league: leagueName(up) })}`
-                    : ''}
-                </PidroText>
-              ) : null}
             </>
           )}
         </View>
@@ -128,6 +110,14 @@ export default function LeagueScreen() {
                 scrollEventThrottle={16}>
                 {room.standings.map((row) => (
                   <Fragment key={row.user_id}>
+                    {row.place === bands?.demoteFrom && down ? (
+                      <View testID="league-down-divider" style={styles.divider}>
+                        <PidroText role="metadata" tone="soft">
+                          {t('league.move_down')}
+                        </PidroText>
+                        <LeagueCard league={down} size={20} />
+                      </View>
+                    ) : null}
                     <View
                       onLayout={
                         row.me ? (event) => setOwnBox(event.nativeEvent.layout) : undefined
@@ -137,8 +127,9 @@ export default function LeagueScreen() {
                     {row.place === bands?.promoteAfter && up ? (
                       <View testID="league-up-divider" style={styles.divider}>
                         <PidroText role="metadata" tone="gold">
-                          {t('league.move_up', { league: leagueName(up) })}
+                          {t('league.move_up')}
                         </PidroText>
+                        <LeagueCard league={up} size={20} />
                       </View>
                     ) : null}
                   </Fragment>
@@ -151,16 +142,6 @@ export default function LeagueScreen() {
                 </View>
               ) : null}
             </View>
-            {footer ? (
-              <PidroText
-                testID="league-demotion"
-                role="metadata"
-                tone="soft"
-                align="center"
-                style={styles.footer}>
-                {footer}
-              </PidroText>
-            ) : null}
           </Surface>
         ) : data?.status !== 'off' ? (
           <ScrollView
@@ -180,14 +161,6 @@ export default function LeagueScreen() {
                       : 'league.not_placed'
               )}
             </PidroText>
-            {data?.last_week && data.status === 'not_placed' ? (
-              <PidroText role="metadata" tone="soft">
-                {t('league.last_week', {
-                  place: ordinal(data.last_week.place),
-                  league: leagueName(data.last_week.league),
-                })}
-              </PidroText>
-            ) : null}
             {data?.status === 'guest' ? (
               <TextLink label={t('league.register')} onPress={() => setRegister(true)} />
             ) : null}
@@ -213,7 +186,11 @@ export default function LeagueScreen() {
           </ScrollView>
         ) : null}
       </View>
-      <PlayerSheet playerId={selected} onClose={() => setSelected(null)} />
+      <PlayerSheet
+        playerId={selected}
+        standing={league && selectedRow ? { league, place: selectedRow.place } : undefined}
+        onClose={() => setSelected(null)}
+      />
       <AuthSheet
         isOpen={register}
         reason="save"
@@ -223,7 +200,7 @@ export default function LeagueScreen() {
           router.push({ pathname: '/(auth)/claim-classic', params: { name } });
         }}
       />
-      <LeagueIntro />
+      <LeagueRules isOpen={rules} onClose={() => setRules(false)} />
     </ScreenShell>
   );
 }
@@ -259,7 +236,6 @@ const styles = StyleSheet.create({
   summary: { gap: PidroSpacing.sm, paddingHorizontal: PidroSpacing.xxs },
   side: { width: '38%', justifyContent: 'center' },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  title: { fontFamily: PidroFonts.display, fontWeight: '400', lineHeight: 42 },
   copy: { flex: 1, minWidth: 0, gap: 2 },
   standings: { flex: 1, minHeight: 0, padding: 6 },
   list: { flex: 1, minHeight: 0 },
@@ -280,14 +256,15 @@ const styles = StyleSheet.create({
   name: { flex: 1, minWidth: 0 },
   gold: { color: PidroBevel.textGold },
   divider: {
-    minHeight: 28,
-    justifyContent: 'center',
+    minHeight: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: PidroSpacing.sm,
     paddingHorizontal: 8,
     borderTopWidth: 1,
     borderTopColor: PidroBevel.rim,
     marginTop: 2,
   },
-  footer: { paddingVertical: PidroSpacing.sm, paddingHorizontal: 4 },
   pinned: {
     flexShrink: 0,
     paddingTop: PidroSpacing.xs,
