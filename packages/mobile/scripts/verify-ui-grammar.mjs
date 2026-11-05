@@ -7879,6 +7879,20 @@ async function assertLeague(page, testCase, viewport) {
     const arrow = testCase.homeTick === 'up' ? '↑' : '↓';
     const caption = `${place}${testCase.locale === 'sv' ? ':e den här veckan' : 'th this week'}`;
     const tick = page.getByTestId('home-league-tick');
+    // RN Animated changes the caption mid-tick, outside the CSS animation readiness check.
+    await page.waitForFunction(
+      (expected) => {
+        const node = document.querySelector('[data-testid="home-league-tick"]');
+        if (!node || node.textContent.replace(/\s/gu, '') !== expected) return false;
+        const style = getComputedStyle(node);
+        return (
+          Number(style.opacity) === 1 &&
+          (style.transform === 'none' || new DOMMatrix(style.transform).m42 === 0)
+        );
+      },
+      `${caption}${arrow}`.replace(/\s/gu, ''),
+      { timeout: 5000 }
+    );
     assert.equal(
       (await tick.innerText()).replace(/\s/gu, ''),
       `${caption}${arrow}`.replace(/\s/gu, '')
