@@ -550,7 +550,7 @@ export default function GameCanvasDev({
           });
         });
         if (autoplay !== 'false') after(delay + 3100 + transitionMs, reset);
-        return Promise.resolve(true);
+        return new Promise<boolean>((resolve) => after(delay, () => resolve(true)));
       }
       const trickCards = [
         { player: 'south' as Position, card },
