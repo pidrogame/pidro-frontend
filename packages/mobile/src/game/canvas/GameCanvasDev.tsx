@@ -628,7 +628,11 @@ export default function GameCanvasDev({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- locale invalidates synthetic seat names
     [turn, lifecycle, names, locale, bots, fixture, viewer]
   );
-  const canPlay = turn === 'south' && hand.length > 0 && !trick.some((p) => p.player === 'south');
+  const canPlay =
+    viewer !== 'spectator' &&
+    turn === 'south' &&
+    hand.length > 0 &&
+    !trick.some((p) => p.player === 'south');
 
   const serverModel = useMemo(
     () =>
@@ -638,14 +642,14 @@ export default function GameCanvasDev({
         trumpSuit: trump,
         dealerRelative: phase === 'dealer_selection' ? 'east' : dealer,
         players,
-        yourHand: hand,
-        yourCardCount: hand.length,
+        yourHand: viewer === 'spectator' ? null : hand,
+        yourCardCount: viewer === 'spectator' ? null : hand.length,
         dealerSelectionCuts: phase === 'dealer_selection' ? DEALER_CUTS : null,
         currentTrick: trick,
         tricks,
         trickDetails: trick.length ? fixtureSignals(trick) : null,
         lastHand,
-        legalActions,
+        legalActions: viewer === 'spectator' ? [] : legalActions,
         currentTurnRelative: turn,
         canPlay,
         getCardCountForPlayer: (abs) => (abs ? (COUNTS[abs] ?? null) : null),
@@ -667,6 +671,7 @@ export default function GameCanvasDev({
       dealer,
       lastHand,
       count,
+      viewer,
     ]
   );
   const presentation = usePlayPresentation(serverModel, onPlayCard, transitionTimer);

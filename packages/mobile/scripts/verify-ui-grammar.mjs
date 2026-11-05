@@ -2049,6 +2049,10 @@ async function assertTargetGeometry(page, testCase, viewport) {
     if (testCase.name === 'table-playing') {
       await assertSeatPlacement(page, viewport);
     }
+    if (testCase.name === 'table-hand-sweep-spectator') {
+      await page.getByTestId('rendered-hand-card-count-0').waitFor({ state: 'attached' });
+      assert.equal(await page.getByTestId('seat-south-cards').locator('img').count(), 6);
+    }
     if (testCase.flaky) {
       const sv = testCase.locale === 'sv';
       const words = {
