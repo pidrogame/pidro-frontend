@@ -48,8 +48,10 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
   const [ready, setReady] = useState<Position[]>(['east', 'west', 'south']);
   const [share, setShare] = useState(false);
   const live = fixture.startsWith('live-');
+  const full =
+    fixture === 'ready' || fixture === 'reconnecting' || fixture.startsWith('ready-error');
   const [opened, setOpened] = useState(
-    live || ['opened', 'ready', 'guest', 'declined'].includes(fixture)
+    live || full || ['opened', 'guest', 'declined'].includes(fixture)
   );
   const [declined, setDeclined] = useState(
     fixture === 'declined' ? { position: 'south' as const, user: friends[0] } : null
@@ -81,22 +83,28 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
     positions: {
       north: 'host',
       east: 'kalle',
-      south: fixture === 'ready' ? 'maija' : null,
-      west: fixture === 'ready' ? 'hanna' : null,
+      south: full ? 'maija' : null,
+      west: full ? 'hanna' : null,
     },
     seats: (['north', 'east', 'south', 'west'] as const).map((position, seat_index) => ({
       position,
       seat_index,
-      status: fixture === 'ready' || seat_index < 2 ? 'occupied' : 'free',
+      status: full || seat_index < 2 ? 'occupied' : 'free',
+      connectionStatus:
+        fixture === 'reconnecting' && position === 'east' ? 'reconnecting' : 'normal',
       player:
-        fixture === 'ready' || seat_index < 2
+        full || seat_index < 2
           ? {
               id: ['host', 'kalle', 'maija', 'hanna'][seat_index],
-              username: ['Bertil', 'Kalle', 'Maija', 'Hanna'][seat_index],
+              username: [
+                'Bertil',
+                fixture === 'reconnecting' ? 'Pedro1' : 'Kalle',
+                'Maija',
+                'Hanna',
+              ][seat_index],
             }
           : null,
-      held_for:
-        position === 'south' && fixture !== 'ready' && fixture !== 'declined' ? friends[0] : null,
+      held_for: position === 'south' && !full && fixture !== 'declined' ? friends[0] : null,
       password: position === 'west' && fixture !== 'ready',
     })),
   });
@@ -148,6 +156,8 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
         readyPlayers={ready}
         readyDisabled={false}
         onReady={async () => {
+          if (fixture.startsWith('ready-error'))
+            throw { reason: fixture === 'ready-error' ? 'table_not_full' : 'unknown_failure' };
           setReady((current) => [...current, 'north']);
         }}
         onKickPlayer={(position) =>

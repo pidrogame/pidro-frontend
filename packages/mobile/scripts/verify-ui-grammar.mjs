@@ -1110,6 +1110,15 @@ const allCases = [
         : 'new-table-screen',
     newTableFixture: fixture,
   })),
+  ...['en', 'sv'].flatMap((language) =>
+    ['reconnecting', 'ready-error', 'ready-error-unknown'].map((fixture) => ({
+      name: `new-table-${fixture}-${language}`,
+      path: `/ui-dev?state=new-table&fixture=${fixture}&locale=${language}`,
+      testId: 'waiting-table',
+      newTableFixture: fixture,
+      newTableLanguage: language,
+    }))
+  ),
   { name: 'table-waiting', path: '/table-dev?phase=waiting', testId: 'waiting-table' },
   {
     name: 'table-waiting-notice',
@@ -4013,6 +4022,24 @@ async function assertCreationPresentation(page, testCase) {
   if (!fixture) return;
   const viewport = page.viewportSize();
   await assertTeamLayout(page, viewport, testCase.name);
+  if (fixture === 'reconnecting' || fixture.startsWith('ready-error')) {
+    const sv = testCase.newTableLanguage === 'sv';
+    if (fixture === 'reconnecting') {
+      await page.getByText(sv ? 'Återansluter…' : 'Reconnecting…', { exact: true }).waitFor();
+      await page
+        .getByText(sv ? 'Väntar på Pedro1…' : 'Waiting for Pedro1…', { exact: true })
+        .waitFor();
+      assert.equal(
+        await page
+          .getByRole('button', { name: sv ? 'Jag är redo' : "I'm ready", exact: true })
+          .count(),
+        0
+      );
+    } else {
+      await page.getByTestId('waiting-error').waitFor();
+    }
+    await assertAccountSurfaceFits(page.getByTestId('waiting-table'), testCase.name, viewport);
+  }
   if (fixture === 'setup')
     assert.equal(await page.getByText('Anyone can sit', { exact: true }).count(), 3);
   const footer = {
@@ -9081,6 +9108,26 @@ async function main() {
             await waitForScreenshotReady(page);
           }
           if (testCase.appUpdate) await assertAppUpdate(page, testCase);
+          if (testCase.newTableFixture?.startsWith('ready-error')) {
+            const sv = testCase.newTableLanguage === 'sv';
+            await page
+              .getByRole('button', { name: sv ? 'Jag är redo' : "I'm ready", exact: true })
+              .click();
+            const message =
+              testCase.newTableFixture === 'ready-error'
+                ? sv
+                  ? 'Alla platser måste vara fyllda innan spelet kan börja.'
+                  : 'All seats must be filled before starting.'
+                : sv
+                  ? 'Det gick inte att bekräfta. Kontrollera bordet och försök igen.'
+                  : 'Readiness was not confirmed. Check the table and try again.';
+            assert.equal(await page.getByTestId('waiting-error').innerText(), message);
+            await assertAccountSurfaceFits(
+              page.getByTestId('waiting-table'),
+              testCase.name,
+              caseViewport
+            );
+          }
           if (testCase.name.startsWith('friend-notice-')) {
             await page.getByTestId('friend-notice').waitFor();
             await waitForScreenshotReady(page);

@@ -180,6 +180,7 @@ export function NewTableScreen({
         opened: true,
         type: seat?.held_for ? 'held' : 'open',
         player: seat?.player,
+        connectionStatus: seat?.connectionStatus,
         held_for: seat?.held_for,
         presence: friends.find((friend) => friend.user_id === seat?.held_for?.user_id)?.presence,
         min_games: seat?.min_games,
@@ -302,13 +303,22 @@ export function NewTableScreen({
       setDraft(chooseSeat(draft, seatKeys[selected]!, seat));
     }
   };
-  const full = !!room && positions.every((position) => !!room.positions?.[position]);
+  const footer = room ? waitingFooter(room, editable, readyPlayers.length) : null;
+  const full = !!footer?.full;
   const isYouReady = !!youPosition && readyPlayers.includes(youPosition);
   const [readyBusy, setReadyBusy] = useState(false);
   const readyBusyRef = useRef(false);
   const [readyError, setReadyError] = useState<unknown>(null);
   const confirmReady = async () => {
-    if (!onReady || readyDisabled || readyBusyRef.current || isYouReady || isSpectator) return;
+    if (
+      !onReady ||
+      !footer?.ready ||
+      readyDisabled ||
+      readyBusyRef.current ||
+      isYouReady ||
+      isSpectator
+    )
+      return;
     readyBusyRef.current = true;
     setReadyBusy(true);
     setReadyError(null);
@@ -391,7 +401,7 @@ export function NewTableScreen({
     </View>
   );
   const align = phoneLandscape ? 'left' : 'center';
-  const readyAction = !isSpectator && full && !!onReady;
+  const readyAction = !isSpectator && !!footer?.ready && !!onReady;
   const footerCard = (compact || phoneLandscape) && !!room && !!declinedCard && !readyAction;
   const joining = joiningName && (
     <PidroText role="metadata" align={align} accessibilityLiveRegion="polite">
@@ -430,16 +440,17 @@ export function NewTableScreen({
   ) : null;
   const footerLine = (
     <PidroText role="metadata" tone="soft" align={align} accessibilityLiveRegion="polite">
-      {!room
-        ? tableFooter(draft)
-        : full
-          ? t('game.ready_count', { count: readyPlayers.length })
-          : waitingFooter(room, editable)}
+      {footer ? footer.line : tableFooter(draft)}
     </PidroText>
   );
   const failureLine =
     error || readyError || (!selected && pickerError) ? (
-      <PidroText role="metadata" tone="danger" align={align} accessibilityRole="alert">
+      <PidroText
+        testID="waiting-error"
+        role="metadata"
+        tone="danger"
+        align={align}
+        accessibilityRole="alert">
         {error || (readyError ? localizedError(readyError, 'game.ready_failed') : pickerError)}
       </PidroText>
     ) : null;

@@ -16,6 +16,7 @@ export type SeatView = {
   passwordRequired?: boolean;
   host?: boolean;
   ready?: boolean;
+  connectionStatus?: string | null;
   editable?: boolean;
   held_for?: HeldPlayer | null;
   presence?: FriendPlayer['presence'] | null;
@@ -63,6 +64,7 @@ export function seatRow(seat: SeatView): SeatRowWords {
 
 function describe(seat: SeatView): Omit<SeatRowWords, 'nameTone' | 'tappable' | 'label'> {
   const { player, held_for, password } = seat;
+  const reconnecting = seat.connectionStatus === 'reconnecting';
   if (seat.team === 'you')
     return {
       token: {
@@ -73,9 +75,21 @@ function describe(seat: SeatView): Omit<SeatRowWords, 'nameTone' | 'tappable' | 
       },
       name: t('social.you'),
       status: t(
-        seat.host !== false ? 'social.host' : seat.ready ? 'seat_row.ready' : 'game.not_ready'
+        reconnecting
+          ? 'game.reconnecting'
+          : seat.host !== false
+            ? 'social.host'
+            : seat.ready
+              ? 'seat_row.ready'
+              : 'game.not_ready'
       ),
-      statusTone: seat.host !== false ? 'gold' : seat.ready ? 'ready' : 'soft',
+      statusTone: reconnecting
+        ? 'soft'
+        : seat.host !== false
+          ? 'gold'
+          : seat.ready
+            ? 'ready'
+            : 'soft',
     };
   if (player) {
     const bot = !!player.is_bot || player.id?.startsWith('bot_');
@@ -93,8 +107,14 @@ function describe(seat: SeatView): Omit<SeatRowWords, 'nameTone' | 'tappable' | 
             prestige: player.prestige,
           },
       name: seatName(player, t('social.player'), bot),
-      status: t(seat.ready === false ? 'game.not_ready' : 'seat_row.ready'),
-      statusTone: seat.ready === false ? 'soft' : 'ready',
+      status: t(
+        reconnecting
+          ? 'game.reconnecting'
+          : seat.ready === false
+            ? 'game.not_ready'
+            : 'seat_row.ready'
+      ),
+      statusTone: reconnecting || seat.ready === false ? 'soft' : 'ready',
     };
   }
   if (seat.type === 'ai')

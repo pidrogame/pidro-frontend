@@ -49,7 +49,7 @@ export interface ReadinessSnapshot {
     Position,
     {
       occupant_type: 'human' | 'bot' | 'vacant';
-      status: string;
+      status: string | null;
       user_id: string | null;
       username?: string | null;
       display_name?: string | null;
@@ -101,6 +101,8 @@ export interface Player {
 export interface Seat {
   seat_index: number;
   status: 'occupied' | 'free';
+  /** Server connection/lifecycle status, separate from whether the seat is filled. */
+  connectionStatus?: string | null;
   player: Player | null;
   position?: Position;
   player_id?: string | null;

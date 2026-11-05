@@ -162,13 +162,33 @@ export function tableHeader(room: Room): string {
   });
 }
 
-export function waitingFooter(room: Room, canManage: boolean): string {
+export function waitingFooter(room: Room, canManage: boolean, readyCount: number) {
+  const full = (['north', 'east', 'south', 'west'] as const).every(
+    (position) => !!room.positions?.[position]
+  );
+  const dropped =
+    room.seats?.filter((seat) => seatedHuman(seat) && seat.connectionStatus === 'reconnecting') ??
+    [];
+  if (dropped.length)
+    return {
+      full,
+      ready: false,
+      line:
+        t('game.waiting_for', {
+          name: dropped.map((seat) => seatName(seat.player, t('social.player'))).join(', '),
+        }) + '…',
+    };
+  if (full) return { full, ready: true, line: t('game.ready_count', { count: readyCount }) };
   const names =
     room.seats?.flatMap((seat) => (seat.held_for ? [seat.held_for.display_name] : [])) ?? [];
   const waiting = names.length
     ? t('new_table.waiting_for', { names: names.join(', ') })
     : t('new_table.waiting_players');
-  return canManage ? `${waiting} ${t('new_table.change_seat')}` : waiting;
+  return {
+    full,
+    ready: false,
+    line: canManage ? `${waiting} ${t('new_table.change_seat')}` : waiting,
+  };
 }
 
 export function pickerFriends(

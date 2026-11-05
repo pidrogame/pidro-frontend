@@ -467,6 +467,16 @@ case names are `new-table-setup`, `new-table-partner`, `new-table-bots`,
 `new-table-opened`, `new-table-ready`, `new-table-louisiana`, `new-table-requirement`,
 `new-table-password`, `new-table-picker`, `new-table-friends`, `new-table-guest`,
 `new-table-live-picker` and `new-table-live-friends`.
+
+Waiting connection fixtures: `/ui-dev?state=new-table&fixture=reconnecting` keeps
+Pedro1 seated with a quiet Reconnecting… row and Waiting for Pedro1… instead of
+Ready. `fixture=ready` is the connected control. `fixture=ready-error` refuses a
+ready tap with `table_not_full`; `ready-error-unknown` exercises the human fallback.
+Add `&locale=sv` for Swedish. Grammar cases `new-table-reconnecting-en|sv`,
+`new-table-ready-error-en|sv` and `new-table-ready-error-unknown-en|sv` check the
+words, absent Ready action, and unclipped errors without scrolling at 390×844,
+375×667, 844×390 and 768×1024 (also iPad landscape). Error testID `waiting-error`.
+
 Upright the root is a centered column (436 on a phone, 660 on an iPad); sideways the two
 teams sit side by side with `vs` between. Nothing scrolls; the picker's friend list scrolls
 inside itself and shows four whole rows of two on a 390pt-tall phone (`dense` `FriendRow`).

@@ -35,6 +35,9 @@ function normalizeSeat(raw: any, fallbackIndex: number): Seat {
     seat_index: seatIndex,
     position,
     status,
+    connectionStatus: raw?.connectionStatus !== undefined
+      ? raw.connectionStatus
+      : (raw?.status === 'occupied' || raw?.status === 'free' ? undefined : raw?.status),
     player: player ?? null,
     player_id: raw?.player_id ?? player?.id ?? null,
     min_games: raw?.min_games ?? 0,
@@ -88,6 +91,7 @@ function seatsFromPositionMap(rawSeats: Record<string, any>): any[] {
       seat_index: POSITION_TO_INDEX[position],
       position,
       status: playerId ? 'occupied' : 'free',
+      connectionStatus: value?.status,
       player:
         playerId
           ? {

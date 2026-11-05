@@ -126,6 +126,21 @@ describe('after the table opens', () => {
   it('keeps open seats cyan, even on your team', () => {
     expect(seatRow({ team: 'partner', opened: true, type: 'open' }).nameTone).toBe('cyan');
   });
+
+  it('shows a dropped player quietly, even if they were ready, until they return', () => {
+    const seat = { opened: true, player: { id: 'pedro', username: 'Pedro1' }, ready: true };
+    expect(words({ ...seat, connectionStatus: 'reconnecting' })).toEqual([
+      'Pedro1', 'Reconnecting…', 'soft',
+    ]);
+    expect(words({ ...seat, connectionStatus: 'normal' })).toEqual(['Pedro1', 'Ready', 'ready']);
+    expect(words({ ...seat, team: 'you', connectionStatus: 'reconnecting' })).toEqual([
+      'You', 'Reconnecting…', 'soft',
+    ]);
+    try {
+      setLocale('sv');
+      expect(words({ ...seat, connectionStatus: 'reconnecting' })[1]).toBe('Återansluter…');
+    } finally { setLocale('en'); }
+  });
 });
 
 it('speaks Swedish', () => {

@@ -603,6 +603,7 @@ export function roomWithReadiness(room: Room, snapshot: ReadinessSnapshot): Room
         position,
         seat_index,
         status: id ? 'occupied' : 'free',
+        connectionStatus: snapshot.seats[position].status,
         held_for: snapshot.seats[position].held_for,
         min_games: snapshot.seats[position].min_games,
         password: snapshot.seats[position].password,

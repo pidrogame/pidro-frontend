@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 import { normalizeRoom, roomWithReadiness, setLocale } from '@pidro/shared';
-import { assignedFriendIds, chooseFriend, chooseSeat, createFailure, defaultSeats, isPractice, newTableRequest, pickerFriends, seatChoice, seatedHuman, seatEntry, seatError, tableFooter, tableHeader, tableTitle } from '../../src/features/lobby/newTable';
+import { assignedFriendIds, chooseFriend, chooseSeat, createFailure, defaultSeats, isPractice, newTableRequest, pickerFriends, seatChoice, seatedHuman, seatEntry, seatError, tableFooter, tableHeader, tableTitle, waitingFooter } from '../../src/features/lobby/newTable';
 import { seatRow } from '../../src/features/lobby/seatRow';
 
 const maija = { user_id: 'maija', display_name: 'Maija', avatar_url: null, presence: 'online' };
@@ -138,4 +138,38 @@ it('blames a held friend, not the host, when opening is refused for a table else
   const error = refused('ALREADY_IN_ROOM');
   expect(createFailure(error, open)).toEqual({ error, key: 'social.create_error' });
   expect(createFailure(refused('ACCOUNT_REQUIRED'), held).key).toBe('social.account_error');
+});
+
+it('holds Ready for a dropped human by public name, restores it on return, and handles a freed seat', () => {
+  const positions = { north: 'host', east: 'pedro', south: 'maija', west: 'bot_west' };
+  const snapshot = { room_id: 'room', status: 'waiting', positions, seats: Object.fromEntries(Object.entries(positions).map(([position, id]) => [position, { user_id: id, occupant_type: id.startsWith('bot_') ? 'bot' : 'human', status: position === 'east' ? 'reconnecting' : 'normal', username: position === 'east' ? 'guest_12345678' : id, display_name: position === 'east' ? 'Pedro1' : null }])) };
+  const room = roomWithReadiness({ code: 'TEST', seats: [] }, snapshot);
+  expect(waitingFooter(room, false, 3)).toEqual({ full: true, ready: false, line: 'Waiting for Pedro1…' });
+  try {
+    setLocale('sv');
+    expect(waitingFooter(room, true, 3).line).toBe('Väntar på Pedro1…');
+  } finally { setLocale('en'); }
+  snapshot.seats.east.status = 'connected';
+  const returned = roomWithReadiness(room, snapshot);
+  expect(waitingFooter(returned, false, 3)).toEqual({ full: true, ready: true, line: '3 of 4 ready' });
+  snapshot.positions = { ...snapshot.positions, east: null };
+  snapshot.seats.east = { occupant_type: 'vacant', user_id: null, status: null };
+  const freed = roomWithReadiness(returned, snapshot);
+  expect(waitingFooter(freed, false, 2)).toEqual({ full: false, ready: false, line: 'Waiting for players.' });
+  expect(waitingFooter(freed, true, 2).line).toBe('Waiting for players. Tap a seat to change it.');
+  const bot = returned.seats.find((seat) => seat.position === 'west');
+  bot.connectionStatus = 'reconnecting';
+  expect(waitingFooter(returned, false, 3).ready).toBe(true);
+});
+
+it('preserves a reconnecting status from both room payload shapes and a second normalization', () => {
+  const map = normalizeRoom({ code: 'TEST', seats: { east: { user_id: 'pedro', username: 'Pedro1', status: 'reconnecting' } } });
+  const array = normalizeRoom({ code: 'TEST', seats: [{ seat_index: 1, status: 'reconnecting', player: { id: 'pedro', username: 'Pedro1' } }] });
+  for (const room of [map, array, normalizeRoom(map)]) {
+    expect(room.seats[0]).toMatchObject({ status: 'occupied', connectionStatus: 'reconnecting' });
+    expect(waitingFooter(room, false, 0).line).toBe('Waiting for Pedro1…');
+    expect(waitingFooter(room, false, 0).ready).toBe(false);
+  }
+  const vacant = normalizeRoom({ code: 'TEST', seats: { east: { user_id: null, status: null } } });
+  expect(normalizeRoom(vacant)).toEqual(vacant);
 });
