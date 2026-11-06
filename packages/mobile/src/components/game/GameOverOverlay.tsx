@@ -104,6 +104,7 @@ function useLayout() {
     insets,
     landscape,
     k,
+    room,
     tier,
     tablet,
     // A small phone (375×667): under 700pt of room, not a notched 390×844 or a tablet.
@@ -227,7 +228,7 @@ export function GameOverOverlay({
   onProfile,
 }: GameOverOverlayProps) {
   useTranslation();
-  const { insets, landscape, k, tier, tablet, short, frame, rays } = useLayout();
+  const { insets, landscape, k, room, tier, tablet, short, frame, rays } = useLayout();
   const z = (n: number) => Math.round(n * k);
   const you = viewModel.players.find((player) => player.isYou);
   const spectator = !you;
@@ -295,10 +296,12 @@ export function GameOverOverlay({
   const showRematch = !spectator && !othersAreBots(others);
   // The last trick's card is decoration: it shows when there is room for it,
   // and on a short screen only when nothing else competes for its column. In
-  // landscape the win has the left column to itself.
+  // landscape the win has the left column to itself. In a browser a tablet's
+  // card needs 630 of room; a 1280×720 window has less.
   const lean = landscape || (!streak && !xp && !race && !showRematch);
   const reveal =
-    viewerWon && (tier === 0 || (tier === 1 && (lean || tablet)))
+    viewerWon &&
+    (tier === 0 || (tier === 1 && (lean || (tablet && (Platform.OS !== 'web' || room >= 630)))))
       ? lastTrickReveal(lastHand)
       : null;
   // A small phone's loss keeps the result, the best hand and the way on.

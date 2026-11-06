@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Linking, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Linking, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { TERMS_VERSION, type DeclaredAgeBand } from '@pidro/shared';
@@ -231,7 +231,8 @@ export default function AgeScreen() {
       testID="age-screen"
       contentStyle={[styles.screen, landscape && styles.screenLandscape]}>
       <LanguageSwitch />
-      {height >= 700 ? (
+      {/* With the logo the screen is 753 tall: a 1280×720 browser window drops it. */}
+      {height >= (Platform.OS === 'web' ? 760 : 700) ? (
         <View style={styles.logoStage} pointerEvents="none">
           <PidroLogo size="compact" />
         </View>
