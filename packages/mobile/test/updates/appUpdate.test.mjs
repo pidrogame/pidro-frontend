@@ -16,24 +16,29 @@ const ready = {
   inGame: false,
 };
 
-it('offers the platform store only below its configured native minimum', () => {
+it('opens only the server destination below its configured native minimum', () => {
   const minimum = { android: '3.2.10', ios: '3.3.0' };
-  expect(nativeStoreUpdate('android', '3.2.9', minimum)).toEqual({
-    id: 'android:3.2.10',
-    url: 'https://play.google.com/store/apps/details?id=com.oneapps.pidro.beta',
+  const urls = {
+    android: 'https://example.test/android?release=public',
+    ios: 'https://example.test/ios?release=public',
+  };
+  expect(nativeStoreUpdate('android', '3.2.9', minimum, urls)).toEqual({
+    id: `android:3.2.10:${urls.android}`,
+    url: urls.android,
   });
-  expect(nativeStoreUpdate('ios', '3.2.10', minimum)?.url).toBe(
-    'https://testflight.apple.com/join/2JR95b65'
-  );
-  expect(nativeStoreUpdate('android', '3.2.10', minimum)).toBeNull();
-  expect(nativeStoreUpdate('android', '3.2.11', minimum)).toBeNull();
-  expect(nativeStoreUpdate('android', '3.10.0', minimum)).toBeNull();
-  expect(nativeStoreUpdate('ios', '3.3.0', minimum)).toBeNull();
-  expect(nativeStoreUpdate('ios', '3.2.2', { android: '3.2.10' })).toBeNull();
-  expect(nativeStoreUpdate('android', '3.2.2', {})).toBeNull();
-  expect(nativeStoreUpdate('web', '3.2.2', minimum)).toBeNull();
-  expect(nativeStoreUpdate('android', null, minimum)).toBeNull();
-  expect(nativeStoreUpdate('android', '3.2.2', { android: 'not-a-version' })).toBeNull();
+  expect(nativeStoreUpdate('ios', '3.2.10', minimum, urls)?.url).toBe(urls.ios);
+  expect(nativeStoreUpdate('android', '3.2.10', minimum, urls)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.11', minimum, urls)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.10.0', minimum, urls)).toBeNull();
+  expect(nativeStoreUpdate('ios', '3.3.0', minimum, urls)).toBeNull();
+  expect(nativeStoreUpdate('ios', '3.2.2', { android: '3.2.10' }, urls)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.2', {}, urls)).toBeNull();
+  expect(nativeStoreUpdate('web', '3.2.2', minimum, urls)).toBeNull();
+  expect(nativeStoreUpdate('android', null, minimum, urls)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.2', { android: 'not-a-version' }, urls)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.2', minimum, {})).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.2', minimum, { ios: urls.ios })).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.2', minimum, { android: '' })).toBeNull();
 });
 
 it('keeps store notices out of games, opens the listing, and remembers dismissal', async () => {
@@ -80,20 +85,34 @@ it('keeps store notices out of games, opens the listing, and remembers dismissal
   try {
     useLobbyStore.setState({ minimumNativeVersions: { android: '3.3.0' } });
     await act(async () => root.render(h(Shell)));
+    expect(notice.store).toBe(false);
+    await act(async () =>
+      useLobbyStore.setState({ nativeStoreUrls: { android: 'https://example.test/android' } })
+    );
     expect(notice.store).toBe(true);
     expect(notice.visible).toBe(true);
     await act(async () => root.render(h(Shell, { inGame: true })));
     expect(notice.visible).toBe(false);
     await act(async () => root.render(h(Shell)));
     await act(async () => notice.restart());
-    expect(opened).toEqual([
-      'https://play.google.com/store/apps/details?id=com.oneapps.pidro.beta',
-    ]);
+    expect(opened).toEqual(['https://example.test/android']);
     await act(async () => notice.dismiss());
     expect(notice.store).toBe(false);
     expect(notice.visible).toBe(true); // The independent OTA offer is still available.
     await act(async () => root.render(null));
     await act(async () => root.render(h(Shell)));
+    expect(notice.store).toBe(false);
+    await act(async () =>
+      useLobbyStore.setState({ nativeStoreUrls: { android: 'https://example.test/public' } })
+    );
+    expect(notice.store).toBe(true);
+    await act(async () => notice.restart());
+    expect(opened.at(-1)).toBe('https://example.test/public');
+    await act(async () => useLobbyStore.setState({ nativeStoreUrls: {} }));
+    expect(notice.store).toBe(false);
+    await act(async () =>
+      useLobbyStore.setState({ nativeStoreUrls: { android: 'https://example.test/android' } })
+    );
     expect(notice.store).toBe(false);
     await act(async () => useLobbyStore.setState({ minimumNativeVersions: { android: '3.4.0' } }));
     expect(notice.store).toBe(true);

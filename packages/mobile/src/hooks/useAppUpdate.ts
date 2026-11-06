@@ -44,10 +44,12 @@ export function useAppUpdate({
   const [restarting, setRestarting] = useState(false);
   const inFlight = useRef(false);
   const minimums = useLobbyStore((state) => state.minimumNativeVersions);
+  const storeUrls = useLobbyStore((state) => state.nativeStoreUrls);
   const storeUpdate = nativeStoreUpdate(
     forcedStore ? 'android' : Platform.OS,
     forcedStore ? '0.0.0' : nativeApplicationVersion,
-    forcedStore ? { android: '99.0.0' } : minimums
+    forcedStore ? { android: '99.0.0' } : minimums,
+    forcedStore ? { android: 'https://example.invalid/pidro-store' } : storeUrls
   );
   const store = Boolean(storeUpdate && storeUpdate.id !== dismissedStoreId && !inGame);
 

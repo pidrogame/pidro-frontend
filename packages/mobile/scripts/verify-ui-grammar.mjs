@@ -3220,9 +3220,7 @@ async function assertUpdateNotice(page, name, viewport) {
     });
     await open.click();
     await page.waitForFunction(
-      () =>
-        window.__openedStoreURL ===
-        'https://play.google.com/store/apps/details?id=com.oneapps.pidro.beta'
+      () => window.__openedStoreURL === 'https://example.invalid/pidro-store'
     );
     await dismiss.click();
     await notice.waitFor({ state: 'detached' });
