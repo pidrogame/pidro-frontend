@@ -9,6 +9,29 @@ import { formatDate, t } from '@pidro/shared';
 /** Coming back to the app checks at most this often. */
 export const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
+export function nativeStoreUpdate(
+  platform: string,
+  installed: string | null,
+  minimums: Partial<Record<'android' | 'ios', string>>
+) {
+  if (platform !== 'android' && platform !== 'ios') return null;
+  const minimum = minimums[platform];
+  const version = (value: string | null | undefined) =>
+    value && /^\d+\.\d+\.\d+$/.test(value) ? value.split('.').map(Number) : null;
+  const current = version(installed);
+  const required = version(minimum);
+  if (!current || !required) return null;
+  const difference = current.findIndex((part, index) => part !== required[index]);
+  if (difference < 0 || current[difference]! > required[difference]!) return null;
+  return {
+    id: `${platform}:${minimum}`,
+    url:
+      platform === 'android'
+        ? 'https://play.google.com/store/apps/details?id=com.oneapps.pidro.beta'
+        : 'https://testflight.apple.com/join/2JR95b65',
+  };
+}
+
 export interface UpdateNoticeInput {
   /** OTA updates work in this build: a release build, not web or dev. */
   enabled: boolean;

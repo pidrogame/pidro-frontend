@@ -50,7 +50,7 @@ export const useLobbyChannel = (onRealtimeUpdate?: () => void) => {
     const connect = () => {
       if (globalChannel) return;
 
-      const channel = phoenixSocket.channel('lobby');
+      const channel = phoenixSocket.channel('lobby', phoenixSocket.connectionParams());
       let presences = {};
       let invitationEvents: (() => void)[] | null = null;
 
@@ -173,6 +173,9 @@ export const useLobbyChannel = (onRealtimeUpdate?: () => void) => {
           onRealtimeUpdateRef.current?.();
           // Batch updates to avoid navigation context issues
           unstable_batchedUpdates(() => {
+            useLobbyStore.setState({
+              minimumNativeVersions: response?.minimum_native_versions ?? {},
+            });
             const rawLobby = response?.lobby ?? response?.data?.lobby;
             if (hasLobbyCategories(rawLobby)) {
               const lobby = normalizeLobbyCategories(rawLobby);

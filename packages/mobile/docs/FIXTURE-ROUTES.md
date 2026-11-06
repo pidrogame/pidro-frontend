@@ -86,9 +86,9 @@ PID-214 bid presentation uses `/table-dev?phase=bidding&role=player&bids=round|h
 the high-bid tone and compact south status without changing bid event identities.
 
 Flaky connections use `/table-dev?phase=playing&fixture=flaky-offline&locale=en|sv`.
-Replace `offline` with `auto-card`, `auto-pass`, `auto-bid`, `refused`, or `settling` for the
+Replace `offline` with `auto-card`, `auto-pass`, `auto-bid`, `late-card`, `refused`, or `settling` for the
 quiet notices, or `spectator&role=spectator` for all four hands of card backs.
-`table-flaky-{offline,auto-card,auto-pass,auto-bid,refused,spectator,settling}-{en,sv}` checks
+`table-flaky-{offline,auto-card,auto-pass,auto-bid,late-card,refused,spectator,settling}-{en,sv}` checks
 the band, no scrolling, and all four spectators' hands at 390×844, 375×667,
 844×390 and 768×1024. These are presentation fixtures; socket-drop verification
 uses the real game route and local backend.
@@ -609,6 +609,12 @@ shell tab (`/settings?fixture=update-notice` too), because the notice lives in t
 shell layout, not in a screen; the gallery cannot show it in place. Restart only shows its busy state here; nothing reloads. Dismiss hides it.
 Add `safeArea=island` (or any `/table-dev` preset) to fake insets for the whole shell.
 testID `update-notice`.
+
+`/home?fixture=store-update-notice` and `/settings?fixture=store-update-notice` show
+the native-version notice in that same slot. Open store opens the Android beta listing;
+Dismiss hides it for the session. `store-update-notice-{home,settings}-{en,sv}` checks
+copy, clearances, 44pt controls, the destination and dismissal at all four main sizes.
+These fixtures do not set a real server minimum or claim to upgrade an older native runtime.
 
 The notice floats over the screen just above the tab pill (above the bottom safe area
 beside the landscape rail or for guests) and never covers a control. Scrolling screens

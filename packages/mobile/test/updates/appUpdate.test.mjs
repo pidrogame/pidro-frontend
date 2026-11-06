@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it, mock } from 'bun:test';
 import {
   channelLabel,
   runningUpdate,
   shouldCheckOnForeground,
   shouldShowUpdateNotice,
+  nativeStoreUpdate,
   UPDATE_CHECK_INTERVAL_MS,
 } from '../../src/features/appUpdate.ts';
 
@@ -14,6 +15,96 @@ const ready = {
   dismissedUpdateId: null,
   inGame: false,
 };
+
+it('offers the platform store only below its configured native minimum', () => {
+  const minimum = { android: '3.2.10', ios: '3.3.0' };
+  expect(nativeStoreUpdate('android', '3.2.9', minimum)).toEqual({
+    id: 'android:3.2.10',
+    url: 'https://play.google.com/store/apps/details?id=com.oneapps.pidro.beta',
+  });
+  expect(nativeStoreUpdate('ios', '3.2.10', minimum)?.url).toBe(
+    'https://testflight.apple.com/join/2JR95b65'
+  );
+  expect(nativeStoreUpdate('android', '3.2.10', minimum)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.11', minimum)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.10.0', minimum)).toBeNull();
+  expect(nativeStoreUpdate('ios', '3.3.0', minimum)).toBeNull();
+  expect(nativeStoreUpdate('ios', '3.2.2', { android: '3.2.10' })).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.2', {})).toBeNull();
+  expect(nativeStoreUpdate('web', '3.2.2', minimum)).toBeNull();
+  expect(nativeStoreUpdate('android', null, minimum)).toBeNull();
+  expect(nativeStoreUpdate('android', '3.2.2', { android: 'not-a-version' })).toBeNull();
+});
+
+it('keeps store notices out of games, opens the listing, and remembers dismissal', async () => {
+  if (!process.env.STORE_NOTICE_CHILD) {
+    const child = Bun.spawnSync([process.execPath, 'test', import.meta.path], {
+      env: { ...process.env, STORE_NOTICE_CHILD: '1' },
+    });
+    expect(child.stderr.toString()).not.toContain('(fail)');
+    expect(child.exitCode).toBe(0);
+    return;
+  }
+  const { JSDOM } = await import('jsdom');
+  const { act, createElement: h } = await import('react');
+  const { createRoot } = await import('react-dom/client');
+  const dom = new JSDOM('<div id="root"></div>');
+  Object.assign(globalThis, {
+    window: dom.window,
+    document: dom.window.document,
+    IS_REACT_ACT_ENVIRONMENT: true,
+    __DEV__: false,
+  });
+  const opened = [];
+  mock.module('react-native', () => ({
+    Platform: { OS: 'android' },
+    AppState: { addEventListener: () => ({ remove() {} }) },
+    Linking: { openURL: async (url) => opened.push(url) },
+  }));
+  mock.module('expo-application', () => ({ nativeApplicationVersion: '3.2.3' }));
+  mock.module('expo-updates', () => ({
+    isEnabled: true,
+    useUpdates: () => ({ isUpdatePending: true, downloadedUpdate: { updateId: 'ota' } }),
+    reloadAsync: async () => {
+      throw new Error('Store action must not restart');
+    },
+  }));
+  const { useAppUpdate } = await import('../../src/hooks/useAppUpdate.ts');
+  const { useLobbyStore } = await import('@pidro/shared');
+  let notice;
+  function Shell({ inGame = false }) {
+    notice = useAppUpdate({ inGame });
+    return null;
+  }
+  const root = createRoot(document.getElementById('root'));
+  try {
+    useLobbyStore.setState({ minimumNativeVersions: { android: '3.3.0' } });
+    await act(async () => root.render(h(Shell)));
+    expect(notice.store).toBe(true);
+    expect(notice.visible).toBe(true);
+    await act(async () => root.render(h(Shell, { inGame: true })));
+    expect(notice.visible).toBe(false);
+    await act(async () => root.render(h(Shell)));
+    await act(async () => notice.restart());
+    expect(opened).toEqual([
+      'https://play.google.com/store/apps/details?id=com.oneapps.pidro.beta',
+    ]);
+    await act(async () => notice.dismiss());
+    expect(notice.store).toBe(false);
+    expect(notice.visible).toBe(true); // The independent OTA offer is still available.
+    await act(async () => root.render(null));
+    await act(async () => root.render(h(Shell)));
+    expect(notice.store).toBe(false);
+    await act(async () => useLobbyStore.setState({ minimumNativeVersions: { android: '3.4.0' } }));
+    expect(notice.store).toBe(true);
+    await act(async () => useLobbyStore.setState({ minimumNativeVersions: {} }));
+    expect(notice.store).toBe(false);
+  } finally {
+    await act(async () => root.unmount());
+    useLobbyStore.getState().reset();
+    dom.window.close();
+  }
+});
 
 describe('update notice', () => {
   it('shows once an update has downloaded', () => {

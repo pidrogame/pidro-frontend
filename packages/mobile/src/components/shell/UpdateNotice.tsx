@@ -17,6 +17,7 @@ import { useTranslation } from '@/i18n';
 
 export interface UpdateNoticeState {
   restarting: boolean;
+  store?: boolean;
   onRestart: () => void;
   onDismiss: () => void;
 }
@@ -59,6 +60,7 @@ export function UpdateNoticeSlot({
 
 export function UpdateNotice({
   restarting,
+  store = false,
   onRestart,
   onDismiss,
   style,
@@ -82,12 +84,12 @@ export function UpdateNotice({
         style={styles.notice}>
         <Icon name="rematch" size={20} color={PidroColors.cyan} />
         <PidroText role="label" style={styles.copy}>
-          {t('update.notice')}
+          {t(store ? 'update.storeNotice' : 'update.notice')}
         </PidroText>
         <View style={styles.actions}>
           <BevelButton
-            testID="update-notice-restart"
-            label={t('update.restart')}
+            testID={store ? 'update-notice-store' : 'update-notice-restart'}
+            label={t(store ? 'update.openStore' : 'update.restart')}
             material="wood"
             size="sm"
             loading={restarting}

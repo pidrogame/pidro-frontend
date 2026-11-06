@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Linking, Platform } from 'react-native';
+import { nativeApplicationVersion } from 'expo-application';
 import * as Updates from 'expo-updates';
+import { useLobbyStore } from '@/stores/lobby';
 import {
+  nativeStoreUpdate,
   pendingUpdateId,
   shouldCheckOnForeground,
   shouldShowUpdateNotice,
@@ -12,13 +15,22 @@ export const updatesEnabled = Platform.OS !== 'web' && !__DEV__ && Updates.isEna
 
 // A dismissal lasts for this app session, across shell remounts (sign out, sign in).
 let sessionDismissedUpdateId: string | null = null;
+let sessionDismissedStoreId: string | null = null;
 
 /**
  * The shell's update notice: whether it shows, and Restart / dismiss. Also
  * checks quietly when the app comes back to the foreground. Mount once.
  * `forced` is the dev fixture: the notice shows and Restart only goes busy.
  */
-export function useAppUpdate({ inGame, forced = false }: { inGame: boolean; forced?: boolean }) {
+export function useAppUpdate({
+  inGame,
+  forced = false,
+  forcedStore = false,
+}: {
+  inGame: boolean;
+  forced?: boolean;
+  forcedStore?: boolean;
+}) {
   const {
     isUpdatePending,
     downloadedUpdate,
@@ -28,8 +40,16 @@ export function useAppUpdate({ inGame, forced = false }: { inGame: boolean; forc
     lastCheckForUpdateTimeSinceRestart,
   } = Updates.useUpdates();
   const [dismissedUpdateId, setDismissedUpdateId] = useState(sessionDismissedUpdateId);
+  const [dismissedStoreId, setDismissedStoreId] = useState(sessionDismissedStoreId);
   const [restarting, setRestarting] = useState(false);
   const inFlight = useRef(false);
+  const minimums = useLobbyStore((state) => state.minimumNativeVersions);
+  const storeUpdate = nativeStoreUpdate(
+    forcedStore ? 'android' : Platform.OS,
+    forcedStore ? '0.0.0' : nativeApplicationVersion,
+    forcedStore ? { android: '99.0.0' } : minimums
+  );
+  const store = Boolean(storeUpdate && storeUpdate.id !== dismissedStoreId && !inGame);
 
   const pending = {
     enabled: updatesEnabled,
@@ -37,9 +57,11 @@ export function useAppUpdate({ inGame, forced = false }: { inGame: boolean; forc
     downloadedUpdateId: downloadedUpdate?.updateId,
   };
   const updateId = forced ? 'fixture' : pendingUpdateId(pending);
-  const visible = forced
-    ? dismissedUpdateId !== updateId
-    : shouldShowUpdateNotice({ ...pending, dismissedUpdateId, inGame });
+  const visible =
+    store ||
+    (forced
+      ? dismissedUpdateId !== updateId
+      : shouldShowUpdateNotice({ ...pending, dismissedUpdateId, inGame }));
 
   const busy = isChecking || isDownloading;
   const lastCheckedAt = lastCheckForUpdateTimeSinceRestart?.getTime();
@@ -68,6 +90,17 @@ export function useAppUpdate({ inGame, forced = false }: { inGame: boolean; forc
     if (inFlight.current) return;
     inFlight.current = true;
     setRestarting(true);
+    if (store && storeUpdate) {
+      try {
+        await Linking.openURL(storeUpdate.url);
+      } catch {
+        // A failed open leaves the notice available to try again.
+      } finally {
+        inFlight.current = false;
+        setRestarting(false);
+      }
+      return;
+    }
     if (forced) return;
     try {
       await Updates.reloadAsync();
@@ -76,12 +109,17 @@ export function useAppUpdate({ inGame, forced = false }: { inGame: boolean; forc
       inFlight.current = false;
       setRestarting(false);
     }
-  }, [forced]);
+  }, [forced, store, storeUpdate]);
 
   const dismiss = useCallback(() => {
+    if (store && storeUpdate) {
+      sessionDismissedStoreId = storeUpdate.id;
+      setDismissedStoreId(storeUpdate.id);
+      return;
+    }
     sessionDismissedUpdateId = updateId;
     setDismissedUpdateId(updateId);
-  }, [updateId]);
+  }, [updateId, store, storeUpdate]);
 
-  return { visible, restarting: restarting || isRestarting, restart, dismiss };
+  return { visible, store, restarting: restarting || isRestarting, restart, dismiss };
 }

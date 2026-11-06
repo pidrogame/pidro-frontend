@@ -581,6 +581,16 @@ const allCases = [
     testId: 'update-notice',
     authenticated: true,
   },
+  ...['en', 'sv'].flatMap((locale) =>
+    ['home', 'settings'].map((screen) => ({
+      name: `store-update-notice-${screen}-${locale}`,
+      path: `/${screen}?fixture=store-update-notice&safeArea=island`,
+      testId: 'update-notice',
+      authenticated: true,
+      storeNotice: true,
+      locale,
+    }))
+  ),
   {
     name: 'update-notice-home-guest',
     path: '/home?fixture=update-notice&safeArea=island',
@@ -1195,7 +1205,16 @@ const allCases = [
     protectNorthSeat: true,
   },
   ...['en', 'sv'].flatMap((locale) =>
-    ['offline', 'auto-card', 'auto-pass', 'auto-bid', 'refused', 'spectator', 'settling'].map((state) => ({
+    [
+      'offline',
+      'auto-card',
+      'auto-pass',
+      'auto-bid',
+      'late-card',
+      'refused',
+      'spectator',
+      'settling',
+    ].map((state) => ({
       name: `table-flaky-${state}-${locale}`,
       path: `/table-dev?phase=playing&fixture=flaky-${state}&role=${state === 'spectator' ? 'spectator' : 'player'}&locale=${locale}`,
       locale,
@@ -2060,6 +2079,9 @@ async function assertTargetGeometry(page, testCase, viewport) {
         'auto-card': sv
           ? 'Tiden tog slut – vi spelade 5♣ åt dig'
           : 'Time ran out — we played 5♣ for you',
+        'late-card': sv
+          ? 'Tiden tog slut – vi spelade 5♣ åt dig'
+          : 'Time ran out — we played 5♣ for you',
         'auto-pass': sv ? 'Tiden tog slut – vi passade åt dig' : 'Time ran out — we passed for you',
         'auto-bid': sv ? 'Tiden tog slut – vi bjöd 7 åt dig' : 'Time ran out — we bid 7 for you',
         refused: sv ? 'Det är inte din tur.' : 'It is not your turn.',
@@ -2071,13 +2093,24 @@ async function assertTargetGeometry(page, testCase, viewport) {
         assertInsideViewport('watching badge', badge, viewport);
         for (const seat of ['north', 'east', 'south', 'west']) {
           const backs = page.getByTestId(`seat-${seat}-cards`);
-          assert.equal(await backs.locator('img').count(), seat === 'south' ? 7 : 6, `${seat} has every card back`);
+          assert.equal(
+            await backs.locator('img').count(),
+            seat === 'south' ? 7 : 6,
+            `${seat} has every card back`
+          );
           // Side stacks intentionally bleed at the bare edge; their wrapper spans the screen.
           if (seat === 'south' || seat === 'north')
             assertInsideViewport(`${seat} backs`, await backs.boundingBox(), viewport);
           for (const image of await backs.locator('img').all()) {
             const box = await image.boundingBox();
-            assert.ok(box && box.x < viewport.width && box.x + box.width > 0 && box.y >= 0 && box.y + box.height <= viewport.height, `${seat} back remains visible`);
+            assert.ok(
+              box &&
+                box.x < viewport.width &&
+                box.x + box.width > 0 &&
+                box.y >= 0 &&
+                box.y + box.height <= viewport.height,
+              `${seat} back remains visible`
+            );
             assert.ok(!boxesOverlap(box, badge), `${seat} backs clear the watching badge`);
           }
         }
@@ -3167,6 +3200,34 @@ async function assertAppUpdate(page, { appUpdate, locale }) {
 // above the bottom inset and every scrolling screen scrolls its last row clear of it.
 async function assertUpdateNotice(page, name, viewport) {
   const notice = page.getByTestId('update-notice');
+  if (name.startsWith('store-update-notice-')) {
+    const sv = name.endsWith('-sv');
+    await notice
+      .getByText(sv ? 'En ny version finns i butiken' : 'A new version is in the store')
+      .waitFor();
+    await assertNothingUnderNotice(page, 'Store update', viewport);
+    const open = page.getByTestId('update-notice-store');
+    const dismiss = notice.getByRole('button', { name: sv ? 'Stäng' : 'Dismiss', exact: true });
+    for (const control of [open, dismiss]) {
+      const box = await getStableBox(control, page);
+      assert.ok(box.width >= 44 && box.height >= 44, 'store notice controls are 44pt targets');
+    }
+    await page.evaluate(() => {
+      window.open = (url) => {
+        window.__openedStoreURL = String(url);
+        return null;
+      };
+    });
+    await open.click();
+    await page.waitForFunction(
+      () =>
+        window.__openedStoreURL ===
+        'https://play.google.com/store/apps/details?id=com.oneapps.pidro.beta'
+    );
+    await dismiss.click();
+    await notice.waitFor({ state: 'detached' });
+    return;
+  }
   const guestScreen = {
     'update-notice-friends-guest': 'Friends',
     'update-notice-home-guest': 'Home',
@@ -8435,6 +8496,7 @@ async function main() {
           testCase.scores ||
           testCase.botVoice ||
           testCase.flaky ||
+          testCase.storeNotice ||
           testCase.photo
         )
           return ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(
@@ -8658,6 +8720,7 @@ async function main() {
             homeTick: Boolean(testCase.homeTick),
             photoLocale:
               testCase.photo ||
+              testCase.storeNotice ||
               testCase.league ||
               testCase.path === '/welcome' ||
               testCase.path.startsWith('/(auth)/')
@@ -8719,6 +8782,7 @@ async function main() {
         }
         if (
           testCase.league ||
+          testCase.storeNotice ||
           testCase.name === 'game-away' ||
           testCase.name.startsWith('friend-notice-')
         ) {
@@ -8872,6 +8936,7 @@ async function main() {
             'league',
           ].includes(testCase.name) ||
           testCase.homeProfile ||
+          testCase.storeNotice ||
           testCase.photo ||
           testCase.tell ||
           testCase.news ||
