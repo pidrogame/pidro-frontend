@@ -93,6 +93,11 @@ service with fast pacing (`LIFECYCLE_BOT_DELAY_MS=60`,
 `LIFECYCLE_TURN_TIMER_BID_MS=1200`, …), starts Expo web, and uploads the video
 and screenshots as the `game-e2e-artifacts` artifact.
 
+Connection probes and the per-turn pause allowance also run at 1000 ms in CI.
+Keeping probes at their production 15 s while turns take 900 ms lets an entire
+hand finish and reset its idle count before a pong can confirm the idle player
+is reachable. The away-screen assertion must stay enabled.
+
 To run it locally without touching your daily backend on :4000, boot a second
 instance with CI pacing and point everything at it:
 
@@ -100,6 +105,7 @@ instance with CI pacing and point everything at it:
 # Terminal 1, from pidro_backend
 PORT=4100 \
 LIFECYCLE_TURN_TIMER_BID_MS=1200 LIFECYCLE_TURN_TIMER_PLAY_MS=900 \
+LIFECYCLE_CONNECTION_CHECK_INTERVAL_MS=1000 LIFECYCLE_TURN_PAUSE_BUDGET_MS=1000 \
 LIFECYCLE_BOT_DELAY_MS=60 LIFECYCLE_BOT_DELAY_VARIANCE_MS=40 \
 LIFECYCLE_BOT_MIN_DELAY_MS=20 LIFECYCLE_TRICK_TRANSITION_DELAY_MS=80 \
 LIFECYCLE_HAND_TRANSITION_DELAY_MS=120 LIFECYCLE_SECOND_DEAL_TRANSITION_DELAY_MS=120 \
@@ -166,6 +172,7 @@ To run it on spare ports without touching your daily backend:
 # Terminal 1, from pidro_backend (load the reserved name first, see above)
 PORT=4100 PASSWORD_RESET_DEBUG_TOKENS=false \
 LIFECYCLE_TURN_TIMER_BID_MS=1200 LIFECYCLE_TURN_TIMER_PLAY_MS=900 \
+LIFECYCLE_CONNECTION_CHECK_INTERVAL_MS=1000 LIFECYCLE_TURN_PAUSE_BUDGET_MS=1000 \
 LIFECYCLE_BOT_DELAY_MS=60 LIFECYCLE_BOT_DELAY_VARIANCE_MS=40 \
 LIFECYCLE_BOT_MIN_DELAY_MS=20 LIFECYCLE_TRICK_TRANSITION_DELAY_MS=80 \
 LIFECYCLE_HAND_TRANSITION_DELAY_MS=120 LIFECYCLE_SECOND_DEAL_TRANSITION_DELAY_MS=120 \
