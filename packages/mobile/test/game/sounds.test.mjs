@@ -277,3 +277,47 @@ describe('the game’s end', () => {
     expect(gameOverSound({ spectator: false, tied: true, won: false })).toBeNull();
   });
 });
+
+describe('the Sound setting', () => {
+  it('is read at every sound, so the switch silences the very next one', () => {
+    // Native module mocks must not replace the other tests' React Native exports.
+    const result = Bun.spawnSync(
+      [
+        process.execPath,
+        '--loader',
+        '.wav:file',
+        '-e',
+        `
+        import { mock } from 'bun:test';
+        import assert from 'node:assert/strict';
+        globalThis.__DEV__ = false;
+        const settings = { soundEnabled: true };
+        let plays = 0;
+        mock.module('react-native', () => ({
+          AppState: { currentState: 'active' },
+          Platform: { OS: 'ios' },
+        }));
+        mock.module('expo-audio', () => ({
+          setAudioModeAsync: async () => {},
+          createAudioPlayer: () => ({ seekTo: async () => {}, play: () => plays++ }),
+        }));
+        mock.module('./src/stores/settings.ts', () => ({
+          useSettingsStore: { getState: () => settings },
+        }));
+        const { play } = await import('./src/game/sounds.ts');
+        play('card');
+        assert.equal(plays, 1);
+        settings.soundEnabled = false;
+        play('card');
+        assert.equal(plays, 1);
+        settings.soundEnabled = true;
+        play('card');
+        assert.equal(plays, 2);
+        `,
+      ],
+      { cwd: new URL('../..', import.meta.url).pathname, stdout: 'pipe', stderr: 'pipe' }
+    );
+    expect(result.stderr.toString()).toBe('');
+    expect(result.exitCode).toBe(0);
+  });
+});

@@ -37,6 +37,8 @@ export function TableSettings({
   const [panel, setPanel] = useState<'settings' | 'leave' | null>(
     initiallyOpen ? 'settings' : null
   );
+  const soundEnabled = useSettingsStore((state) => state.soundEnabled);
+  const toggleSound = useSettingsStore((state) => state.toggleSound);
   const hapticEnabled = useSettingsStore((state) => state.hapticEnabled);
   const toggleHaptic = useSettingsStore((state) => state.toggleHaptic);
   const countHelp = useSettingsStore((state) => state.countHelp);
@@ -100,16 +102,15 @@ export function TableSettings({
               )}
               <View style={styles.row}>
                 <View style={styles.copy}>
-                  <PidroText role="label">{t('game.sound')}</PidroText>
+                  <PidroText role="label">{t('settings.sound')}</PidroText>
                   <PidroText role="metadata" tone="muted">
-                    {t('game.soon')}
+                    {t('settings.soundHint')}
                   </PidroText>
                 </View>
                 <PidroSwitch
-                  accessibilityLabel={t('game.sound')}
-                  value={false}
-                  disabled
-                  onValueChange={() => {}}
+                  accessibilityLabel={t('settings.sound')}
+                  value={soundEnabled}
+                  onValueChange={toggleSound}
                 />
               </View>
               <View style={styles.row}>

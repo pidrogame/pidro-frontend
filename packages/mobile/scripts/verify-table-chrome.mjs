@@ -98,7 +98,7 @@ try {
     );
     assert.equal(
       await page.getByRole('switch', { name: 'Sound' }).getAttribute('aria-disabled'),
-      'true'
+      null
     );
     assert.equal(
       await page.getByRole('switch', { name: 'Haptics' }).getAttribute('aria-disabled'),

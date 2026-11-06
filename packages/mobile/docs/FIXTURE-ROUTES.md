@@ -339,8 +339,8 @@ with no hidden hand-result panel, both with and without reduced motion.
 `scores=history` also seeds nine hands in the mock table.
 `safeArea=island-left` / `island-right` simulate landscape side cutouts.
 Run `MOBILE_BASE_URL=http://localhost:8081 node scripts/verify-table-chrome.mjs` for
-five-size score/history/settings checks. Sound is marked Coming soon; the haptics switch
-controls the native gameplay feedback.
+five-size score/history/settings checks. Sound is the Settings tab's switch (same
+saved setting); the haptics switch controls the native gameplay feedback.
 
 For waiting-screen failure feedback, append `readyResult=error` to a ready fixture.
 The normal ready fixtures delay confirmation briefly to expose the pending state.
