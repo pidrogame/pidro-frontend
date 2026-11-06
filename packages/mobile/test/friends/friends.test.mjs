@@ -355,8 +355,8 @@ describe('Friends presentation', () => {
 
   test('your link message uses your slug, with the app install page as fallback and the current language', () => {
     expect(friendLinkMessage('sanna-7KQ')).toEqual({
-      url: 'https://pidro.online/play/sanna-7KQ',
-      message: 'Come play Pidro with me: https://pidro.online/play/sanna-7KQ',
+      url: 'https://www.pidro.online/play/sanna-7KQ',
+      message: 'Come play Pidro with me: https://www.pidro.online/play/sanna-7KQ',
     });
     for (const slug of [undefined, null, ''])
       expect(friendLinkMessage(slug)).toEqual({
@@ -365,7 +365,7 @@ describe('Friends presentation', () => {
       });
     setLocale('sv');
     expect(friendLinkMessage('pekka').message).toBe(
-      'Kom och spela Pidro med mig: https://pidro.online/play/pekka'
+      'Kom och spela Pidro med mig: https://www.pidro.online/play/pekka'
     );
   });
 

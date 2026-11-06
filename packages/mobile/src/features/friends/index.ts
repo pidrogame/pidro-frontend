@@ -129,8 +129,9 @@ export type FriendRelation = FriendResult['relation'] | 'new_friend';
 /** Where a friend installs the new Pidro; the bare site only offers Classic. */
 export const APP_INSTALL_URL = 'https://www.pidro.online/beta';
 
+/** On www: Android won't verify App Links for the bare domain, which redirects there. */
 export function friendLinkMessage(slug?: string | null) {
-  const url = slug ? `https://pidro.online/play/${slug}` : APP_INSTALL_URL;
+  const url = slug ? `https://www.pidro.online/play/${slug}` : APP_INSTALL_URL;
   return { url, message: t('friends.share_link_message', { url }) };
 }
 
