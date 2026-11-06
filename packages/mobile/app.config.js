@@ -79,32 +79,19 @@ module.exports = ({ config }) => {
               'android.permission.SYSTEM_ALERT_WINDOW',
               'android.permission.WRITE_EXTERNAL_STORAGE',
             ],
-            intentFilters: [
-              {
-                action: 'VIEW',
-                autoVerify: true,
-                data: [
-                  {
-                    scheme: 'https',
-                    host: 'www.pidro.online',
-                    pathPrefix: '/j/',
-                  },
-                ],
-                category: ['BROWSABLE', 'DEFAULT'],
-              },
-              {
-                action: 'VIEW',
-                autoVerify: true,
-                data: [
-                  {
-                    scheme: 'https',
-                    host: 'pidro.online',
-                    pathPrefix: '/j/',
-                  },
-                ],
-                category: ['BROWSABLE', 'DEFAULT'],
-              },
-            ],
+            // The paths the AASA lists for iOS: invites, player links, legacy
+            // links. One filter per host: Android 12+ verifies each host on its
+            // own, and pairs every host in a filter with every path.
+            intentFilters: ['www.pidro.online', 'pidro.online'].map((host) => ({
+              action: 'VIEW',
+              autoVerify: true,
+              data: ['/j/', '/play/', '/app/'].map((pathPrefix) => ({
+                scheme: 'https',
+                host,
+                pathPrefix,
+              })),
+              category: ['BROWSABLE', 'DEFAULT'],
+            })),
           }
         : { blockedPermissions: [], intentFilters: [] }),
     },

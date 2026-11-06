@@ -42,6 +42,9 @@ describe('native invite intent', () => {
 
   it("opens a player's own link on the play route", () => {
     expect(redirectSystemPath({ path: 'https://pidro.online/play/Bertil' })).toBe('/play/bertil');
+    expect(redirectSystemPath({ path: 'https://www.pidro.online/play/bertil' })).toBe(
+      '/play/bertil'
+    );
     expect(redirectSystemPath({ path: 'pidro-mobile://play/bertil' })).toBe('/play/bertil');
     expect(redirectSystemPath({ path: 'https://pidro.online/play/b' })).toBe('/+not-found');
   });
@@ -264,20 +267,19 @@ describe('resolved variant configuration', () => {
           'android.permission.SYSTEM_ALERT_WINDOW',
           'android.permission.WRITE_EXTERNAL_STORAGE',
         ]);
-        expect(config.android.intentFilters).toEqual([
-          {
+        // Android opens the same links iOS does (the AASA's /j/*, /play/*, /app/*).
+        expect(config.android.intentFilters).toEqual(
+          ['www.pidro.online', 'pidro.online'].map((host) => ({
             action: 'VIEW',
             autoVerify: true,
-            data: [{ scheme: 'https', host: 'www.pidro.online', pathPrefix: '/j/' }],
+            data: [
+              { scheme: 'https', host, pathPrefix: '/j/' },
+              { scheme: 'https', host, pathPrefix: '/play/' },
+              { scheme: 'https', host, pathPrefix: '/app/' },
+            ],
             category: ['BROWSABLE', 'DEFAULT'],
-          },
-          {
-            action: 'VIEW',
-            autoVerify: true,
-            data: [{ scheme: 'https', host: 'pidro.online', pathPrefix: '/j/' }],
-            category: ['BROWSABLE', 'DEFAULT'],
-          },
-        ]);
+          }))
+        );
       } else {
         expect(config.android.blockedPermissions).toEqual([]);
         expect(config.android.intentFilters).toEqual([]);
