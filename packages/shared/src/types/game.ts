@@ -165,6 +165,8 @@ export interface ServerGameState {
   /** Optional diagnostics cursor. Room codes alone do not identify a rematch. */
   game_instance_id?: string;
   state_revision?: number;
+  /** Original engine turn cursor, including games without a turn timer. */
+  turn_event_seq?: number;
   /** Presentation delay carried alongside this snapshot on the channel. */
   transition_delay_ms?: number;
   variant?: RuleSet;

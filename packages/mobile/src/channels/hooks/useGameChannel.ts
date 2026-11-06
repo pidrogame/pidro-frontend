@@ -208,11 +208,13 @@ export const useGameChannel = ({
 
       const channelOwner = authStore.getState().user?.id ?? null;
       gameDiagnostics.identify(channelOwner, roomCode);
-      const channel = phoenixSocket.channel(topic, {
+      const connectionParams = phoenixSocket.connectionParams();
+      const channel = phoenixSocket.channel(topic, () => ({
         app_version: diagnosticMetadata.app_version,
         app_build: diagnosticMetadata.build,
         platform: diagnosticMetadata.platform,
-      });
+        ...connectionParams(),
+      }));
       currentTopic = topic;
       let presences: Record<string, unknown> = {};
       let dealerSelectionRequestKey: string | null = null;
@@ -627,6 +629,22 @@ export const useGameChannel = ({
 
       globalGameChannel = channel;
       notifySeatEvent = (event) => onSeatEventRef.current?.(event);
+      onCurrent('ping', ({ id }: { id: string }) => {
+        channel.push('pong', { id });
+      });
+      phoenixSocket.beforeBackground = (done) => {
+        if (
+          isCurrentChannel() &&
+          channel.state === 'joined' &&
+          useGameStore.getState().role === 'player'
+        )
+          channel
+            .push('going_background', {}, 500)
+            .receive('ok', done)
+            .receive('error', done)
+            .receive('timeout', done);
+        else done();
+      };
     };
 
     connect();
@@ -638,6 +656,7 @@ export const useGameChannel = ({
       if (gameRefCount === 0) {
         pendingCard?.cancel();
         pendingCard = null;
+        phoenixSocket.beforeBackground = undefined;
         gameDiagnostics.record({ type: 'connection', code: 'disconnected', action: 'leave' });
         globalGameChannel?.leave();
         globalGameChannel = null;
@@ -668,15 +687,20 @@ export const useGameChannel = ({
 
 export function sendCard(card: Card): Promise<boolean> {
   if (pendingCard) return pendingCard.promise;
-  const { serverState, youPositionAbs, role } = useGameStore.getState();
+  const { serverState, youPositionAbs, role, turnTimer } = useGameStore.getState();
   if (!serverState || !youPositionAbs || role !== 'player') return Promise.resolve(false);
   const attempt = pushAttempt('play_card');
   const actionId = attempt.id ?? randomUUID();
+  const payload = {
+    card,
+    game_instance_id: serverState.game_instance_id,
+    turn_event_seq: serverState.turn_event_seq ?? turnTimer?.eventSeq,
+  };
   const intent = pendingPlay({
     card,
     position: youPositionAbs,
     state: serverState,
-    send: () => pushGameAction('play_card', { card }, actionId),
+    send: () => pushGameAction('play_card', payload, actionId),
   });
   pendingCard = intent;
   intent.rejoin();
@@ -740,7 +764,7 @@ export function pushGameAction(event: string, payload: object, actionId?: string
           channel.joinRef() === joinRef
         ) {
           useGameStore.getState().setChannelStatus(false, true);
-          phoenixSocket.reconnect();
+          phoenixSocket.reconnect('push_timeout');
         }
       });
   });

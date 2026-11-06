@@ -620,6 +620,13 @@ const FLAKY_NOTICES: Record<string, TableNotice> = {
     variant: 'warning',
     autoTurn: { scope: 'you', action: { type: 'bid', amount: 7 } },
   },
+  'late-card': {
+    variant: 'warning',
+    error: {
+      error_code: 'already_played_for_you',
+      action: { type: 'play_card', card: { rank: 5, suit: 'clubs' } },
+    },
+  },
   refused: { variant: 'error', error: { reason: 'not_your_turn' } },
   settling: { variant: 'warning', key: 'game.tap_wait' },
 };

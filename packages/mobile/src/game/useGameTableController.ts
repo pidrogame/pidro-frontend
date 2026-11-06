@@ -155,10 +155,18 @@ export function useGameTableController(): GameTableController {
   } = useTableNotices(viewModel?.roomCode ?? '');
   const showActionError = useCallback(
     (action: string, err: unknown) => {
+      const error = errorPayload(err);
       addNotice(
-        errorPayload(err).reason === 'pending'
+        error.reason === 'pending'
           ? { key: 'game.tap_wait', variant: 'warning' }
-          : { error: err, key: 'error.action_failed', variant: 'error' }
+          : {
+              error: err,
+              key: 'error.action_failed',
+              variant:
+                (error.error_code ?? error.reason) === 'already_played_for_you'
+                  ? 'warning'
+                  : 'error',
+            }
       );
     },
     [addNotice]

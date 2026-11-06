@@ -29,7 +29,7 @@ test('keeps the completed snapshot and its transition delay together, including 
 
 test('keeps the envelope cursor with its state without requiring it from old servers', () => {
   const state = { phase: 'playing', current_player: 'east' };
-  const cursor = { game_instance_id: 'opaque-nonUUID_instance', state_revision: 0 };
+  const cursor = { game_instance_id: 'opaque-nonUUID_instance', state_revision: 0, turn_event_seq: 9 };
   for (const envelope of [{ state, ...cursor }, { data: { state, ...cursor } }])
     expect(extractGameState(envelope)).toEqual({ ...state, ...cursor });
   expect(extractGameState({ state })).toEqual(state);

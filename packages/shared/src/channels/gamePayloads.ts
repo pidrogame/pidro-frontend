@@ -126,10 +126,18 @@ export function extractGameState(
         : (candidate as ServerGameState);
       const instance = data.game_instance_id ?? nestedData?.game_instance_id;
       const revision = data.state_revision ?? nestedData?.state_revision;
+      const turn = data.turn_event_seq ?? nestedData?.turn_event_seq;
       // Cursor metadata is beside `state` in channel snapshots, never in the engine state.
       return typeof instance === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(instance) &&
         typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0
-        ? { ...state, game_instance_id: instance, state_revision: revision }
+        ? {
+            ...state,
+            game_instance_id: instance,
+            state_revision: revision,
+            ...(typeof turn === 'number' && Number.isSafeInteger(turn) && turn >= 0
+              ? { turn_event_seq: turn }
+              : {}),
+          }
         : state;
     }
   }

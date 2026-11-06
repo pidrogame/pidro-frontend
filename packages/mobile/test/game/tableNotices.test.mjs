@@ -15,6 +15,19 @@ it('says which card, pass or bid the timer made, in both table languages', () =>
           ? 'Time ran out — we played 5♣ for you'
           : 'Tiden tog slut – vi spelade 5♣ åt dig'
       );
+      expect(
+        tableNoticeText({
+          variant: 'warning',
+          error: {
+            error_code: 'already_played_for_you',
+            action: { type: 'play_card', card: { rank: 5, suit: 'clubs' } },
+          },
+        })
+      ).toBe(
+        locale === 'en'
+          ? 'Time ran out — we played 5♣ for you'
+          : 'Tiden tog slut – vi spelade 5♣ åt dig'
+      );
       expect(text({ type: 'pass' })).toBe(
         locale === 'en' ? 'Time ran out — we passed for you' : 'Tiden tog slut – vi passade åt dig'
       );

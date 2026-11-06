@@ -11,6 +11,23 @@ describe('PhoenixSocket connection lifecycle', () => {
     expect(socket.heartbeatIntervalMs).toBe(10_000);
   });
 
+  it('reports heartbeat timeout even when the dead transport closes without a reason', () => {
+    const client = new PhoenixSocket();
+    const socket = client.init({
+      config: { apiURL: 'https://example.test', wsURL: 'wss://example.test/socket' },
+      getToken: () => 'token',
+    }) as ReturnType<PhoenixSocket['init']> & {
+      pendingHeartbeatRef: string | null;
+      heartbeatTimeout: () => void;
+      teardown: () => void;
+      onConnClose: (event: { code: number; reason: string }) => void;
+    };
+    socket.teardown = () => socket.onConnClose({ code: 1000, reason: '' });
+    socket.pendingHeartbeatRef = 'lost-heartbeat';
+    socket.heartbeatTimeout();
+    expect(client.reconnectReason).toBe('heartbeat_timeout');
+  });
+
   it('refreshes the automatic reconnect token without dropping a live socket', () => {
     let token = 'guest-token';
     const client = new PhoenixSocket();

@@ -22,7 +22,12 @@ export type TableNotice = {
 export type QueuedTableNotice = TableNotice & { roomCode: string };
 
 export function tableNoticeText(notice: TableNotice): string {
-  if (notice.error !== undefined) return localizedError(notice.error, notice.key);
+  if (notice.error !== undefined) {
+    const error = errorPayload(notice.error);
+    if ((error.error_code ?? error.reason) === 'already_played_for_you')
+      return autoTurnText({ scope: 'you', action: error.action as Record<string, unknown> });
+    return localizedError(notice.error, notice.key);
+  }
   if (notice.autoTurn) return autoTurnText(notice.autoTurn);
   if (notice.seat && notice.key) {
     return t(notice.key, {

@@ -8,6 +8,18 @@ it('a timed-out game push reconnects, and a pending card retries with the same I
   await check('timeout');
 });
 
+it('answers liveness pings and announces backgrounding only while seated', async () => {
+  await check('liveness');
+});
+
+it('sends current connection metadata on every join', async () => {
+  await check('metadata');
+});
+
+it('fences and retries an untimed card using the snapshot turn cursor', async () => {
+  await check('untimed');
+});
+
 async function check(scenario) {
   if (!process.env.CHANNEL_RECOVERY_CHILD) {
     const child = Bun.spawnSync([process.execPath, 'test', import.meta.path], {
@@ -54,8 +66,14 @@ async function check(scenario) {
     },
   };
   const reconnects = [];
+  let joinParams;
+  let connection = { reason: 'unknown', network: 'wifi' };
   const socket = {
-    channel: () => channel,
+    channel: (_topic, params) => {
+      joinParams = params;
+      return channel;
+    },
+    connectionParams: () => () => connection,
     reconnect: () => reconnects.push('reconnected'),
   };
   mock.module('../../src/channels/socket.ts', () => ({ phoenixSocket: socket }));
@@ -71,9 +89,8 @@ async function check(scenario) {
   }));
   mock.module('react-native', () => ({ unstable_batchedUpdates: (run) => run() }));
   const { useGameStore } = await import('@pidro/shared');
-  const { useGameChannel, pushGameAction, sendCard } = await import(
-    '../../src/channels/hooks/useGameChannel.ts'
-  );
+  const { useGameChannel, pushGameAction, sendCard } =
+    await import('../../src/channels/hooks/useGameChannel.ts');
   const card = { rank: 14, suit: 'clubs' };
   const state = {
     game_instance_id: 'game',
@@ -87,8 +104,22 @@ async function check(scenario) {
     role: 'player',
     position: 'west',
     game_state: state,
+    game_instance_id: 'game',
+    state_revision: 8,
+    turn_event_seq: 77,
     legal_actions: [{ type: 'play_card', card }],
+    turn_timer: {
+      timer_id: 12,
+      event_seq: 77,
+      scope: 'seat',
+      position: 'west',
+      phase: 'playing',
+      duration_ms: 20000,
+      transition_delay_ms: 0,
+      server_time: new Date().toISOString(),
+    },
   };
+  if (scenario === 'untimed') response.turn_timer = null;
   function Table() {
     useGameChannel({ roomCode: 'TEST' });
     return null;
@@ -97,7 +128,31 @@ async function check(scenario) {
   try {
     await act(async () => root.render(h(Table)));
     await act(async () => joined.callbacks.ok(response));
-    if (scenario === 'rejoin') {
+    if (scenario === 'metadata') {
+      expect(typeof joinParams).toBe('function');
+      expect(joinParams()).toMatchObject({
+        reason: 'unknown',
+        network: 'wifi',
+        platform: 'android',
+      });
+      connection = { reason: 'network_lost', network: 'cellular' };
+      expect(joinParams()).toMatchObject(connection);
+    } else if (scenario === 'liveness') {
+      await act(async () => events.ping({ id: 'ping-17' }));
+      expect(pushes.at(-1).event).toBe('pong');
+      expect(pushes.at(-1).payload).toEqual({ id: 'ping-17' });
+      let drained = false;
+      socket.beforeBackground(() => (drained = true));
+      expect(pushes.at(-1).event).toBe('going_background');
+      expect(pushes.at(-1).payload).toEqual({});
+      expect(drained).toBe(false);
+      pushes.at(-1).reply.callbacks.ok({});
+      expect(drained).toBe(true);
+      await act(async () => joined.callbacks.ok({ ...response, role: 'spectator' }));
+      const before = pushes.length;
+      socket.beforeBackground(() => {});
+      expect(pushes).toHaveLength(before);
+    } else if (scenario === 'rejoin') {
       await act(async () =>
         joined.callbacks.ok({
           ...response,
@@ -113,11 +168,15 @@ async function check(scenario) {
       await act(async () => pushes.at(-1).reply.callbacks.timeout());
       expect(await control).toBe('timeout');
       expect(reconnects).toHaveLength(1);
+      await act(async () => events.turn_timer_cancelled({ timer_id: 12 }));
+      expect(useGameStore.getState().turnTimer).toBeNull();
       let pending;
       await act(async () => {
         pending = sendCard(card);
       });
       const first = pushes.at(-1);
+      expect(first.payload.game_instance_id).toBe('game');
+      expect(first.payload.turn_event_seq).toBe(77);
       await act(async () => first.reply.callbacks.timeout());
       expect(reconnects).toHaveLength(2);
       const oldControl = pushGameAction('set_pace', { pace: 'normal' }).catch((e) => e.reason);
@@ -128,6 +187,7 @@ async function check(scenario) {
       expect(retry.event).toBe('play_card');
       expect(retry.payload.action_id).toBe(first.payload.action_id);
       expect(retry.payload.card).toEqual(card);
+      expect(retry.payload.turn_event_seq).toBe(77);
       await act(async () => retry.reply.callbacks.ok({}));
       expect(await pending).toBe(true);
       await act(async () => oldReply.callbacks.timeout());
