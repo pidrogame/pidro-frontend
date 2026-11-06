@@ -1,0 +1,19 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd ../.. && bun install --frozen-lockfile",
+  "buildCommand": "bun --cwd ../shared build && bun run web:export",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/game/:code", "destination": "/game/[code]" },
+    { "source": "/join/:code", "destination": "/join/[code]" },
+    { "source": "/play/:slug", "destination": "/play/[slug]" }
+  ],
+  "headers": [
+    {
+      "source": "/_expo/static/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    }
+  ]
+}

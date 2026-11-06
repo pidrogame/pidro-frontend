@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -59,6 +60,12 @@ export default function RootLayout() {
   return (
     // Keep the native felt mounted through hydration and overlay dismissal.
     <SafeAreaProvider>
+      {/* The browser tab's name; on iOS Head would also publish a Handoff activity. */}
+      {Platform.OS === 'web' ? (
+        <Head>
+          <title>Pidro</title>
+        </Head>
+      ) : null}
       {/* On Android every screen is opaque over it once ready: kept loaded, not painted. */}
       <Background hidden={Platform.OS === 'android' && ready}>
         {ready ? (

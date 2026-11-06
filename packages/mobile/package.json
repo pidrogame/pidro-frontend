@@ -27,6 +27,7 @@
     "ship:build": "node scripts/ship.mjs build --wait",
     "format": "eslint \"**/*.{js,jsx,ts,tsx}\" --fix && prettier \"**/*.{js,jsx,ts,tsx,json}\" --write",
     "web": "NODE_OPTIONS=\"--require ./scripts/tailwind-v3-resolve.cjs\" expo start --web",
+    "web:export": "EXPO_NO_DOTENV=1 APP_VARIANT=beta EXPO_PUBLIC_API_URL=https://app.pidro.online EXPO_PUBLIC_WS_URL=wss://app.pidro.online/socket NODE_OPTIONS=\"--require ./scripts/tailwind-v3-resolve.cjs\" expo export --platform web --output-dir dist --clear && cp dist/+not-found.html dist/404.html",
     "prepare": "husky"
   },
   "dependencies": {
