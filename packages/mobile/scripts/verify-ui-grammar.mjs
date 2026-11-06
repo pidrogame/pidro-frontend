@@ -1002,6 +1002,15 @@ const allCases = [
     authFixture: guestAuthFixture,
     classicPassword: true,
   },
+  ...['en', 'sv'].flatMap((locale) =>
+    ['password-reused', 'password-short'].map((fixture) => ({
+      name: `classic-${fixture}-${locale}`,
+      path: `/ui-dev?state=claim-classic&fixture=${fixture}&locale=${locale}`,
+      testId: 'claim-classic-screen',
+      locale,
+      classicPasswordDecision: true,
+    }))
+  ),
   ...[
     'method',
     'login',
@@ -2824,6 +2833,36 @@ async function assertClassicLogin(page, testCase, viewport) {
     assert.equal(await screen.locator('input').count(), 1, `${testCase.name}: one input`);
     await screen.getByLabel(sv ? 'Nytt lösenord' : 'New password', { exact: true }).waitFor();
     assert.equal(await screen.getByText('sonja.lindqvist@example.com', { exact: true }).count(), 0);
+  }
+  if (fixture === 'password-short' || fixture === 'password-reused') {
+    await screen
+      .getByText(sv ? 'Hittade dig, Petter.' : 'Found you, Petter.', { exact: true })
+      .waitFor();
+    assert.ok(
+      (await screen.innerText()).includes(
+        sv ? 'Ditt gamla lösenord stämde.' : 'Your old password was right.'
+      )
+    );
+    const short = fixture === 'password-short';
+    assert.equal(await screen.locator('input').count(), short ? 1 : 0);
+    if (short) {
+      await screen.getByLabel(sv ? 'Nytt lösenord' : 'New password', { exact: true }).waitFor();
+      await screen
+        .getByText(
+          sv
+            ? 'Nya Pidro kräver minst 8 tecken, så välj ett nytt lösenord. Ditt konto och dina poäng är kvar.'
+            : 'The new Pidro needs at least 8 characters, so choose a new password. Your account and your points stay.',
+          { exact: true }
+        )
+        .waitFor();
+    } else {
+      assert.ok(
+        (await screen.innerText()).includes(
+          sv ? 'Fortsätt använda det i nya Pidro.' : 'Keep using it in the new Pidro.'
+        )
+      );
+    }
+    assert.doesNotMatch(await screen.innerText(), /oldpass|petter@example.com/);
   }
   if (/fixture=(preview|social)/.test(testCase.path)) {
     assert.equal(await screen.locator('input').count(), 0, 'identity check has no inputs');
@@ -8496,6 +8535,7 @@ async function main() {
           testCase.words ||
           testCase.ownPace ||
           testCase.classicEnd ||
+          testCase.classicPasswordDecision ||
           testCase.homeProfile ||
           testCase.details ||
           testCase.scores ||

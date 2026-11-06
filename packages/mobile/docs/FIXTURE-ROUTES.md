@@ -663,6 +663,15 @@ username (PID-301): signed out, "Yes, that's me" claims without a details step
 `password` asks for a new password, keeping ThunderThor88 and the Classic email;
 `rename` puts the replacement public name on the details step.
 
+`password-reused` and `password-short` show Petter (level 100) after an accepted
+Classic password (PID-361). Both say the old password was right. Reused has no
+password field and says to keep using it; short explains the 8-character rule and
+that the account and points stay. The old `password` fixture is the emailed-code
+control: no old password to reuse. Grammar cases `classic-password-{reused,short}-{en,sv}`
+check the copy, input count, touch targets and no clipping or scrolling at
+390×844, 375×667, 844×390 and 768×1024. For example,
+`/ui-dev?state=claim-classic&fixture=password-reused&locale=sv`.
+
 `already-claimed` (password owner, verified as ThunderThor88, a guest with 12 games) and
 `already-claimed-apple` (Apple owner, a guest with no games) say "Already in Pidro" over
 the Classic card, with one line on how the owner signs in. Signed out or a guest, the one

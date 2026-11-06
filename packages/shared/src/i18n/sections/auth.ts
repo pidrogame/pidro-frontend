@@ -194,6 +194,11 @@ export const en = {
   "auth.claim_games": "games",
   "auth.claim_password_body": "The new Pidro needs its own password.",
   "auth.claim_password_hint": "At least 8 letters or numbers.",
+  "auth.claim_found_you": "Found you, %{name}.",
+  "auth.claim_password_accepted": "Your old password was right.",
+  "auth.claim_password_reused": "Keep using it in the new Pidro.",
+  "auth.claim_password_short":
+    "The new Pidro needs at least 8 characters, so choose a new password. Your account and your points stay.",
   "auth.claim_save": "Save and play",
   "auth.claim_name_stays": "Your name stays %{name}.",
   "auth.enter_classic_password": "Enter the password you use in Pidro today.",
@@ -446,6 +451,11 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.claim_games": "spel",
   "auth.claim_password_body": "Nya Pidro behöver ett eget lösenord.",
   "auth.claim_password_hint": "Minst 8 bokstäver eller siffror.",
+  "auth.claim_found_you": "Hittade dig, %{name}.",
+  "auth.claim_password_accepted": "Ditt gamla lösenord stämde.",
+  "auth.claim_password_reused": "Fortsätt använda det i nya Pidro.",
+  "auth.claim_password_short":
+    "Nya Pidro kräver minst 8 tecken, så välj ett nytt lösenord. Ditt konto och dina poäng är kvar.",
   "auth.claim_save": "Spara och spela",
   "auth.claim_name_stays": "Ditt namn förblir %{name}.",
   "auth.enter_classic_password": "Ange lösenordet du använder i Pidro i dag.",

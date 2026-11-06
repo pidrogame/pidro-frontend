@@ -7,6 +7,15 @@ import type {
 
 export type LoginField = 'username' | 'email';
 
+/** Code recovery has no verified login, even if a failed password remains in the screen. */
+export function reusableClassicPassword(
+  method: ClassicClaimMethod | null,
+  verifiedLogin: string,
+  password: string
+): string | undefined {
+  return method === 'password' && verifiedLogin && password.length >= 8 ? password : undefined;
+}
+
 export interface ClaimForm {
   /** The inputs the player fills in. */
   asks: { username: boolean; email: boolean; password: boolean };

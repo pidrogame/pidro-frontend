@@ -40,6 +40,7 @@ import {
   claimForm,
   claimNeedsDetails,
   refusedLogin,
+  reusableClassicPassword,
   type LoginField,
 } from '@/features/auth/classicClaimForm';
 import { runGuestSave } from '@/features/auth/saveGuest';
@@ -70,6 +71,8 @@ type Fixture =
   | 'login'
   | 'login-wrong-twice'
   | 'password'
+  | 'password-short'
+  | 'password-reused'
   | 'rename'
   | 'already-claimed'
   | 'already-claimed-apple'
@@ -118,6 +121,13 @@ export default function ClaimClassicScreen() {
       ...FIXTURE_PREVIEW,
       classic: {
         ...FIXTURE_PREVIEW.classic,
+        ...(fixture === 'password-short' || fixture === 'password-reused'
+          ? {
+              name: 'Petter',
+              level: 100,
+              new_account: { username: 'Petter', email: 'petter@example.com' },
+            }
+          : {}),
         ...(fixture === 'rename' || fixture === 'rename-details'
           ? { name: 'Old Name', name_allowed: false }
           : {}),
@@ -145,7 +155,16 @@ export default function ClaimClassicScreen() {
     providerHandoff?.verification ?? fixtureVerification
   );
   const [step, setStep] = useState<'check' | 'details'>(
-    fixture && ['password', 'rename', 'details', 'rename-details', 'taken'].includes(fixture)
+    fixture &&
+      [
+        'password',
+        'password-short',
+        'password-reused',
+        'rename',
+        'details',
+        'rename-details',
+        'taken',
+      ].includes(fixture)
       ? 'details'
       : 'check'
   );
@@ -155,10 +174,16 @@ export default function ClaimClassicScreen() {
   const [wrongPasswords, setWrongPasswords] = useState(fixture === 'login-wrong-twice' ? 2 : 0);
   // The Classic login the shown verification came from; a recovery or provider has none.
   const [verifiedLogin, setVerifiedLogin] = useState(
-    fixture === 'already-claimed' ? 'ThunderThor88' : ''
+    fixture === 'password-short' || fixture === 'password-reused'
+      ? 'Petter'
+      : fixture === 'already-claimed'
+        ? 'ThunderThor88'
+        : ''
   );
   const [guestGames, setGuestGames] = useState(fixture === 'already-claimed' ? 12 : 0);
-  const [classicPassword, setClassicPassword] = useState('');
+  const [classicPassword, setClassicPassword] = useState(
+    fixture === 'password-short' ? 'oldpass' : fixture === 'password-reused' ? 'oldpass8' : ''
+  );
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -186,6 +211,10 @@ export default function ClaimClassicScreen() {
     () => claimForm({ method, user, newAccount: verification?.classic.new_account, refused }),
     [method, refused, user, verification]
   );
+  const passwordAccepted = form.asks.password && method === 'password' && Boolean(verifiedLogin);
+  const reusedPassword = reusableClassicPassword(method, verifiedLogin, classicPassword);
+  const claimPassword = reusedPassword ?? password;
+  const asksNewPassword = form.asks.password && !reusedPassword;
 
   const clearField = useCallback((field: Field) => {
     setFields((current) => ({ ...current, [field]: undefined }));
@@ -297,6 +326,7 @@ export default function ClaimClassicScreen() {
       } else if (info.code === 'email' || info.code === 'EMAIL_TAKEN') {
         setFields({ email: 'auth.valid_email' });
       } else if (info.code === 'password') {
+        setClassicPassword('');
         setFields({ password: 'auth.password_min' });
       } else if (info.code === 'ALREADY_CLAIMED' && user) {
         setError('auth.classic_linked_other');
@@ -377,7 +407,7 @@ export default function ClaimClassicScreen() {
     const nextFields: Partial<Record<Field, string>> = {};
     if (form.asks.username && username.trim().length < 3) nextFields.username = 'auth.username_min';
     if (form.asks.email && !email.trim()) nextFields.email = 'auth.enter_an_email';
-    if (form.asks.password && password.length < 8) nextFields.password = 'auth.password_min';
+    if (form.asks.password && claimPassword.length < 8) nextFields.password = 'auth.password_min';
     if (!verification.classic.name_allowed && displayName.trim().length < 2) {
       nextFields.displayName = 'auth.public_name_min';
     }
@@ -394,7 +424,7 @@ export default function ClaimClassicScreen() {
       const installId = user ? undefined : await getInstallId();
       const account = claimAccount(
         form,
-        { username, email, password, displayName },
+        { username, email, password: claimPassword, displayName },
         verification.classic.name_allowed
       );
       const claim = () =>
@@ -413,7 +443,7 @@ export default function ClaimClassicScreen() {
           original: useAuthStore.getState(),
           displayName: '',
           email: form.kept.email ?? email.trim(),
-          password,
+          password: claimPassword,
           upgrade: () =>
             claim().catch((claimError: unknown) => {
               refusal = claimError;
@@ -473,6 +503,7 @@ export default function ClaimClassicScreen() {
     }
   }, [
     busy,
+    claimPassword,
     displayName,
     email,
     fixture,
@@ -480,7 +511,6 @@ export default function ClaimClassicScreen() {
     from,
     guestCredentials,
     method,
-    password,
     reportRequestError,
     router,
     setSession,
@@ -538,6 +568,7 @@ export default function ClaimClassicScreen() {
   const notice = offersCode ? null : failure;
   const fieldCount =
     Object.values(form.asks).filter(Boolean).length +
+    (form.asks.password && reusedPassword ? -1 : 0) +
     (verification && !verification.classic.name_allowed ? 1 : 0);
   const pairedFields = fieldCount >= 3;
   const title = !verification
@@ -550,11 +581,13 @@ export default function ClaimClassicScreen() {
         ? 'auth.classic_found'
         : !verification.classic.name_allowed
           ? 'auth.pick_name'
-          : form.asks.password
-            ? 'auth.new_pidro_password'
-            : claimNeedsDetails(form, true)
-              ? 'auth.create_your_account'
-              : 'auth.classic_found';
+          : passwordAccepted && verification.classic.name
+            ? 'auth.claim_found_you'
+            : asksNewPassword
+              ? 'auth.new_pidro_password'
+              : claimNeedsDetails(form, true)
+                ? 'auth.create_your_account'
+                : 'auth.classic_found';
   // Keyed by the count, so each further wrong password announces it again.
   const codeOffer = offersCode ? (
     <AuthFlowNotice
@@ -577,14 +610,26 @@ export default function ClaimClassicScreen() {
       testID="claim-classic-screen"
       headerTitle={t('auth.classic')}
       onBack={onBack}
-      title={offersCode && layout !== 'tablet' ? undefined : t(title)}
+      title={
+        offersCode && layout !== 'tablet'
+          ? undefined
+          : t(title, { name: verification?.classic.name ?? '' })
+      }
       body={
         details
-          ? !verification.classic.name_allowed
-            ? t('auth.classic_rename')
-            : form.asks.password
-              ? t('auth.claim_password_body')
-              : undefined
+          ? passwordAccepted
+            ? [
+                t('auth.claim_password_accepted'),
+                !verification.classic.name_allowed ? t('auth.classic_rename') : undefined,
+                form.asks.password && reusedPassword ? t('auth.claim_password_reused') : undefined,
+              ]
+                .filter(Boolean)
+                .join(' ')
+            : !verification.classic.name_allowed
+              ? t('auth.classic_rename')
+              : form.asks.password
+                ? t('auth.claim_password_body')
+                : undefined
           : undefined
       }
       note={
@@ -781,7 +826,7 @@ export default function ClaimClassicScreen() {
                   />
                 </View>
               ) : null}
-              {form.asks.password ? (
+              {asksNewPassword ? (
                 <View
                   style={[
                     styles.passwordField,
@@ -805,7 +850,7 @@ export default function ClaimClassicScreen() {
                     }}
                   />
                   <PidroText role="metadata" tone="muted" style={metrics.note}>
-                    {t('auth.claim_password_hint')}
+                    {t(passwordAccepted ? 'auth.claim_password_short' : 'auth.claim_password_hint')}
                   </PidroText>
                 </View>
               ) : null}

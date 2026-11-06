@@ -5,6 +5,7 @@ import {
   alreadyClaimedView,
   claimNeedsDetails,
   refusedLogin,
+  reusableClassicPassword,
 } from '../../src/features/auth/classicClaimForm';
 
 const typed = {
@@ -15,6 +16,27 @@ const typed = {
 };
 const offered = { username: 'tiger', email: 'sonja@example.com' };
 const sent = (form, nameAllowed = true) => claimAccount(form, typed, nameAllowed);
+
+describe('reusing the accepted Classic password', () => {
+  it('reuses eight or more characters exactly, without trimming', () => {
+    for (const password of ['12345678', ' old pass ', 'longer-password']) {
+      expect(reusableClassicPassword('password', 'Petter', password)).toBe(password);
+    }
+  });
+
+  it('asks for a new password below eight characters', () => {
+    for (const password of ['', 'short', '1234567']) {
+      expect(reusableClassicPassword('password', 'Petter', password)).toBeUndefined();
+    }
+  });
+
+  it('never reuses an unverified password after code recovery or a provider claim', () => {
+    expect(reusableClassicPassword('password', '', 'failed-password')).toBeUndefined();
+    for (const method of [null, 'apple', 'facebook']) {
+      expect(reusableClassicPassword(method, 'Petter', 'old-password')).toBeUndefined();
+    }
+  });
+});
 
 describe('what a Classic claim asks for and sends', () => {
   it('only skips details when every required value is already known', () => {

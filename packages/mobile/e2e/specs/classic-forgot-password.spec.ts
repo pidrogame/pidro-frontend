@@ -58,8 +58,7 @@ test('a wrong Classic code clears and focuses the field, then a valid code retur
 }) => {
   await page.goto('/claim-classic');
   const claim = new ClaimClassicScreen(page);
-  await claim.button('Username and password').click();
-  await claim.field('Username or email').fill(player.classicLogin);
+  await claim.verify(player.classicLogin, 'wrong-but-long-enough');
   await claim.text('Forgot your password?').click();
   const forgot = new ClassicForgotScreen(page);
   await expect(forgot.login).toHaveValue(player.classicLogin);
@@ -75,4 +74,8 @@ test('a wrong Classic code clears and focuses the field, then a valid code retur
   await forgot.field('Six-digit code').fill(code);
   await expect(claim.found).toBeVisible();
   await expect(claim.text(player.classicLogin)).toBeVisible();
+  await claim.confirmIdentity();
+  await expect(claim.field('New password')).toBeVisible();
+  await expect(claim.text('The new Pidro needs its own password.')).toBeVisible();
+  await expect(claim.text('Your old password was right.')).toHaveCount(0);
 });

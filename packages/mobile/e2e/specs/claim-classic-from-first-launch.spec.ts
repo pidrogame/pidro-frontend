@@ -1,8 +1,11 @@
 import { test, expect } from '../fixtures';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
+import { HomeScreen } from '../screens/home-screen';
+import { LoginScreen } from '../screens/login-screen';
 import { ProfileScreen } from '../screens/profile-screen';
 import { WelcomeWindow } from '../screens/welcome-window';
 import { profile, whoAmI } from '../support/api';
+import { REUSABLE_CLASSIC_PASSWORD, UNICODE_CLASSIC_PASSWORD } from '../support/classic-stand-in';
 import { sessionOf } from '../support/session';
 
 test('a Classic player claims their account from the first launch @responsive', async ({
@@ -25,8 +28,13 @@ test('a Classic player claims their account from the first launch @responsive', 
   expect(claims).toBe(0);
   await claim.confirmIdentity();
   await expect(claim.field('New password')).toBeVisible();
-  await expect(claim.text('The new Pidro needs its own password.')).toBeVisible();
-  await expect(claim.text('At least 8 letters or numbers.')).toBeVisible();
+  await expect(claim.text(`Found you, ${player.classicLogin}.`)).toBeVisible();
+  await expect(claim.text('Your old password was right.')).toBeVisible();
+  await expect(
+    claim.text(
+      'The new Pidro needs at least 8 characters, so choose a new password. Your account and your points stay.'
+    )
+  ).toBeVisible();
   expect(claims).toBe(0);
 
   // Classic supplies the login without exposing a kept email or an editable name.
@@ -61,6 +69,54 @@ test('a Classic player claims their account from the first launch @responsive', 
   const token = session?.accessToken as string;
   expect(await whoAmI(token)).toMatchObject({ guest: false, email });
   expect((await profile(token)).classic).toMatchObject({ name: player.classicLogin, level: 42 });
+});
+
+test('an eight-character Classic password claims without a second password and signs in again @responsive', async ({
+  page,
+  player,
+}) => {
+  const name = `reusable-${player.id}`;
+  await page.goto('/claim-classic');
+  const claim = new ClaimClassicScreen(page);
+  await claim.verify(name, REUSABLE_CLASSIC_PASSWORD);
+  await expect(claim.found).toBeVisible();
+  await claim.confirmIdentity();
+  await expect(claim.text(`Found you, ${name}.`)).toBeVisible();
+  await expect(
+    claim.text('Your old password was right. Keep using it in the new Pidro.')
+  ).toBeVisible();
+  await expect(claim.root.locator('input')).toHaveCount(0);
+  await claim.button('Save and play').click();
+  await page.waitForURL(/\/profile/);
+  const session = await sessionOf(page);
+  expect((await profile(session!.accessToken!)).classic).toMatchObject({ name, level: 42 });
+  await new ProfileScreen(page).signOut();
+  await page.waitForURL(/\/welcome$/);
+  await page.goto('/login');
+  await new LoginScreen(page).signIn(name, REUSABLE_CLASSIC_PASSWORD);
+  await expect(new HomeScreen(page).root).toBeVisible();
+  expect((await sessionOf(page))?.user?.id).toBe(session?.user?.id);
+});
+
+test('a reused password refused by the server opens the field so the player can finish', async ({
+  page,
+  player,
+}) => {
+  const name = `unicode-${player.id}`;
+  await page.goto('/claim-classic');
+  const claim = new ClaimClassicScreen(page);
+  await claim.verify(name, UNICODE_CLASSIC_PASSWORD);
+  await expect(claim.found).toBeVisible();
+  await claim.confirmIdentity();
+  await expect(claim.root.locator('input')).toHaveCount(0);
+  await claim.button('Save and play').click();
+  await expect(claim.field('New password')).toBeVisible();
+  await expect(claim.text('Use 8 characters or more.')).toBeVisible();
+  await expect(claim.text('Your old password was right.')).toBeVisible();
+  await claim.field('New password').fill(player.password);
+  await claim.button('Save and play').click();
+  await page.waitForURL(/\/profile/);
+  await expect(new ProfileScreen(page).classicChip).toBeVisible();
 });
 
 test('a Classic preview can be rejected without creating an account @responsive', async ({
