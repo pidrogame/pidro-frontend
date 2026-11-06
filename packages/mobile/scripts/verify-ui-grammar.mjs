@@ -9370,6 +9370,27 @@ async function main() {
               const box = await choice.boundingBox();
               assert.ok(box.height >= 48, 'Every Pace choice must be at least 48 points tall');
             }
+            if (testCase.path.startsWith('/table-dev')) {
+              // Sound is the Settings tab's switch: same words, same saved setting.
+              const sv = new URL(testCase.path, baseUrl).searchParams.get('locale') === 'sv';
+              const sound = page.getByRole('switch', { name: sv ? 'Ljud' : 'Sound', exact: true });
+              await page
+                .getByText(sv ? 'Spela spelets ljudeffekter.' : 'Play game sound effects.', {
+                  exact: true,
+                })
+                .waitFor();
+              const saved = () =>
+                page.evaluate(
+                  () => JSON.parse(localStorage.getItem('settings-storage')).state.soundEnabled
+                );
+              assert.equal(await sound.getAttribute('aria-checked'), 'true');
+              await sound.click();
+              assert.equal(await sound.getAttribute('aria-checked'), 'false');
+              assert.equal(await saved(), false, 'Sound off at the table saves the setting');
+              await sound.click();
+              assert.equal(await sound.getAttribute('aria-checked'), 'true');
+              assert.equal(await saved(), true, 'Sound on at the table saves the setting');
+            }
             const own = pace.getByRole('radio').nth(1);
             await own.click();
             assert.equal(await own.getAttribute('aria-checked'), 'true');
