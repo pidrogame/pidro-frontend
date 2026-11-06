@@ -72,7 +72,6 @@ export function WelcomeSheet() {
 
 const LINES: { icon: IconName; color: string; title: TranslationKey; body: TranslationKey }[] = [
   { icon: 'check', color: PidroColors.success, title: 'news.today', body: 'news.todayBody' },
-  { icon: 'clock', color: PidroColors.iconOnGlass, title: 'news.notYet', body: 'news.notYetBody' },
   { icon: 'mail', color: PidroColors.goldLight, title: 'news.tell', body: 'news.tellBody' },
 ];
 
@@ -239,7 +238,7 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
           ]}>
           {header}
           {landscape ? (
-            // Sideways the button stays under the note, so the three lines get the full height.
+            // Sideways the button stays under the note, so the lines get the full height.
             <View style={styles.sideBySide}>
               <View style={styles.half}>
                 <ScrollView
