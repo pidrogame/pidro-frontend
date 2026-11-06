@@ -308,6 +308,13 @@ const allCases = [
     authenticated: true,
   },
   { name: 'lobby-held', path: '/lobby?fixture=held', testId: 'lobby-screen', authenticated: true },
+  // PID-360: react-native-web's Alert shows nothing, so the web asks in a Modal.
+  {
+    name: 'lobby-at-table',
+    path: '/lobby?fixture=at-table',
+    testId: 'lobby-screen',
+    authenticated: true,
+  },
   ...['password', 'password-keypad', 'password-typed', 'password-wrong', 'password-wait'].map(
     (fixture) => ({
       name: `lobby-${fixture}`,

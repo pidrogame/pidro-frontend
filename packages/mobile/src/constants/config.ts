@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import appJson from '~/app.json';
 
 /**
  * Application configuration constants
@@ -25,5 +26,5 @@ export const STORAGE_KEYS = {
 
 export const APP_CONFIG = {
   name: 'Pidro',
-  version: '3.2.0',
+  version: appJson.expo.version,
 } as const;

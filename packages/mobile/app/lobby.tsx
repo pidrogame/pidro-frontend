@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -24,6 +25,7 @@ import { captureAnalytics } from '@/analytics/PostHogAnalytics';
 import { lobbyApi } from '@/api/lobby';
 import { useLobbyChannel } from '@/channels/hooks/useLobbyChannel';
 import { PasswordKeypadSheet } from '@/components/lobby/PasswordKeypadSheet';
+import { Modal } from '@/components/ui/Modal';
 import { RoomCard } from '@/components/lobby/RoomCard';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { SeatInvitations } from '@/components/invites/SeatInvitations';
@@ -117,6 +119,37 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
     return seat && room ? { ...seat, words: passwordSeatWords(room, seat.position) } : null;
   });
   const [accountSheetOpen, setAccountSheetOpen] = useState(false);
+  // react-native-web's Alert shows nothing: on web the same words open a Modal.
+  const [webAlert, setWebAlert] = useState<{
+    title: string;
+    message: string;
+    rejoin?: string;
+  } | null>(() =>
+    fixture?.atTable
+      ? { title: t('social.current_table'), message: t('social.at_table'), rejoin: 'MY' }
+      : null
+  );
+  // The words stay while the Modal fades out.
+  const [webAlertOpen, setWebAlertOpen] = useState(webAlert !== null);
+  const showAlert = useCallback(
+    (title: string, message: string, rejoin?: string) => {
+      if (Platform.OS === 'web') {
+        setWebAlert({ title, message, rejoin });
+        setWebAlertOpen(true);
+      } else
+        Alert.alert(
+          title,
+          message,
+          rejoin
+            ? [
+                { text: t('common.cancel'), style: 'cancel' },
+                { text: t('social.rejoin'), onPress: () => router.push(`/game/${rejoin}`) },
+              ]
+            : undefined
+        );
+    },
+    [router, t]
+  );
   const pendingAccountActionRef = useRef<(() => Promise<void>) | null>(null);
   const realtimeRevisionRef = useRef(0);
   const quickGame = useQuickGame();
@@ -281,7 +314,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
             // A password seat asks for its password again once the account is there.
             requestAccount(async () => void (await joinRoom(code, position, false)));
           } else {
-            Alert.alert(t('social.join_failed'), localizedError(joinError, 'social.account_error'));
+            showAlert(t('social.join_failed'), localizedError(joinError, 'social.account_error'));
           }
           return;
         }
@@ -310,6 +343,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
       loadLobby,
       showSeatReason,
       openPassword,
+      showAlert,
       t,
     ]
   );
@@ -326,10 +360,10 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
           requestAccount(() => watchRoom(code, false));
           return;
         }
-        Alert.alert(t('social.watch_failed'), localizedError(watchError, 'social.watch_error'));
+        showAlert(t('social.watch_failed'), localizedError(watchError, 'social.watch_error'));
       }
     },
-    [fixture, router, requestAccount, t]
+    [fixture, router, requestAccount, showAlert, t]
   );
 
   const handleRowAction = useCallback(
@@ -344,10 +378,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   const handleNewTable = () => {
     if (fixture) return;
     if (activeRoom) {
-      Alert.alert(t('social.current_table'), t('social.at_table'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('social.rejoin'), onPress: () => router.push(`/game/${activeRoom.code}`) },
-      ]);
+      showAlert(t('social.current_table'), t('social.at_table'), activeRoom.code);
       return;
     }
     router.push('/new-table');
@@ -549,6 +580,33 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
           router.push('/(auth)/claim-classic');
         }}
       />
+      <Modal
+        isOpen={webAlertOpen}
+        title={webAlert?.title}
+        description={webAlert?.message}
+        onClose={() => setWebAlertOpen(false)}>
+        <View style={styles.alertActions}>
+          {webAlert?.rejoin ? (
+            <BevelButton
+              label={t('common.cancel')}
+              material="glass"
+              size="sm"
+              fullWidth
+              onPress={() => setWebAlertOpen(false)}
+            />
+          ) : null}
+          <BevelButton
+            label={webAlert?.rejoin ? t('social.rejoin') : t('profile.ok')}
+            material="wood"
+            size="sm"
+            fullWidth
+            onPress={() => {
+              setWebAlertOpen(false);
+              if (webAlert?.rejoin) router.push(`/game/${webAlert.rejoin}`);
+            }}
+          />
+        </View>
+      </Modal>
     </ScreenShell>
   );
 }
@@ -661,6 +719,7 @@ function EmptyLobby({
 }
 
 const styles = StyleSheet.create({
+  alertActions: { gap: PidroSpacing.xs },
   shell: {
     flex: 1,
     minHeight: 0,

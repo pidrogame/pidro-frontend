@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import * as Application from 'expo-application';
 import * as Updates from 'expo-updates';
@@ -8,6 +8,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { Surface } from '@/components/ui/Surface';
 import { appUpdateFixture, channelLabel, runningUpdate } from '@/features/appUpdate';
 import { updatesEnabled as enabled } from '@/hooks/useAppUpdate';
+import { APP_CONFIG } from '@/constants/config';
 import { PidroSpacing } from '@/design/tokens';
 import { useTranslation, type TranslationKey } from '@/i18n';
 
@@ -15,8 +16,11 @@ export function AppUpdateSection() {
   const { t } = useTranslation();
   const { fixture } = useLocalSearchParams<{ fixture?: string }>();
   // A fixture shows a release build on web; its button never reaches Expo.
-  const about = appUpdateFixture(fixture) ?? {
-    version: Application.nativeApplicationVersion,
+  const release = appUpdateFixture(fixture);
+  // The web app has no build, channel or update: a reload is always the latest.
+  const web = !release && Platform.OS === 'web';
+  const about = release ?? {
+    version: Application.nativeApplicationVersion ?? APP_CONFIG.version,
     build: Application.nativeBuildVersion,
     channel: Updates.channel,
     enabled,
@@ -96,39 +100,48 @@ export function AppUpdateSection() {
             {about.version ?? t('update.unavailable')}
           </PidroText>
         </View>
-        <View style={styles.versionRow}>
-          <PidroText role="metadata" tone="muted">
-            {t('update.build')}
-          </PidroText>
-          <PidroText role="metadata" selectable>
-            {about.build ?? t('update.unavailable')}
-          </PidroText>
-        </View>
-        <View style={styles.versionRow}>
-          <PidroText role="metadata" tone="muted">
-            {t('update.channel')}
-          </PidroText>
-          <PidroText role="metadata" selectable>
-            {channelLabel(about.channel)}
-          </PidroText>
-        </View>
-        <View style={styles.versionRow}>
-          <PidroText role="metadata" tone="muted">
-            {t('update.running')}
-          </PidroText>
-          <PidroText role="metadata" selectable testID="app-update-running">
-            {running.label}
-          </PidroText>
-        </View>
-        {running.detail ? (
-          <PidroText role="metadata" tone="muted" selectable>
-            {running.detail}
-          </PidroText>
-        ) : null}
+        {web ? null : (
+          <>
+            <View style={styles.versionRow}>
+              <PidroText role="metadata" tone="muted">
+                {t('update.build')}
+              </PidroText>
+              <PidroText role="metadata" selectable>
+                {about.build ?? t('update.unavailable')}
+              </PidroText>
+            </View>
+            <View style={styles.versionRow}>
+              <PidroText role="metadata" tone="muted">
+                {t('update.channel')}
+              </PidroText>
+              <PidroText role="metadata" selectable>
+                {channelLabel(about.channel)}
+              </PidroText>
+            </View>
+            <View style={styles.versionRow}>
+              <PidroText role="metadata" tone="muted">
+                {t('update.running')}
+              </PidroText>
+              <PidroText role="metadata" selectable testID="app-update-running">
+                {running.label}
+              </PidroText>
+            </View>
+            {running.detail ? (
+              <PidroText role="metadata" tone="muted" selectable>
+                {running.detail}
+              </PidroText>
+            ) : null}
+          </>
+        )}
       </Surface>
-      <PidroText role="metadata" tone={error ? 'danger' : 'muted'} accessibilityLiveRegion="polite">
-        {status ? t(status) : null}
-      </PidroText>
+      {web ? null : (
+        <PidroText
+          role="metadata"
+          tone={error ? 'danger' : 'muted'}
+          accessibilityLiveRegion="polite">
+          {status ? t(status) : null}
+        </PidroText>
+      )}
       {about.enabled && (
         <BevelButton
           label={

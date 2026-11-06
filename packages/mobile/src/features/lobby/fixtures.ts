@@ -90,6 +90,8 @@ export function lobbyFixture(value?: string):
       query: string;
       gamesPlayed: number;
       password?: { code: string; position: Position; initial: PasswordEntry };
+      /** Start a table while seated at MY: the web's stand-in for the native alert. */
+      atTable?: boolean;
     }
   | undefined {
   if (
@@ -106,6 +108,7 @@ export function lobbyFixture(value?: string):
       'search-empty',
       'held',
       'invitations',
+      'at-table',
       ...Object.keys(PASSWORD_FIXTURES),
     ].includes(value ?? '')
   )
@@ -160,6 +163,7 @@ export function lobbyFixture(value?: string):
     locked: 'open_tables',
     held: 'open_tables',
     invitations: 'open_tables',
+    'at-table': 'open_tables',
     ...Object.fromEntries(Object.keys(PASSWORD_FIXTURES).map((key) => [key, 'open_tables'])),
     substitute: 'substitute_needed',
     watch: 'spectatable',
@@ -175,5 +179,6 @@ export function lobbyFixture(value?: string):
     query: value === 'search-empty' ? 'Nobody named this' : '',
     gamesPlayed: value === 'locked' ? 40 : 1500,
     ...(keypad ? { password: { code: 'LOCK', position: 'south' as const, initial: keypad } } : {}),
+    atTable: value === 'at-table',
   };
 }
