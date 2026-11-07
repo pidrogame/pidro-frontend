@@ -107,6 +107,13 @@ export const northBackWidth = (cardW: number, compact = false) =>
  * side stacks: its row is shared with the name, chip and menu.
  */
 export const compactNorth = (L: Pick<TableLayout, 'profile'>) => L.profile === 'phone-landscape';
+/**
+ * Talk's speech bubble in a landscape phone's corner, and 8pt of air: TALK_ROW
+ * wide, PidroSpacing.sm from the edge (GameCanvasTable).
+ */
+const TALK_CORNER = 12 + 52 + 8;
+/** Between a landscape phone's pack and your turn ring, and that ring and your avatar. */
+const PACK_AIR = 8;
 /** What is left of the deck once everyone holds nine, as `SECOND_DEAL_PACK`. */
 const PACK_REST = 52 - 36;
 /**
@@ -134,9 +141,13 @@ const packRise = (backW: number, count: number) => (packLayers(count) - 1) * bac
  * (PID-393); where the table has no room for it there (the shortest phones),
  * it lies sideways.
  * Landscape phones keep it right of the hand, level with it, below East's
- * front row; what talk offers rises over it (`liftOverPack`). A landscape
- * iPad's talk column has that corner (PID-396), and your name the room left
- * of a full hand: the pack stands above its left end.
+ * front row; what talk offers rises over it (`liftOverPack`). Where it would
+ * reach talk's bubble in the corner (PID-396), it stands above the hand's
+ * right end, short of East's backs (640 wide); where East's seat and its line
+ * come down there, beside its backs (667 wide), it lies in the bottom-left
+ * corner beside your seat, short of your turn ring. A landscape
+ * iPad's talk column has that corner, and your name the room left of a full
+ * hand: the pack stands above its left end.
  */
 export function packSpot(L: TableLayout, dealer: RelativePosition) {
   const portrait = L.profile.endsWith('portrait');
@@ -193,18 +204,31 @@ export function packSpot(L: TableLayout, dealer: RelativePosition) {
       sideways: true,
     };
   }
+  // Standing above your hand, short of a lifted card.
+  const aboveHand =
+    L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L) - TRICK_GAP - h / 2;
   if (L.profile === 'tablet-landscape')
+    return { x: handLeft(L, FULL_HAND) + w / 2, y: aboveHand, sideways: false };
+  if (!portrait) {
+    const x = Math.min(L.hand.cx + L.hand.maxWidth / 2 + 8 + w / 2, L.width - w / 2 - 12);
+    const y = Math.min(L.hand.cy, L.bottom - h / 2 - 4);
+    if (x + w / 2 + full * 0.55 <= L.width - L.insets.right - TALK_CORNER)
+      return { x, y, sideways: false };
+    if (L.sidesUnder)
+      return {
+        x: L.insets.left + LANDSCAPE_SOUTH_LEFT - 2 * PACK_AIR - full * 0.55 - w / 2,
+        y: L.bottom - h / 2 - 4,
+        sideways: false,
+      };
     return {
-      x: handLeft(L, FULL_HAND) + w / 2,
-      y: L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L) - TRICK_GAP - h / 2,
+      x: Math.min(
+        handRight(L, FULL_HAND) - w / 2,
+        L.width - sideStackInner(L.cardW, L.insets.right) - TRICK_GAP - full * 0.55 - w / 2
+      ),
+      y: aboveHand,
       sideways: false,
     };
-  if (!portrait)
-    return {
-      x: Math.min(L.hand.cx + L.hand.maxWidth / 2 + 8 + w / 2, L.width - w / 2 - 12),
-      y: Math.min(L.hand.cy, L.bottom - h / 2 - 4),
-      sideways: false,
-    };
+  }
   const left = L.hand.cx - L.hand.maxWidth / 2 - 8;
   const below = L.hand.cy + (L.cardH * handScale(L.profile)) / 2 + 10 + full;
   if (below + h + 4 <= L.bottom)
@@ -226,7 +250,10 @@ export function packSpot(L: TableLayout, dealer: RelativePosition) {
  */
 export function liftOverPack(L: TableLayout, count: number, rowBottom: number): number {
   const w = northBackWidth(L.cardW, compactNorth(L));
-  const top = packSpot(L, 'south').y - (w * CARD_RATIO) / 2 - packRise(w, count);
+  const pack = packSpot(L, 'south');
+  // Only the pack lying right of the hand, level with it, is under what talk shows.
+  if (pack.x < L.hand.cx || pack.y + (w * CARD_RATIO) / 2 < L.hand.cy - L.cardH / 2) return 0;
+  const top = pack.y - (w * CARD_RATIO) / 2 - packRise(w, count);
   return Math.max(0, rowBottom - top + 8);
 }
 /**

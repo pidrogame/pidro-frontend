@@ -194,12 +194,15 @@ holds still and the offer stays. Landscape phones keep the card, one coin and th
 right of your hand, and drop the coin, then the button, where the hand leaves less room.
 Upright phones (PID-396) say the word in the bubble's tail: a cream face joined to the
 bubble as one pill, the gold line under them, the word one tap. It takes the room left of the
-bubble, short of your avatar's turn ring, at body size, then the small size, then in two lines
-("Nice / trick!"); where none fits (Thanks! on a 360×780 phone) the bubble lights alone and
-opens the words. `talk-offer-slide` holds the tail halfway out of the bubble. While you deal
-(`talk-deal-bidding`: Hello! during bidding, your pack resting), a landscape phone lifts the
-word card over your pack, or lights the bubble alone where the card has no button beside it
-(640 and 667 wide), and a landscape iPad stands your pack above your hand's left end.
+bubble, 8pt short of your avatar's turn ring, at body size, then the small size (with less
+padding), then in two lines ("Nice / trick!"); where none fits the bubble lights alone and
+opens the words. Every phone fits Thanks!, so `talk-reply-narrow` holds the room at 64pt to
+show that. `talk-offer-slide` holds the tail halfway out of the bubble; your own landing rises
+only once the tail has folded. While you deal (`talk-deal-bidding`: Hello! during bidding, your
+pack resting), a landscape phone lifts the word card over your pack. Where the pack would meet
+the bubble, it stands above your hand's right end (640 wide), or lies bottom left beside your
+seat where East's seat comes down there (667 wide). A landscape iPad stands your pack above
+your hand's left end.
 
 A face at the table (PID-329) is `fixture=talk-person` (Antti's sheet: Quiet, Report, Block),
 `talk-person-guest` (a guest's, without Block), `talk-report` (the one question; a tap on a

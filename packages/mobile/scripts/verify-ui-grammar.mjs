@@ -5623,7 +5623,7 @@ const TAIL_SIZE = {
 async function assertTalkOffer(page, testCase, viewport, corner) {
   const word = OFFER_WORDS[testCase.talk]?.[testCase.locale];
   if (!word) return false;
-  if (testCase.talk === 'deal-bidding') return assertTalkDeal(page, word, viewport);
+  if (testCase.talk === 'deal-bidding') return assertTalkDeal(page, viewport);
   const offer = page.getByTestId('talk-offer');
   await offer.waitFor();
   await offer.getByTestId('talk-offer-line').waitFor();
@@ -5746,13 +5746,15 @@ async function assertTail(page, offer, card, testCase, viewport) {
 
 /**
  * You deal and the game offers a greeting while your pack rests (PID-396):
- * landscape phones lift the word card over the pack, iPads stand the pack
- * above the hand's left end, and upright phones keep the pack bottom left.
- * Where the card could only rise into East's backs (the narrowest landscape
- * phones), the bubble lights alone.
+ * landscape phones lift the word card over the pack, or, where the pack would
+ * meet the bubble, stand it above the hand's right end (640 wide) or lay it
+ * bottom left beside your seat (667 wide, where East's seat comes down); iPads
+ * stand it above the hand's left end; upright phones keep it bottom left.
+ * Nothing talk shows, the bubble included, touches the pack or a seat.
  */
-async function assertTalkDeal(page, word, viewport) {
-  await page.getByTestId('talk-speech').waitFor();
+async function assertTalkDeal(page, viewport) {
+  const speech = page.getByTestId('talk-speech');
+  await page.getByTestId('talk-offer').or(speech).first().waitFor();
   const backs = [];
   for (const image of await page.getByTestId('dealer-pack').locator('img').all()) {
     const box = await image.boundingBox();
@@ -5768,21 +5770,30 @@ async function assertTalkDeal(page, word, viewport) {
     height: Math.max(...backs.map((b) => b.y + b.height)) - y,
   };
   assertInsideViewport('your pack', pack, viewport);
-  const card = page.getByRole('button', { name: word, exact: true });
+  // Nor does it lie under a seat or its backs (PID-396: at 667×375 East's seat
+  // comes down to where the pack stands at 640).
+  const seats = page.locator(
+    ['north', 'east', 'west']
+      .flatMap((seat) => [`[data-testid="seat-${seat}"]`, `[data-testid="seat-${seat}-cards"] img`])
+      .join(', ')
+  );
+  for (const seat of await seats.all()) {
+    const box = await seat.boundingBox();
+    if (box)
+      assert.ok(
+        !overlaps(box, pack),
+        `your pack keeps off a seat: ${JSON.stringify({ box, pack })}`
+      );
+  }
   const said = page
     .getByTestId('talk-offer')
     .locator('[role="button"]')
     .or(page.getByTestId('talk-offer-line'));
-  const parts = await said.all();
-  if (viewport.width < 700 && viewport.width > viewport.height)
-    assert.equal(await card.count(), 0, 'no card rises into East’s backs');
-  else assert.ok(parts.length, 'the offer shows');
+  // Where the offer lights the bubble alone, the bubble is still talk's.
+  const parts = [...(await said.all()), ...(await speech.all())];
   for (const part of parts) {
     const box = await getStableBox(part, page);
     assertInsideViewport('the offer', box, viewport);
-    // The bubble itself sat over your pack at 640 and 667 wide before (PID-394).
-    if ((await part.getAttribute('data-testid')) === 'talk-speech' && viewport.width < 700)
-      continue;
     assert.ok(
       !overlaps(box, pack),
       `the offer keeps off your pack: ${JSON.stringify({ box, pack })}`

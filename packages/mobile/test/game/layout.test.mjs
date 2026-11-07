@@ -291,6 +291,61 @@ describe('side stacks and the hand', () => {
     });
   }
 
+  // PID-396: on every landscape phone your pack, a full 52 leaning right,
+  // keeps off talk's bubble in the corner (52pt, 12 from the edge, 8 from the
+  // bottom). Where it stands above the hand (640 wide) it is short of a lifted
+  // card, East's backs and the trump picker; where East's seat comes down there
+  // (667 wide) it lies left of your turn ring; and it stays on screen.
+  for (const [width, height, insets] of [
+    [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [667, 375, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [780, 360, { top: 0, bottom: 0, left: 24, right: 24 }],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [874, 402, { top: 0, bottom: 21, left: 62, right: 62 }],
+  ]) {
+    it(`keeps your pack off talk's bubble on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, 0, 0);
+      const pack = packSpot(L, 'south');
+      const w = northBackWidth(L.cardW, true);
+      const h = (w * 110) / 78;
+      const lean = (packLayers(52) - 1) * w * PACK_STEP;
+      const box = {
+        left: pack.x - w / 2,
+        right: pack.x + w / 2 + lean * 0.55,
+        top: pack.y - h / 2 - lean,
+        bottom: pack.y + h / 2,
+      };
+      const bubble = {
+        left: width - insets.right - 12 - 52,
+        top: height - insets.bottom - 8 - 52,
+      };
+      expect(box.right <= bubble.left || box.bottom <= bubble.top).toBe(true);
+      expect(box.top).toBeGreaterThan(0);
+      expect(box.right).toBeLessThanOrEqual(width - insets.right);
+      expect(box.left).toBeGreaterThan(insets.left);
+      if (box.right < L.hand.cx) {
+        expect(L.sidesUnder).toBe(true);
+        expect(box.right).toBeLessThanOrEqual(insets.left + LANDSCAPE_SOUTH_LEFT - 8 + 0.01);
+        expect(box.bottom).toBeLessThanOrEqual(height - insets.bottom);
+        return;
+      }
+      if (box.bottom > L.hand.cy - L.cardH / 2) return;
+      expect(width).toBeLessThan(700);
+      expect(box.bottom).toBeLessThanOrEqual(
+        L.hand.cy - L.cardH / 2 - handLift(L) - TRICK_GAP + 0.01
+      );
+      expect(box.right).toBeLessThanOrEqual(
+        width - sideStackInner(L.cardW, insets.right) - TRICK_GAP + 0.01
+      );
+      const picker = trumpPicker(L, L.top, 0);
+      expect(box.left > picker.left + picker.width || box.top > picker.top + picker.height).toBe(
+        true
+      );
+      // Nothing talk shows lies over it there.
+      expect(liftOverPack(L, 52, height - insets.bottom - 8)).toBe(0);
+    });
+  }
+
   // PID-396: on a landscape phone the offered word card rises just over your
   // pack while you deal. At 844×390 the pack of 16 measures 313.8pt at its top
   // in Expo web, and talk's row ends 8pt above the bottom.
