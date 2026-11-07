@@ -718,11 +718,18 @@ async function stageThreeTableTalk() {
         await said.waitForTimeout(2_500);
         continue;
       }
-      await heard.screenshot({ path: resolve(artifactDir, 'talk-offer.png') });
       // CI pacing ends a hand in seconds: an offer can go before the tap, and
       // game over can cover the landing. Either way, say it again.
       const tail = offered.getByTestId('talk-word_thanks');
+      // A greeting offered at the deal takes the trick's one offer: let it go, say it again.
+      const other = offered.locator('[data-testid^="talk-tail-"]');
+      if ((await other.waitFor({ timeout: 1_500 }).then(ok, lost)) && !(await tail.count())) {
+        log(`the tail offers another word (attempt ${attempt}); waiting it out`);
+        await offered.waitFor({ state: 'detached', timeout: 8_000 }).catch(lost);
+        continue;
+      }
       const oneTap = await tail.isVisible().catch(lost);
+      await heard.screenshot({ path: resolve(artifactDir, 'talk-offer.png') });
       const thanked = oneTap
         ? await tap(tail).then(ok, lost)
         : await sayFrom(heard).then(
