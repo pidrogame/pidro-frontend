@@ -29,7 +29,9 @@ The internal group **Team** is only us. A build that only reaches Team reaches n
 
 ## 4. Point older installs to the store
 
-In `pidro_backend/config/deploy.yml` set `MINIMUM_NATIVE_ANDROID` / `MINIMUM_NATIVE_IOS` to the new version, **only once that platform's step above is done**. Push to backend `main`; the deploy applies it. Installs below it that already have the store notice show "A new version is in the store" with the store link. The store URLs sit next to them (`NATIVE_STORE_URL_*`) and change at public launch.
+Admin → **Store builds** (`/admin/store-builds`) shows, per platform, the newest build, its review state, what players can install now, the minimum, and players per version, with the next step on top. Check it before and after every release. Google Play is read only when you press Refresh there (it shares the EAS submit account), so don't press it while an Android submission is running.
+
+Once a platform's step above is done, publish an **app-update News post** (Admin → News, "App update" on) with **both** "show below version" fields set: the newest app-update post owns both platforms, and an empty field means no minimum there. The Store builds page's "New app-update post" button fills both in. Installs below it get the pop-up and the "A new version is in the store" notice with the store link. `MINIMUM_NATIVE_*` in `pidro_backend/config/deploy.yml` is only the fallback when no app-update post exists. The store URLs (`NATIVE_STORE_URL_*`) stay in that file and change at public launch.
 
 ## 5. Check a day later
 
