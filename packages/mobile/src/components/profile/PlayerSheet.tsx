@@ -46,6 +46,8 @@ interface Props {
   lists?: Pick<FriendLists, 'friends' | 'requested'>;
   fixture?: SheetData;
   standing?: { league: LeagueId; place: number };
+  /** At a table, whose side they play on: one quiet line under the name (PID-383). */
+  team?: string | null;
 }
 
 /**
@@ -60,8 +62,9 @@ export function PlayerSheet({
   lists,
   fixture,
   standing,
+  team = null,
 }: Props) {
-  if (persona) return <BotSheet persona={persona} onClose={onClose} />;
+  if (persona) return <BotSheet persona={persona} team={team} onClose={onClose} />;
   return playerId ? (
     <PersonSheet
       key={playerId}
@@ -71,11 +74,20 @@ export function PlayerSheet({
       lists={lists}
       fixture={__DEV__ ? fixture : undefined}
       standing={standing}
+      team={team}
     />
   ) : null;
 }
 
-function BotSheet({ persona, onClose }: { persona: BotPersona; onClose: () => void }) {
+function BotSheet({
+  persona,
+  team,
+  onClose,
+}: {
+  persona: BotPersona;
+  team: string | null;
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
   const snapshot = useGameStore(
@@ -98,6 +110,11 @@ function BotSheet({ persona, onClose }: { persona: BotPersona; onClose: () => vo
           <PidroText role="title" align="center">
             {profile?.name || builtinBotName(persona) || t('game.bot')}
           </PidroText>
+          {team ? (
+            <PidroText testID="player-sheet-team" role="metadata" tone="soft" align="center">
+              {team}
+            </PidroText>
+          ) : null}
           <PidroText role="body" align="center">
             {bot ? t(bot.play) : profile?.description}
           </PidroText>
@@ -118,6 +135,7 @@ function PersonSheet({
   lists,
   fixture,
   standing,
+  team,
 }: {
   playerId: string;
   presence?: SheetPresence;
@@ -125,6 +143,7 @@ function PersonSheet({
   lists?: Props['lists'];
   fixture?: SheetData;
   standing?: Props['standing'];
+  team: string | null;
 }) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
@@ -213,6 +232,11 @@ function PersonSheet({
         style={styles.name}>
         {name}
       </PidroText>
+      {team ? (
+        <PidroText testID="player-sheet-team" role="metadata" tone="soft" align="center">
+          {team}
+        </PidroText>
+      ) : null}
       {title?.text ? (
         <PidroText
           role="label"

@@ -1,7 +1,8 @@
 /**
  * Mounted navy-and-brass score plaque. Tap for the server's full hand history.
  * Its labels are the key to the names at the table: US (N/S for a spectator)
- * in our team's colour, THEM (E/W) in theirs.
+ * in our team's colour, THEM (E/W) in theirs, each with its two players'
+ * faces beside it (PID-383).
  * Under it in portrait, beside it in landscape where the West seat sits below,
  * the action ticker: the latest table actions, resting on who holds the bid as
  * Classic's "Bet 6" did. Tap the ticker for the hand's log. With count help
@@ -24,11 +25,13 @@ import Animated, {
 import { gradientBg } from '@/components/ui/Bevel';
 import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
+import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@/design/tokens';
 import type { Position } from '@/types/lobby';
-import type { PointsSide } from '@/features/game/points';
+import { scoreFaces, type PointsSide } from '@/features/game/points';
+import { seatFace } from '@/features/avatar';
 import { isStillCapture } from '@/utils/stillCapture';
 import type { ServerHandSummary } from '@pidro/shared';
 import { HandHistory } from '@/components/game/HandHistory';
@@ -37,15 +40,19 @@ import { ActionTicker, type TickerRestingLine } from './ActionTicker';
 import { SCORE_COUNT } from './HandResult';
 import { HandLogWindow } from './HandLogWindow';
 import { BoxShadow } from './bakedBlur';
+import type { TableSeat, TableModel } from './tableModel';
 import { formatNumber, useTranslation } from '@/i18n';
 
 type Scores = { north_south: number; east_west: number } | null | undefined;
 type ConcreteScores = { north_south: number; east_west: number };
 
 // The plaque's fonts are capped, so its height is fixed: rim, padding, label, figure.
+// The faces ride in the label's row, into its padding and the figure's leading:
+// a taller header would cost tight phones their felt.
 const RIM = 1.5;
 const LABEL_LINE = 13;
 const VALUE_LINE = 29;
+const FACE = 18;
 export const SCORE_PLAQUE_HEIGHT = 2 * RIM + 2 * PidroSpacing.xxs + LABEL_LINE + VALUE_LINE;
 
 const NO_ENTRIES: HandLogEntry[] = [];
@@ -145,6 +152,25 @@ const DELTA_TONE = {
   },
 } as const;
 
+/** A column's two players as their seats draw them, the second overlapping the first. */
+function Pair({ seats, column }: { seats: readonly (TableSeat | null)[]; column: 'us' | 'them' }) {
+  return (
+    <View aria-hidden testID={`score-faces-${column}`} style={styles.pair}>
+      {seats.map((seat, i) =>
+        seat ? (
+          <PlayerAvatar
+            key={seat.absolutePosition}
+            testID={`score-face-${column}-${i}`}
+            size={FACE}
+            {...seatFace(seat)}
+            style={i > 0 && styles.second}
+          />
+        ) : null
+      )}
+    </View>
+  );
+}
+
 export function teams(scores: Scores, you: Position | null) {
   const ns = scores?.north_south ?? 0;
   const ew = scores?.east_west ?? 0;
@@ -155,6 +181,7 @@ export function teams(scores: Scores, you: Position | null) {
 export function Scoreboard({
   scores,
   youPosition,
+  seats = null,
   history,
   roomCode = null,
   top = 0,
@@ -171,6 +198,8 @@ export function Scoreboard({
 }: {
   scores: Scores;
   youPosition: Position | null;
+  /** The players at the table, whose faces sit with their team's score. */
+  seats?: TableModel['seats'] | null;
   history?: readonly ServerHandSummary[];
   roomCode?: string | null;
   top?: number;
@@ -204,6 +233,27 @@ export function Scoreboard({
   const themSide: PointsSide = youPosition ? 'theirs' : 'neutral';
   const usLabel = youPosition ? t('game.us').toLocaleUpperCase() : t('game.ns_short');
   const themLabel = youPosition ? t('game.them').toLocaleUpperCase() : t('game.ew_short');
+  const faces = seats ? scoreFaces(seats, youPosition) : { us: [], them: [] };
+  const column = (side: 'us' | 'them', label: string, value: number) => (
+    <View style={styles.col}>
+      {glowLight(side)}
+      <View style={styles.labelRow}>
+        <PidroText
+          role="metadata"
+          style={[
+            styles.label,
+            { color: side === 'us' ? PidroColors.teamUs : PidroColors.teamThem },
+          ]}
+          maxFontSizeMultiplier={1}>
+          {label}
+        </PidroText>
+        <Pair seats={faces[side]} column={side} />
+      </View>
+      <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
+        {formatNumber(value)}
+      </PidroText>
+    </View>
+  );
   const glowStyle = useScoreGlow(glow?.key ?? null);
   const glowLight = (column: 'us' | 'them') => {
     const side = glow?.columns[column];
@@ -246,32 +296,10 @@ export function Scoreboard({
           style={[styles.plaque, gradientBg(PidroBevel.goldRimGradient)]}>
           {BAKED ? <BoxShadow shadow={PidroBevel.glassDropShadow} radius={PidroRadii.lg} /> : null}
           <View style={styles.plaqueRow}>
-            <View style={styles.col}>
-              {glowLight('us')}
-              <PidroText
-                role="metadata"
-                style={[styles.label, { color: PidroColors.teamUs }]}
-                maxFontSizeMultiplier={1}>
-                {usLabel}
-              </PidroText>
-              <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
-                {formatNumber(us)}
-              </PidroText>
-            </View>
+            {column('us', usLabel, us)}
             {moved ? <ScoreDelta value={moved.us} side={usSide} /> : null}
             <View style={styles.divider} />
-            <View style={styles.col}>
-              {glowLight('them')}
-              <PidroText
-                role="metadata"
-                style={[styles.label, { color: PidroColors.teamThem }]}
-                maxFontSizeMultiplier={1}>
-                {themLabel}
-              </PidroText>
-              <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
-                {formatNumber(them)}
-              </PidroText>
-            </View>
+            {column('them', themLabel, them)}
             {moved ? <ScoreDelta value={moved.them} side={themSide} /> : null}
             <Icon name="chevron-down" size={14} color={PidroColors.goldLight} />
           </View>
@@ -327,13 +355,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: PidroSpacing.xs,
-    paddingHorizontal: PidroSpacing.sm,
+    // Narrower than the rest of the plaque's air: the faces take what it gave up.
+    paddingHorizontal: PidroSpacing.xs,
     paddingVertical: PidroSpacing.xxs,
     backgroundColor: PidroBevel.panelDeep,
     borderRadius: PidroRadii.lg - RIM,
     boxShadow: PidroBevel.glassFaceInset,
   },
   col: { alignItems: 'center', minWidth: 52 },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: LABEL_LINE,
+    gap: 2,
+  },
+  pair: { flexDirection: 'row', height: FACE },
+  second: { marginLeft: -7 },
   glow: {
     ...StyleSheet.absoluteFill,
     borderRadius: PidroRadii.tight,

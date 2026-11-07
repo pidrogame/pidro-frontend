@@ -36,7 +36,7 @@ import {
 import { PressableFX } from '@/components/ui/PressableFX';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
-import { avatarLabel, avatarParts, textFits } from '@/features/avatar';
+import { avatarLabel, avatarParts, seatFace, textFits } from '@/features/avatar';
 import { seatLine, type SeatLine } from '@/features/game/seatLine';
 import { whosePoints } from '@/features/game/points';
 import {
@@ -111,23 +111,17 @@ function avatarFor(
   team: 'us' | 'them',
   nudge = 0
 ): Omit<PlayerAvatarProps, 'size'> {
-  // Only a real bot has a persona, whatever status the room gave the seat first.
-  const crew = data.seatStatus !== 'vacant' ? data.bot_persona : null;
+  const face = seatFace(data);
+  const { kind } = face;
   const away: PlayerAvatarProps['away'] =
     data.seatStatus === 'reconnecting'
       ? 'reconnecting'
-      : data.seatStatus === 'bot_substitute' && !crew
+      : data.seatStatus === 'bot_substitute' && !face.persona
         ? 'bot'
         : null;
-  const kind: PlayerAvatarProps['kind'] =
-    crew || data.seatStatus === 'permanent_bot'
-      ? 'bot'
-      : data.seatStatus === 'vacant'
-        ? 'open'
-        : 'player';
   const onTurn = data.isCurrentTurn && kind !== 'open';
   return {
-    uri: data.avatar_url,
+    ...face,
     // What you earned: one chip, and never on a bot. A bot sitting in for a
     // player keeps their chip, dimmed. The pin stays off the table (PID-338).
     level: kind === 'bot' ? null : data.level,
@@ -144,9 +138,6 @@ function avatarFor(
         }
       : null,
     away,
-    kind,
-    persona: crew,
-    botProfile: data.bot_profile,
     name: kind === 'open' ? null : data.username,
     status: line?.text ?? null,
     pulse: line?.pulse ?? null,
@@ -168,6 +159,8 @@ type Props = {
   topReserve?: number;
   bottomReserve?: number;
   statusByRel?: Partial<Record<RelativePosition, SeatLine | null>>;
+  /** The game's first hand: your partner's seat says so when it has nothing else to say. */
+  firstHand?: boolean;
   turnByRel?: Partial<Record<RelativePosition, SeatTurn>>;
   /** Counts your taps the table did not play: each lights the seat on turn once. */
   nudge?: number;
@@ -199,6 +192,7 @@ export function SeatLayer({
   topReserve = 0,
   bottomReserve = 0,
   statusByRel,
+  firstHand = false,
   turnByRel,
   nudge,
   onProfile,
@@ -499,7 +493,7 @@ export function SeatLayer({
       {REL.map((rel) => {
         const data = seats[rel];
         if (!data) return null;
-        const line = quiet ? null : seatLine(data, statusByRel?.[rel]);
+        const line = quiet ? null : seatLine(data, statusByRel?.[rel], firstHand);
         // A spectator sees North–South as the first team.
         const team = whosePoints(data.absolutePosition, viewer).column;
         const seat = quiet

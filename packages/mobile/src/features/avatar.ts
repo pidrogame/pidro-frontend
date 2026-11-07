@@ -4,7 +4,7 @@
  * stops is interpolated, anything above the largest grows in proportion. Below
  * a part's smallest stop the part is dropped: the ring never is.
  */
-import { t, formatNumber, type BotPersona } from '@pidro/shared';
+import { t, formatNumber, type BotPersona, type BotProfile, type SeatStatus } from '@pidro/shared';
 
 type Stop = readonly number[];
 
@@ -163,6 +163,32 @@ export function chipFor({
 export type AvatarPin = 'classic' | 'founding_tester';
 export type AvatarAway = 'reconnecting' | 'bot';
 export type AvatarKind = 'player' | 'bot' | 'open';
+
+/**
+ * The face a seat wears, at the seat and in the score (PID-383): a bot its
+ * persona's, an empty seat the open one, anyone else their photo.
+ */
+export function seatFace(seat: {
+  seatStatus: SeatStatus;
+  bot_persona: BotPersona | null;
+  bot_profile?: BotProfile | null;
+  avatar_url: string | null;
+}): {
+  kind: AvatarKind;
+  persona: BotPersona | null;
+  botProfile: BotProfile | null;
+  uri: string | null;
+} {
+  // Only a real bot has a persona, whatever status the room gave the seat first.
+  const persona = seat.seatStatus !== 'vacant' ? seat.bot_persona : null;
+  const kind =
+    persona || seat.seatStatus === 'permanent_bot'
+      ? 'bot'
+      : seat.seatStatus === 'vacant'
+        ? 'open'
+        : 'player';
+  return { kind, persona, botProfile: seat.bot_profile ?? null, uri: seat.avatar_url };
+}
 
 /** One sentence a screen reader can say for a seat, in the order a player scans it. */
 export function avatarLabel({

@@ -49,7 +49,7 @@ import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
-import type { SeatLine } from '@/features/game/seatLine';
+import { teamLine, type SeatLine } from '@/features/game/seatLine';
 import { Scoreboard } from './Scoreboard';
 import type { TickerRestingLine } from './ActionTicker';
 import { buildHandLog } from '@/game/handLog';
@@ -267,6 +267,7 @@ function TimedSeatLayer({
   topReserve,
   bottomReserve,
   statusByRel,
+  firstHand,
   nudge,
   players,
   onProfile,
@@ -285,6 +286,7 @@ function TimedSeatLayer({
   topReserve: number;
   bottomReserve: number;
   statusByRel: Partial<Record<RelativePosition, SeatLine | null>> | undefined;
+  firstHand: boolean;
   nudge: number;
   players: NonNullable<ReturnType<typeof useGameTableController>['viewModel']>['players'];
   onProfile: (playerId: string | null, persona?: BotPersona | null) => void;
@@ -320,6 +322,7 @@ function TimedSeatLayer({
       topReserve={topReserve}
       bottomReserve={bottomReserve}
       statusByRel={statusByRel}
+      firstHand={firstHand}
       turnByRel={turnByRel}
       nudge={nudge}
       quiet={quiet}
@@ -715,6 +718,15 @@ export function GameCanvasTable({
     openProfile(playerId, persona);
   };
   const faced = players.find((player) => player.playerId === talk.person);
+  // Whose sheet is open: a bot by its persona, one per table; anyone else by account.
+  const sheetSeat =
+    profile.persona || profile.playerId
+      ? players.find((player) =>
+          profile.persona
+            ? player.seatStatus !== 'vacant' && player.bot_persona === profile.persona
+            : player.playerId === profile.playerId
+        )
+      : undefined;
   // Your turn while typing (PID-318): the keyboard goes, the cards come back, the words wait in the band.
   const [turnSeen, setTurnSeen] = useState(false);
   if (isYourTurn !== turnSeen) {
@@ -814,6 +826,8 @@ export function GameCanvasTable({
             bottomReserve={bottomReserve}
             // The next hand's lines wait for its deal.
             statusByRel={classicEnd ? undefined : statusByRel}
+            // A rematch is a new game: its first hand says who your partner is again.
+            firstHand={(tableState?.hand_number ?? tableState?.round_number) === 1}
             nudge={nudge}
             players={viewModel?.players ?? []}
             onProfile={onFace}
@@ -1004,6 +1018,7 @@ export function GameCanvasTable({
             <Scoreboard
               scores={tableState?.scores ?? null}
               youPosition={youPositionAbs}
+              seats={model.seats}
               history={tableState?.hand_history}
               roomCode={viewModel?.roomCode ?? room.code}
               top={headerTop(insets.top)}
@@ -1157,6 +1172,7 @@ export function GameCanvasTable({
           )}
           <PlayerSheet
             {...profile}
+            team={sheetSeat ? teamLine(sheetSeat) : null}
             presence={isSpectator ? 'online' : 'table'}
             onClose={() => setProfile({ playerId: null })}
           />

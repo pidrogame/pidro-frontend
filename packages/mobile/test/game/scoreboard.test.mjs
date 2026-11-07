@@ -40,6 +40,7 @@ it('keeps the hand log open across turns and hands, but closes it on leaving the
   mock.module('../../src/components/ui/Bevel.tsx', () => ({ gradientBg: () => ({}) }));
   mock.module('../../src/components/ui/Icon.tsx', () => ({ Icon: () => null }));
   mock.module('../../src/components/ui/PidroText.tsx', () => ({ PidroText: view }));
+  mock.module('../../src/components/ui/PlayerAvatar.tsx', () => ({ PlayerAvatar: () => null }));
   mock.module('../../src/components/ui/PressableFX.tsx', () => ({
     PressableFX: ({ onPress, children }) => h('button', { onClick: onPress }, children),
   }));
