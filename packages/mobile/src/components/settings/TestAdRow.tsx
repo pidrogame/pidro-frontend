@@ -39,7 +39,10 @@ export function TestAdRow() {
   }
 
   return (
-    <Surface variant="subtle" style={styles.row} testID="settings-test-ad">
+    <Surface
+      variant="subtle"
+      style={Platform.OS === 'web' ? styles.line : styles.row}
+      testID="settings-test-ad">
       {Platform.OS === 'web' ? (
         <>
           <PidroText role="label">Show a test ad</PidroText>
@@ -68,4 +71,15 @@ export function TestAdRow() {
   );
 }
 
-const styles = StyleSheet.create({ row: { padding: PidroSpacing.sm, gap: PidroSpacing.xs } });
+const styles = StyleSheet.create({
+  row: { padding: PidroSpacing.sm, gap: PidroSpacing.xs },
+  // One line, so About the app still fits a 375pt-tall landscape phone.
+  line: {
+    padding: PidroSpacing.sm,
+    gap: PidroSpacing.xs,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+});
