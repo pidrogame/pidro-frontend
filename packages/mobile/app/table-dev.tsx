@@ -6,6 +6,7 @@
  */
 import { useEffect, useState, type ComponentType } from 'react';
 import { Text, View } from 'react-native';
+import { Asset } from 'expo-asset';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FixtureInsets } from '@/components/dev/FixtureInsets';
 import { LocaleFixture } from '@/components/dev/LocaleFixture';
@@ -326,6 +327,33 @@ const LONG_NAMES_ROOM: Room = {
       : seat.position === 'north'
         ? { ...seat, player: { id: 'p-north', username: 'Margaretha Lindqvist', level: 31 } }
         : seat
+  ),
+};
+
+// `fixture=teams` (PID-383): who plays with whom, in the game's first hand
+// (`teams-hand2`: its second). You are Mia (initials), Antti the bot across is
+// your partner; Marcel at West has a photo, Eli at East has none.
+const TEAMS_ROOM: Room = {
+  ...BOT_ROOM,
+  positions: { north: 'b-north', east: 'p-east', south: 'p-south', west: 'p-west' },
+  seats: BOT_ROOM.seats!.map((seat) =>
+    seat.position === 'south'
+      ? {
+          ...seat,
+          player: { id: 'p-south', username: 'Mia', avatar_url: fixtureAvatar('M', '#6a8e51') },
+        }
+      : seat.position === 'west'
+        ? {
+            ...seat,
+            player: {
+              id: 'p-west',
+              username: 'Marcel',
+              avatar_url: Asset.fromModule(require('~/assets/images/marcel.jpg')).uri,
+            },
+          }
+        : seat.position === 'east'
+          ? { ...seat, player: { id: 'p-east', username: 'Eli' } }
+          : seat
   ),
 };
 
@@ -910,6 +938,7 @@ function TableDevHarness() {
             }
             talkGuest={fixture === 'talk-person-guest' || fixture === 'talk-guest'}
             talkTeen={fixture === 'talk-teen'}
+            teamsHand={fixture === 'teams' ? 1 : fixture === 'teams-hand2' ? 2 : undefined}
           />
           {sheet ? (
             <PlayerSheet
@@ -1154,6 +1183,7 @@ function RolePreview({
   talkTurn = true,
   talkGuest,
   talkTeen,
+  teamsHand,
 }: {
   role: 'player' | 'spectator';
   phase: string;
@@ -1195,20 +1225,24 @@ function RolePreview({
   talkGuest?: boolean;
   /** `fixture=talk-teen`: a 13 to 17 sees nothing about typing (PID-318). */
   talkTeen?: boolean;
+  /** `fixture=teams|teams-hand2`: the teams' table in this hand of the game (PID-383). */
+  teamsHand?: number;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
   const tableRoom = status
     ? STATUS_ROOMS[status]
-    : talk
-      ? TALK_ROOM
-      : longNames
-        ? LONG_NAMES_ROOM
-        : fold === 'trick' || fold === 'trick-self'
-          ? FOLD_TRICK_ROOM
-          : bidRound || botTrick || botCrew || outPlayers || invitation || fold
-            ? BOT_ROOM
-            : WAITING_ROOM;
+    : teamsHand
+      ? TEAMS_ROOM
+      : talk
+        ? TALK_ROOM
+        : longNames
+          ? LONG_NAMES_ROOM
+          : fold === 'trick' || fold === 'trick-self'
+            ? FOLD_TRICK_ROOM
+            : bidRound || botTrick || botCrew || outPlayers || invitation || fold
+              ? BOT_ROOM
+              : WAITING_ROOM;
   useEffect(() => {
     let active = true;
     const store = useGameStore.getState();
@@ -1331,7 +1365,7 @@ function RolePreview({
         east_west: 29,
       },
       hand_history: scoreHistory ? handHistory('north_south').slice(0, 9) : undefined,
-      hand_number: scoreHistory ? 10 : botCrew ? botHand : 4,
+      hand_number: teamsHand ?? (scoreHistory ? 10 : botCrew ? botHand : 4),
       players: {
         north: {
           hand:
@@ -1537,6 +1571,7 @@ function RolePreview({
     talkTurn,
     talkGuest,
     talkTeen,
+    teamsHand,
   ]);
 
   // The dealer cut as the server times it: the cut, then the deal 3 s later.

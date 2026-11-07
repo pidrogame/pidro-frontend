@@ -24,6 +24,15 @@ export const statusSeatCases = [
   'table-status-b-cut',
   'player-sheet-kalle',
 ];
+// PID-383: who plays with whom, at every phone and the iPad.
+export const teamCases = ['en', 'sv'].flatMap((locale) => [
+  `table-teams-${locale}`,
+  `table-teams-hand2-${locale}`,
+  `table-teams-spectator-${locale}`,
+  `table-teams-sheet-partner-${locale}`,
+  `table-teams-sheet-opponent-${locale}`,
+  `table-teams-sheet-spectator-${locale}`,
+]);
 export const talkCases = [
   'quiet',
   'landed',
@@ -222,6 +231,7 @@ export const UI_VIEWPORTS = [
       ...seatPickerCases,
       ...friendNoticeCases,
       ...friendSheetCases,
+      ...teamCases,
       'table-game-over-guest-win',
       'table-game-over-guest-loss',
       'table-game-over-online-win',
@@ -238,6 +248,7 @@ export const UI_VIEWPORTS = [
     safeArea: 'android',
     cases: [
       ...statusSeatCases,
+      ...teamCases,
       'table-small-west-deals',
       'table-small-north-bid',
       'table-small-your-turn',
@@ -249,6 +260,8 @@ export const UI_VIEWPORTS = [
     width: 360,
     height: 640,
     cases: [
+      'table-teams-en',
+      'table-teams-sv',
       'table-small-west-deals',
       'table-small-north-bid',
       'table-small-your-turn',
@@ -283,6 +296,8 @@ export const UI_VIEWPORTS = [
     width: 640,
     height: 360,
     cases: [
+      'table-teams-en',
+      'table-teams-sv',
       ...talkCases,
       'table-bidding',
       'table-playing',
@@ -360,6 +375,7 @@ export const UI_VIEWPORTS = [
       'table-game-over-online-loss',
       ...friendNoticeCases,
       ...friendSheetCases,
+      ...teamCases,
       ...talkCases,
     ],
   },

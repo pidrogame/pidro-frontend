@@ -1206,6 +1206,53 @@ const allCases = [
     testId: 'seat-north',
     teams: 'spectator',
   },
+  // PID-383: the two faces with each score, in a fixed order (you, partner;
+  // the opponent on your left, then on your right), the partner's line in the
+  // first hand only, and the sheet's line. Mia has initials, Antti is the
+  // drawn bot, Marcel has a photo, Eli none.
+  ...['en', 'sv'].flatMap((locale) => {
+    const sv = locale === 'sv';
+    const view = (name) => (sv ? `Visa profilen för ${name}, ` : `View ${name}’s profile, `);
+    const at = (fixture, rest = '') => `/table-dev?fixture=${fixture}&locale=${locale}${rest}`;
+    const faces = { us: ['p-south', 'b-north'], them: ['p-west', 'p-east'] };
+    return [
+      { name: `table-teams-${locale}`, path: at('teams'), partnerLine: true, faces },
+      { name: `table-teams-hand2-${locale}`, path: at('teams-hand2'), partnerLine: false, faces },
+      {
+        name: `table-teams-spectator-${locale}`,
+        path: at('teams', '&role=spectator'),
+        partnerLine: false,
+        faces: { us: ['b-north', 'p-south'], them: ['p-east', 'p-west'] },
+      },
+      {
+        name: `table-teams-sheet-partner-${locale}`,
+        path: at('teams'),
+        open: new RegExp(`^${view('Antti')}`),
+        sheet: 'bot-profile-modal',
+        teamLine: sv ? 'Din partner' : 'Your partner',
+      },
+      {
+        name: `table-teams-sheet-opponent-${locale}`,
+        path: at('teams'),
+        open: new RegExp(`^${view('Eli')}`),
+        sheet: 'player-sheet',
+        teamLine: sv ? 'Spelar mot dig' : 'Plays against you',
+      },
+      {
+        name: `table-teams-sheet-spectator-${locale}`,
+        path: at('teams', '&role=spectator'),
+        open: new RegExp(`^${view('Eli')}`),
+        sheet: 'player-sheet',
+        teamLine: null,
+      },
+    ].map((testCase) => ({
+      testId: testCase.sheet ?? 'seat-north',
+      authenticated: !!testCase.sheet,
+      teamCase: true,
+      locale,
+      ...testCase,
+    }));
+  }),
   ...['right', 'left', 'middle'].map((position) => ({
     name: `table-play-${position}`,
     path: `/table-dev?fixture=play-motion&autoplay=false&play=${position}${position === 'left' ? '&reply=burst' : ''}`,
@@ -5818,6 +5865,129 @@ async function assertTeams(page, testCase) {
   );
 }
 
+// PID-383: the plaque keeps the header's height and its place beside the
+// menu, its faces inside it in their fixed order; the partner's seat says so
+// in the first hand only; the sheet says whose side a seat plays on.
+const PLAQUE_HEIGHT = 53;
+async function assertTeamFaces(page, testCase, viewport) {
+  if (!testCase.teamCase) return;
+  const where = `${testCase.name} in ${viewport.name}`;
+  const sv = testCase.locale === 'sv';
+  if (testCase.sheet) {
+    const sheet = page.getByTestId(testCase.sheet);
+    await sheet.waitFor();
+    const line = sheet.getByTestId('player-sheet-team');
+    if (testCase.teamLine == null) {
+      await sheet.getByText('Eli', { exact: true }).first().waitFor();
+      assert.equal(await line.count(), 0, `${where}: a spectator's sheet takes a side`);
+      return;
+    }
+    await line.waitFor();
+    assert.equal((await line.innerText()).trim(), testCase.teamLine, `${where}: the sheet's line`);
+    assertInsideViewport('team line', await getStableBox(line, page), viewport);
+    return;
+  }
+  const plaque = page.getByRole('button', { name: sv ? /^(VI|N\/S) / : /^(US|N\/S) / });
+  const box = await getStableBox(plaque, page);
+  assert.equal(Math.round(box.height), PLAQUE_HEIGHT, `${where}: the plaque grew`);
+  // It keeps its width: 170pt before the faces, whatever the labels.
+  assert.ok(box.width <= 171, `${where}: the plaque is ${box.width}pt wide`);
+  assertInsideViewport('score plaque', box, viewport);
+  const menu = await getStableBox(
+    page.getByRole('button', { name: sv ? 'Bordsinställningar' : 'Table settings', exact: true }),
+    page
+  );
+  assert.ok(box.x + box.width + 8 <= menu.x, `${where}: the plaque runs into the menu`);
+  const ids = await page.evaluate(() =>
+    Object.fromEntries(
+      ['us', 'them'].map((column) => [
+        column,
+        [0, 1].map((i) => {
+          const face = document.querySelector(`[data-testid="score-face-${column}-${i}"]`);
+          if (!face) return null;
+          const r = face.getBoundingClientRect();
+          return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, size: r.width };
+        }),
+      ])
+    )
+  );
+  const inside = (f) =>
+    f.x >= box.x && f.right <= box.x + box.width && f.y >= box.y && f.bottom <= box.y + box.height;
+  for (const column of ['us', 'them']) {
+    const [first, second] = ids[column];
+    assert.ok(first && second, `${where}: ${column} has two faces`);
+    for (const face of [first, second]) {
+      assert.equal(Math.round(face.size), 18, `${where}: a face is ${face.size}pt`);
+      assert.ok(inside(face), `${where}: a ${column} face leaves the plaque`);
+    }
+    // A pair: the second just overlapping the first, to its right.
+    assert.ok(second.x > first.x && second.x < first.right, `${where}: ${column} is not a pair`);
+  }
+  assert.ok(ids.us[1].right < ids.them[0].x, `${where}: the columns' faces mix`);
+  // Which player each face is: the seat with the same face, by its picture.
+  const seatOf = await page.evaluate((faces) => {
+    // The dealer chip is an image too: only the face counts.
+    const picture = (root) =>
+      [...root.querySelectorAll('img')].find((img) => !img.src.includes('dealer-chip'))?.src ??
+      (root.querySelector('svg') ? 'drawn' : 'none');
+    const seats = Object.fromEntries(
+      ['north', 'east', 'south', 'west'].map((rel) => [
+        picture(document.querySelector(`[data-testid="seat-${rel}"]`)),
+        rel,
+      ])
+    );
+    return Object.fromEntries(
+      ['us', 'them'].map((column) => [
+        column,
+        [0, 1].map((i) => {
+          const face = document.querySelector(`[data-testid="score-face-${column}-${i}"]`);
+          return seats[picture(face)] ?? null;
+        }),
+      ])
+    );
+  }, testCase.faces);
+  // Fixture seats: you (Mia) south, Antti north, Marcel west, Eli east.
+  const REL = { 'p-south': 'south', 'b-north': 'north', 'p-west': 'west', 'p-east': 'east' };
+  const expected = {
+    us: testCase.faces.us.map((id) => REL[id]),
+    them: testCase.faces.them.map((id) => REL[id]),
+  };
+  assert.deepEqual(seatOf, expected, `${where}: the faces under each score`);
+  const north = await page.getByTestId('seat-north').getAttribute('aria-label');
+  const partner = sv ? 'din partner' : 'your partner';
+  assert.equal(
+    north.endsWith(`, ${partner}`),
+    testCase.partnerLine,
+    `${where}: Antti's seat reads ${JSON.stringify(north)}`
+  );
+  if (testCase.partnerLine) {
+    const line = page
+      .getByTestId('seat-north')
+      .getByText(sv ? 'Din partner' : 'Your partner', { exact: true });
+    assert.equal(await line.count(), 1, `${where}: the partner line is not drawn`);
+    assertInsideViewport('partner line', await line.boundingBox(), viewport);
+  }
+  // The control: Marcel's line still says what he played.
+  assert.ok(
+    (await page.getByTestId('seat-west').getAttribute('aria-label')).endsWith(
+      sv ? 'spelar 5♦' : 'plays 5♦'
+    ),
+    `${where}: West's line`
+  );
+  // On tight phones the plaque is the only way to the hand log: it still opens.
+  await plaque.click();
+  await page.getByTestId('hand-history').waitFor();
+  await page
+    .getByTestId('table-utility-window')
+    .getByRole('button', { name: sv ? /^Stäng/ : /^Close/ })
+    .first()
+    .click();
+  await page.getByTestId('hand-history').waitFor({ state: 'detached' });
+  console.log(
+    `team faces ${where}: plaque ${Math.round(box.width * 10) / 10}×${box.height}, ${JSON.stringify(expected)}, partner line ${testCase.partnerLine}`
+  );
+}
+
 async function assertTableDetails(page, testCase, viewport) {
   if (!testCase.details) return;
   const chips = page.locator('[data-testid$="-bid"]');
@@ -9166,6 +9336,29 @@ async function main() {
             })
           );
         }
+        if (testCase.teamCase) {
+          await page.route('**/api/v1/profiles/p-east', (route) =>
+            route.fulfill({
+              json: {
+                data: {
+                  user_id: 'p-east',
+                  username: 'Eli',
+                  display_name: 'Eli',
+                  avatar_url: null,
+                  bio: null,
+                  level: 9,
+                  prestige: 0,
+                  title: 'Apprentice',
+                  pin: null,
+                  classic: null,
+                  record: { games: 40, win_rate: 0.5 },
+                  medals: 1,
+                  together: { games: 0, won_as_partners: 0, against_games: 0, against_won: 0 },
+                },
+              },
+            })
+          );
+        }
         if (testCase.playerProfile) {
           await page.route('**/api/v1/profiles/p-west', (route) =>
             route.fulfill({
@@ -9817,6 +10010,7 @@ async function main() {
           await assertSmallTable(page, testCase, caseViewport);
           await assertStatusSeats(page, testCase, caseViewport);
           await assertTeams(page, testCase);
+          await assertTeamFaces(page, testCase, caseViewport);
           await assertRowControls(page, testCase.name, screenshotDir);
           await assertFriendComponents(page, testCase.name, screenshotDir);
           await assertRuleInteractions(page, testCase, viewport, screenshotDir);
