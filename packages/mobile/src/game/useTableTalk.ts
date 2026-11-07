@@ -82,6 +82,8 @@ export interface TalkFixture {
   filtered?: boolean;
   /** Upright phones: the offer's tail held this far out of the bubble (PID-396). */
   slide?: number;
+  /** Upright phones: the room left of the bubble, narrower than any phone's. */
+  room?: number;
 }
 
 /**

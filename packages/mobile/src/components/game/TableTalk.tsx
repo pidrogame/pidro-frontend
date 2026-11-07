@@ -18,6 +18,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import { TalkIcon } from '@/components/ui/Icon';
@@ -175,6 +176,7 @@ export function TalkLanding({
   at,
   ring,
   rise,
+  wait = 0,
 }: {
   landed: Landed;
   name: string;
@@ -184,6 +186,8 @@ export function TalkLanding({
   ring: number;
   /** How far it travels in: yours comes up from the band. */
   rise: number;
+  /** How long it waits, unseen, before it rises: yours waits out the tail's fold (PID-396). */
+  wait?: number;
 }) {
   useTranslation();
   const reduceMotion = useReducedMotion();
@@ -191,12 +195,15 @@ export function TalkLanding({
   useEffect(() => {
     progress.set(0);
     progress.set(
-      withTiming(1, {
-        duration: reduceMotion ? 180 : 300,
-        easing: Easing.bezier(0.2, 0.9, 0.3, 1.2),
-      })
+      withDelay(
+        reduceMotion ? 0 : wait,
+        withTiming(1, {
+          duration: reduceMotion ? 180 : 300,
+          easing: Easing.bezier(0.2, 0.9, 0.3, 1.2),
+        })
+      )
     );
-  }, [landed.key, progress, reduceMotion]);
+  }, [landed.key, progress, reduceMotion, wait]);
   const motion = useAnimatedStyle(() => {
     const p = progress.value;
     return reduceMotion
@@ -347,8 +354,10 @@ export function TalkBand({
   );
 }
 
-/** Between the tail's word and its edges, inside its 1pt border. */
-const TAIL_PAD = 10;
+/** Between the tail's word and its edges, inside its 1pt border: the small sizes keep less (PID-396). */
+const TAIL_PAD: Record<TailSize, number> = { body: 10, small: 8, two: 8 };
+/** How long the tail takes to fold back under the bubble. */
+export const TAIL_FOLD_MS = 180;
 /** The bubble's row is fixed: large type grows the tail only this far, then takes a smaller size. */
 const TAIL_SCALE = 1.3;
 const TAIL_TYPE: Record<TailSize, TextStyle> = {
@@ -412,7 +421,7 @@ function TalkTail({
       out.set(
         withTiming(
           0,
-          { duration: reduceMotion ? 0 : 200, easing: Easing.in(Easing.cubic) },
+          { duration: reduceMotion ? 0 : TAIL_FOLD_MS, easing: Easing.in(Easing.cubic) },
           (done) => {
             if (done) runOnJS(setSaid)(null);
           }
@@ -455,7 +464,7 @@ function TalkTail({
               testID={`talk-${item}`}
               disabled={!offer}
               onPress={() => onSend?.(item)}
-              style={[styles.tailFace, { width }]}>
+              style={[styles.tailFace, { width, paddingHorizontal: TAIL_PAD[size] }]}>
               <PidroText
                 style={[styles.word, TAIL_TYPE[size]]}
                 numberOfLines={size === 'two' ? 2 : 1}
@@ -485,7 +494,7 @@ function TalkTail({
               style={[styles.word, TAIL_TYPE[each], styles.measured]}
               maxFontSizeMultiplier={TAIL_SCALE}
               onLayout={({ nativeEvent }) => {
-                const measure = Math.ceil(nativeEvent.layout.width) + 2 * (TAIL_PAD + 1);
+                const measure = Math.ceil(nativeEvent.layout.width) + 2 * (TAIL_PAD[each] + 1);
                 setWidths((was) => ({
                   ...(was.text === text ? was : { text }),
                   [each]: measure,
@@ -646,7 +655,6 @@ const styles = StyleSheet.create({
     height: TALK_ROW,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: TAIL_PAD,
     borderTopLeftRadius: PidroRadii.lg,
     borderBottomLeftRadius: PidroRadii.lg,
     backgroundColor: PidroColors.leagueCardFace,

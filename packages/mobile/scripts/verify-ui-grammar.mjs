@@ -5585,6 +5585,7 @@ const OFFER_WORDS = {
   'offer-tap': { en: 'Nice trick!' },
   'offer-slide': { en: 'Nice trick!' },
   reply: { en: 'Thanks!' },
+  'reply-narrow': { en: 'Thanks!' },
   start: { en: 'Hello!' },
   'deal-bidding': { en: 'Hello!' },
 };
@@ -5592,19 +5593,22 @@ const OFFER_WORDS = {
 /**
  * The size each upright phone's tail takes (PID-396): one line at body size,
  * one at the small size, two lines, or none (the bubble lights alone), from
- * the room left of the bubble (85pt at 390, 77 at 360×640, 70 at 360×780, 91
- * at 402) and the word as drawn.
+ * the room left of the bubble (89pt at 390, 81 at 360×640, 74 at 360×780, 95
+ * at 402) and the word as drawn. No phone here leaves too little room for
+ * Thanks!; `reply-narrow` holds the room at 64pt to light the bubble alone.
  */
 const TAIL_SIZE = {
   'portrait/reply': 'body',
-  'portrait/offer': 'two',
+  'portrait/offer': 'small',
+  'portrait/reply-narrow': null,
   'small-portrait/reply': 'body',
-  'small-portrait/offer': 'two',
+  'small-portrait/offer': 'small',
   'iphone-insets-portrait/offer': 'small',
   'compact-portrait/reply': 'small',
   'compact-portrait/offer': 'two',
-  'android-portrait/reply': null,
+  'android-portrait/reply': 'small',
   'android-portrait/offer': 'two',
+  'android-portrait/reply-narrow': null,
 };
 
 /**

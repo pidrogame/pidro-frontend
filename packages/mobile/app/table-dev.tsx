@@ -538,6 +538,8 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
   // PID-328: what the band offers.
   'talk-offer': { offer: momentOffer('partner_trick') },
   'talk-offer-turn': { offer: momentOffer('partner_trick') },
+  // PID-396: upright, room for no size of Thanks!: the bubble lights alone.
+  'talk-reply-narrow': { offer: replyOffer({ item: 'word_well' }), room: 64 },
   // PID-396: upright, the offer's tail held halfway out of the bubble.
   'talk-offer-slide': { offer: momentOffer('partner_trick'), slide: 0.5 },
   'talk-start': { offer: momentOffer('start') },

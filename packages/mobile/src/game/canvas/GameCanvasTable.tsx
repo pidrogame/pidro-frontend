@@ -74,7 +74,6 @@ import {
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
   tickerPlacement,
-  TRICK_GAP,
   trumpPicker,
   type HeldStyle,
 } from './layout';
@@ -91,6 +90,7 @@ import {
   TalkBand,
   TalkLanding,
   TalkOffer,
+  TAIL_FOLD_MS,
   type TalkPlace,
 } from '@/components/game/TableTalk';
 import { TalkSheet } from '@/components/game/TalkSheet';
@@ -718,7 +718,7 @@ export function GameCanvasTable({
   // Upright phones (PID-393): the bubble's centre level with your avatar's,
   // which sits under your hand on a tight phone, above its name and line
   // otherwise. What it offers grows out of it as a tail (PID-396), into the
-  // room left of it, short of your avatar and its turn light.
+  // room left of it, short of your avatar and its turn light by a small step.
   const upright = layout.profile === 'phone-portrait';
   const yourSize = layout.tight ? TIGHT_AVATAR : AVATAR_SIZE[layout.profile];
   const yours = avatarParts(yourSize);
@@ -735,7 +735,7 @@ export function GameCanvasTable({
       insets.right -
       PidroSpacing.sm -
       TALK_ROW -
-      (width / 2 + (yours.turn?.radius ?? yourSize / 2) + TRICK_GAP)
+      (width / 2 + (yours.turn?.radius ?? yourSize / 2) + PidroSpacing.xs)
     : width - insets.right - PidroSpacing.sm * 2 - handRight(layout, model.yourHand.length);
   // Landscape phones: while you deal, the offer's word card rises over your pack (PID-396).
   const talkLift =
@@ -795,6 +795,8 @@ export function GameCanvasTable({
           ring={ring}
           name={who(landed).name}
           rise={player.isYou ? 60 : 12}
+          // Upright, yours rises once the offer's tail has folded back (PID-396).
+          wait={upright && player.isYou ? TAIL_FOLD_MS + 60 : 0}
         />
       );
       return [[player.relativePosition, draw]];
@@ -944,7 +946,7 @@ export function GameCanvasTable({
                   turn={isYourTurn}
                   unread={talk.unread}
                   offer={talk.offer}
-                  room={talkRoom}
+                  room={talkFixture?.room ?? talkRoom}
                   dim={isYourTurn}
                   hold={!!talkFixture}
                   slide={talkFixture?.slide}
