@@ -1392,6 +1392,25 @@ const allCases = [
     testId: 'hand-points-continue',
     classicEnd: { us: '8', them: '6', played: 0, own: true },
   },
+  // PID-366: one player alone holds trumps and the server settles the hand.
+  // Their trumps lie face up in a fan in front of their seat (yours rise from
+  // your hand), with the points on it under count help; the result waits.
+  // Every seat, with two and five cards, count help on and off, EN and SV.
+  ...[
+    ['north', 5, true, 'en'],
+    ['north', 2, false, 'sv'],
+    ['east', 5, false, 'sv'],
+    ['east', 2, true, 'en'],
+    ['west', 2, false, 'en'],
+    ['west', 5, true, 'sv'],
+    ['south', 5, true, 'en'],
+    ['south', 2, false, 'sv'],
+  ].map(([rel, cards, count, locale]) => ({
+    name: `table-lay-down-${rel}-${cards}${count ? '-count' : ''}-${locale}`,
+    path: `/table-dev?fixture=lay-down&by=${rel}&cards=${cards}${count ? '&count=on' : ''}&locale=${locale}`,
+    testId: `lay-down-${rel}`,
+    layDown: { rel, cards, count, sv: locale === 'sv' },
+  })),
   {
     name: 'table-hand-they-set',
     path: '/table-dev?phase=playing&hand=they-set',
@@ -6520,6 +6539,72 @@ async function assertFoldGeometry(page, testCase, viewport) {
   }
 }
 
+// PID-366: a settled hand laid down. Each of the holder's cards lies face up
+// on screen, clear of every seat; the holder says they take the rest; with
+// count help the trick points and the 2's ride on the fan; no result yet,
+// and your own laid cards have left your hand. The next hand, sent with it,
+// waits: nobody is on turn, the dealer chip stays, no bid window.
+async function assertLayDown(page, testCase, viewport) {
+  if (!testCase.layDown) return;
+  const { rel, cards, count, sv } = testCase.layDown;
+  const fan = page.getByTestId(`lay-down-${rel}`);
+  await fan.waitFor({ timeout: 30_000 });
+  // Every card down.
+  await page.waitForTimeout(700);
+  const faces = fan.getByTestId('thrown-face');
+  assert.equal(await faces.count(), cards, `${testCase.name}: ${cards} cards face up`);
+  const seats = [];
+  for (const seat of ['north', 'east', 'south', 'west'])
+    seats.push([seat, await getStableBox(page.getByTestId(`seat-${seat}`).first(), page)]);
+  for (const face of await faces.all()) {
+    const card = await getStableBox(face, page);
+    assertInsideViewport(`${testCase.name} laid card`, card, viewport);
+    for (const [seat, box] of seats)
+      assert.ok(!overlaps(card, box), `${testCase.name}: a laid card clears ${seat}'s seat`);
+  }
+  const said = await page.getByTestId(`seat-${rel}`).first().getAttribute('aria-label');
+  assert.match(
+    said,
+    sv ? /tar resten/i : /takes the rest/i,
+    `${testCase.name}: ${rel} says ${said}`
+  );
+  const pops = page.getByTestId('lay-down-pops');
+  assert.equal(await pops.count(), count ? 1 : 0, `${testCase.name}: points on the fan`);
+  // Five cards are the A, K, J, 5 and 2: 1 + 1 + 5 and the 2's own point; two are the 5 and 2.
+  if (count)
+    assert.deepEqual(
+      await pops.getByText(/^\+\d+$/).allInnerTexts(),
+      [cards === 5 ? '+7' : '+5', '+1'],
+      `${testCase.name}: the fan's points`
+    );
+  for (const pop of await pops.getByText(/^\+\d+$/).all())
+    assertInsideViewport(`${testCase.name} point`, await getStableBox(pop, page), viewport);
+  assert.equal(
+    await page.locator('[data-testid="hand-result"], [data-testid="hand-points"]').count(),
+    0,
+    `${testCase.name}: the result waits for the gather`
+  );
+  if (rel === 'south') await page.getByTestId('rendered-hand-card-count-0').waitFor();
+  const seatsAround = ['north', 'east', 'south', 'west'];
+  const after = (n) => seatsAround[(seatsAround.indexOf(rel) + n) % 4];
+  for (const seat of seatsAround.filter((seat) => seat !== rel)) {
+    const line = await page.getByTestId(`seat-${seat}`).first().getAttribute('aria-label');
+    assert.doesNotMatch(line, /playing|spelar/i, `${testCase.name}: ${seat} says ${line}`);
+  }
+  // The fixture's dealer is on the holder's right; the next hand's, on their left.
+  assert.equal(
+    await page.getByTestId(`seat-${after(3)}-dealer`).count(),
+    1,
+    'the dealer chip stays'
+  );
+  assert.equal(await page.getByTestId(`seat-${after(1)}-dealer`).count(), 0, 'no next dealer yet');
+  assert.equal(
+    await page.getByTestId('bidding-window').count(),
+    0,
+    `${testCase.name}: no bid window`
+  );
+}
+
 // PID-332: no panel, no scrim and no headline; ours | theirs over the trump
 // mark, clear of the seats and of every card still on the table.
 async function assertClassicEnd(page, testCase, viewport) {
@@ -8652,6 +8737,7 @@ async function main() {
           testCase.words ||
           testCase.ownPace ||
           testCase.classicEnd ||
+          testCase.layDown ||
           testCase.classicPasswordDecision ||
           testCase.homeProfile ||
           testCase.details ||
@@ -9449,6 +9535,7 @@ async function main() {
           }
           await assertCountHelp(page, testCase, caseViewport);
           await assertClassicEnd(page, testCase, caseViewport);
+          await assertLayDown(page, testCase, caseViewport);
           if (testCase.fold) {
             if (testCase.fold.south) await page.getByTestId('rendered-hand-card-count-0').waitFor();
             for (const [seat, count] of Object.entries(testCase.fold)) {

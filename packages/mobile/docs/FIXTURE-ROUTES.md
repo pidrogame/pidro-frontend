@@ -75,6 +75,21 @@ waits for a tap. Grammar cases `table-hand-classic`
 `table-hand-classic-alone` (`end=we-made&pace=own&showMs=0`, 8 | 6 alone) cover
 both beats at 390×844, 375×667, 844×390 and 768×1024.
 
+A settled hand loops at `/table-dev?fixture=lay-down` (PID-366): the last
+real trick taken and the other three out of trumps, then two seconds later the
+server settles the hand in one revision, straight into the next hand's bidding
+(`last_hand.settled`, `transition_delay_ms` 13 500). The holder's trumps turn
+face up in a fan in front of their seat, hold, gather to their pile, and only
+then the result and the deal; it plays again once that transition is over.
+`by=north|east|west|south` (south is you, your cards rise from your hand),
+`cards=2|5`, `count=on` for the points on the fan and the result's panel.
+Grammar captures hold on the fan:
+`table-lay-down-{north-5-count-en,north-2-sv,east-5-sv,east-2-count-en,west-2-en,west-5-count-sv,south-5-count-en,south-2-sv}`
+check that every card lies face up on screen and clear of every seat, that the
+holder says "Takes the rest", the fan's points, that the result and the next
+hand's bid window wait, and that your laid cards left your hand, at 390×844,
+375×667, 844×390 and 768×1024.
+
 Upright phones draw cards as big as Classic's (PID-333). Grammar cases
 `table-upright-bidding|second-deal|trick|hand-end|hand-classic` (`phase=bidding`,
 `deal=draw&holdMs=600000`, `trick=full`, `deal=hand&count=on`, and Classic's end)

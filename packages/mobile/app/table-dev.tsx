@@ -48,6 +48,7 @@ import type { HeldStyle } from '@/game/canvas/layout';
 import type { TalkFixture } from '@/game/useTableTalk';
 import type { TalkItem } from '@/features/game/talk';
 import { momentOffer, replyOffer } from '@/features/game/offers';
+import { isStillCapture } from '@/utils/stillCapture';
 
 // `bids=`: a hand's bids landing one by one against three bots.
 const BID_ROUNDS: Record<string, { dealer: Position; bids: ServerBid[] }> = {
@@ -757,6 +758,8 @@ function TableDevHarness() {
     seats?: string;
     cut?: string;
     sheet?: string;
+    by?: Position;
+    cards?: string;
   }>();
   const fixture = params.fixture;
   const ruleSet: RuleSet = fixture?.startsWith('louisiana') ? 'louisiana' : 'finnish';
@@ -791,6 +794,21 @@ function TableDevHarness() {
   );
   const [waitingPositions, setWaitingPositions] = useState<Room['positions']>();
   const [inviteOpen, setInviteOpen] = useState(params.invite === 'true');
+
+  if (fixture === 'lay-down') {
+    return (
+      <SafeAreaProvider>
+        <FixtureInsets preset={params.safeArea}>
+          <LayDownPreview
+            room={DRAW_ROOM}
+            by={params.by && CLOCKWISE.includes(params.by) ? params.by : 'north'}
+            cards={params.cards === '2' ? 2 : 5}
+            countHelp={params.count === 'on'}
+          />
+        </FixtureInsets>
+      </SafeAreaProvider>
+    );
+  }
 
   if (params.deal === 'hand') {
     applyTimingParams(params as Record<string, string | undefined>);
@@ -2212,6 +2230,201 @@ function HandEndPreview({
     <View style={{ flex: 1 }}>
       {Table ? <Table key={run} room={room} rulesFixtureSeen onLeave={() => {}} /> : <Loading />}
       {result !== 'game-over' ? <HandResultTuner onReplay={() => setRun((n) => n + 1)} /> : null}
+    </View>
+  );
+}
+
+/** What a trump takes in its trick: the Ace, Jack and Ten one each, a Five five; the Two's point stays with its player. */
+const trumpPoints = (card: Card) =>
+  card.rank === 5 ? 5 : [14, 11, 10].includes(card.rank) ? 1 : 0;
+
+/**
+ * `fixture=lay-down` (PID-366): the last real trick taken, the other three
+ * out of trumps, and two seconds later the server settles the hand: `by`
+ * (north|east|west|south, south being you) lays down `cards` (2|5) trumps,
+ * hearts, in the revision that starts the next hand. The table fans them face
+ * up, holds, gathers them to the holder's pile, shows the result, then deals;
+ * it plays again once the server's 13.5 s transition is over. `count=on`
+ * adds the points on the fan and the result's panel. Grammar captures hold
+ * on the fan.
+ */
+function LayDownPreview({
+  room,
+  by,
+  cards,
+  countHelp,
+}: {
+  room: Room;
+  by: Position;
+  cards: 2 | 5;
+  countHelp: boolean;
+}) {
+  const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
+  const [run, setRun] = useState(0);
+  // The table opens on the trick already taken, as a phone that watched it.
+  const [mounted, setMounted] = useState(-1);
+  useEffect(() => {
+    let active = true;
+    loadGameCanvasTable().then((component) => {
+      if (active) setTable(() => component);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!Table) return;
+    const store = useGameStore.getState();
+    const at = CLOCKWISE.indexOf(by);
+    // The holder, the opponent on their left, their partner, the one on their right.
+    const [h, l, p, r] = [0, 1, 2, 3].map((i) => CLOCKWISE[(at + i) % 4]);
+    const team = (position: Position): 'north_south' | 'east_west' =>
+      position === 'north' || position === 'south' ? 'north_south' : 'east_west';
+    const play = (player: Position, card: Card) => ({ player, card });
+    const trick = (winner: Position, plays: { player: Position; card: Card }[]) => ({
+      winner,
+      cards: plays,
+      points: plays.reduce((sum, { card }) => sum + trumpPoints(card), 0),
+      two_of_trump: null,
+    });
+    const five = { rank: 5, suit: 'diamonds' } as Card;
+    // Six trumps each for the holder; the others run out in the real tricks.
+    const real =
+      cards === 5
+        ? [trick(l, [play(h, heart(9)), play(l, heart(12)), play(p, five), play(r, heart(10))])]
+        : [
+            trick(h, [
+              play(h, heart(14)),
+              play(l, heart(7)),
+              play(p, heart(3)),
+              play(r, heart(10)),
+            ]),
+            trick(h, [play(h, heart(13)), play(l, heart(8)), play(p, heart(4))]),
+            trick(l, [play(h, heart(9)), play(l, heart(12)), play(p, five)]),
+            trick(h, [play(l, heart(6)), play(h, heart(11))]),
+          ];
+    const laid = cards === 5 ? [14, 13, 11, 5, 2].map(heart) : [5, 2].map(heart);
+    const settled = [
+      ...real,
+      ...laid.map((card) => ({
+        winner: h,
+        cards: [play(h, card)],
+        points: trumpPoints(card),
+        two_of_trump: card.rank === 2 ? { position: h, points: 1 } : null,
+      })),
+    ];
+    const pointCards = settled.flatMap((t) =>
+      t.cards.flatMap(({ player, card }) => {
+        const points = card.rank === 2 ? 1 : trumpPoints(card);
+        const position = card.rank === 2 ? player : t.winner;
+        return points ? [{ card, points, position, team: team(position) }] : [];
+      })
+    );
+    const captured = { north_south: 0, east_west: 0 };
+    for (const card of pointCards) captured[card.team] += card.points;
+    const before = { north_south: 30, east_west: 21 };
+    const delta = captured;
+    const after = {
+      north_south: before.north_south + delta.north_south,
+      east_west: before.east_west + delta.east_west,
+    };
+    const cold = (revealed: Card[]) => ({ hand: 0, eliminated: true, revealed_cards: revealed });
+    const base = {
+      variant: 'finnish',
+      config: { min_bid: 6 },
+      trump: 'hearts',
+      dealer: r,
+      hand_number: 5,
+      highest_bid: { position: h, amount: 8 },
+    };
+    const frames: [number, Record<string, unknown>][] = [
+      [
+        0,
+        {
+          ...base,
+          phase: 'playing',
+          current_player: h,
+          scores: before,
+          tricks: real,
+          current_trick: [],
+          players: {
+            [h]: { hand: h === 'south' ? laid : laid.length },
+            [l]: cold([{ rank: 9, suit: 'clubs' }]),
+            [p]: cold([
+              { rank: 12, suit: 'spades' },
+              { rank: 4, suit: 'clubs' },
+            ]),
+            [r]: cold([{ rank: 7, suit: 'spades' }]),
+          },
+        },
+      ],
+      [
+        2_000,
+        {
+          ...base,
+          // Straight into the next hand, which the table holds back meanwhile.
+          phase: 'bidding',
+          trump: null,
+          dealer: l,
+          hand_number: 6,
+          current_player: p,
+          highest_bid: undefined,
+          bid_order: [],
+          transition_delay_ms: 13_500,
+          scores: after,
+          tricks: [],
+          current_trick: [],
+          last_hand: {
+            hand_number: 5,
+            bidding_team: team(h),
+            bidder: h,
+            bid: 8,
+            trump: 'hearts',
+            captured,
+            made: captured[team(h)] >= 8,
+            delta,
+            scores: after,
+            point_cards: pointCards,
+            tricks: settled,
+            settled: { position: h, cards: laid },
+          },
+          players: Object.fromEntries(
+            CLOCKWISE.map((position) => [position, { hand: position === 'south' ? DRAW_DEALT : 9 }])
+          ),
+        },
+      ],
+    ];
+    useSettingsStore.setState({ countHelp });
+    store.reset();
+    store.initFromRoom({ room, youPlayerId: 'p-south' });
+    store.setRole('player');
+    store.setYouPosition('south');
+    store.setChannelStatus(true);
+    store.setLegalActions([]);
+    store.setServerState(frames[0][1] as unknown as ServerGameState);
+    const timers = [
+      setTimeout(() => setMounted(run), 0),
+      ...frames.slice(1).map(([ms, state]) =>
+        setTimeout(() => {
+          store.setServerState(state as unknown as ServerGameState);
+          // Your bid opens the next hand when North lays down: it waits for the fan.
+          if (p === 'south') store.setLegalActions([{ type: 'bid', amount: 6 }, { type: 'pass' }]);
+        }, ms)
+      ),
+    ];
+    // Again once the server's transition is over: the fan, the result and the deal.
+    if (!isStillCapture()) timers.push(setTimeout(() => setRun((n) => n + 1), 2_000 + 13_500));
+    return () => timers.forEach(clearTimeout);
+  }, [Table, run, room, by, cards, countHelp]);
+
+  return (
+    <View style={{ flex: 1 }}>
+      {Table && mounted === run ? (
+        <Table key={run} room={room} rulesFixtureSeen onLeave={() => {}} />
+      ) : (
+        <Loading />
+      )}
     </View>
   );
 }
