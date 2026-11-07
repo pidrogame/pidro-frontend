@@ -1594,6 +1594,14 @@ const allCases = [
   // West, Margaretha Lindqvist holds the bid.
   ...[
     ['bidding', 'fixture=details&dealer=west&bidder=north&phase=bidding', 'bidding-window', {}],
+    // PID-394: the pack rests beside its dealer, North's left of its fan.
+    ['bidding-north', 'phase=bidding&role=player&dealer=north', 'bidding-window', { pack: true }],
+    [
+      'second-deal-north',
+      'deal=draw&dealer=north&holdMs=600000',
+      'seat-south',
+      { thrown: ['east', 'south', 'west'], mark: true, pack: true },
+    ],
     // The piles hold until captured: a 3 s hold races the still capture.
     // A throw is backs for everyone, the thrower too (PID-307).
     [
@@ -1649,6 +1657,20 @@ const allCases = [
       'deal=draw&holdMs=600000',
       'seat-south',
       { thrown: ['north', 'east', 'south'], mark: true },
+    ],
+    // PID-394: the pack rests beside its dealer through bidding and the throws.
+    ['bidding-north', 'phase=bidding&role=player&dealer=north', 'bidding-window', { pack: true }],
+    [
+      'second-deal-north',
+      'deal=draw&dealer=north&holdMs=600000',
+      'seat-south',
+      { thrown: ['east', 'south', 'west'], mark: true, pack: true },
+    ],
+    [
+      'second-deal-you',
+      'deal=draw&you=deal&holdMs=600000',
+      'seat-south',
+      { thrown: ['north', 'east', 'west'], mark: true, pack: true },
     ],
     ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
     // The PID-236 panel, and Classic's end: the hand's 16 cards (PID-332).
@@ -6314,6 +6336,7 @@ async function assertTwoRows(page, testCase, viewport) {
     faces = {},
     killed = [],
     mark = false,
+    pack: dealing = false,
   } = testCase.twoRows;
   const rels = ['north', 'east', 'south', 'west'];
   const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
@@ -6410,8 +6433,16 @@ async function assertTwoRows(page, testCase, viewport) {
     );
     handRows.push({ ...row, height: Math.min(row.height, viewport.height - row.y) });
   }
+  // The dealer's pack beside them (PID-394), on screen like a seat.
+  const pack = await images('dealer-pack');
+  const packs = pack.length ? [union("the dealer's pack", pack)] : [];
+  assert.ok(
+    !dealing || packs.length,
+    `${testCase.name}: the dealer's pack shows in ${viewport.name}`
+  );
+  for (const box of packs) assertInsideViewport(`${testCase.name} ${box.label}`, box, viewport);
   // Each thing is one or more rectangles: a seat's badges apart from it.
-  const table = [...seats, ...[...handRows, ...fronts].map((b) => [b])];
+  const table = [...seats, ...[...handRows, ...fronts, ...packs].map((b) => [b])];
   if (mark) {
     const center = await page.getByTestId('table-trick-center').boundingBox();
     const size = cardSize(viewport.width, viewport.height) * TRUMP_MARK;
@@ -6467,6 +6498,7 @@ async function assertTwoRows(page, testCase, viewport) {
     for (const b of [
       ...handRows,
       ...fronts,
+      ...packs,
       ...(w.label === 'hand-result-panel' ? [] : seats.flat()),
     ])
       assert.ok(
@@ -6608,6 +6640,7 @@ async function assertUpright(page, testCase, viewport) {
     mark = false,
     ended = result,
     piles,
+    pack: dealing = false,
   } = testCase.upright;
   const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
   const union = (label, boxes) => {
@@ -6658,6 +6691,14 @@ async function assertUpright(page, testCase, viewport) {
     }
     const throws = await images(`second-deal-thrown-${rel}`);
     if (throws.length) table.push([union(`${rel}'s throw`, throws)]);
+  }
+  // The dealer's pack beside them (PID-394).
+  const pack = await images('dealer-pack');
+  const packBox = pack.length ? union("the dealer's pack", pack) : null;
+  assert.ok(!dealing || packBox, `${testCase.name}: the dealer's pack shows in ${viewport.name}`);
+  if (packBox) {
+    assertInsideViewport(`${testCase.name} ${packBox.label}`, packBox, viewport);
+    table.push([packBox]);
   }
   // A seat's cards in a trick lie as one pile.
   const cards = sprites.filter((s) => s.kind === 'played');
@@ -6731,13 +6772,13 @@ async function assertUpright(page, testCase, viewport) {
       `${testCase.name}: ${a.label} overlaps ${b.label} in ${viewport.name}: ${JSON.stringify({ a, b })}`
     );
   const windows = [];
-  for (const id of ['bidding-window', 'hand-result-panel']) {
+  for (const id of ['bidding-window', 'trump-picker', 'hand-result-panel']) {
     const node = page.getByTestId(id);
     if (await node.count()) windows.push(named(id, await getStableBox(node.first(), page)));
   }
   if (result) assert.equal(windows.length, 1, `${testCase.name}: the hand result shows`);
   for (const w of windows)
-    for (const b of [hand ?? dock, dock])
+    for (const b of [hand ?? dock, dock, ...(packBox ? [packBox] : [])])
       assert.ok(gap(w, b) >= 0, `${testCase.name}: ${w.label} overlaps ${b.label}`);
 }
 
@@ -9041,7 +9082,7 @@ async function main() {
           return [
             'portrait',
             'small-portrait',
-            ...(testCase.upright.piles ? ['android-portrait'] : []),
+            ...(testCase.upright.piles || testCase.upright.pack ? ['android-portrait'] : []),
           ].includes(viewport.name);
         if (testCase.newTableFixture)
           return [

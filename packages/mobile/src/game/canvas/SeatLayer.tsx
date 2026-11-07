@@ -58,6 +58,8 @@ import {
   type TableLayout,
   northFanTop,
   packSpot,
+  packLayers,
+  PACK_STEP,
   northFanStep,
   sideStackStep,
   pileCardW,
@@ -178,6 +180,8 @@ type Props = {
   quiet?: boolean;
   /** Level chips show; off from the deal until the hand ends (PID-334). */
   levels?: boolean;
+  /** Cards in the dealer's pack beside them (PID-394). */
+  pack?: number;
   /** The second deal playing out: the pack, what each seat threw. */
   secondDeal?: SecondDealShow;
   /** Killed trumps, face up in front of the seat that killed them (PID-306). */
@@ -207,6 +211,7 @@ export function SeatLayer({
   onProfile,
   quiet = false,
   levels = true,
+  pack: packCount = 0,
   secondDeal,
   killed,
   layDown,
@@ -352,9 +357,27 @@ export function SeatLayer({
     : L.sides.cy;
   // Tight side seats keep their dealer chip, on the avatar's outer corner, on screen.
   const sideInset = tight ? PidroSpacing.sm : portrait ? 0 : 12;
-  // New backs fly in from the pack in the second deal, from the middle in the first.
-  const pack = packSpot(L);
-  const from = secondDeal ? pack : { x: L.felt.cx, y: L.felt.cy };
+  // Both deals' backs fly in from the pack beside the dealer (PID-394).
+  const dealer = dealerRel ?? 'south';
+  const from = packSpot(L, dealer);
+  const packBackW = northBackWidth(L.cardW, compactNorth(L));
+  // The rob: the rest of the pack slides to the dealer's backs, or your hand.
+  const sideEdge = (rel: 'east' | 'west') => {
+    const edge = rel === 'east' ? insets.right : insets.left;
+    const inset = edge > 0 ? edge : -Math.min(L.cardW * 0.28, 18);
+    const half = (sideBackW * (110 / 78)) / 2;
+    return rel === 'west' ? inset + half : width - inset - half;
+  };
+  const dealerBacks =
+    dealer === 'north'
+      ? {
+          x: width / 2 - northShift,
+          y: northBackTop + (northBackWidth(L.cardW, compactNorth(L)) * (110 / 78)) / 2,
+        }
+      : dealer === 'south'
+        ? { x: L.hand.cx, y: L.hand.cy }
+        : { x: sideEdge(dealer), y: sideStackCy };
+  const taken = secondDeal?.taken ?? 0;
 
   return (
     <View style={[StyleSheet.absoluteFill, quiet && styles.quiet]} pointerEvents="box-none">
@@ -380,12 +403,14 @@ export function SeatLayer({
           />
         </View>
       ) : null}
-      {secondDeal && secondDeal.pack > 0 ? (
+      {packCount > 0 || taken > 0 ? (
         <Pack
-          count={secondDeal.pack}
-          backW={northBackWidth(L.cardW, compactNorth(L))}
-          cx={pack.x}
-          cy={pack.y}
+          count={packCount || taken}
+          backW={packBackW}
+          cx={from.x}
+          cy={from.y}
+          sideways={from.sideways}
+          to={packCount > 0 ? null : dealerBacks}
         />
       ) : null}
       {REL.map((rel) => {
@@ -687,8 +712,8 @@ export function SeatLayer({
                   compact={compactNorth(L)}
                   held={held}
                   dealing={dealing}
-                  originX={secondDeal ? from.x - (width / 2 - northShift) : northShift}
-                  originY={(secondDeal ? from.y : L.trick.cy) - northBackTop}
+                  originX={from.x - (width / 2 - northShift)}
+                  originY={from.y - northBackTop}
                 />
               </View>
               <View
@@ -870,34 +895,74 @@ function BacksStackV({
 }
 
 /**
- * The pack while the dealer deals from it: thicker the more it holds. Each
- * card sits a touch off square, fixed by its place in the pack, so it looks
- * handled rather than machine-stacked and never wobbles between frames.
+ * The pack beside the dealer while they deal from it: thicker the more it
+ * holds (`packLayers`). Each card sits a touch off square, fixed by its place
+ * in the pack, so it looks handled rather than machine-stacked and never
+ * wobbles between frames. `sideways` turns each back a quarter, as a side
+ * stack's. Given `to`, the dealer takes it: one slide there.
  */
-function Pack({ count, backW, cx, cy }: { count: number; backW: number; cx: number; cy: number }) {
+function Pack({
+  count,
+  backW,
+  cx,
+  cy,
+  sideways,
+  to,
+}: {
+  count: number;
+  backW: number;
+  cx: number;
+  cy: number;
+  sideways: boolean;
+  to: { x: number; y: number } | null;
+}) {
   const h = backW * (110 / 78);
-  const layers = Math.min(count, 16);
+  const [fw, fh] = sideways ? [h, backW] : [backW, h];
+  const step = backW * PACK_STEP;
   const pose = (i: number) => heldPose('tilt', `pack-${i}`, 0);
+  const tx = useSharedValue(0);
+  const ty = useSharedValue(0);
+  const opacity = useSharedValue(1);
+  const toX = to?.x;
+  const toY = to?.y;
+  useEffect(() => {
+    if (toX == null || toY == null) {
+      tx.value = 0;
+      ty.value = 0;
+      opacity.value = 1;
+      return;
+    }
+    const config = { duration: SECOND_DEAL_FLIGHT_MS, easing: Easing.inOut(Easing.cubic) };
+    tx.value = withTiming(toX - cx, config);
+    ty.value = withTiming(toY - cy, config);
+    // It fades into the dealer's own backs as it reaches them.
+    const fade = SECOND_DEAL_FLIGHT_MS * 0.4;
+    opacity.value = withDelay(SECOND_DEAL_FLIGHT_MS - fade, withTiming(0, { duration: fade }));
+  }, [toX, toY, cx, cy, tx, ty, opacity]);
+  const motion = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateX: tx.value }, { translateY: ty.value }],
+  }));
   return (
-    <View
-      testID="second-deal-pack"
+    <Animated.View
+      testID="dealer-pack"
       pointerEvents="none"
       accessibilityElementsHidden
-      style={{ position: 'absolute', left: cx - backW / 2, top: cy - h / 2 }}>
-      {Array.from({ length: layers }, (_, i) => (
+      style={[{ position: 'absolute', left: cx - fw / 2, top: cy - fh / 2 }, motion]}>
+      {Array.from({ length: packLayers(count) }, (_, i) => (
         <Back
           key={i}
           w={backW}
           h={h}
           style={{
             position: 'absolute',
-            left: i * 0.6 + pose(i).dy * 1.2,
-            top: -i * 1.1,
-            transform: [{ rotate: `${pose(i).tilt * 2.2}deg` }],
+            left: (fw - backW) / 2 + i * step * 0.55 + pose(i).dy * 1.2,
+            top: (fh - h) / 2 - i * step,
+            transform: [{ rotate: `${(sideways ? 90 : 0) + pose(i).tilt * 2.2}deg` }],
           }}
         />
       ))}
-    </View>
+    </Animated.View>
   );
 }
 

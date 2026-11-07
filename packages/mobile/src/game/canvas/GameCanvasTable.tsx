@@ -273,6 +273,7 @@ function TimedSeatLayer({
   onProfile,
   quiet,
   levels,
+  pack,
   secondDeal,
   killed,
   layDown,
@@ -292,6 +293,7 @@ function TimedSeatLayer({
   onProfile: (playerId: string | null, persona?: BotPersona | null) => void;
   quiet: boolean;
   levels: boolean;
+  pack: ComponentProps<typeof SeatLayer>['pack'];
   secondDeal: ComponentProps<typeof SeatLayer>['secondDeal'];
   killed: ComponentProps<typeof SeatLayer>['killed'];
   layDown: ComponentProps<typeof SeatLayer>['layDown'];
@@ -327,6 +329,7 @@ function TimedSeatLayer({
       nudge={nudge}
       quiet={quiet}
       levels={levels}
+      pack={pack}
       secondDeal={secondDeal}
       killed={killed}
       layDown={layDown}
@@ -833,6 +836,7 @@ export function GameCanvasTable({
             onProfile={onFace}
             quiet={handResult.result != null && !classicEnd}
             levels={controller.phase === 'dealer_selection' || isGameOver}
+            pack={model.pack}
             secondDeal={model.secondDealShow}
             killed={model.killed}
             layDown={model.layDown}

@@ -21,8 +21,10 @@ export type Counts = Partial<Record<RelativePosition, number>>;
 
 /** What the table shows while the second deal plays out. */
 export type SecondDealShow = {
-  /** Cards still in the pack in the middle. */
+  /** Cards still in the pack beside the dealer. */
   pack: number;
+  /** The rest of the pack, sliding to the dealer as they take it (PID-394). */
+  taken?: number;
   /** Cards each player has thrown in front of them, face down. */
   thrown: Counts;
   /** The faces of a pile only its thrower sees: yours, when you deal (PID-307). */
@@ -95,7 +97,9 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
     hand[rel] = DEALT;
     thrown[rel] = 0;
   }
-  let pack = 0;
+  // The pack lies beside the dealer from the first deal (PID-394).
+  let pack = dealt + rest;
+  let taken = 0;
   const push = (ms: number) =>
     frames.push({
       hand: { ...hand },
@@ -103,6 +107,7 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
       out: { ...out },
       drawn: { ...given },
       pack,
+      taken,
       ms,
     });
 
@@ -115,9 +120,8 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
     hand[rel] = kept[rel] ?? DEALT;
     push(index === players.length - 1 ? t.holdMs : t.throwGapMs);
   });
-  // The piles clear; the pack waits in its corner.
+  // The piles clear.
   for (const rel of players) thrown[rel] = 0;
-  pack = dealt + rest;
   push(t.packMs);
   // The dealer gives each player their cards, one at a time.
   const receiving = players.filter((rel) => (drawn[rel] ?? 0) > 0);
@@ -132,12 +136,14 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
       push(between ? t.cardMs + t.seatGapMs : t.cardMs);
     }
   });
-  // The dealer takes the rest, unseen: their hand keeps its look until they
-  // throw. A server that counts throws (PID-306) shows the dealer's last.
+  // The dealer takes the rest, a short slide to their hand, unseen: it keeps
+  // its look until they throw. A server that counts throws (PID-306) shows
+  // the dealer's last.
+  taken = pack;
   pack = 0;
   push(t.robMs);
   if (players.some((rel) => model.seats[rel]?.discarded != null)) {
-    frames.push({ ...frames[frames.length - 1], dealerThrew: true, ms: t.dealerHoldMs });
+    frames.push({ ...frames[frames.length - 1], taken: 0, dealerThrew: true, ms: t.dealerHoldMs });
   }
   return { frames, yourThrown, yourDrawn };
 }
@@ -157,7 +163,7 @@ export function showAt(frame: Frame, model: TableModel, dealt: Card[] | null): S
     if (dealer === 'south' && dealt && dealt.length > 0 && dealt.length === thrown.south)
       faces.south = dealt;
   }
-  return { pack: frame.pack, thrown, faces };
+  return { pack: frame.pack, taken: frame.taken, thrown, faces };
 }
 
 /** The cards you threw as dealer: the pool you were shown less the six you kept. */

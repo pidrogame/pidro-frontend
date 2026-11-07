@@ -21,6 +21,8 @@ import {
   northFanTop,
   northFanWidth,
   northSeatBottom,
+  packLayers,
+  PACK_STEP,
   packSpot,
   pileCardW,
   pileSpacing,
@@ -215,12 +217,48 @@ describe('side stacks and the hand', () => {
 
   it('keeps the second-deal pack off your hand where the table has room below it', () => {
     const L = computeLayout(430, 932, { top: 59, bottom: 34, left: 0, right: 0 }, 60, 72);
-    const pack = packSpot(L);
+    const pack = packSpot(L, 'south');
     const packH = (Math.min(Math.max(L.cardW * 0.8, 36), 68) * 110) / 78;
     const handBottom = L.hand.cy + (L.cardH * handScale(L.profile)) / 2;
     expect(pack.y - packH / 2).toBeGreaterThanOrEqual(handBottom);
     expect(pack.y + packH / 2).toBeLessThanOrEqual(L.bottom);
   });
+
+  // PID-394: North deals from beside its fan, a full hand's, its top back
+  // level with the fan; a full pack of 52 still under the header row and on
+  // screen. Landscape phones seat North right of the fan: the pack lies left
+  // of it, above North's front row.
+  for (const [width, height, insets] of [
+    [360, 780, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [768, 1024, { top: 24, bottom: 20, left: 0, right: 0 }],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [640, 360, { top: 0, bottom: 0, left: 0, right: 59 }],
+  ]) {
+    it(`lays North's pack beside its fan on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, height > width ? 60 : 0, 0);
+      const compact = compactNorth(L);
+      const w = northBackWidth(L.cardW, compact);
+      const h = w * (110 / 78);
+      const rise = (count) => (packLayers(count) - 1) * w * PACK_STEP;
+      const pack = packSpot(L, 'north');
+      const fan = northFanWidth(L.cardW, 9, compact);
+      const fanTop = northFanTop(L, insets.top + (height > width ? 60 : 0));
+      const shift = L.front ? landscapeNorthShift(L, insets, 9) : 0;
+      expect(pack.y - h / 2 - rise(16)).toBeCloseTo(fanTop);
+      expect(pack.y - h / 2 - rise(52)).toBeGreaterThanOrEqual(L.top);
+      if (L.front) {
+        expect(pack.x + w / 2 + rise(52) * 0.55).toBeLessThanOrEqual(
+          width / 2 - shift - fan / 2 - 12 + 0.01
+        );
+        expect(pack.y + h / 2).toBeLessThanOrEqual(L.front.north.y - L.cardH / 2 - 12);
+      } else {
+        expect(pack.x - w / 2).toBeGreaterThanOrEqual(width / 2 + fan / 2 + 12 - 0.01);
+        expect(pack.x + w / 2 + rise(52) * 0.55).toBeLessThanOrEqual(width - insets.right - 4);
+      }
+    });
+  }
 
   it('puts the left edge of a fuller hand further left', () => {
     const layout = computeLayout(844, 390, none);

@@ -931,6 +931,7 @@ function TableDevHarness() {
             room={params.names === 'long' ? DRAW_LONG_ROOM : DRAW_ROOM}
             held={params.hand === 'still' || params.hand === 'fan' ? params.hand : 'tilt'}
             youDeal={params.you === 'deal'}
+            dealer={params.dealer === 'north' || params.dealer === 'east' ? params.dealer : 'west'}
             kill={params.kill === '1'}
           />
         </FixtureInsets>
@@ -1942,8 +1943,9 @@ function RolePreview({
  * `deal=draw`: the second deal on a loop, as the server sends it. Trump is
  * named with everyone holding nine; the next snapshot is the hand ready to
  * play (the second deal and the dealer's pick done), and play waits for the
- * table to play the second deal out. Then it deals again. `you=deal` has you
- * deal; `kill=1` has East kill a trump over six. Every throw is counted, the
+ * table to play the second deal out. Then it deals again. West deals;
+ * `dealer=north|east` another seat (PID-394), `you=deal` you. `kill=1` has
+ * East kill a trump over six. Every throw is counted, the
  * dealer's once play starts (PID-306). Tune opens the second deal's timings; the link takes them too
  * (`holdMs=3000&cardMs=230`…).
  */
@@ -1951,17 +1953,19 @@ function DrawCountPreview({
   room,
   held,
   youDeal,
+  dealer: otherDealer,
   kill,
 }: {
   room: Room;
   held: HeldStyle;
   youDeal: boolean;
+  dealer: 'north' | 'east' | 'west';
   kill: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
   const counts = youDeal ? DRAW_COUNTS_YOU_DEAL : kill ? DRAW_COUNTS_KILL : DRAW_COUNTS;
-  const dealer: Position = youDeal ? 'south' : 'west';
+  const dealer: Position = youDeal ? 'south' : otherDealer;
   const dealt = (['north', 'east', 'south', 'west'] as const)
     .filter((position) => position !== dealer)
     .reduce((sum, position) => sum + counts[position].drawn, 0);

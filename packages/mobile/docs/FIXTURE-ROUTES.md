@@ -55,7 +55,10 @@ Throws are backs for everyone, the thrower included, as many as each player
 threw; the dealer alone sees the pool they took up less the six they kept face
 up for `dealerHoldMs`, everyone else as many backs as the server's
 `discarded_count` (PID-307). A server without it shows no dealer's throw.
-`you=deal` has you deal; `kill=1` has East keep seven trumps and kill the
+The dealer deals from a pack beside them (PID-394): the first deal leaves it
+16, it rests through bidding and the trump call, counts down as the dealer
+gives, and slides to the dealer as they take the rest. West deals unless
+`dealer=north|east`; `you=deal` has you deal; `kill=1` has East keep seven trumps and kill the
 queen, face up in East's front row for everyone until the first card lands
 (`killed_cards`); `hand=still|tilt|fan` tries how hands hold their
 cards. **Tune** opens live timings (each change replays); the link takes the

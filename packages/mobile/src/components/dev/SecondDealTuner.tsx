@@ -26,7 +26,7 @@ type Timing = Record<string, number>;
 const SECOND_DEAL_ROWS: Row[] = [
   { key: 'throwGapMs', label: 'Between throws', step: 50 },
   { key: 'holdMs', label: 'Piles to count', step: 250 },
-  { key: 'packMs', label: 'Piles clear, pack', step: 50 },
+  { key: 'packMs', label: 'Piles clear', step: 50 },
   { key: 'cardMs', label: 'Each dealt card', step: 20 },
   { key: 'seatGapMs', label: 'Between players', step: 50 },
   { key: 'robMs', label: 'Dealer takes rest', step: 50 },

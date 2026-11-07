@@ -11,7 +11,7 @@
  * onPlayCard. Model diffs include the local pending-play presentation, with
  * the cold-load rule: the first model snaps into place, only
  * later diffs animate. M3 adds, all diff-triggered:
- *   • deal-in   — hand grows from empty → stagger from a deck origin w/ overshoot
+ *   • deal-in   — hand grows from empty → stagger from the dealer's pack w/ overshoot
  *   • history   — completed tricks keep stable slots for the server's round history
  *   • trump     — null→suit pops the trump glyph (exposed via `trumpPop`)
  *   • reflow    — layout change tweens sprites to new slots (falls out of the effect)
@@ -304,10 +304,8 @@ export function useCardSprites({
       );
     }
 
-    // Second-deal cards come from the pack in its corner; the first deal from the middle.
-    const pack = model.secondDealShow ? packSpot(L) : null;
-    const deckX = pack?.x ?? L.felt.cx;
-    const deckY = pack?.y ?? L.trick.cy;
+    // Both deals come from the pack beside the dealer (PID-394).
+    const { x: deckX, y: deckY } = packSpot(L, model.dealerRelative ?? 'south');
 
     type Desired = {
       key: string;

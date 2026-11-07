@@ -68,6 +68,17 @@ describe('the second deal at Classic’s pace', () => {
     expect(beats[4].pack).toBe(16);
   });
 
+  // PID-394: the pack lies beside the dealer from the first throw; the dealer
+  // takes the four left after the twelve dealt, which slide to them.
+  it('keeps the pack beside the dealer through the throws, counts it down, and has the dealer take the rest', () => {
+    expect(beats.slice(0, 5).map((frame) => frame.pack)).toEqual([16, 16, 16, 16, 16]);
+    expect(beats.slice(5, -1).map((frame) => frame.pack)).toEqual([
+      15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4,
+    ]);
+    expect(beats.slice(0, -1).every((frame) => !frame.taken)).toBe(true);
+    expect(beats.at(-1)).toMatchObject({ pack: 0, taken: 4, ms: secondDealTiming.robMs });
+  });
+
   it('deals one card at a time, player by player, and the dealer takes the rest', () => {
     const order = beats.slice(5, -1).map((frame, i, all) => {
       const before = i === 0 ? {} : all[i - 1].drawn;
@@ -129,6 +140,9 @@ describe('the second deal from a server that counts every throw (PID-306)', () =
   it('ends on the dealer’s throw, after everyone else’s, and takes as long as counted', () => {
     const total = plan.frames.reduce((sum, frame) => sum + frame.ms, 0);
     expect(total).toBe(secondDealDurationMs(12));
+    // The rest of the pack has reached the dealer by then.
+    expect(showAt(plan.frames.at(-2), model, null)).toMatchObject({ pack: 0, taken: 4 });
+    expect(showAt(plan.frames.at(-1), model, null)).toMatchObject({ pack: 0, taken: 0 });
     expect(plan.frames.map((frame) => !!frame.dealerThrew)).toEqual([
       ...Array(plan.frames.length - 1).fill(false),
       true,

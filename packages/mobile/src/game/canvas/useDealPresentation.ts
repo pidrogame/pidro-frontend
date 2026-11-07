@@ -75,6 +75,8 @@ export function useDealPresentation(
     seats,
     yourHand: step === 13 ? model.yourHand : model.dealtHand.slice(0, counts.south),
     canPlay: false,
+    // The pack beside the dealer gives what has flown (PID-394).
+    pack: 52 - Object.values(counts).reduce((sum, n) => sum + n, 0),
     dealStage: step === 13 ? 'sorting' : 'dealing',
   };
 }

@@ -177,6 +177,7 @@ export function useSecondDealPresentation(
     yourHand,
     canPlay: false,
     dealStage: 'dealing',
+    pack: show.pack,
     secondDealShow: show,
     killed: {},
   };

@@ -58,6 +58,10 @@ export type TableLayout = {
   sides: { cy: number };
   seats: Record<RelativePosition, Seat>;
   hand: { cx: number; cy: number; maxWidth: number };
+  /** The table's top edge: under the safe top and, upright, the header row. */
+  top: number;
+  /** The safe-area insets it was laid out in. */
+  insets: Insets;
   /** The table's lowest edge: above the home indicator and anything docked under it. */
   bottom: number;
 };
@@ -91,28 +95,68 @@ export const northBackWidth = (cardW: number, compact = false) =>
  * side stacks: its row is shared with the name, chip and menu.
  */
 export const compactNorth = (L: Pick<TableLayout, 'profile'>) => L.profile === 'phone-landscape';
+/** What is left of the deck once everyone holds nine, as `SECOND_DEAL_PACK`. */
+const PACK_REST = 52 - 36;
 /**
- * Where the pack waits in the second deal: the bottom-right corner, under the
- * right end of your hand and clear of East's stack, out of the middle where
- * the thrown piles land, so it never covers your cards. Where the table has
- * no room below the hand (landscape, the shortest phones) it rises only as
- * far as it must, at worst back beside the hand. Landscape phones keep it
- * right of the hand, level with it, below East's front row. Its center; the
- * pack's backs are North's size.
+ * The backs a pack of `count` draws: one a card up to the sixteen left for the
+ * second deal, then one for every six more, so the first deal's pack thins too.
  */
-export function packSpot(L: TableLayout) {
-  const w = northBackWidth(L.cardW, compactNorth(L));
+export const packLayers = (count: number) =>
+  Math.min(count, PACK_REST) + Math.ceil(Math.max(0, count - PACK_REST) / 6);
+/** Each back in the pack lies this far above the one under it, as a share of its width, and about half that to the right. */
+export const PACK_STEP = 0.016;
+/** How far a pack of `count` rises above its bottom back. */
+const packRise = (backW: number, count: number) => (packLayers(count) - 1) * backW * PACK_STEP;
+/**
+ * Where the dealer's pack lies, from the first card dealt to the rob
+ * (PID-394): beside the dealer, so the deal says who deals. Its bottom back's
+ * centre, and whether it lies sideways; the rest of it rises above, its backs
+ * North's size. North's lies right of its full fan, its top back level with
+ * the fan's; on landscape phones, where North's seat is there, left of it,
+ * and on landscape tablets, whose ticker runs there, under North's seat.
+ * Yours waits in the bottom-right corner, under the right end of your hand and
+ * clear of East's stack; where the table has no room for it there upright (the
+ * shortest phones), it lies sideways. Landscape keeps it right of the hand,
+ * level with it, below East's front row.
+ */
+export function packSpot(L: TableLayout, dealer: RelativePosition) {
+  const portrait = L.profile.endsWith('portrait');
+  const compact = compactNorth(L);
+  const w = northBackWidth(L.cardW, compact);
   const h = w * CARD_RATIO;
-  if (L.front)
+  const full = packRise(w, 52);
+  if (dealer === 'north') {
+    // The fan moves left on the narrowest landscape phones, never further than its full hand's.
+    const fan = northFanWidth(L.cardW, FULL_HAND, compact);
+    const cx = L.width / 2 - (portrait ? 0 : landscapeNorthShift(L, L.insets, FULL_HAND));
+    const level = northFanTop(L, L.top) + packRise(w, PACK_REST) + h / 2;
+    if (portrait) return { x: cx + fan / 2 + TRICK_GAP + w / 2, y: level, sideways: false };
+    if (L.front)
+      return { x: cx - fan / 2 - TRICK_GAP - full * 0.55 - w / 2, y: level, sideways: false };
+    const seatBottom = L.top + 8 + AVATAR_SIZE[L.profile] + LEVEL_HANG;
+    return {
+      x: cx + fan / 2 + TRICK_GAP + w / 2,
+      y: seatBottom + TRICK_GAP + full + h / 2,
+      sideways: false,
+    };
+  }
+  if (!portrait)
     return {
       x: Math.min(L.hand.cx + L.hand.maxWidth / 2 + 8 + w / 2, L.width - w / 2 - 12),
       y: Math.min(L.hand.cy, L.bottom - h / 2 - 4),
+      sideways: false,
     };
-  const beside = L.hand.cy + L.cardH * 0.45;
-  const below = L.hand.cy + (L.cardH * handScale(L.profile)) / 2 + 10 + h / 2;
+  const below = L.hand.cy + (L.cardH * handScale(L.profile)) / 2 + 10 + full;
+  if (below + h + 4 <= L.bottom)
+    return {
+      x: Math.min(L.hand.cx + L.hand.maxWidth / 2 - w / 2 + 8, L.width - w / 2 - 12),
+      y: below + h / 2,
+      sideways: false,
+    };
   return {
-    x: Math.min(L.hand.cx + L.hand.maxWidth / 2 - w / 2 + 8, L.width - w / 2 - 12),
-    y: Math.max(beside, Math.min(below, L.bottom - h / 2 - 4)),
+    x: Math.min(L.hand.cx + L.hand.maxWidth / 2 - h / 2 + 8, L.width - h / 2 - full * 0.55 - 4),
+    y: L.bottom - 2 - w / 2,
+    sideways: true,
   };
 }
 /**
@@ -1057,6 +1101,8 @@ export function computeLayout(
     tight,
     sides: { cy: sideCy },
     seats,
+    top: tableTop,
+    insets,
     bottom: tableBottom,
     hand: portrait
       ? { cx, cy: handY, maxWidth: width - insets.left - insets.right - 32 }

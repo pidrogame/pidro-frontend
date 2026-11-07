@@ -25,6 +25,8 @@ import type { GameTableController } from '@/game/useGameTableController';
 import { isTrumpCard, sortCards } from '@/utils/cards';
 import { cardKey, type CardKey } from './cardKey';
 import type { SecondDealShow } from './useSecondDealPresentation';
+import { BEFORE } from './secondDealPlan';
+import { SECOND_DEAL_PACK } from './animationTiming';
 import type { LayDownShow } from './useLayDownPresentation';
 import type { HeldStyle } from './layout';
 
@@ -115,6 +117,12 @@ export type TableModel = {
   yourTeam: TeamKey | null;
   /** How your hand holds its cards; fixtures try the styles. */
   held?: HeldStyle;
+  /**
+   * Cards in the dealer's pack beside them (PID-394): what the first deal has
+   * yet to give, the sixteen left through bidding and the trump call, then
+   * the second deal's countdown. 0 once the dealer has taken the rest.
+   */
+  pack?: number;
   /** The second deal playing out (`useSecondDealPresentation`). */
   secondDealShow?: SecondDealShow;
   /** Trumps killed over six, face up for everyone, by the seat that killed them (PID-306). */
@@ -381,6 +389,7 @@ export function buildTableModel(input: TableModelInput): TableModel {
     transitionDelayMs: input.transitionDelayMs,
     trumpSuit,
     dealerRelative: input.dealerRelative ?? null,
+    pack: BEFORE.has(input.phase) ? SECOND_DEAL_PACK : 0,
     seats,
     yourHand,
     dealtHand:
