@@ -115,7 +115,7 @@ if (verdict === 'build') {
     '',
     ...reasons.map((reason) => `- \`${reason}\``),
     '',
-    'Bump `version` in app.json and ship a beta build; updates resume on top of it.'
+    'Bump `version` in app.json, then follow docs/store-builds.md on both platforms the same day; updates resume on top of it.'
   );
 }
 
