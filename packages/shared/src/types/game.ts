@@ -158,6 +158,17 @@ export interface ServerLastHand extends ServerHandSummary {
   /** The finished hand itself (PID-221), final trick included; absent from older servers. */
   bids?: ServerBid[];
   tricks?: ServerTrick[];
+  /**
+   * One player alone held trumps and laid the rest down (PID-366): their
+   * cards, highest first, the order laid. `tricks` still holds them as
+   * one-card tricks. Null when the hand ended by play; absent from older servers.
+   */
+  settled?: ServerSettledHand | null;
+}
+
+export interface ServerSettledHand {
+  position: Position;
+  cards: Card[];
 }
 
 export interface ServerGameState {
