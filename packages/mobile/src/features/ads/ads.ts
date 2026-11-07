@@ -13,6 +13,8 @@ export type RewardedResult = 'earned' | 'dismissed' | 'unavailable';
 const LOAD_TIMEOUT_MS = 15_000;
 let started: Promise<void> | null = null;
 let loaded: RewardedAd | null = null;
+// Bumped by resetAds, so a load still in flight from before never becomes the loaded ad.
+let generation = 0;
 let lastError: string | null = null;
 
 function unitId(): string | undefined {
@@ -46,12 +48,12 @@ function unavailable(error: unknown): 'unavailable' {
 export async function startAds(): Promise<'started' | 'unavailable'> {
   lastError = null;
   if (!adsAvailable()) return unavailable(new Error('Ads are not configured in this build'));
-  const { default: mobileAds, MaxAdContentRating } = sdk();
-  started ??= mobileAds()
-    .setRequestConfiguration({ maxAdContentRating: MaxAdContentRating.PG })
-    .then(() => mobileAds().initialize())
-    .then(() => undefined);
   try {
+    const { default: mobileAds, MaxAdContentRating } = sdk();
+    started ??= mobileAds()
+      .setRequestConfiguration({ maxAdContentRating: MaxAdContentRating.PG })
+      .then(() => mobileAds().initialize())
+      .then(() => undefined);
     await started;
     return 'started';
   } catch (error) {
@@ -63,8 +65,8 @@ export async function startAds(): Promise<'started' | 'unavailable'> {
 /** Google's consent flow (UMP); resolves whether ads may be requested. */
 export async function ensureAdsConsent(): Promise<boolean> {
   if (!adsAvailable()) return false;
-  const { AdsConsent } = sdk();
   try {
+    const { AdsConsent } = sdk();
     await AdsConsent.requestInfoUpdate();
     return (await AdsConsent.loadAndShowConsentFormIfRequired()).canRequestAds;
   } catch (error) {
@@ -84,10 +86,32 @@ export async function showAdsPrivacyOptions(): Promise<'shown' | 'unavailable'> 
   }
 }
 
+/** Whether Google requires a way back into the consent choices (PID-119). Asks, never shows. */
+export async function adsPrivacyOptionsRequired(): Promise<boolean> {
+  if (!adsAvailable()) return false;
+  try {
+    const { AdsConsent, AdsConsentPrivacyOptionsRequirementStatus } = sdk();
+    // The status is unknown in a new session until the consent info is updated.
+    const info = await AdsConsent.requestInfoUpdate();
+    return (
+      info.privacyOptionsRequirementStatus === AdsConsentPrivacyOptionsRequirementStatus.REQUIRED
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** Drops a loaded ad nobody will watch: a closed sheet, another account, no longer eligible. */
+export function resetAds() {
+  generation += 1;
+  loaded = null;
+}
+
 export async function loadRewarded(): Promise<'loaded' | 'unavailable'> {
   const unit = unitId();
   if (!unit) return 'unavailable';
   lastError = null;
+  const mine = generation;
   const { RewardedAd, RewardedAdEventType, AdEventType } = sdk();
   const ad = RewardedAd.createForAdRequest(unit, { requestNonPersonalizedAdsOnly: true });
   const result = await new Promise<'loaded' | Error>((resolve) => {
@@ -107,6 +131,7 @@ export async function loadRewarded(): Promise<'loaded' | 'unavailable'> {
     }
   });
   if (result !== 'loaded') return unavailable(result);
+  if (mine !== generation) return 'unavailable';
   loaded = ad;
   return 'loaded';
 }

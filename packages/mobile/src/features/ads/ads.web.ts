@@ -9,5 +9,7 @@ export const lastAdError: typeof Ads.lastAdError = () => 'Ads need a phone';
 export const startAds: typeof Ads.startAds = unavailable;
 export const ensureAdsConsent: typeof Ads.ensureAdsConsent = async () => false;
 export const showAdsPrivacyOptions: typeof Ads.showAdsPrivacyOptions = unavailable;
+export const adsPrivacyOptionsRequired: typeof Ads.adsPrivacyOptionsRequired = async () => false;
+export const resetAds: typeof Ads.resetAds = () => {};
 export const loadRewarded: typeof Ads.loadRewarded = unavailable;
 export const showRewarded: typeof Ads.showRewarded = unavailable;

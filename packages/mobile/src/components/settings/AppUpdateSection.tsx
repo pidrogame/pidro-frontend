@@ -12,6 +12,7 @@ import { APP_CONFIG } from '@/constants/config';
 import { PidroSpacing } from '@/design/tokens';
 import { useTranslation, type TranslationKey } from '@/i18n';
 import { useGameStore } from '@/stores/game';
+import { PrivacyChoicesRow } from './PrivacyChoicesRow';
 import { showTestAdRow, TestAdRow } from './TestAdRow';
 
 export function AppUpdateSection() {
@@ -161,6 +162,7 @@ export function AppUpdateSection() {
           onPress={handleUpdate}
         />
       )}
+      <PrivacyChoicesRow fixture={__DEV__ && fixture === 'privacy-choices'} />
       {showTestAdRow ? <TestAdRow /> : null}
     </Surface>
   );
