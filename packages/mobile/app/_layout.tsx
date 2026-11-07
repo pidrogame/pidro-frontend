@@ -22,8 +22,13 @@ import { useLocaleBootstrap } from '../src/i18n';
 import { PidroColors } from '../src/design/tokens';
 import { useStartupUpdate } from '../src/hooks/useStartupUpdate';
 import { UpdatingScreen } from '../src/components/shell/UpdatingScreen';
+import { configurePurchases, syncPurchasesOnce } from '../src/features/premium/purchases';
+import { usePurchaserIdentity } from '../src/features/premium/usePurchaserIdentity';
+import { listenForPush, registerPushIfGranted } from '../src/features/push/push';
 
 initSentry();
+configurePurchases();
+void syncPurchasesOnce();
 void SplashScreen.preventAutoHideAsync().catch(console.warn);
 void SystemUI.setBackgroundColorAsync(PidroColors.feltBottom).catch(console.warn);
 
@@ -56,9 +61,19 @@ export default function RootLayout() {
   useEffect(() => {
     initRealtime();
   }, []);
+  usePurchaserIdentity();
+
+  const ready = fontsLoaded && authHydrated && ageGateHydrated && localeReady;
+  const routerMounted = ready && !startupUpdate.waiting && !startupUpdate.updating;
+  const userId = user?.id;
+  // Taps open their link once the Stack below is mounted.
+  useEffect(() => (routerMounted ? listenForPush() : undefined), [routerMounted]);
+  // No prompt in this build: only an install that already allows notifications registers.
+  useEffect(() => {
+    if (userId) void registerPushIfGranted(userId);
+  }, [userId]);
 
   if (fontError) throw fontError;
-  const ready = fontsLoaded && authHydrated && ageGateHydrated && localeReady;
 
   return (
     // Keep the native felt mounted through hydration and overlay dismissal.

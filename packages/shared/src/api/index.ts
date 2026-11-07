@@ -78,6 +78,7 @@ export {
   type PaceAnswer,
 } from './feedback';
 export { createNewsApi, type NewsApi, type NewsPage, type NewsPost } from './news';
+export { createPushApi, type PushApi, type PushTokenRequest } from './push';
 export {
   createLeagueApi,
   type LeagueApi,

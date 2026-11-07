@@ -141,6 +141,17 @@ If a feature request implies the client should:
 
 Note: Unlike fast-paced games, Pidro is turn-based, so we don't need client-side prediction or lag compensation. This makes our architecture simpler - pure request/response with server authority.
 
+## Purchases, ads and push
+
+Three thin adapters over the native SDKs that store build 3.3.0 carries:
+`src/features/premium/purchases.ts` (RevenueCat), `src/features/ads/ads.ts` (rewarded
+AdMob) and `src/features/push/push.ts` (expo-notifications). Each is a no-op on web
+and when its keys are missing; env vars, EAS environments and the prebuild check are
+in [`../../docs/native-sdks.md`](../../docs/native-sdks.md). The server owns `premium`
+and the decision to show an ad: nothing in the client reads CustomerInfo to unlock
+anything, and the client shows an ad only when the server asks for one. No ATT prompt
+and no notification-permission prompt exist until a ticket names the moment.
+
 ## Tech Stack
 
 - **Framework**: React Native with Expo SDK 54+

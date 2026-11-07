@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PidroText } from '@/components/ui/PidroText';
 import { Surface } from '@/components/ui/Surface';
 import { PidroSpacing } from '@/design/tokens';
+import { unregisterPush } from '@/features/push/push';
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useAuthStore } from '@/stores/auth';
 import { useTranslation, type TranslationKey } from '@/i18n';
@@ -50,8 +51,11 @@ export function AccountSection() {
 
   useEffect(() => {
     if (!pendingSignOut || busy) return;
-    clearSession();
-    router.replace('/welcome');
+    // The push token goes while the session can still say whose it is.
+    void unregisterPush().finally(() => {
+      clearSession();
+      router.replace('/welcome');
+    });
   }, [pendingSignOut, busy, clearSession, router]);
 
   useFocusEffect(

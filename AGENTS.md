@@ -40,7 +40,8 @@ A diff touching any of these gets an independent review before the push
 - Auth, sessions and Classic claims: `packages/mobile/src/stores/auth.ts`,
   `packages/mobile/src/api/auth.ts`, `packages/mobile/src/api/classic.ts`,
   `packages/mobile/src/features/auth/`, `packages/mobile/app/(auth)/`
-- IAP and entitlements: none in the client yet; any code that adds them
+- IAP, ads and push: `packages/mobile/src/features/{premium,ads,push}/`, the native SDK
+  config in `packages/mobile/app.config.js` ([docs/native-sdks.md](docs/native-sdks.md))
 - Navigation: `packages/mobile/app/_layout.tsx`, `app/(auth)/_layout.tsx`,
   `app/(shell)/_layout.tsx`, `app/index.tsx`, `app/+native-intent.tsx`
 - The socket and channels: `packages/mobile/src/channels/`,
