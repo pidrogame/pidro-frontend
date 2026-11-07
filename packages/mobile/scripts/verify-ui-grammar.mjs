@@ -117,8 +117,9 @@ const tellCases = [
   { name: 'tell-old', path: '/home?fixture=tell-old', testId: 'feedback-ask', tell: 'old' },
   {
     name: 'tell-notice-wins',
-    path: '/home?fixture=store-update-notice',
-    testId: 'update-notice',
+    path: '/home?fixture=popup-update',
+    testId: 'news-popup',
+    popup: 'update',
     tell: 'notice',
     tellViewports: ['portrait'],
   },
@@ -522,6 +523,16 @@ const allCases = [
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
   ...tellCases,
   ...newsCases,
+  ...['en', 'sv'].flatMap((locale) =>
+    ['update', 'image', 'news', 'ios', 'link'].map((popup) => ({
+      name: `popup-${popup}-${locale}`,
+      path: `/home?fixture=popup-${popup}`,
+      testId: 'news-popup',
+      authenticated: true,
+      popup,
+      locale,
+    }))
+  ),
   // PID-295: Marcel's welcome, and PID-316: Settings → Tell us, in both languages.
   ...['en', 'sv'].flatMap((locale) => [
     {
@@ -599,7 +610,7 @@ const allCases = [
     ['home', 'settings'].map((screen) => ({
       name: `store-update-notice-${screen}-${locale}`,
       path: `/${screen}?fixture=store-update-notice&safeArea=island`,
-      testId: 'update-notice',
+      testId: `${screen}-screen`,
       authenticated: true,
       storeNotice: true,
       locale,
@@ -3246,38 +3257,10 @@ async function assertAppUpdate(page, { appUpdate, locale }) {
   await waitForScreenshotReady(page);
 }
 
-// Native store notices remain; the retired OTA fixture must never offer Restart.
-async function assertUpdateNotice(page, name, viewport) {
-  const notice = page.getByTestId('update-notice');
-  if (name.startsWith('store-update-notice-')) {
-    const sv = name.endsWith('-sv');
-    await notice
-      .getByText(sv ? 'En ny version finns i butiken' : 'A new version is in the store')
-      .waitFor();
-    await assertNothingUnderNotice(page, 'Store update', viewport);
-    const open = page.getByTestId('update-notice-store');
-    const dismiss = notice.getByRole('button', { name: sv ? 'Stäng' : 'Dismiss', exact: true });
-    for (const control of [open, dismiss]) {
-      const box = await getStableBox(control, page);
-      assert.ok(box.width >= 44 && box.height >= 44, 'store notice controls are 44pt targets');
-    }
-    await page.evaluate(() => {
-      window.open = (url) => {
-        window.__openedStoreURL = String(url);
-        return null;
-      };
-    });
-    await open.click();
-    await page.waitForFunction(
-      () => window.__openedStoreURL === 'https://example.invalid/pidro-store'
-    );
-    await dismiss.click();
-    await notice.waitFor({ state: 'detached' });
-    return;
-  }
-  if (name.startsWith('update-notice')) {
-    assert.equal(await notice.count(), 0, 'OTA updates no longer offer a shell restart');
-  }
+// Retired notice routes remain as controls: neither OTA nor native upgrades show a banner.
+async function assertUpdateNotice(page, name) {
+  if (name.startsWith('update-notice') || name.startsWith('store-update-notice'))
+    assert.equal(await page.getByTestId('update-notice').count(), 0, 'no shell update notice');
 }
 
 async function assertFocused(locator, message) {
@@ -7256,9 +7239,18 @@ async function assertTellState(page, testCase, viewport) {
   }
   if (state === 'pace' || state === 'old' || state === 'notice') {
     if (state === 'notice') {
-      await page.getByTestId('update-notice').waitFor();
-      await page.waitForTimeout(800);
-      assert.equal(await page.getByTestId('feedback-ask').count(), 0, 'the update notice wins');
+      await page.getByTestId('news-popup').waitFor();
+      const ask = page.getByTestId('feedback-ask');
+      await ask.waitFor();
+      assert.ok(
+        await ask.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          return !el.contains(
+            document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+          );
+        }),
+        'the popup blocks the feedback question underneath'
+      );
       return;
     }
     const card = page.getByTestId('feedback-ask');
@@ -7492,6 +7484,59 @@ const NEWS_TITLES = [
   'Bigger cards, a calmer table',
   'Welcome to the new Pidro',
 ];
+
+async function assertNewsPopup(page, { popup, locale, name }, viewport) {
+  const card = page.getByTestId('news-popup');
+  await card.waitFor();
+  await waitForScreenshotReady(page);
+  await assertAccountSurfaceFits(card, name, viewport);
+  const box = await getStableBox(card, page);
+  assertInsideViewport(name, box, viewport);
+  assert.ok(Math.abs(box.y + box.height / 2 - viewport.height / 2) < 2, 'card is centred');
+  const sv = locale === 'sv';
+  const update = !['news', 'link'].includes(popup);
+  const label = update
+    ? `${sv ? 'Uppdatera i' : 'Update in'} ${popup === 'ios' ? 'App Store' : 'Google Play'}`
+    : popup === 'link'
+      ? sv
+        ? 'Läs mer'
+        : 'Read more'
+      : sv
+        ? 'Okej'
+        : 'Got it';
+  const action = page.getByTestId('news-popup-action');
+  assert.equal(await action.getAttribute('aria-label'), label);
+  assert.equal(await card.getByRole('button').count(), update ? 2 : 1);
+  for (const button of await card.getByRole('button').all()) {
+    const target = await getStableBox(button, page);
+    assert.ok(target.width >= 44 && target.height >= 44, 'popup actions are 44pt targets');
+  }
+  const body = page.getByTestId('news-popup-body');
+  assert.doesNotMatch(await body.innerText(), /\*\*/);
+  const bold = body.getByText(
+    update
+      ? sv
+        ? 'du får tillbaka din plats'
+        : 'you get your seat back'
+      : sv
+        ? 'precis som förr'
+        : 'just like before',
+    { exact: true }
+  );
+  assert.equal(await bold.evaluate((el) => getComputedStyle(el).fontWeight), '900');
+  assert.doesNotMatch(
+    (await card.innerText()).replace(/App Store/g, ''),
+    /\bstore\b|TestFlight|!/i
+  );
+  const image = card.getByTestId('news-popup-image');
+  assert.equal(await image.count(), ['image', 'news'].includes(popup) ? 1 : 0);
+  if (await image.count())
+    assert.ok(
+      await image.locator('img').evaluate((el) => el.complete && el.naturalWidth > 0),
+      'image loaded'
+    );
+  assert.equal(await page.getByTestId('update-notice').count(), 0);
+}
 
 // PID-347: the News door and the Friends tab's count on Home, and every state of the sheet.
 async function assertNewsState(page, testCase, viewport) {
@@ -8479,7 +8524,8 @@ async function main() {
         if (testCase.tell)
           return (testCase.tellViewports ?? TELL_VIEWPORTS).includes(viewport.name);
         if (testCase.league === 'pin-first-partial') return viewport.name === 'landscape';
-        if (testCase.news || testCase.league) return TELL_VIEWPORTS.includes(viewport.name);
+        if (testCase.news || testCase.league || testCase.popup)
+          return TELL_VIEWPORTS.includes(viewport.name);
         if (
           (testCase.welcome || testCase.name.startsWith('age')) &&
           ['small-portrait', 'compact-portrait', 'tablet-portrait'].includes(viewport.name)
@@ -8720,6 +8766,7 @@ async function main() {
             homeTick: Boolean(testCase.homeTick),
             photoLocale:
               testCase.photo ||
+              testCase.popup ||
               testCase.storeNotice ||
               testCase.league ||
               testCase.path === '/welcome' ||
@@ -8782,6 +8829,7 @@ async function main() {
         }
         if (
           testCase.league ||
+          testCase.popup ||
           testCase.storeNotice ||
           testCase.name === 'game-away' ||
           testCase.name.startsWith('friend-notice-')
@@ -8936,6 +8984,7 @@ async function main() {
             'league',
           ].includes(testCase.name) ||
           testCase.homeProfile ||
+          testCase.popup ||
           testCase.storeNotice ||
           testCase.photo ||
           testCase.tell ||
@@ -9335,6 +9384,7 @@ async function main() {
           await assertFeedbackRow(page, testCase, caseViewport);
           await assertTellState(page, testCase, caseViewport);
           await assertNewsState(page, testCase, caseViewport);
+          if (testCase.popup) await assertNewsPopup(page, testCase, caseViewport);
           await assertPhotoSheet(page, testCase, caseViewport);
           if (testCase.league) await assertLeague(page, testCase, caseViewport);
           await waitForScreenshotReady(page);
@@ -9418,6 +9468,37 @@ async function main() {
             path: resolve(screenshotDir, `${testCase.name}.png`),
             fullPage: false,
           });
+          if (testCase.popup) {
+            const update = !['news', 'link'].includes(testCase.popup);
+            await page.evaluate(() => {
+              window.open = (url) => {
+                window.__popupURL = String(url);
+                return null;
+              };
+            });
+            await page.getByTestId(update ? 'news-popup-later' : 'news-popup-action').click();
+            await page.getByTestId('news-popup').waitFor({ state: 'detached' });
+            if (testCase.popup === 'link')
+              assert.equal(
+                await page.evaluate(() => window.__popupURL),
+                'https://example.invalid/news'
+              );
+            if (update) {
+              await page.reload();
+              await page.evaluate(() => {
+                window.open = (url) => {
+                  window.__popupURL = String(url);
+                  return null;
+                };
+              });
+              await page.getByTestId('news-popup-action').click();
+              await page.getByTestId('news-popup').waitFor({ state: 'detached' });
+              assert.equal(
+                await page.evaluate(() => window.__popupURL),
+                `https://example.invalid/pidro-${testCase.popup === 'ios' ? 'ios' : 'android'}`
+              );
+            }
+          }
           if (testCase.league === 'rules') {
             await page.getByTestId('league-rules-close').click();
             await page.getByTestId('league-rules').waitFor({ state: 'detached' });

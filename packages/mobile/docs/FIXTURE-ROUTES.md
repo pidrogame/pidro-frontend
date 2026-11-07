@@ -626,25 +626,12 @@ native reload cannot be cancelled. Settings retains manual check/download/apply,
 but cannot apply while attached to a game. Native EAS delivery and rollback still
 need an installed release build; browser fixtures do not certify them.
 
-## Shell native store notice
+## Retired shell update notices
 
-`/home?fixture=store-update-notice` and `/settings?fixture=store-update-notice` show
-the native-version notice in that same slot. Open store uses a non-live fixture URL;
-Dismiss hides it for the session. `store-update-notice-{home,settings}-{en,sv}` checks
-copy, clearances, 44pt controls, the destination and dismissal at all four main sizes.
-The real notice requires both the platform minimum and URL from the lobby join reply.
-These fixtures do not change server configuration or claim to upgrade an older native runtime.
-
-The notice floats over the screen just above the tab pill (above the bottom safe area
-beside the landscape rail or for guests) and never covers a control. Scrolling screens
-learn how far up it reaches through `usePillClearance` (or `useNoticeInset` when they
-already clear the pill or safe area: guest Friends, Home's invitations) and scroll their
-last row clear of it. Home's play tiles reach the bottom and Home does not scroll, so
-Home places it itself with `UpdateNoticeSlot`: at the top of the logo stage, under the
-header, where no control reaches. Nothing moves when it shows or goes.
-
-The retired `update-notice`, `update-notice-friends-guest` and
-`update-notice-home-guest` fixtures now assert that no OTA notice appears.
+`store-update-notice-{home,settings}-{en,sv}` now asserts that no native-update
+banner appears. PID-363 uses the startup News card instead, including the lobby
+minimum-version fallback. The retired `update-notice`, `update-notice-friends-guest`
+and `update-notice-home-guest` cases similarly assert no OTA notice appears.
 
 Every Home case (including 667×375 for `home`, `home-guest` and the notice cases)
 hit-tests the header's controls and both play tiles: each must take its own taps. In
@@ -837,6 +824,35 @@ or Write back, and has no Tell us in Settings either (PID-348): `news-sheet-gues
 `settings-feedback-guest-en|sv`.
 UI grammar: the `news-*` cases at 390×844, 375×667, 844×390 and 768×1024. The talk button with talk on and off is on
 `/ui-dev?state=components` (`ui-doors`).
+
+## `/home?fixture=popup-<state>` — startup News (PID-363)
+
+`update` is the Android update board without an image; `image` adds an image;
+`news` is the plain-news board with an image and no eyebrow or Later; `ios` uses
+the App Store button; `link` is plain news with a custom linked button. These
+render the real centered card over Home. The bundled Pidro artwork stands in for
+the editor's image. Images retain their whole contents; in phone landscape the
+image sits beside the copy so the text and actions keep their size.
+
+Grammar cases `popup-{update,image,news,ios,link}-{en,sv}` run at 390×844,
+375×667, 844×390 and 768×1024. The grammar seeds Settings language (Home does not
+read `locale=`). It checks loaded images, bold text, centered containment, no
+clipping/scrolling, 44pt controls, button URLs, dismissal and the absence of the
+old update notice. Fixtures never send Seen, and their links use `example.invalid`.
+For longer editorial copy or large accessibility text, the copy alone may scroll;
+the card stays inside the safe area and its actions remain reachable.
+testIDs: `news-popup`, `news-popup-body`, `news-popup-image`, `news-popup-action`,
+`news-popup-later`.
+
+Live posts come from the first News answer at startup, after the root OTA gate
+and Marcel's welcome. They wait for Home and never show over a game or another
+Home sheet. Close or a successful button link acknowledges that post; Later and
+Android Back on an update only suppress it for this cold start. A failed Seen
+keeps the card available to retry. Feed Seen remains separate. The lobby's
+`native_update_popup` prevents its minimum-version fallback from resurrecting an
+acknowledged post; false/absent keeps legacy minimums and platform URLs working.
+Browser captures do not certify native insets, system font scaling, the OS link
+handoff, or Expo's release-only startup update lifecycle.
 
 ## `/home?fixture=table-unknown`
 

@@ -176,6 +176,7 @@ export const useLobbyChannel = (onRealtimeUpdate?: () => void) => {
             useLobbyStore.setState({
               minimumNativeVersions: response?.minimum_native_versions ?? {},
               nativeStoreUrls: response?.native_store_urls ?? {},
+              nativeUpdatePopup: response?.native_update_popup === true,
             });
             const rawLobby = response?.lobby ?? response?.data?.lobby;
             if (hasLobbyCategories(rawLobby)) {

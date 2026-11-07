@@ -28,6 +28,7 @@ import {
 } from '@/design/tokens';
 import { isNewPost, postedLine, type NewsState } from '@/features/news';
 import { useTranslation } from '@/i18n';
+import { NewsMarkdown } from './NewsMarkdown';
 
 interface Props {
   open: boolean;
@@ -171,9 +172,7 @@ function Post({
       <PidroText role="label" accessibilityRole="header" style={styles.postTitle}>
         {post.title}
       </PidroText>
-      <PidroText role="body" style={!onWriteBack && styles.lastLine}>
-        {post.body}
-      </PidroText>
+      <NewsMarkdown body={post.body} style={!onWriteBack && styles.lastLine} />
       {onWriteBack ? (
         <PressableFX
           accessibilityRole="button"

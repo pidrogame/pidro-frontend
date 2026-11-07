@@ -46,9 +46,8 @@ white labels). All values live in `PidroBevel` in `tokens.ts` — never inline t
   form** — hide the logo, keep the fields comfortable.
 - **Clearances are derived, never hardcoded.** A floating element (the tab pill) owns a
   hook that computes the space screens must leave from safe-area insets + its own
-  geometry (`usePillClearance`, which also covers the floating update notice while it
-  shows; a screen with no free bottom edge places the notice in its own free spot with
-  `UpdateNoticeSlot`). Web previews have zero insets — a clearance tuned
+  geometry (`usePillClearance`, which also covers the floating friend notice while it
+  shows). Web previews have zero insets — a clearance tuned
   there WILL overlap on device.
 - **Layered centering.** HUD chips (identity, rating) float as overlays; the world
   (logo) centers against the full height; an action stack centers within the zone
@@ -138,7 +137,7 @@ Friends, Add a friend, the empty state, the seat picker and Blocked players. Its
 from `friendRowState` in `features/friends`, and every "yesterday" or "in
 September" from `relativeDay`, so screens never word a status themselves. A quiet
 card among the rows is an `InfoCard`; a friend notice is a `NoticeCard`, which
-enters and leaves like the update notice. Sheet: `/ui-dev?state=components`.
+enters and leaves above the tab pill. Sheet: `/ui-dev?state=components`.
 
 ## Motion
 

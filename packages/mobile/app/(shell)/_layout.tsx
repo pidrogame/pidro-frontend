@@ -6,7 +6,7 @@
  */
 import { Slot, useGlobalSearchParams, usePathname, useRouter, useIsFocused } from 'expo-router';
 import { friendNoticeId } from '@pidro/shared';
-import { useEffect, useMemo, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, { FadeIn, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,9 +18,7 @@ import {
   usePillClearance,
   type ShellTab,
 } from '@/components/shell/TabPill';
-import { UpdateNotice, UpdateNoticeHost } from '@/components/shell/UpdateNotice';
 import { FriendNoticeHost, useShellFriendNotice } from '@/components/shell/FriendNoticeHost';
-import { useAppUpdate } from '@/hooks/useAppUpdate';
 import { LeagueResult } from '@/components/league/LeagueResult';
 import { PidroSpacing } from '@/design/tokens';
 import { useAuthStore } from '@/stores/auth';
@@ -49,7 +47,6 @@ function activeTabForPath(pathname: string): ShellTab {
 }
 
 export default function ShellLayout() {
-  // Dev fixtures: `?fixture=store-update-notice` forces the native store notice.
   const params = useGlobalSearchParams<{ fixture?: string; safeArea?: string }>();
   return (
     <FixtureInsets preset={__DEV__ ? params.safeArea : undefined}>
@@ -80,31 +77,8 @@ function Shell({ fixture }: { fixture?: string }) {
   const pillClearance = usePillClearance();
   // The notice floats just above the bottom pill, or above the safe area beside the rail.
   const noticeBottom = Math.max(guest ? 0 : pillClearance.bottom, insets.bottom + PidroSpacing.xs);
-  const [noticeHeight, setNoticeHeight] = useState(0);
   const [friendHeight, setFriendHeight] = useState(0);
-  // A screen with an UpdateNoticeSlot shows the notice itself; it then never floats here.
-  // Slots claim it as they mount, so float only after that, or Home flashes a copy.
-  const [noticePlaced, setNoticePlaced] = useState(false);
-  const [mounted, setMounted] = useState(false);
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- runs after the slots' claims
-  useEffect(() => setMounted(true), []);
-  const { visible, store, restarting, restart, dismiss } = useAppUpdate({
-    // The game pushes over the shell; never open the store from under the table.
-    inGame: pathname.startsWith('/game'),
-    forcedStore: fixture === 'store-update-notice',
-  });
-  const host = useMemo(
-    () => ({
-      notice:
-        visible && !friend.notice
-          ? { store, restarting, onRestart: restart, onDismiss: dismiss }
-          : null,
-      setPlaced: setNoticePlaced,
-    }),
-    [visible, store, restarting, restart, dismiss, friend.notice]
-  );
-  const floating = !friend.notice && visible && mounted && !noticePlaced;
-  const noticeHeightShown = friend.notice ? friendHeight : floating ? noticeHeight : 0;
+  const noticeHeightShown = friend.notice ? friendHeight : 0;
 
   const handleSelect = (tab: ShellTab) => {
     if (tab === 'table') {
@@ -123,23 +97,20 @@ function Shell({ fixture }: { fixture?: string }) {
 
   return (
     <Background>
-      {/* The notice floats over the screen; screens learn how far up it reaches, or place it. */}
-      <UpdateNoticeHost.Provider value={host}>
-        <FloatingNotice.Provider
-          value={{
-            reach: noticeHeightShown > 0 ? noticeBottom + noticeHeightShown : 0,
-            height: noticeHeightShown,
-          }}>
-          {/* 160ms opacity-only cross-fade on tab switch: cheap on old GPUs,
-              skipped under Reduce Motion. The pill stays outside the fade. */}
-          <Animated.View
-            key={active}
-            style={styles.root}
-            entering={reduceMotion ? undefined : FadeIn.duration(140)}>
-            <Slot />
-          </Animated.View>
-        </FloatingNotice.Provider>
-      </UpdateNoticeHost.Provider>
+      <FloatingNotice.Provider
+        value={{
+          reach: noticeHeightShown > 0 ? noticeBottom + noticeHeightShown : 0,
+          height: noticeHeightShown,
+        }}>
+        {/* 160ms opacity-only cross-fade on tab switch: cheap on old GPUs,
+            skipped under Reduce Motion. The pill stays outside the fade. */}
+        <Animated.View
+          key={active}
+          style={styles.root}
+          entering={reduceMotion ? undefined : FadeIn.duration(140)}>
+          <Slot />
+        </Animated.View>
+      </FloatingNotice.Provider>
       {friend.notice ? (
         <FriendNoticeHost
           key={friendNoticeId(friend.notice)}
@@ -152,20 +123,6 @@ function Shell({ fixture }: { fixture?: string }) {
             paddingRight: Math.max(insets.right + PidroSpacing.md, pillClearance.right),
           }}
           onHeight={setFriendHeight}
-        />
-      ) : null}
-      {floating ? (
-        <UpdateNotice
-          store={store}
-          restarting={restarting}
-          onRestart={restart}
-          onDismiss={dismiss}
-          style={{
-            bottom: noticeBottom,
-            paddingLeft: insets.left + PidroSpacing.md,
-            paddingRight: Math.max(insets.right + PidroSpacing.md, guest ? 0 : pillClearance.right),
-          }}
-          onHeight={setNoticeHeight}
         />
       ) : null}
       {!guest ? (

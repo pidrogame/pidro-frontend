@@ -31,8 +31,8 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { LogoGlow } from '@/components/home/LogoGlow';
 import { NewsSheet } from '@/components/news/NewsSheet';
+import { NewsPopup } from '@/components/news/NewsPopup';
 import { useNoticeInset, usePillClearance } from '@/components/shell/TabPill';
-import { UpdateNoticeSlot } from '@/components/shell/UpdateNotice';
 import { Background } from '@/components/ui/Background';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { CountBadge } from '@/components/ui/CountBadge';
@@ -60,7 +60,7 @@ type LobbyCountState = 'loading' | 'ready' | 'failed';
 const LANDSCAPE_GUTTER = 56;
 
 export default function HomeScreen() {
-  const { t } = useTranslation();
+  const { t, locale } = useTranslation();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
   const compactLandscape = landscape && height < PidroLayout.compactHeight;
@@ -166,7 +166,7 @@ export default function HomeScreen() {
   const [identity, setIdentity] = useState<ProfileIdentity | null>(null);
   const [lobbyCountState, setLobbyCountState] = useState<LobbyCountState>('loading');
   const refreshIdentity = useProfileIdentity();
-  // Update notices use the logo slot; friend notices reserve space above the pill.
+  // Friend notices reserve space above the pill.
   // The invitations scroll already adds the floating notice's inset itself.
   const rawPillClearance = usePillClearance({ notice: !showInvitations });
   const noticeInset = useNoticeInset();
@@ -190,7 +190,8 @@ export default function HomeScreen() {
         .catch(() => undefined);
 
       // News on focus at most once a minute, and again each time the app comes back.
-      if (!newsPreview) void loadNews({ maxAge: 60_000 });
+      if (!newsPreview)
+        void loadNews({ maxAge: useNewsStore.getState().locale === locale ? 60_000 : 0 });
       const foreground = AppState.addEventListener('change', (state) => {
         if (state === 'active' && !newsPreview) void loadNews();
       });
@@ -214,7 +215,7 @@ export default function HomeScreen() {
         active = false;
         foreground.remove();
       };
-    }, [guest, newsPreview, refreshIdentity, setLobby, setStats])
+    }, [guest, locale, newsPreview, refreshIdentity, setLobby, setStats])
   );
 
   const games = identity?.games_played;
@@ -339,7 +340,9 @@ export default function HomeScreen() {
       <View pointerEvents="none">
         <PidroLogo size="hero" width={tablet ? 440 : compactLandscape ? 270 : 280} />
       </View>
-      <UpdateNoticeSlot style={compactLandscape && styles.noticeLandscape}>
+      <View
+        pointerEvents="box-none"
+        style={[styles.feedbackSlot, compactLandscape && styles.noticeLandscape]}>
         {user && !guest ? (
           <FeedbackAsk
             fixture={tell?.ask}
@@ -349,7 +352,7 @@ export default function HomeScreen() {
             }}
           />
         ) : null}
-      </UpdateNoticeSlot>
+      </View>
     </View>
   );
 
@@ -534,6 +537,15 @@ export default function HomeScreen() {
           router.push('/join-code');
         }}
       />
+      <NewsPopup
+        fixture={fixture}
+        blocked={
+          newsOpen ||
+          tellOpen ||
+          accountSheetReason != null ||
+          Boolean(league?.pending_result && league.pending_result.move !== 'stayed')
+        }
+      />
       <NewsSheet
         open={newsOpen}
         news={news}
@@ -636,6 +648,7 @@ const styles = StyleSheet.create({
   },
   logoStageLandscape: { width: 340, alignSelf: 'stretch', flexShrink: 1 },
   logoWithNotice: { minHeight: 0 },
+  feedbackSlot: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center' },
   // A small phone's logo column is too narrow for the notice: it also takes the
   // side gutter and the gap, stopping short of the tiles.
   noticeLandscape: {

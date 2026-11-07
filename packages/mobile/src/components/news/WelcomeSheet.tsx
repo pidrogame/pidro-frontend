@@ -25,6 +25,7 @@ import { formatDate, useTranslation, type TranslationKey } from '@/i18n';
 import { needsAgeGate } from '@/navigation/initialRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
 import { useAuthStore } from '@/stores/auth';
+import { useNewsStore } from '@/stores/news';
 import { openFeedbackMail } from '@/utils/feedbackMail';
 
 /** The day Marcel wrote the note. */
@@ -49,7 +50,11 @@ export function WelcomeSheet() {
 
   useEffect(() => {
     let active = true;
-    void seenAtLaunch.then((value) => active && setSeen(value != null));
+    void seenAtLaunch.then((value) => {
+      if (!active) return;
+      setSeen(value != null);
+      useNewsStore.setState({ welcomeReady: value != null });
+    });
     return () => {
       active = false;
     };
@@ -64,6 +69,7 @@ export function WelcomeSheet() {
 
   const play = useCallback(() => {
     setSeen(true);
+    useNewsStore.setState({ welcomeReady: true });
     void AsyncStorage.setItem(STORAGE_KEYS.welcomeSeen, '1');
   }, []);
 

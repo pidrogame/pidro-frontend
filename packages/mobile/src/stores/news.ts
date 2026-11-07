@@ -1,4 +1,6 @@
-import { getLocale, type Locale } from '@pidro/shared';
+import { getLocale, type Locale, type NewsPost } from '@pidro/shared';
+import { Platform } from 'react-native';
+import { nativeApplicationVersion } from 'expo-application';
 import { create } from 'zustand';
 import { newsApi } from '@/api/news';
 import { NO_NEWS, newsClosed, newsOpened, newsReceived, type NewsState } from '@/features/news';
@@ -6,6 +8,9 @@ import { authStore } from './auth';
 
 interface NewsStore extends NewsState {
   open: boolean;
+  welcomeReady: boolean;
+  popup: NewsPost | null;
+  popupLoaded: boolean;
   status: 'idle' | 'loading' | 'ready' | 'failed';
   fetchedAt: number;
   /** The posts' language: another one makes them stale. */
@@ -16,6 +21,9 @@ interface NewsStore extends NewsState {
 export const useNewsStore = create<NewsStore>(() => ({
   ...NO_NEWS,
   open: false,
+  welcomeReady: false,
+  popup: null,
+  popupLoaded: false,
   status: 'idle',
   fetchedAt: 0,
   locale: null,
@@ -23,14 +31,21 @@ export const useNewsStore = create<NewsStore>(() => ({
 
 authStore.subscribe((state, previous) => {
   if (state.accessToken !== previous.accessToken)
-    useNewsStore.setState({ ...NO_NEWS, open: false, status: 'idle', fetchedAt: 0, locale: null });
+    useNewsStore.setState({
+      ...NO_NEWS,
+      open: false,
+      status: 'idle',
+      fetchedAt: 0,
+      locale: null,
+      ...(state.user?.id !== previous.user?.id ? { popup: null, popupLoaded: false } : {}),
+    });
 });
 
 /** Counts the openings, so an answer asked for before one never brings its dot back. */
 let openings = 0;
 
 /** Asks again unless the last answer is younger than `maxAge`. */
-export async function loadNews({ maxAge = 0, opening = false } = {}) {
+export async function loadNews({ maxAge = 0, opening = false } = {}): Promise<void> {
   const { fetchedAt, status, locale: shown } = useNewsStore.getState();
   if (!authStore.getState().accessToken) return;
   const locale = getLocale();
@@ -40,13 +55,27 @@ export async function loadNews({ maxAge = 0, opening = false } = {}) {
   const asked = openings;
   useNewsStore.setState({ status: 'loading', fetchedAt: Date.now() });
   try {
-    const page = await newsApi.list(locale);
+    const page = await newsApi.list(locale, {
+      platform: Platform.OS,
+      app_version: nativeApplicationVersion,
+    });
     if (token !== authStore.getState().accessToken) return;
+    if (locale !== getLocale()) {
+      useNewsStore.setState({ status: 'idle' });
+      return loadNews();
+    }
     // Asked before Seen, its count is old: it never brings the dot back once closed.
     const before = asked !== openings || opening;
     useNewsStore.setState((state) => ({
       status: 'ready',
       locale,
+      // Refresh the selected post's language, never select a new popup mid-startup.
+      popup: !state.popupLoaded
+        ? (page.popup ?? null)
+        : state.locale !== locale && state.popup
+          ? ([page.popup, ...page.posts].find((post) => post?.id === state.popup?.id) ?? null)
+          : state.popup,
+      popupLoaded: true,
       ...(state.open
         ? newsReceived(state, page, true)
         : before

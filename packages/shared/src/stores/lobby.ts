@@ -12,6 +12,7 @@ interface LobbyState {
   lobby: LobbyCategories;
   minimumNativeVersions: Partial<Record<'android' | 'ios', string>>;
   nativeStoreUrls: Partial<Record<'android' | 'ios', string>>;
+  nativeUpdatePopup: boolean;
   stats: LobbyStats;
   isLoading: boolean;
   error: string | null;
@@ -33,6 +34,7 @@ const initialState = {
   lobby: emptyLobbyCategories(),
   minimumNativeVersions: {},
   nativeStoreUrls: {},
+  nativeUpdatePopup: false,
   stats: {
     online_players: 0,
     active_games: 0,
