@@ -41,15 +41,17 @@ export function configurePurchases(): void {
   configured = true;
 }
 
-/** Once per install: RevenueCat warns against syncing on every launch. */
-export async function syncPurchasesOnce(): Promise<void> {
-  if (!configured) return;
+/** Once per install: RevenueCat warns against syncing on every launch. True when it synced now. */
+export async function syncPurchasesOnce(): Promise<boolean> {
+  if (!configured) return false;
   try {
-    if (await AsyncStorage.getItem(SYNCED_KEY)) return;
+    if (await AsyncStorage.getItem(SYNCED_KEY)) return false;
     await sdk().syncPurchases();
     await AsyncStorage.setItem(SYNCED_KEY, '1');
+    return true;
   } catch (error) {
     console.warn('[Purchases] Sync failed', error);
+    return false;
   }
 }
 

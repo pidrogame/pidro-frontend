@@ -80,6 +80,12 @@ export {
 export { createNewsApi, type NewsApi, type NewsPage, type NewsPost } from './news';
 export { createPushApi, type PushApi, type PushTokenRequest } from './push';
 export {
+  createPremiumApi,
+  type PremiumApi,
+  type PremiumFields,
+  type PremiumSource,
+} from './premium';
+export {
   createLeagueApi,
   type LeagueApi,
   type LeagueAvatar,

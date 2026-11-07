@@ -23,12 +23,16 @@ import { PidroColors } from '../src/design/tokens';
 import { useStartupUpdate } from '../src/hooks/useStartupUpdate';
 import { UpdatingScreen } from '../src/components/shell/UpdatingScreen';
 import { configurePurchases, syncPurchasesOnce } from '../src/features/premium/purchases';
+import { refreshPremium } from '../src/features/premium/premium';
 import { usePurchaserIdentity } from '../src/features/premium/usePurchaserIdentity';
 import { listenForPush, registerPushIfGranted } from '../src/features/push/push';
 
 initSentry();
 configurePurchases();
-void syncPurchasesOnce();
+// The first sync can bring a purchase from before sign-in: ask the server to look again.
+void syncPurchasesOnce().then((synced) => {
+  if (synced) void refreshPremium();
+});
 void SplashScreen.preventAutoHideAsync().catch(console.warn);
 void SystemUI.setBackgroundColorAsync(PidroColors.feltBottom).catch(console.warn);
 

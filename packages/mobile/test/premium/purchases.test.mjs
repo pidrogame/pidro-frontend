@@ -53,10 +53,11 @@ test('purchases configure once, sync once per install, and stay quiet without a 
   purchases.configurePurchases();
   purchases.configurePurchases();
   // Three launches: the first sync fails offline, the second succeeds, the third skips.
-  await purchases.syncPurchasesOnce();
+  // Only the launch that synced says so: that one asks the server to look again (PID-124).
+  const synced = [await purchases.syncPurchasesOnce()];
   syncFails = false;
-  await purchases.syncPurchasesOnce();
-  await purchases.syncPurchasesOnce();
+  synced.push(await purchases.syncPurchasesOnce(), await purchases.syncPurchasesOnce());
+  expect(synced).toEqual(key ? [false, true, false] : [false, false, false]);
 
   if (key) {
     expect(purchases.purchasesAvailable()).toBe(true);

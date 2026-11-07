@@ -1,6 +1,7 @@
 import type { ApiClient } from './client';
 import type { ClassicAlreadyClaimed, ClassicNewAccount } from './classic';
 import type { FriendPlayer } from './friends';
+import type { PremiumSource } from './premium';
 import type { SeatInvitation } from '../types/lobby';
 
 export const TERMS_VERSION = '1';
@@ -37,6 +38,10 @@ export type User = {
   bio?: string | null;
   age_band?: AgeBand;
   terms_version?: string | null;
+  // Owned by the server (PID-125). Absent from an older server: not Premium.
+  premium?: boolean;
+  premium_until?: string | null;
+  premium_source?: PremiumSource | null;
 };
 
 interface AuthResponseEnvelope {
