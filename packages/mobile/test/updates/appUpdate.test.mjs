@@ -1,20 +1,5 @@
 import { describe, expect, it, mock } from 'bun:test';
-import {
-  channelLabel,
-  runningUpdate,
-  shouldCheckOnForeground,
-  shouldShowUpdateNotice,
-  nativeStoreUpdate,
-  UPDATE_CHECK_INTERVAL_MS,
-} from '../../src/features/appUpdate.ts';
-
-const ready = {
-  enabled: true,
-  isUpdatePending: true,
-  downloadedUpdateId: 'update-2',
-  dismissedUpdateId: null,
-  inGame: false,
-};
+import { channelLabel, runningUpdate, nativeStoreUpdate } from '../../src/features/appUpdate.ts';
 
 it('opens only the server destination below its configured native minimum', () => {
   const minimum = { android: '3.2.10', ios: '3.3.0' };
@@ -86,6 +71,7 @@ it('keeps store notices out of games, opens the listing, and remembers dismissal
     useLobbyStore.setState({ minimumNativeVersions: { android: '3.3.0' } });
     await act(async () => root.render(h(Shell)));
     expect(notice.store).toBe(false);
+    expect(notice.visible).toBe(false); // A pending OTA never offers a shell restart.
     await act(async () =>
       useLobbyStore.setState({ nativeStoreUrls: { android: 'https://example.test/android' } })
     );
@@ -98,7 +84,7 @@ it('keeps store notices out of games, opens the listing, and remembers dismissal
     expect(opened).toEqual(['https://example.test/android']);
     await act(async () => notice.dismiss());
     expect(notice.store).toBe(false);
-    expect(notice.visible).toBe(true); // The independent OTA offer is still available.
+    expect(notice.visible).toBe(false);
     await act(async () => root.render(null));
     await act(async () => root.render(h(Shell)));
     expect(notice.store).toBe(false);
@@ -123,59 +109,6 @@ it('keeps store notices out of games, opens the listing, and remembers dismissal
     useLobbyStore.getState().reset();
     dom.window.close();
   }
-});
-
-describe('update notice', () => {
-  it('shows once an update has downloaded', () => {
-    expect(shouldShowUpdateNotice(ready)).toBe(true);
-  });
-
-  it('stays away until the update has downloaded', () => {
-    expect(shouldShowUpdateNotice({ ...ready, isUpdatePending: false })).toBe(false);
-  });
-
-  it('never shows in a build without OTA updates', () => {
-    expect(shouldShowUpdateNotice({ ...ready, enabled: false })).toBe(false);
-  });
-
-  it('never shows at the table', () => {
-    expect(shouldShowUpdateNotice({ ...ready, inGame: true })).toBe(false);
-  });
-
-  it('stays dismissed for that update, and returns for a newer one', () => {
-    const dismissed = { ...ready, dismissedUpdateId: 'update-2' };
-    expect(shouldShowUpdateNotice(dismissed)).toBe(false);
-    expect(shouldShowUpdateNotice({ ...dismissed, downloadedUpdateId: 'update-3' })).toBe(true);
-  });
-
-  it('can be dismissed when Expo does not say which update is pending', () => {
-    const unnamed = { ...ready, downloadedUpdateId: undefined };
-    expect(shouldShowUpdateNotice(unnamed)).toBe(true);
-    expect(shouldShowUpdateNotice({ ...unnamed, dismissedUpdateId: 'pending' })).toBe(false);
-  });
-});
-
-describe('foreground update check', () => {
-  const now = 1_000_000_000;
-  const quiet = { enabled: true, busy: false, now };
-
-  it('checks when nothing has checked yet', () => {
-    expect(shouldCheckOnForeground({ ...quiet, lastCheckedAt: null })).toBe(true);
-  });
-
-  it('waits fifteen minutes between checks', () => {
-    const justUnder = now - UPDATE_CHECK_INTERVAL_MS + 1;
-    expect(UPDATE_CHECK_INTERVAL_MS).toBe(15 * 60 * 1000);
-    expect(shouldCheckOnForeground({ ...quiet, lastCheckedAt: justUnder })).toBe(false);
-    expect(
-      shouldCheckOnForeground({ ...quiet, lastCheckedAt: now - UPDATE_CHECK_INTERVAL_MS })
-    ).toBe(true);
-  });
-
-  it('does not check while a check or download is running, or without OTA', () => {
-    expect(shouldCheckOnForeground({ ...quiet, busy: true, lastCheckedAt: null })).toBe(false);
-    expect(shouldCheckOnForeground({ ...quiet, enabled: false, lastCheckedAt: null })).toBe(false);
-  });
 });
 
 describe('what Settings says is running', () => {

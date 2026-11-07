@@ -49,20 +49,17 @@ function activeTabForPath(pathname: string): ShellTab {
 }
 
 export default function ShellLayout() {
-  // Dev fixtures: `?fixture=update-notice` forces the notice, `?safeArea=` fakes insets.
+  // Dev fixtures: `?fixture=store-update-notice` forces the native store notice.
   const params = useGlobalSearchParams<{ fixture?: string; safeArea?: string }>();
   return (
     <FixtureInsets preset={__DEV__ ? params.safeArea : undefined}>
-      <Shell
-        forceUpdateNotice={__DEV__ && params.fixture === 'update-notice'}
-        fixture={__DEV__ ? params.fixture : undefined}
-      />
+      <Shell fixture={__DEV__ ? params.fixture : undefined} />
       <LeagueResult />
     </FixtureInsets>
   );
 }
 
-function Shell({ forceUpdateNotice, fixture }: { forceUpdateNotice: boolean; fixture?: string }) {
+function Shell({ fixture }: { fixture?: string }) {
   useLobbyChannel();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
@@ -92,9 +89,8 @@ function Shell({ forceUpdateNotice, fixture }: { forceUpdateNotice: boolean; fix
   // eslint-disable-next-line react-hooks/set-state-in-effect -- runs after the slots' claims
   useEffect(() => setMounted(true), []);
   const { visible, store, restarting, restart, dismiss } = useAppUpdate({
-    // The game pushes over the shell; never offer a restart from under the table.
+    // The game pushes over the shell; never open the store from under the table.
     inGame: pathname.startsWith('/game'),
-    forced: forceUpdateNotice,
     forcedStore: fixture === 'store-update-notice',
   });
   const host = useMemo(

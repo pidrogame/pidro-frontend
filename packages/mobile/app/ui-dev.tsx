@@ -1,5 +1,5 @@
 import { Redirect, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { NewTableGallery } from '@/components/dev/NewTableGallery';
 import { RoomCard } from '@/components/lobby/RoomCard';
@@ -19,6 +19,7 @@ import { TabPill } from '@/components/shell/TabPill';
 import { useAuthStore } from '@/stores/auth';
 import { CtaBadge } from '@/components/home/CtaBadge';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
+import { UpdatingScreen } from '@/components/shell/UpdatingScreen';
 import { RatingPlaque } from '@/components/home/RatingPlaque';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { TalkSpeech } from '@/components/game/TableTalk';
@@ -55,6 +56,18 @@ export default function UiDevRoute() {
 }
 
 const noop = () => {};
+
+function UpdatingFixture({ applying }: { applying: boolean }) {
+  const [progress, setProgress] = useState(applying ? 0 : 0.6);
+  useEffect(() => {
+    if (!applying) return;
+    const timer = setInterval(() => setProgress((value) => value + 0.1), 300);
+    return () => clearInterval(timer);
+  }, [applying]);
+  // A visual stand-in for the native reload; Expo web cannot apply an EAS update.
+  if (progress > 1.1) return <Redirect href="/home" />;
+  return <UpdatingScreen progress={progress} />;
+}
 
 function SwitchGallery() {
   const [on, setOn] = useState(true);
@@ -590,6 +603,7 @@ function UiDevHarness() {
     );
   if (state === 'claim-classic') return <ClaimClassicScreen />;
   if (state === 'welcome') return <WelcomeSheetView onPlay={noop} />;
+  if (state === 'updating') return <UpdatingFixture applying={params.fixture === 'applying'} />;
   if (state === 'settings')
     return (
       <FixtureInsets preset={params.safeArea}>

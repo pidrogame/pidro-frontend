@@ -20,6 +20,8 @@ import { WelcomeSheet } from '../src/components/news/WelcomeSheet';
 import { LeagueHost } from '../src/components/league/LeagueHost';
 import { useLocaleBootstrap } from '../src/i18n';
 import { PidroColors } from '../src/design/tokens';
+import { useStartupUpdate } from '../src/hooks/useStartupUpdate';
+import { UpdatingScreen } from '../src/components/shell/UpdatingScreen';
 
 initSentry();
 void SplashScreen.preventAutoHideAsync().catch(console.warn);
@@ -30,6 +32,7 @@ function hideSplash() {
 }
 
 export default function RootLayout() {
+  const startupUpdate = useStartupUpdate();
   const localeReady = useLocaleBootstrap();
   const [fontsLoaded, fontError] = useFonts({
     Nunito: require('../assets/fonts/Nunito-VariableFont_wght.ttf'),
@@ -67,8 +70,12 @@ export default function RootLayout() {
         </Head>
       ) : null}
       {/* On Android every screen is opaque over it once ready: kept loaded, not painted. */}
-      <Background hidden={Platform.OS === 'android' && ready}>
-        {ready ? (
+      <Background hidden={Platform.OS === 'android' && ready && !startupUpdate.waiting}>
+        {fontsLoaded && localeReady && startupUpdate.updating ? (
+          <View style={styles.content} onLayout={hideSplash}>
+            <UpdatingScreen progress={startupUpdate.progress} />
+          </View>
+        ) : ready && !startupUpdate.waiting ? (
           <View collapsable={false} style={styles.content} onLayout={hideSplash}>
             <AnalyticsProvider>
               <AnalyticsTracker />

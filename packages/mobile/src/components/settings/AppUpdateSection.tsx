@@ -11,6 +11,7 @@ import { updatesEnabled as enabled } from '@/hooks/useAppUpdate';
 import { APP_CONFIG } from '@/constants/config';
 import { PidroSpacing } from '@/design/tokens';
 import { useTranslation, type TranslationKey } from '@/i18n';
+import { useGameStore } from '@/stores/game';
 
 export function AppUpdateSection() {
   const { t } = useTranslation();
@@ -37,11 +38,12 @@ export function AppUpdateSection() {
   const [message, setMessage] = useState<TranslationKey | null>(null);
   const [error, setError] = useState(false);
   const inFlight = useRef(false);
-  // isRestarting also covers a Restart from the shell's update notice.
+  const inGame = useGameStore((state) => Boolean(state.roomCode));
   const busy = action !== null || isChecking || isDownloading || isRestarting;
 
   async function handleUpdate() {
     if (!enabled || busy || inFlight.current) return;
+    if (isUpdatePending && useGameStore.getState().roomCode) return;
     inFlight.current = true;
     const nextAction = isUpdatePending ? 'restart' : isUpdateAvailable ? 'download' : 'check';
     setAction(nextAction);
@@ -154,6 +156,7 @@ export function AppUpdateSection() {
           material={isUpdatePending || isUpdateAvailable ? 'wood' : 'glass'}
           fullWidth
           loading={busy}
+          disabled={isUpdatePending && inGame}
           onPress={handleUpdate}
         />
       )}

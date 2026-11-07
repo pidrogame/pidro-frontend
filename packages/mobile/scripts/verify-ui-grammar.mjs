@@ -117,7 +117,7 @@ const tellCases = [
   { name: 'tell-old', path: '/home?fixture=tell-old', testId: 'feedback-ask', tell: 'old' },
   {
     name: 'tell-notice-wins',
-    path: '/home?fixture=update-notice',
+    path: '/home?fixture=store-update-notice',
     testId: 'update-notice',
     tell: 'notice',
     tellViewports: ['portrait'],
@@ -585,9 +585,16 @@ const allCases = [
   {
     name: 'update-notice',
     path: '/home?fixture=update-notice&safeArea=island',
-    testId: 'update-notice',
+    testId: 'home-screen',
     authenticated: true,
   },
+  ...['en', 'sv'].map((locale) => ({
+    name: `startup-update-${locale}`,
+    path: `/ui-dev?state=updating&fixture=downloaded&locale=${locale}`,
+    testId: 'updating-screen',
+    locale,
+    startupUpdate: true,
+  })),
   ...['en', 'sv'].flatMap((locale) =>
     ['home', 'settings'].map((screen) => ({
       name: `store-update-notice-${screen}-${locale}`,
@@ -601,7 +608,7 @@ const allCases = [
   {
     name: 'update-notice-home-guest',
     path: '/home?fixture=update-notice&safeArea=island',
-    testId: 'update-notice',
+    testId: 'home-screen',
     authenticated: true,
     authFixture: guestAuthFixture,
   },
@@ -3239,11 +3246,7 @@ async function assertAppUpdate(page, { appUpdate, locale }) {
   await waitForScreenshotReady(page);
 }
 
-// The update notice floats over the shell (faked island insets: 59 top, 34 bottom).
-// Home's controls reach the bottom, so there it sits under the header, in the logo
-// stage; it must cover nothing, stay clear of the tab pill, and move nothing when it
-// goes. Restart must go busy on the first tap and stay that way. Elsewhere it floats
-// above the bottom inset and every scrolling screen scrolls its last row clear of it.
+// Native store notices remain; the retired OTA fixture must never offer Restart.
 async function assertUpdateNotice(page, name, viewport) {
   const notice = page.getByTestId('update-notice');
   if (name.startsWith('store-update-notice-')) {
@@ -3272,58 +3275,9 @@ async function assertUpdateNotice(page, name, viewport) {
     await notice.waitFor({ state: 'detached' });
     return;
   }
-  const guestScreen = {
-    'update-notice-friends-guest': 'Friends',
-    'update-notice-home-guest': 'Home',
-  }[name];
-  if (guestScreen) {
-    await getStableBox(notice, page);
-    await assertNothingUnderNotice(page, `${guestScreen} (guest)`, viewport);
-    return;
+  if (name.startsWith('update-notice')) {
+    assert.equal(await notice.count(), 0, 'OTA updates no longer offer a shell restart');
   }
-  if (name !== 'update-notice') return;
-  const box = await getStableBox(notice, page);
-  const pill = await page.getByTestId('tab-pill').boundingBox();
-  assert.ok(pill && !boxesOverlap(box, pill), `update notice covers the tab pill`);
-  await assertNothingUnderNotice(page, 'Home', viewport);
-  const restart = page.getByRole('button', { name: 'Restart', exact: true });
-  const dismiss = page.getByRole('button', { name: 'Dismiss', exact: true });
-  for (const [label, control] of [
-    ['Restart', restart],
-    ['Dismiss', dismiss],
-  ]) {
-    const target = await getStableBox(control, page);
-    assert.ok(target.width >= 44 && target.height >= 44, `${label} is a 44pt target`);
-  }
-  const contentBoxes = () =>
-    page.getByTestId('home-screen').evaluate((screen) =>
-      [screen, ...screen.querySelectorAll('[role="button"], [role="img"]')]
-        .filter((element) => !element.closest('[data-testid="update-notice"]'))
-        .map((element) => {
-          const { x, y, width, height } = element.getBoundingClientRect();
-          return [x, y, width, height].map(Math.round).join(',');
-        })
-    );
-  const withNotice = await contentBoxes();
-  await restart.click();
-  await restart.locator('[role="progressbar"]').waitFor();
-  assert.ok(await restart.isDisabled(), 'a busy Restart cannot be tapped again');
-  await dismiss.click();
-  await notice.waitFor({ state: 'detached' });
-  assert.deepEqual(await contentBoxes(), withNotice, `the notice moved Home in ${viewport.name}`);
-
-  await page.goto(new URL('/settings?fixture=update-notice&safeArea=island', baseUrl).href);
-  await notice.waitFor();
-  await waitForScreenshotReady(page);
-  const shown = await getStableBox(notice, page);
-  assert.ok(shown, `update notice missing on Settings in ${viewport.name}`);
-  assert.ok(shown.y + shown.height <= viewport.height - 34, `update notice above the bottom inset`);
-  const lastRow = await page.getByTestId('settings-screen').evaluate((scroller) => {
-    scroller.scrollTop = scroller.scrollHeight;
-    return scroller.firstElementChild.lastElementChild.getBoundingClientRect().bottom;
-  });
-  assert.ok(lastRow <= shown.y, `Settings cannot scroll clear of the notice in ${viewport.name}`);
-  await assertNothingUnderNotice(page, 'Settings', viewport);
 }
 
 async function assertFocused(locator, message) {
@@ -8541,6 +8495,7 @@ async function main() {
           testCase.scores ||
           testCase.botVoice ||
           testCase.flaky ||
+          testCase.startupUpdate ||
           testCase.storeNotice ||
           testCase.photo
         )
@@ -9522,6 +9477,31 @@ async function main() {
           await assertHomeGuestInteractions(page, testCase.name);
           await assertFriendNotice(page, testCase.name, caseViewport);
           await assertTableInvitation(page, testCase, caseViewport);
+          if (testCase.startupUpdate) {
+            const screen = page.getByTestId('updating-screen');
+            const sv = testCase.locale === 'sv';
+            await screen
+              .getByText(sv ? 'Uppdaterar Pidro…' : 'Updating Pidro…', { exact: true })
+              .waitFor();
+            await screen
+              .getByText(sv ? 'Några sekunder' : 'A few seconds', { exact: true })
+              .waitFor();
+            assert.equal(await screen.getByRole('progressbar').getAttribute('aria-valuenow'), '60');
+            const fits = await screen.evaluate((root) => {
+              return [root, ...root.querySelectorAll('*')].every((element) => {
+                const box = element.getBoundingClientRect();
+                return (
+                  box.left >= 0 &&
+                  box.top >= 0 &&
+                  box.right <= innerWidth + 1 &&
+                  box.bottom <= innerHeight + 1 &&
+                  element.scrollWidth <= element.clientWidth + 1 &&
+                  element.scrollHeight <= element.clientHeight + 1
+                );
+              });
+            });
+            assert.ok(fits, 'startup copy and bar fit without clipping or scrolling');
+          }
           await assertUpdateNotice(page, testCase.name, caseViewport);
           await assertTableMessageReadable(page, testCase.name, caseViewport);
           await assertDeleteAccountConfirmation(page, testCase.name, screenshotDir);

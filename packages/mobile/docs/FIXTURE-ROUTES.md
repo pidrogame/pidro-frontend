@@ -602,13 +602,31 @@ cases `friend-notice-*` check containment, touch targets, tab clearance and queu
 order at 390×844, 375×667, 844×390 and 768×1024. Browser sizes do not certify
 native safe-area measurement.
 
-## Shell update notice — "A new version is ready"
+## Startup updates (PID-362)
 
-`/home?fixture=update-notice` forces the shell's update notice on. It works on any
-shell tab (`/settings?fixture=update-notice` too), because the notice lives in the
-shell layout, not in a screen; the gallery cannot show it in place. Restart only shows its busy state here; nothing reloads. Dismiss hides it.
-Add `safeArea=island` (or any `/table-dev` preset) to fake insets for the whole shell.
-testID `update-notice`.
+`/ui-dev?state=updating&fixture=downloaded&locale=en|sv` holds the real startup screen
+at 60% progress. `fixture=applying` runs a three-second visual download, then routes
+to Home as a stand-in for native reload. Use an authenticated fixture for that demo.
+It does not call EAS: Expo web and Expo Go cannot apply native updates.
+
+`startup-update-en|sv` checks the copy, progress accessibility value and containment
+without scrolling at 390×844, 375×667, 844×390 and 768×1024:
+
+```sh
+UI_CASES=startup-update-en,startup-update-sv \
+UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait bun run test:ui
+```
+
+The root mounts routes only after the startup gate releases. Checking and fetching
+share five seconds; late downloads wait for the next cold start. A newly launched
+cached bundle skips the network gate. Before reload is committed, backgrounding ends
+the gate permanently for that launch; foreground never reloads. Once committed, the
+gate stays closed until native replaces the runtime or reports failure, since a
+native reload cannot be cancelled. Settings retains manual check/download/apply,
+but cannot apply while attached to a game. Native EAS delivery and rollback still
+need an installed release build; browser fixtures do not certify them.
+
+## Shell native store notice
 
 `/home?fixture=store-update-notice` and `/settings?fixture=store-update-notice` show
 the native-version notice in that same slot. Open store uses a non-live fixture URL;
@@ -625,23 +643,13 @@ last row clear of it. Home's play tiles reach the bottom and Home does not scrol
 Home places it itself with `UpdateNoticeSlot`: at the top of the logo stage, under the
 header, where no control reaches. Nothing moves when it shows or goes.
 
-The UI-grammar case `update-notice` opens `/home?fixture=update-notice&safeArea=island`
-in every viewport (375×667 included) and checks that no control sits under the notice,
-that it is clear of the tab pill, has 44pt Restart and Dismiss targets, that Restart goes
-busy and cannot be tapped twice, and that dismissing it moves nothing on Home. It then
-opens `/settings?fixture=update-notice&safeArea=island` and checks the notice floats
-above the bottom inset, the last row scrolls clear of it and no control sits under it.
-`update-notice-friends-guest` does the same for a guest on Friends, and
-`update-notice-home-guest` for a guest on Home.
+The retired `update-notice`, `update-notice-friends-guest` and
+`update-notice-home-guest` fixtures now assert that no OTA notice appears.
 
 Every Home case (including 667×375 for `home`, `home-guest` and the notice cases)
 hit-tests the header's controls and both play tiles: each must take its own taps. In
 landscape a guest's column (tiles, Classic plaque, Sign in) is taller than the space
 beside the logo once there are insets, so it scrolls there instead of covering the header.
-
-In a release build the notice shows by itself once Expo has downloaded an update, and
-never on the game screen. The real path (check on foreground, download, reload) needs a
-release build on a device; Expo Go and web have OTA updates disabled.
 
 ## `/auth-flow-dev` — guest-first auth
 

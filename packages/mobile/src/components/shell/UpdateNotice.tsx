@@ -1,5 +1,5 @@
 /**
- * "A new version is ready" — the shell's one notice. A floating card over the
+ * The native store upgrade notice. A floating card over the
  * screen, anchored just above the tab pill (above the bottom safe area when
  * there is no bottom pill) and short of the landscape tab rail, so showing or
  * hiding it never moves anything. A screen whose controls reach the bottom
@@ -60,7 +60,6 @@ export function UpdateNoticeSlot({
 
 export function UpdateNotice({
   restarting,
-  store = false,
   onRestart,
   onDismiss,
   style,
@@ -84,12 +83,12 @@ export function UpdateNotice({
         style={styles.notice}>
         <Icon name="rematch" size={20} color={PidroColors.cyan} />
         <PidroText role="label" style={styles.copy}>
-          {t(store ? 'update.storeNotice' : 'update.notice')}
+          {t('update.storeNotice')}
         </PidroText>
         <View style={styles.actions}>
           <BevelButton
-            testID={store ? 'update-notice-store' : 'update-notice-restart'}
-            label={t(store ? 'update.openStore' : 'update.restart')}
+            testID="update-notice-store"
+            label={t('update.openStore')}
             material="wood"
             size="sm"
             loading={restarting}

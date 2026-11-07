@@ -38,7 +38,9 @@ export function LeagueProgress({
       <View
         accessible
         accessibilityRole="progressbar"
-        accessibilityValue={{ min: 0, max: 100, now: Math.round(clamped * 100) }}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(clamped * 100)}
         accessibilityLabel={label}
         style={[styles.track, { width }, height != null && { height }]}>
         <View style={[styles.fill, { width: `${clamped * 100}%` }]} />
