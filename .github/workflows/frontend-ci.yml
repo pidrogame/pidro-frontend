@@ -90,6 +90,8 @@ jobs:
 
   integration-backend:
     name: Resolve integration backend
+    needs: select
+    if: needs.select.outputs.game == 'true' || needs.select.outputs.accounts == 'true'
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
@@ -269,6 +271,8 @@ jobs:
           fi
 
           if [ "$UI_SHARD" = "table-behavior" ]; then
+            # Focused readiness/order regressions use real Chromium, not a full game.
+            node --test scripts/readiness-e2e.test.mjs
             UI_SHOT_DIR=/tmp/ui-grammar-screens/table-chrome node scripts/verify-table-chrome.mjs
             node scripts/verify-seat-decisions.mjs
             node scripts/verify-dealing.mjs
@@ -452,25 +456,19 @@ jobs:
   ready:
     # ship.mjs releases to production only on a run that checked everything.
     name: ${{ needs.select.outputs.full == 'true' && 'Frontend ready (full)' || 'Frontend ready' }}
-    needs: [select, quality, ui-grammar, game-e2e, account-e2e]
+    needs: [select, quality, integration-backend, ui-grammar, game-e2e, account-e2e]
     if: ${{ !cancelled() }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       # A check may be skipped only because the selection said so; anything else fails.
       - name: Require all regression checks
         env:
           RESULTS: ${{ toJSON(needs) }}
-        run: |
-          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
-          echo "$RESULTS" | jq -e '
-            .select.outputs as $selected
-            | .select.result == "success"
-            and all(.quality, .["account-e2e"]; .result == "success")
-            and (.["ui-grammar"].result == "success"
-              or (.["ui-grammar"].result == "skipped" and $selected.ui == "false"))
-            and (.["game-e2e"].result == "success"
-              or (.["game-e2e"].result == "skipped" and $selected.game == "false"))'
+        run: node packages/mobile/scripts/ci-ready.mjs
 
   # The drift a green push adopted (compare-ui-baselines.mjs), committed on top of its
   # commit, fast-forward only: when main has moved on, the newer run adopts the same drift

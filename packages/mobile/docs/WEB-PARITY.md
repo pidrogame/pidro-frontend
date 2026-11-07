@@ -1,5 +1,9 @@
 # Bringing the Expo web loop back up to speed
 
+The current risk-based gate and proof requirements are in
+[`docs/testing.md`](../../../docs/testing.md). This page records the parity findings
+and available tooling, not a requirement to repeat a full device/browser sweep.
+
 Measured 2026-09-20 on iPhone 17 Pro (iOS 26.2, Expo Go 56.0.4) against Expo web
 at the committed baselines. Read with `FIXTURE-ROUTES.md`.
 
@@ -32,9 +36,9 @@ Web is authoritative for the things it can actually prove, and for nothing else.
 **Web proves (keep it as the fast gate):**
 
 - Layout grammar, containment, wrapping, long-name behaviour
-- Touch-target minimums (44pt) — already CI-enforced
+- Browser hit-box minimums (44 CSS px) — CI-enforced, not native reachability proof
 - Token/primitive drift via pixel diff against `test/ui-baselines/`
-- Flows that need _clicking_, which only Playwright can do today
+- Browser flows that need clicking (Playwright); native interaction uses Maestro
 
 **Known fixture-only difference:** an `data:image/svg+xml` URI renders in an
 `Image` on web and silently falls back to the placeholder on native — so an SVG
@@ -90,9 +94,10 @@ meaningful on web while the simulator shows the real thing.
 
 ### 5. Android, cheaply
 
-Press `a` in the same Metro session. Android currently has _zero_ visual
-coverage — the baselines are Chromium. One sweep per shipped change is enough;
-the `android`/`android-gesture` inset presets already encode the two nav modes.
+On a supported Android host/device, use the same Metro session. The committed
+baselines are Chromium, not Android coverage. Run affected native-risk cases,
+not a full sweep for every change; the `android`/`android-gesture` browser inset
+presets approximate two nav modes but cannot certify either on a device.
 
 ## What is explicitly not worth doing
 

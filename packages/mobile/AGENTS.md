@@ -12,6 +12,34 @@ Prove it, push to `main`; a green `main` publishes the beta update over the air.
 steps, the rollback command and the load-bearing paths that need an independent review
 before a push are in the root [`AGENTS.md`](../../AGENTS.md).
 
+## Testing and proof (required)
+
+Read [`../../docs/testing.md`](../../docs/testing.md) before choosing checks. It is
+the testing policy, including risk triggers, concrete evidence and release coverage.
+
+- **Prove the changed behavior, not just green tests.** Name the claim, reproduce a
+  bug before the fix, rerun the same case after, and check a nearby unchanged control.
+  Inspect captures/logs and report the observed state. Disclose fixture mocks and
+  skipped boundaries. Missing required evidence means verification is incomplete.
+- **Iterate narrowly.** Run the affected Bun test file, named `UI_CASES` and
+  `UI_VIEWPORTS`, or one relevant journey. Expand for shared-code, integration,
+  responsive or native risks. CI owns the selected regression sweep; do not repeat
+  the full screenshot inventory or full gameplay after every edit/review/rebase.
+- **Browser ≠ native.** Expo-web Chromium proves browser behavior only, including
+  phone/tablet/inset-named fixtures. Native modal/keyboard handoffs, real safe areas,
+  gestures, rotation, accessibility, worklets/GPU, native SDKs and lifecycle changes
+  require the affected path on iOS (simulator/device as appropriate). If unavailable,
+  report the native evidence blocker; do not call the feature complete.
+- **Freeze Metro inputs while capturing.** Finish edits, formatting and rebasing,
+  warm the route, then run checks with no edits/checkouts/install/cache-clears in
+  flight. If work must continue, serve a separate frozen worktree on a distinct port.
+  A reload/restart during a run invalidates the affected evidence; diagnose, freeze,
+  and rerun that selection, not automatically the whole matrix.
+- **Timing bugs get forced-order regressions.** Wait for the actual final state,
+  not a larger sleep. Capture the old failure and new result with the same delay or
+  event order. Keep reset/reconnect/error controls; don't buy green with retries or
+  weaker assertions. See the focused Home-tick and readiness examples in the policy.
+
 ## Current UI Direction: Design System v2 (LOCKED — 2026-09-09)
 
 The DS v2 bevel system is the canonical UI language. **Every new screen and every
@@ -143,8 +171,10 @@ bun android            # Run on Android emulator
 bun lint               # Lint and check formatting
 bun format             # Auto-fix linting and format code
 
-# Testing (when implemented)
-bun test               # Run Jest tests
+# Testing (root commands run from the repository root)
+bun run test:unit      # Root: Bun unit/regression suites in shared/test + mobile/test
+bun run test:ui        # Mobile: Expo-web grammar matrix; narrow with UI_CASES/UI_VIEWPORTS
+node --test scripts/readiness-e2e.test.mjs  # Mobile: focused Chromium readiness regression
 
 # Clear cache (if styles not updating)
 bun expo start -c      # Clear Metro bundler cache
@@ -187,7 +217,7 @@ src/
 
 ### Code Style
 
-- Use NativeWind's `className` prop for styling
+- Use design tokens and `StyleSheet.create`; `className` is legacy-only (see DS v2 above)
 - Prefer `const` over `let`
 - Use `useCallback` for functions passed as props
 - Extract error handling to utility functions
@@ -200,23 +230,20 @@ src/
 - **Server data**: TanStack Query (when implemented)
 - **Real-time game state**: Phoenix Channels custom hooks
 
-### Testing (Not Yet Implemented)
+### Test locations
 
-When adding tests, follow these patterns:
-
-- Unit tests: `__tests__/unit/`
-- Component tests: `__tests__/integration/`
-- Use React Native Testing Library
-- Mock Phoenix Channels in tests
+- Bun unit/regression tests: `test/` and `../shared/test/` (extend existing suites).
+- Expo-web geometry/fixture checks: `scripts/verify-*.mjs`; account journeys:
+  `e2e/specs/` (Playwright); native simulator flows: `test/flows/` (Maestro).
+- Mock only below the boundary being proved. A mocked channel/API fixture cannot
+  certify real event ordering, server integration or native SDK behavior.
 
 ## Critical Implementation Notes
 
 ### NativeWind v4 Setup (Tailwind v3)
 
-1.  **Styling Rules**:
-    - **ALWAYS** use `className="..."` for styling components.
-    - **NEVER** use inline styles (e.g., `style={{ width: 100 }}`) if a utility class can achieve the same result.
-    - If you find yourself writing `style={...}`, stop and check if there's a Tailwind class for it.
+1.  **Legacy only**: preserve existing NativeWind behavior when maintaining an old
+    surface. New/restyled surfaces follow DS v2 tokens and `StyleSheet.create` above.
 2.  **Configuration**:
     - `tailwind.config.js` handles the configuration (v3 syntax).
     - `babel.config.js` includes `nativewind/babel`.

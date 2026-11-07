@@ -80,11 +80,23 @@ describe('what a push runs', () => {
     expect(run).toMatchObject({ full: false, cases: [], shards: [], game: false, accounts: false });
   });
 
+  test.each(['readiness-e2e.mjs', 'readiness-e2e.test.mjs'])(
+    'the readiness harness %s selects its focused browser regression and real journeys',
+    (file) => {
+      const run = select(`packages/mobile/scripts/${file}`);
+      expect(run.full).toBe(false);
+      expect(run.shards).toContainEqual({ shard: 'table-behavior', partition: '' });
+      expect(run.game && run.accounts).toBe(true);
+      expect(run.journeys).toEqual(journeys);
+    }
+  );
+
   test.each([
     ['a design token', 'packages/mobile/src/design/tokens.ts'],
     ['the lockfile', 'bun.lock'],
     ['a path no rule claims', 'packages/mobile/src/somewhere/new.ts'],
     ['the workflow', '.github/workflows/frontend-ci.yml'],
+    ['the readiness gate', 'packages/mobile/scripts/ci-ready.mjs'],
   ])('%s runs everything', (_, file) => {
     const run = select('docs/shipping.md', file);
     expect(run.full).toBe(true);

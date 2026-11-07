@@ -50,6 +50,13 @@ const AREAS = {
 // `accounts: 'table'` runs the journeys that play through the table (tableJourneys).
 const MAP = [
   {
+    rule: 'readiness and event ordering',
+    areas: ['table'],
+    game: true,
+    accounts: 'table',
+    files: ['scripts/readiness-e2e{,.test}.mjs'],
+  },
+  {
     rule: 'docs and unit tests',
     files: [
       '**/*.md',
@@ -81,7 +88,7 @@ const MAP = [
       'app/{(auth),(shell)}/_layout.tsx',
       'src/channels/**',
       'src/bootstrap/realtime.ts',
-      'scripts/{verify-ui-grammar,verify-ui-readiness,ui-test-utils,ui-shards,compare-ui-baselines,ci-affected}.mjs',
+      'scripts/{verify-ui-grammar,verify-ui-readiness,ui-test-utils,ui-shards,compare-ui-baselines,ci-affected,ci-ready}.mjs',
       'scripts/ui-case-costs.json',
       'scripts/tailwind-v3-resolve.cjs',
       // Drawn on the shell screens too, or shared with home and welcome.

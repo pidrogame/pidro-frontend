@@ -7,9 +7,16 @@ API clients are `packages/shared`; `packages/web` is the old web client.
 
 Trunk-based: no pull requests.
 
-1. **Prove it.** From the root `bun run shared:build && bun run test:unit`; in
-   `packages/mobile` `bunx tsc --noEmit && bun run lint`, plus screenshots for anything
-   visible. Show the proof in the thread; it replaces the review.
+1. **Prove the changed behavior.** Marcel's requirement is non-negotiable:
+   **"I always want the expectations to be that the orb needs to provide irrefutable
+   proof that whatever it has built is working."** Follow [`docs/testing.md`](docs/testing.md):
+   focused checks while iterating, risk-triggered visual/integration/native evidence,
+   and before handoff, from the root `bun run shared:build && bun run test:unit`; in
+   `packages/mobile` `bunx tsc --noEmit && bun run lint`. Green tests alone are not
+   proof. Show the actual changed scenario, a nearby control, observed results and
+   limitations. Browser evidence is not native iOS proof. If required evidence is
+   missing, report **implemented, verification blocked/incomplete**, not complete or
+   ready to ship. Proof replaces routine review, not the independent review below.
 2. **Push to `main`.** A few small commits, `git pull --rebase origin main` first.
 3. **A green `main` publishes the beta update by itself.** When Frontend CI passes on
    `main`, the Beta update workflow publishes that commit over the air to beta testers,
@@ -17,7 +24,9 @@ Trunk-based: no pull requests.
    Watch `main` until it is green; if you turned it red, fix forward right away.
    A push runs only the checks its change touches (`packages/mobile/scripts/ci-affected.mjs`;
    the "Select checks" summary says why). The full release test is Actions → Frontend CI →
-   Run workflow; it runs everything and never publishes.
+   Run workflow; it runs everything and never publishes. Do not repeat that full matrix
+   locally without a risk-based reason. CI's authoritative aggregate is `Frontend ready`
+   (or `Frontend ready (full)`); see `docs/testing.md` for what it does and does not prove.
 4. **Roll back** with `node scripts/rollback-ota.mjs` from `packages/mobile`.
    When to roll back and when to fix forward: [docs/shipping.md](docs/shipping.md).
 

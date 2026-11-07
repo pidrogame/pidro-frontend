@@ -1046,6 +1046,10 @@ at 390×844, 375×667, 844×390 and 768×1024. The internal rule value stays `fi
 
 ## Scripted checks (Playwright against Expo web)
 
+Choose cases and widths by the [testing and proof contract](../../../docs/testing.md).
+During iteration run the affected selection, not the full inventory. Freeze Metro's
+source tree while capturing. These are browser checks, not native iOS evidence.
+
 Needs Expo web running (`bun run web`) and, once per machine,
 `bunx playwright install chromium`.
 

@@ -1,5 +1,11 @@
 # Shipping to beta testers
 
+Before pushing, satisfy the risk-based [testing and proof contract](testing.md).
+`Frontend ready` is the authoritative selected CI gate, not native iOS evidence.
+Native-risk changes must have their required simulator/device/build evidence before
+the push: the automatic beta workflow does not collect it or wait for manual QA.
+Missing required evidence means verification incomplete, even when checks are green.
+
 A commit pushed to `main` reaches beta testers' phones by itself:
 
 1. Frontend CI runs on `main`.
