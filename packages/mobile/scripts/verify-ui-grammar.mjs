@@ -5619,8 +5619,8 @@ async function assertBotVoice(page, testCase, viewport) {
     await copy
       .getByText(
         testCase.locale === 'sv'
-          ? 'Alla tre botarna spelar samma ärliga spel: de bjuder vad handen är värd, räknar trumf och stöttar sin partner.'
-          : 'All three bots play the same honest game: they bid what the hand is worth, count trumps and back up their partner.',
+          ? 'Alla tre botarna spelar samma ärliga spel: de bjuder bara så högt som behövs, räknar trumf och stöttar sin partner.'
+          : 'All three bots play the same honest game: they bid only as high as they need to, count trumps and back up their partner.',
         { exact: true }
       )
       .waitFor();
