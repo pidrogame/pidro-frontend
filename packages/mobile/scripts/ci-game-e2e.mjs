@@ -594,7 +594,7 @@ async function stageThreeTableTalk() {
     await confirmInitialTable(pages, '[data-testid="game-table"]');
     // Once both phones are at the table, both people play their turns over the
     // protocol while the phones talk: a seat that only times out is sent away,
-    // and then the table has one person and no band.
+    // and then the table has one person and no bubble.
     for (const name of [speaker, listener])
       runAutoplayer(
         [
@@ -605,10 +605,10 @@ async function stageThreeTableTalk() {
         `talk-${name.slice(-1)}`
       ).catch(() => {});
     for (const page of pages)
-      await page.getByTestId('talk-band').first().waitFor({ timeout: 30_000 });
-    log('both players see the band: two people at the table');
+      await page.getByTestId('talk-speech').first().waitFor({ timeout: 30_000 });
+    log('both players see the speech bubble: two people at the table');
 
-    // A "time ran out" notice can still sit in the band's slot. Under one,
+    // A "time ran out" notice can still sit over the bubble. Under one,
     // press the control itself, as a screen reader does.
     const tap = async (target) => {
       await target.waitFor({ timeout: 5_000 });
@@ -616,13 +616,9 @@ async function stageThreeTableTalk() {
         .click({ timeout: 1_500 })
         .catch(() => target.evaluate((node) => node.click(), undefined, { timeout: 2_000 }));
     };
-    // The band, or the speech button beside an offer standing in its place.
-    const opener = (page) =>
-      page
-        .getByTestId('talk-band')
-        .or(page.getByTestId('talk-offer').getByTestId('talk-speech'))
-        .first();
-    // An adult's band opens the composer, with the words in it. Others: the log, then the words.
+    // The speech bubble in the corner (PID-393), an offer's or its own.
+    const opener = (page) => page.getByTestId('talk-speech').first();
+    // An adult's bubble opens the composer, with the words in it. Others: the log, then the words.
     // It opens at once or not at all: your turn can close it before it is seen, so do not
     // wait the default 30 s for it, which three turns would spend the whole Thanks! budget on.
     const sayFrom = async (page) => {
@@ -684,17 +680,11 @@ async function stageThreeTableTalk() {
       throw new Error(`the word landed by ${nearest?.label}, not by ${speaker}`);
     log(`the word landed at ${speaker}'s seat on ${listener}'s phone`);
 
-    // It fades after about three seconds and the band keeps it, unless an
-    // offer stands in the band's place (bots finish tricks fast here).
-    await heard
-      .getByTestId('talk-band')
-      .first()
-      .getByText('Nice trick!')
-      .or(heard.getByTestId('talk-offer'))
-      .first()
-      .waitFor({ timeout: 8_000 });
+    // It fades after about three seconds and the bubble keeps a dot for it
+    // (PID-393), an offer's bubble too (bots finish tricks fast here).
+    await heard.getByTestId('talk-speech-dot').first().waitFor({ timeout: 8_000 });
     await heard.screenshot({ path: resolve(artifactDir, 'talk-last-line.png') });
-    log('a word sent from one phone landed on the other and stayed in its band');
+    log('a word sent from one phone landed on the other and its bubble kept a dot for it');
 
     // PID-328: praise is answered. Offers wait out bidding, take one trick at a
     // time and stop for a hand after three are ignored, so say it again until

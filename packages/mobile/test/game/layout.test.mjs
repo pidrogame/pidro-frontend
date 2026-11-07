@@ -517,9 +517,9 @@ describe('upright phones seat East and West low beside the trick', () => {
       const L = computeLayout(width, height, insets, 60);
       expect(L.bottom).toBe(height - insets.bottom);
       const size = L.tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
-      // A tight seat is its avatar, its name beside it; else avatar, chip, name and line.
+      // The avatar over its name and line (a tight one has no level).
       const seatTop = L.sides.seat - size / 2;
-      const seatBottom = seatTop + (L.tight ? TIGHT_AVATAR : 98);
+      const seatBottom = seatTop + (L.tight ? TIGHT_AVATAR + 34 : 98);
       expect(sideSeatTop(L, { tableTop, seatHeight: 0, headerBottom: 0 })).toBeCloseTo(seatTop);
       // Their avatars below North's seat: North alone at the top.
       expect(L.sides.seat).toBeGreaterThan(northSeatBottom(L, tableTop));

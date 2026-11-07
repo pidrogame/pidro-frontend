@@ -597,6 +597,8 @@ const sideAvatar = (L: Pick<TableLayout, 'tight' | 'profile'>) =>
 export const TIGHT_SOUTH_GAP = 6;
 /** Your tight seat under the hand: the gap, the avatar, its short line and air above the home indicator. */
 const TIGHT_SOUTH_SEAT = TIGHT_SOUTH_GAP + TIGHT_AVATAR + 4 + 14 + 8;
+/** East's or West's tight seat: the avatar over its name and line, no level. */
+const TIGHT_SIDE_SEAT = TIGHT_AVATAR + 4 + 16 + 14;
 /**
  * Small phones leave the ticker out: the seats' status lines say the same,
  * and the table needs the room (Marcel, 2026-10-15). Landscape phones too.
@@ -650,13 +652,6 @@ export function pileSpacing(count: number, room: number, cardW: number): number[
  */
 const pileHalfSpan = (L: TableLayout) =>
   L.trick.across - (L.cardW * L.trick.pileScale * PILE_TRAIL_SCALE * CARD_RATIO) / 2 - PILE_GAP;
-/**
- * Tight upright phones (PID-393): how far in from its screen `edge` East's or
- * West's seat reaches at most, its name running beside the avatar toward the
- * middle, TRICK_GAP short of North's widest pile beside it.
- */
-export const uprightSeatReach = (L: TableLayout, edge: number) =>
-  L.width / 2 - pileHalfSpan(L) - TRICK_GAP - edge;
 
 /**
  * Where card `index` of a seat's `count` played cards this hand lies. On
@@ -1070,15 +1065,15 @@ export function computeLayout(
   const sideCy = portrait ? trickCy + portraitDrop : trickCy + (twoRows ? 0 : LANDSCAPE_SIDE_DROP);
   // Upright phones (PID-393): East and West come down toward the trick's
   // line, so the four seats stand apart, North alone at the top. Each comes
-  // as far as its seat (on a tight phone the avatar, its name beside it;
-  // otherwise the avatar over its name and line) stays TRICK_GAP above the
+  // as far as its seat (the avatar over its name and line, which a name
+  // beside it would not leave room for) stays TRICK_GAP above the
   // top edge of its played cards, which hang down from the line beside it.
   // Its backs hang below it in the edge column, TRICK_GAP clear of a lifted
   // card of yours. A full stack short of room closes up to SIDE_STACK_LEAST;
   // only past that does the seat rise, as little as it must.
   const upright = profile === 'phone-portrait';
   const sideSize = sideAvatar({ tight, profile });
-  const sideBelow = (tight ? TIGHT_AVATAR : NORTH_SEAT_STACK.phone) - sideSize / 2 + TRICK_GAP;
+  const sideBelow = (tight ? TIGHT_SIDE_SEAT : NORTH_SEAT_STACK.phone) - sideSize / 2 + TRICK_GAP;
   const stackBottom = handY - cardH / 2 - Math.min(16, cardH * 0.14) - held - TRICK_GAP;
   const stackLeast = sideBackWidth(cardW) * (1 + 5 * SIDE_STACK_LEAST);
   const sideLow = Math.min(trickCy, trickCy - (cardW * pileScale) / 2 - sideBelow);

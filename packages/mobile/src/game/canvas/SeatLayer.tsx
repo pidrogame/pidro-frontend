@@ -62,7 +62,6 @@ import {
   PACK_STEP,
   northFanStep,
   sideStackStep,
-  uprightSeatReach,
   pileCardW,
   pileSpot,
   seatNameGap,
@@ -292,21 +291,14 @@ export function SeatLayer({
       southCards: seats.south?.cardCount ?? 9,
       northBacks,
     });
+  // Tight North's avatar stays on the table's axis, its name running right.
+  // East and West sit low beside North's pile (PID-393): their names run
+  // under them, as on every upright phone.
   const besideName = !portrait || tight;
-  // Tight North's avatar stays on the table's axis, its name running right;
-  // East and West run toward each other, short of North's widest pile (PID-393).
   const tightNorthLeft = width / 2 - size / 2;
-  const tightReach = (rel: RelativePosition) =>
-    uprightSeatReach(L, rel === 'east' ? insets.right : insets.left) - PidroSpacing.sm;
   const seatWidth = (rel: RelativePosition) =>
-    tight
-      ? {
-          maxWidth:
-            rel === 'north'
-              ? width - insets.right - PidroSpacing.sm - tightNorthLeft
-              : tightReach(rel),
-          gap: PidroSpacing.xs,
-        }
+    tight && rel === 'north'
+      ? { maxWidth: width - insets.right - PidroSpacing.sm - tightNorthLeft, gap: PidroSpacing.xs }
       : portrait
         ? rel === 'north' || rel === 'south'
           ? { width: centerColumn }
@@ -355,8 +347,7 @@ export function SeatLayer({
             sideReach / 2
         )
       : L.sides.cy;
-  // Tight side seats keep their dealer chip, on the avatar's outer corner, on screen.
-  const sideInset = tight ? PidroSpacing.sm : portrait ? 0 : 12;
+  const sideInset = portrait ? 0 : 12;
   // Both deals' backs fly in from the pack beside the dealer (PID-394).
   const dealer = dealerRel ?? 'south';
   const from = packSpot(L, dealer);
@@ -540,7 +531,7 @@ export function SeatLayer({
         // What the seat says aloud, its winning bid included.
         const spoken = { ...seat, bid: holds };
         const labelSide =
-          besideName && !(L.sidesUnder && (rel === 'east' || rel === 'west'))
+          besideName && !((L.sidesUnder || portrait) && (rel === 'east' || rel === 'west'))
             ? rel === 'east'
               ? 'left'
               : 'right'
@@ -555,13 +546,11 @@ export function SeatLayer({
             nameRoom={
               L.sidesUnder && (rel === 'east' || rel === 'west')
                 ? (L.sideSeatWidth ?? SIDE_SEAT_WIDTH)
-                : tight && (rel === 'east' || rel === 'west')
-                  ? tightReach(rel) - size - PidroSpacing.xs
-                  : !portrait
-                    ? reach(rel)
-                    : rel === 'north' || rel === 'south'
-                      ? centerColumn
-                      : sideColumn - PidroSpacing.xs * 2
+                : !portrait
+                  ? reach(rel)
+                  : rel === 'north' || rel === 'south'
+                    ? centerColumn
+                    : sideColumn - PidroSpacing.xs * 2
             }
             style={[
               tight && rel === 'south'
