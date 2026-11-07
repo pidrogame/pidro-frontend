@@ -85,6 +85,8 @@ const PORTRAIT_SIDE_DROP = 0.45;
  * backs, a gap, then the seat (avatar, level chip, name and status).
  */
 const NORTH_SEAT_STACK = { phone: 98, tablet: 115 } as const;
+/** A landscape phone's side seat, as SeatLayer stacks it: avatar, level chip, name and status. */
+const LANDSCAPE_SIDE_SEAT = 93;
 /** One of North's card backs, as SeatLayer draws them. */
 // Opponents' backs are big enough to count at a glance: veterans read the
 // second deal off them (how many each drew), not just that cards are there.
@@ -114,10 +116,13 @@ const packRise = (backW: number, count: number) => (packLayers(count) - 1) * bac
  * North's size. North's lies right of its full fan, its top back level with
  * the fan's; on landscape phones, where North's seat is there, left of it,
  * and on landscape tablets, whose ticker runs there, under North's seat.
- * Yours waits in the bottom-right corner, under the right end of your hand and
- * clear of East's stack; where the table has no room for it there upright (the
- * shortest phones), it lies sideways. Landscape keeps it right of the hand,
- * level with it, below East's front row.
+ * East's and West's lie sideways, as their backs do, on the free side of
+ * their seat: upright, above it, at the screen's edge; on landscape phones
+ * under it, beside their backs; on landscape tablets, whose header row is
+ * above them, under their backs. Yours waits in the bottom-right corner,
+ * under the right end of your hand and clear of East's stack; where the table
+ * has no room for it there upright (the shortest phones), it lies sideways.
+ * Landscape keeps it right of the hand, level with it, below East's front row.
  */
 export function packSpot(L: TableLayout, dealer: RelativePosition) {
   const portrait = L.profile.endsWith('portrait');
@@ -138,6 +143,40 @@ export function packSpot(L: TableLayout, dealer: RelativePosition) {
       x: cx + fan / 2 + TRICK_GAP + w / 2,
       y: seatBottom + TRICK_GAP + full + h / 2,
       sideways: false,
+    };
+  }
+  if (dealer === 'east' || dealer === 'west') {
+    const east = dealer === 'east';
+    const edge = east ? L.insets.right : L.insets.left;
+    // Lying sideways, the pack is a back's height wide and leans right as it rises.
+    const along = (inset: number) => (east ? L.width - inset - full * 0.55 - h / 2 : inset + h / 2);
+    if (portrait) {
+      const seatTop = sideSeatTop(L, {
+        tableTop: L.top,
+        seatHeight: L.tight
+          ? TIGHT_AVATAR
+          : NORTH_SEAT_STACK[L.profile.startsWith('tablet') ? 'tablet' : 'phone'],
+        headerBottom: 0,
+      });
+      return { x: along(edge + 4), y: seatTop - BADGE_RISE - TRICK_GAP - w / 2, sideways: true };
+    }
+    if (L.front) {
+      const seatBottom = L.sidesUnder
+        ? landscapeSideSeatTop(L, dealer, LANDSCAPE_SIDE_SEAT) + LANDSCAPE_SIDE_SEAT
+        : sideSeatTop(L, { tableTop: L.top, seatHeight: 0, headerBottom: 0 }) +
+          AVATAR_SIZE[L.profile] +
+          LEVEL_HANG;
+      return {
+        x: along(sideStackInner(L.cardW, edge) + SIDE_SEAT_GAP),
+        y: seatBottom + TRICK_GAP + full + w / 2,
+        sideways: true,
+      };
+    }
+    const stacks = sideStacks(L);
+    return {
+      x: along(edge + 4),
+      y: stacks.top + stacks.maxHeight + TRICK_GAP + full + w / 2,
+      sideways: true,
     };
   }
   if (!portrait)

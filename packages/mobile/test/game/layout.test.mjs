@@ -260,6 +260,51 @@ describe('side stacks and the hand', () => {
     });
   }
 
+  // East and West deal from a pack lying sideways at the screen's edge,
+  // above their seat upright, its bid badge included; landscape keeps it
+  // under the seat and its backs.
+  for (const [width, height, insets] of [
+    [360, 780, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [768, 1024, { top: 24, bottom: 20, left: 0, right: 0 }],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [1024, 768, { top: 24, bottom: 20, left: 0, right: 0 }],
+  ]) {
+    it(`lays East's and West's packs sideways by their seats on ${width}×${height}`, () => {
+      const upright = height > width;
+      const L = computeLayout(width, height, insets, upright ? 60 : 0, 0);
+      const w = northBackWidth(L.cardW, compactNorth(L));
+      const h = w * (110 / 78);
+      const rise = (packLayers(52) - 1) * w * PACK_STEP;
+      const stacks = sideStacks(L);
+      for (const rel of ['east', 'west']) {
+        const pack = packSpot(L, rel);
+        expect(pack.sideways).toBe(true);
+        const left = pack.x - h / 2;
+        const right = pack.x + h / 2 + rise * 0.55;
+        expect(left).toBeGreaterThanOrEqual(insets.left);
+        expect(right).toBeLessThanOrEqual(width - insets.right);
+        expect(pack.y - w / 2 - rise).toBeGreaterThanOrEqual(L.top);
+        expect(pack.y + w / 2).toBeLessThanOrEqual(height - insets.bottom);
+        if (upright) {
+          const seatTop = sideSeatTop(L, {
+            tableTop: L.top,
+            seatHeight: L.tight ? TIGHT_AVATAR : L.profile.startsWith('tablet') ? 115 : 98,
+            headerBottom: 0,
+          });
+          expect(pack.y + w / 2).toBeLessThanOrEqual(seatTop - 3 - 12 + 0.01);
+        } else {
+          // Under the stack's top, on the free side of the seat, never over the backs.
+          expect(pack.y - w / 2 - rise).toBeGreaterThan(stacks.top);
+          const inner = rel === 'west' ? stacks.backW * (110 / 78) : width - stacks.backW * (110 / 78);
+          if (L.front) expect(rel === 'west' ? left > inner : right < inner).toBe(true);
+          else expect(pack.y - w / 2 - rise).toBeGreaterThan(stacks.top + stacks.maxHeight);
+        }
+      }
+    });
+  }
+
   it('puts the left edge of a fuller hand further left', () => {
     const layout = computeLayout(844, 390, none);
     expect(handLeft(layout, 9)).toBeLessThan(handLeft(layout, 6));

@@ -1611,9 +1611,21 @@ const allCases = [
   // trump mark, every thing TRICK_GAP from every other. ironman3001 deals at
   // West, Margaretha Lindqvist holds the bid.
   ...[
-    ['bidding', 'fixture=details&dealer=west&bidder=north&phase=bidding', 'bidding-window', {}],
+    [
+      'bidding',
+      'fixture=details&dealer=west&bidder=north&phase=bidding',
+      'bidding-window',
+      { pack: true },
+    ],
     // PID-394: the pack rests beside its dealer, North's left of its fan.
     ['bidding-north', 'phase=bidding&role=player&dealer=north', 'bidding-window', { pack: true }],
+    ['bidding-east', 'phase=bidding&role=player&dealer=east', 'bidding-window', { pack: true }],
+    [
+      'second-deal-east',
+      'deal=draw&dealer=east&holdMs=600000',
+      'seat-south',
+      { thrown: ['south', 'west', 'north'], mark: true, pack: true },
+    ],
     [
       'second-deal-north',
       'deal=draw&dealer=north&holdMs=600000',
@@ -1626,7 +1638,7 @@ const allCases = [
       'second-deal',
       'deal=draw&holdMs=600000',
       'seat-south',
-      { thrown: ['north', 'east', 'south'], mark: true },
+      { thrown: ['north', 'east', 'south'], mark: true, pack: true },
     ],
     // PID-306: only the dealer sees their own throw; everyone sees killed trumps.
     [
@@ -1674,10 +1686,18 @@ const allCases = [
       'second-deal',
       'deal=draw&holdMs=600000',
       'seat-south',
-      { thrown: ['north', 'east', 'south'], mark: true },
+      { thrown: ['north', 'east', 'south'], mark: true, pack: true },
     ],
     // PID-394: the pack rests beside its dealer through bidding and the throws.
     ['bidding-north', 'phase=bidding&role=player&dealer=north', 'bidding-window', { pack: true }],
+    ['bidding-east', 'phase=bidding&role=player&dealer=east', 'bidding-window', { pack: true }],
+    ['bidding-west', 'phase=bidding&role=player&dealer=west', 'bidding-window', { pack: true }],
+    [
+      'second-deal-east',
+      'deal=draw&dealer=east&holdMs=600000',
+      'seat-south',
+      { thrown: ['south', 'west', 'north'], mark: true, pack: true },
+    ],
     [
       'second-deal-north',
       'deal=draw&dealer=north&holdMs=600000',
