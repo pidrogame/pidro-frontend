@@ -52,7 +52,10 @@ import {
   HELD_STYLE,
   heldPose,
   handStep,
+  handScale,
+  playedCardTarget,
   type HeldStyle,
+  type TableLayout,
   northFanTop,
   packSpot,
   northFanStep,
@@ -78,10 +81,14 @@ import {
   DEAL_PACKET_CARD_STAGGER_MS,
   DEAL_PACKET_TRAVEL_MS,
   FOLD_FLIGHT_MS,
+  LAY_DOWN_FLIGHT_MS,
+  LAY_DOWN_GATHER_MS,
+  layDownAt,
   SECOND_DEAL_FLIGHT_MS,
   SECOND_DEAL_SWOOP_STAGGER_MS,
 } from './animationTiming';
 import type { SecondDealShow } from './useSecondDealPresentation';
+import type { LayDownShow } from './useLayDownPresentation';
 import { bakedShadow } from './bakedBlur';
 import { t, useTranslation } from '@/i18n';
 import type { Card } from '@/types/game';
@@ -173,6 +180,8 @@ type Props = {
   secondDeal?: SecondDealShow;
   /** Killed trumps, face up in front of the seat that killed them (PID-306). */
   killed?: Partial<Record<RelativePosition, Card[]>>;
+  /** A settled hand laid down, face up in front of its holder (PID-366). */
+  layDown?: LayDownShow;
   /** How every hand holds its cards. */
   held?: HeldStyle;
   bid?: { seat: RelativePosition | undefined; amount: number };
@@ -197,6 +206,7 @@ export function SeatLayer({
   levels = true,
   secondDeal,
   killed,
+  layDown,
   held = HELD_STYLE,
   bid,
   said,
@@ -379,7 +389,8 @@ export function SeatLayer({
         const folded = seats[rel]?.foldedCount ?? 0;
         const thrown = secondDeal?.thrown[rel] ?? folded;
         const kills = killed?.[rel] ?? [];
-        if (!seats[rel] || (thrown === 0 && kills.length === 0)) return null;
+        const laid = layDown?.rel === rel && layDown.step !== 'done' ? layDown : null;
+        if (!seats[rel] || (thrown === 0 && kills.length === 0 && !laid)) return null;
         const foldingHand = !secondDeal && folded > 0;
         const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
         // Landscape phones throw from just inside the hand, never from behind
@@ -419,6 +430,27 @@ export function SeatLayer({
                   };
         return (
           <Fragment key={`thrown-${rel}`}>
+            {laid ? (
+              <LaidFan
+                key={`laid-${laid.hand}`}
+                rel={rel}
+                cards={laid.cards}
+                // Yours rise from your hand, face up; anyone else's turn over on the way.
+                from={(i, n) =>
+                  rel === 'south'
+                    ? { x: L.hand.cx + (i - (n - 1) / 2) * handStep(L, n), y: L.hand.cy }
+                    : from
+                }
+                fromScale={rel === 'south' ? (L.cardW * handScale(L.profile)) / pileCardW(L) : 1}
+                flip={!seats[rel]?.isYou}
+                // East's ranks lie at the bottom: upright, its newer cards lie higher.
+                at={(i, n) => pileSpot(L, rel, rel === 'east' && !L.front ? n - 1 - i : i, n)}
+                pile={laidPile(L, rel)}
+                gather={laid.step === 'gather'}
+                cardW={pileCardW(L)}
+                square={!!L.front}
+              />
+            ) : null}
             {kills.length > 0 ? (
               <ThrownPile
                 rel={rel}
@@ -999,6 +1031,150 @@ function ThrownBack({
       ) : (
         <Back w={w} h={h} />
       )}
+    </Animated.View>
+  );
+}
+
+/**
+ * A settled hand laid down (PID-366), as a second-deal throw lies: face up in
+ * front of its holder, highest first. The cards come down one after another,
+ * turning face up on the way (yours rise from your hand already face up),
+ * hold, then gather onto the holder's played cards as one. One timing per card
+ * drives it all: 0 to 1 into the fan, 1 to 2 into the pile.
+ */
+function LaidFan({
+  rel,
+  cards,
+  from,
+  fromScale,
+  flip,
+  at,
+  pile,
+  gather,
+  cardW,
+  square,
+}: {
+  rel: RelativePosition;
+  cards: Card[];
+  from: (i: number, n: number) => { x: number; y: number };
+  fromScale: number;
+  flip: boolean;
+  at: (i: number, n: number) => { x: number; y: number };
+  pile: { x: number; y: number; rot: number; scale: number };
+  gather: boolean;
+  cardW: number;
+  square: boolean;
+}) {
+  const n = cards.length;
+  const sideways = rel === 'east' || rel === 'west';
+  return (
+    <Animated.View
+      testID={`lay-down-${rel}`}
+      accessibilityElementsHidden
+      pointerEvents="none"
+      exiting={FadeOut.duration(SECOND_DEAL_FLIGHT_MS)}
+      style={StyleSheet.absoluteFill}>
+      {cards.map((card, i) => (
+        <LaidCard
+          key={`${card.suit}_${card.rank}`}
+          card={card}
+          from={from(i, n)}
+          fromScale={fromScale}
+          flip={flip}
+          to={at(i, n)}
+          // Faces lie as played cards do, their tops toward the middle.
+          rot={(rel === 'east' ? -90 : sideways ? 90 : 0) + (square ? 0 : ((i * 37) % 7) - 3)}
+          pile={pile}
+          delay={layDownAt(i, n)}
+          gather={gather}
+          w={cardW}
+        />
+      ))}
+    </Animated.View>
+  );
+}
+
+/** Where a laid card gathers: onto its holder's played cards, at their size. */
+function laidPile(L: TableLayout, rel: RelativePosition) {
+  const target = playedCardTarget(L, rel, 0, 1);
+  return {
+    x: target.x,
+    y: target.y,
+    rot: (target.rot * 180) / Math.PI,
+    scale: (L.cardW * target.scale) / pileCardW(L),
+  };
+}
+
+function LaidCard({
+  card,
+  from,
+  fromScale,
+  flip,
+  to,
+  rot,
+  pile,
+  delay,
+  gather,
+  w,
+}: {
+  card: Card;
+  from: { x: number; y: number };
+  fromScale: number;
+  flip: boolean;
+  to: { x: number; y: number };
+  rot: number;
+  pile: { x: number; y: number; rot: number; scale: number };
+  delay: number;
+  gather: boolean;
+  w: number;
+}) {
+  const reducedMotion = useReducedMotion();
+  const h = w * (110 / 78);
+  // Reduce Motion: in the fan without turning over, and the gather a cut.
+  const p = useSharedValue(reducedMotion ? 1 : 0);
+  useEffect(() => {
+    p.value = gather
+      ? withTiming(2, {
+          duration: reducedMotion ? 0 : LAY_DOWN_GATHER_MS,
+          easing: Easing.inOut(Easing.cubic),
+        })
+      : reducedMotion
+        ? 1
+        : withDelay(
+            delay,
+            withTiming(1, { duration: LAY_DOWN_FLIGHT_MS, easing: Easing.out(Easing.cubic) })
+          );
+  }, [gather, delay, reducedMotion, p]);
+  const motion = useAnimatedStyle(() => {
+    const fan = Math.min(1, p.value);
+    const into = Math.max(0, p.value - 1);
+    const scale = fromScale + (1 - fromScale) * fan + (pile.scale - 1) * into;
+    // Edge-on halfway: the back gives way to the face.
+    const turn = flip ? Math.abs(1 - 2 * fan) : 1;
+    return {
+      transform: [
+        { translateX: from.x + (to.x - from.x) * fan + (pile.x - to.x) * into - w / 2 },
+        { translateY: from.y + (to.y - from.y) * fan + (pile.y - to.y) * into - h / 2 },
+        { rotate: `${rot - (flip ? 25 * (1 - fan) : 0) + (pile.rot - rot) * into}deg` },
+        { scaleX: scale * turn },
+        { scaleY: scale },
+      ],
+    };
+  });
+  const back = useAnimatedStyle(() => ({ opacity: p.value < 0.5 ? 1 : 0 }));
+  return (
+    <Animated.View style={[{ position: 'absolute', width: w, height: h }, motion]}>
+      <Image
+        testID="thrown-face"
+        source={getCardImage(card)}
+        accessibilityIgnoresInvertColors
+        style={{ width: w, height: h, borderRadius: BACK_RADIUS }}
+      />
+      {flip ? (
+        <Animated.View style={[StyleSheet.absoluteFill, back]}>
+          <Back w={w} h={h} />
+        </Animated.View>
+      ) : null}
     </Animated.View>
   );
 }

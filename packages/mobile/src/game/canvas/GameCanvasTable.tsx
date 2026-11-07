@@ -43,6 +43,7 @@ import { useHandPresentationReady } from './useHandPresentationReady';
 import { useDealPresentation } from './useDealPresentation';
 import { useSecondDealPresentation } from './useSecondDealPresentation';
 import { usePlayPresentation } from './usePlayPresentation';
+import { laidDown, useLayDownPresentation } from './useLayDownPresentation';
 import { PLAY_CARD_TRAVEL_MS } from './animationTiming';
 import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
@@ -273,6 +274,7 @@ function TimedSeatLayer({
   levels,
   secondDeal,
   killed,
+  layDown,
   held,
   bid,
   said,
@@ -290,6 +292,7 @@ function TimedSeatLayer({
   levels: boolean;
   secondDeal: ComponentProps<typeof SeatLayer>['secondDeal'];
   killed: ComponentProps<typeof SeatLayer>['killed'];
+  layDown: ComponentProps<typeof SeatLayer>['layDown'];
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
   said: ComponentProps<typeof SeatLayer>['said'];
@@ -323,6 +326,7 @@ function TimedSeatLayer({
       levels={levels}
       secondDeal={secondDeal}
       killed={killed}
+      layDown={layDown}
       held={held}
       bid={bid}
       said={said}
@@ -390,18 +394,23 @@ export function GameCanvasTable({
   const solo = useGameStore((state) => isSoloTable(state.readiness, state.youPositionAbs));
   const readiness = useGameStore((state) => state.readiness);
   const lifecycleSeats = useGameStore((state) => state.lifecycle?.seats);
+  // A settled hand is laid down first (PID-366): until the fan has gathered,
+  // the table, its result and the scores stand as they were when it settled.
+  const laid = useLayDownPresentation(controller.serverState, serverModel.seats);
+  const laying = laid.before != null;
+  const tableState = laid.before ?? controller.serverState;
   // A hand scored while watching dims the table until its result closes.
   const handResult = useHandResult(
-    controller.serverState ? (controller.serverState.last_hand ?? null) : undefined,
+    tableState ? (tableState.last_hand ?? null) : undefined,
     viewerOf(serverModel.seats),
     room.code,
-    waitsForContinue(controller.serverState ?? {}),
+    waitsForContinue(tableState ?? {}),
     serverModel.phase === 'dealing' || serverModel.phase === 'bidding'
   );
   // The server sends the next hand with the one that ended: the table holds
   // the hand that ended while its result shows, and deals once it closes.
   const holding = handResult.result != null || handResult.opening;
-  const heldModel = useHeldWhile(serverModel, holding);
+  const heldModel = useHeldWhile(serverModel, holding || laying);
   // Count help off, a hand ends as Classic's did (PID-332): its cards stay on
   // the table, the final trick's too, under the hand's points; halfway to the
   // deal they clear and the points stay alone.
@@ -439,36 +448,40 @@ export function GameCanvasTable({
   );
   // Under the result the hand is played out: no trick, no cards left in hand,
   // and with count help no cards on the table.
+  const layDown = laying || holding ? laid.show : null;
   const tableModel = useMemo(
     () =>
-      holding
-        ? {
-            ...heldModel,
-            yourHand: [],
-            currentTrick: {},
-            playedCards: piles,
-            latestPlayKey: null,
-            winningKey: null,
-            trickPoints: null,
-            // Classic's points take the trump mark's place; no seat is on turn,
-            // and each says the last card it played until the cards clear.
-            ...(classicEnd && {
-              trumpSuit: null,
-              currentTurnRelative: null,
-              seats: Object.fromEntries(
-                Object.entries(heldModel.seats).map(([rel, seat]) => [
-                  rel,
-                  seat && {
-                    ...seat,
-                    isCurrentTurn: false,
-                    lastPlayedCard: piles[rel as RelativePosition]?.at(-1) ?? null,
-                  },
-                ])
-              ) as TableModel['seats'],
-            }),
-          }
-        : heldModel,
-    [holding, heldModel, piles, classicEnd]
+      laidDown(
+        holding
+          ? {
+              ...heldModel,
+              yourHand: [],
+              currentTrick: {},
+              playedCards: piles,
+              latestPlayKey: null,
+              winningKey: null,
+              trickPoints: null,
+              // Classic's points take the trump mark's place; no seat is on turn,
+              // and each says the last card it played until the cards clear.
+              ...(classicEnd && {
+                trumpSuit: null,
+                currentTurnRelative: null,
+                seats: Object.fromEntries(
+                  Object.entries(heldModel.seats).map(([rel, seat]) => [
+                    rel,
+                    seat && {
+                      ...seat,
+                      isCurrentTurn: false,
+                      lastPlayedCard: piles[rel as RelativePosition]?.at(-1) ?? null,
+                    },
+                  ])
+                ) as TableModel['seats'],
+              }),
+            }
+          : heldModel,
+        layDown
+      ),
+    [holding, heldModel, piles, classicEnd, layDown]
   );
   // Catching up: what the server allows the dealer cut, and how late this phone is.
   const arrivedAt = controller.serverState ? arrivals.get(controller.serverState) : undefined;
@@ -555,7 +568,7 @@ export function GameCanvasTable({
   // Until the deal has played, the log and the seats show no bids (PID-267),
   // also while the last hand's result holds the next hand back.
   const dealing = holding || dealt.dealStage != null;
-  const shownState = useMemo(() => bidsShown(serverState, dealing), [serverState, dealing]);
+  const shownState = useMemo(() => bidsShown(tableState, dealing), [tableState, dealing]);
   // Bids sound once the deal has played, seen or not.
   useTableHaptics(model, dealt.dealUnseen ? undefined : shownState?.bid_order);
 
@@ -608,7 +621,7 @@ export function GameCanvasTable({
 
   const lastTrick = model.lastTrick;
   const lastTrickView: LastTrickView | null =
-    countHelp && controller.phase === 'playing' && lastTrick
+    countHelp && tableState?.phase === 'playing' && lastTrick
       ? {
           number: lastTrick.number,
           plays: lastTrick.plays.map(({ holder, card }) => {
@@ -634,7 +647,7 @@ export function GameCanvasTable({
   // The points as each trick is taken (pops, the score's glow, a Pidro on its
   // seat) are count help, with the log: off, the table stays as Classic's.
   const pidro = countHelp ? tablePidro(model.lastTrick, model.seats) : null;
-  const trickKey = `${serverState?.hand_number ?? serverState?.round_number ?? 0}:${model.lastTrick?.number}`;
+  const trickKey = `${tableState?.hand_number ?? tableState?.round_number ?? 0}:${model.lastTrick?.number}`;
   const statusByRel = viewModel?.players.reduce(
     (acc, player) => {
       // In the second deal the cards say what happens; only the dealer says it is dealing.
@@ -642,7 +655,9 @@ export function GameCanvasTable({
         ? model.secondDealShow && player.relativePosition !== model.dealerRelative
           ? null
           : { text: t('game.dealing') }
-        : statusText(player, shownState, room.code);
+        : laying && laid.show?.rel === player.relativePosition
+          ? { text: t('game.takes_rest'), short: t('game.all_yours'), tone: 'now' as const }
+          : statusText(player, shownState, room.code);
       acc[player.relativePosition] =
         pidro?.side === 'theirs' && pidro.seat === player.relativePosition
           ? { ...(line ?? { text: t('game.took_trick') }), pulse: `pidro-${trickKey}` }
@@ -788,7 +803,11 @@ export function GameCanvasTable({
           <TimedSeatLayer
             seats={model.seats}
             dealerRel={
-              controller.phase === 'dealer_selection' ? null : (viewModel?.dealerRelative ?? null)
+              controller.phase === 'dealer_selection'
+                ? null
+                : laying
+                  ? model.dealerRelative
+                  : (viewModel?.dealerRelative ?? null)
             }
             dealing={model.dealStage === 'dealing'}
             topReserve={topReserve}
@@ -802,6 +821,7 @@ export function GameCanvasTable({
             levels={controller.phase === 'dealer_selection' || isGameOver}
             secondDeal={model.secondDealShow}
             killed={model.killed}
+            layDown={model.layDown}
             held={model.held}
             said={talking ? said : undefined}
             bid={
@@ -814,7 +834,7 @@ export function GameCanvasTable({
                 'discarding',
                 'second_deal',
                 'playing',
-              ].includes(controller.phase ?? '') &&
+              ].includes(tableState?.phase ?? '') &&
               highBid &&
               typeof highBid.amount === 'number'
                 ? {
@@ -982,9 +1002,9 @@ export function GameCanvasTable({
           {/* Gold scoreboard plaque (top-left) — matches the original */}
           {!(isGameOver && roomFinished) && (
             <Scoreboard
-              scores={serverState?.scores ?? null}
+              scores={tableState?.scores ?? null}
               youPosition={youPositionAbs}
-              history={serverState?.hand_history}
+              history={tableState?.hand_history}
               roomCode={viewModel?.roomCode ?? room.code}
               top={headerTop(insets.top)}
               left={insets.left}
@@ -994,7 +1014,7 @@ export function GameCanvasTable({
               // The log (ticker and the hand's log behind it) is count help.
               // While a hand's result shows, its panel says it all: no ticker.
               ticker={
-                countHelp && !handResult.result
+                countHelp && !handResult.result && !laying
                   ? tickerPlacement(
                       layout,
                       {
@@ -1008,7 +1028,9 @@ export function GameCanvasTable({
               }
               restingOnly={!fullTicker}
               help={
-                lastTrickView ? <LastTrick trick={lastTrickView} yourTurn={isYourTurn} /> : null
+                lastTrickView ? (
+                  <LastTrick trick={lastTrickView} yourTurn={isYourTurn && !laying} />
+                ) : null
               }
               // Tight and landscape phones leave the ticker and Last trick out
               // (PID-304, PID-305); the log stays a tap away.
@@ -1016,7 +1038,9 @@ export function GameCanvasTable({
               glow={countHelp ? scoreGlow(model.lastTrick, model.seats, trickKey) : null}
               delta={handResult.result?.hand.delta ?? null}
               yourTurn={
-                isYourTurn && (controller.phase === 'bidding' || controller.phase === 'playing')
+                isYourTurn &&
+                !laying &&
+                (controller.phase === 'bidding' || controller.phase === 'playing')
               }
             />
           )}
@@ -1095,7 +1119,7 @@ export function GameCanvasTable({
           {/* Bidding floats from the bottom; trump is picked in the felt. */}
           <BiddingActions
             isYourTurn={isYourTurn}
-            isHandReady={isHandReady && !handResult.result}
+            isHandReady={isHandReady && !handResult.result && !laying}
             topReserve={topReserve}
             bottomReserve={bottomReserve}
           />

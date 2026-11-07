@@ -13,6 +13,7 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +30,9 @@ import { isStillCapture } from '@/utils/stillCapture';
 import { computeLayout, playedCardTarget, type TableLayout } from './layout';
 import type { TableModel, TrickResult } from './tableModel';
 import type { ScoreGlow } from './Scoreboard';
+import type { LayDownShow } from './useLayDownPresentation';
+import { LAY_DOWN_HOLD_MS, layDownLandsMs } from './animationTiming';
+import { viewerOf } from './HandResult';
 import { BoxShadow } from './bakedBlur';
 import { useTranslation } from '@/i18n';
 
@@ -54,6 +58,9 @@ export function TableSignals({ model, topReserve = 0, bottomReserve = 0 }: Props
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       <TrickPop trick={model.lastTrick} seats={model.seats} L={L} popMs={POP_MS} />
+      {model.layDown?.step === 'fan' ? (
+        <LaidPops show={model.layDown} seats={model.seats} L={L} />
+      ) : null}
     </View>
   );
 }
@@ -149,13 +156,7 @@ function TrickPop({
   if (!pop) return null;
   // A small "+N" sits on the table side of the card it rose from, clear of
   // the seat's name; a "Pidro!" takes the middle, where nothing competes.
-  const above = (rel: TrickResult['winner']) => {
-    const card = playedCardTarget(L, rel, 0, 1);
-    const dx = L.trick.cx - card.x;
-    const dy = L.trick.cy - card.y;
-    const toward = (L.cardH * 0.42) / Math.max(1, Math.hypot(dx, dy));
-    return { x: card.x + dx * toward, y: card.y + dy * toward };
-  };
+  const above = (rel: RelativePosition) => besideCard(L, rel);
   const big = pidro != null;
   // Who got the points, so a five never reads as ours when it was theirs.
   const team = !pidro
@@ -199,6 +200,59 @@ function TrickPop({
   );
 }
 
+/** The table side of a seat's played card. */
+function besideCard(L: TableLayout, rel: RelativePosition) {
+  const card = playedCardTarget(L, rel, 0, 1);
+  const dx = L.trick.cx - card.x;
+  const dy = L.trick.cy - card.y;
+  const toward = (L.cardH * 0.42) / Math.max(1, Math.hypot(dx, dy));
+  return { x: card.x + dx * toward, y: card.y + dy * toward };
+}
+
+/**
+ * A settled hand's points (PID-366), on its fan once the cards are down: what
+ * their tricks took, and the 2 of trump's point beside it, as for a trick.
+ * No "Pidro!": the hand was already decided.
+ */
+function LaidPops({
+  show,
+  seats,
+  L,
+}: {
+  show: LayDownShow;
+  seats: TableModel['seats'];
+  L: TableLayout;
+}) {
+  const holder = seats[show.rel];
+  if (!holder) return null;
+  const { side } = whosePoints(holder.absolutePosition, viewerOf(seats));
+  const at = besideCard(L, show.rel);
+  return (
+    <View testID="lay-down-pops" style={StyleSheet.absoluteFill} pointerEvents="none">
+      {show.points > 0 ? (
+        <Pop
+          x={at.x}
+          y={at.y}
+          label={`+${show.points}`}
+          side={side}
+          ms={LAY_DOWN_HOLD_MS}
+          delayMs={layDownLandsMs(show.cards.length)}
+        />
+      ) : null}
+      {show.two > 0 ? (
+        <Pop
+          x={at.x}
+          y={at.y - (show.points > 0 ? 26 : 0)}
+          label={`+${show.two}`}
+          side={side}
+          ms={LAY_DOWN_HOLD_MS}
+          delayMs={layDownLandsMs(show.cards.length)}
+        />
+      ) : null}
+    </View>
+  );
+}
+
 /**
  * Whose points they were, in their team's colour: a "+N" and the chip under a
  * "Pidro!". Our "Pidro!" itself stays gold: that is good news, not a team.
@@ -231,6 +285,7 @@ function Pop({
   side,
   pidro = null,
   ms,
+  delayMs = 0,
 }: {
   x: number;
   y: number;
@@ -239,6 +294,7 @@ function Pop({
   /** A trick holding a five: "Pidro!" in the middle, and whose points it was. */
   pidro?: { chip: string } | null;
   ms: number;
+  delayMs?: number;
 }) {
   const reduceMotion = useReducedMotion();
   const t = useSharedValue(0);
@@ -247,8 +303,10 @@ function Pop({
   const size = pidro && side === 'theirs' ? 0.88 : 1;
   useEffect(() => {
     // UI grammar captures the pop at its peak instead of mid-flight.
-    t.value = isStillCapture() ? 0.35 : withTiming(1, { duration: ms, easing: Easing.linear });
-  }, [t, ms]);
+    t.value = isStillCapture()
+      ? 0.35
+      : withDelay(delayMs, withTiming(1, { duration: ms, easing: Easing.linear }));
+  }, [t, ms, delayMs]);
   const motion = useAnimatedStyle(() => {
     // Reduced motion: no rise, no swell, no fade; it is there, then gone.
     if (reduceMotion) return { opacity: t.value < 1 ? 1 : 0, transform: [{ scale: size }] };

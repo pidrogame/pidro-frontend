@@ -502,6 +502,7 @@ export function useCardSprites({
     const skipCutSequence = newCutSequence && cutPace.current === 0;
     cutSequenceKey.current = nextCutSequenceKey;
     const nextSlots: SlotInfo[] = Array(MAX).fill(null);
+    const laid = new Set(model.layDown?.cards.map(cardKey));
 
     // A card is unique within a hand. Re-key its slot before retirement so a
     // confirmation (or rollback) continues from the exact on-screen position.
@@ -532,8 +533,9 @@ export function useCardSprites({
 
         cancelAnimation(flight[sl]);
         cancelAnimation(collection[sl]);
-        // SeatLayer takes over your folded cards as backs in the same frame.
-        const folding = slots[sl]?.kind === 'hand' && model.seats.south?.out;
+        // SeatLayer takes over your folded cards as backs in the same frame,
+        // and the cards you lay down (PID-366) as faces.
+        const folding = slots[sl]?.kind === 'hand' && (model.seats.south?.out || !!model.layDown);
         const duration = folding ? 0 : 180;
         sop[sl].value = folding ? 0 : withTiming(0, { duration });
 
@@ -581,12 +583,14 @@ export function useCardSprites({
       let sl = keyToSlot.current.get(d.key);
       const isNew = sl === undefined;
       const dealCard = isDeal && d.kind === 'hand';
+      // Laid-down cards reach the holder's pile by SeatLayer's gather: they appear there.
+      const laidCard = isNew && d.kind === 'played' && laid.has(d.textureKey);
       const cutCard = d.kind === 'cut' && animateCutSequence;
       if (sl === undefined) {
         sl = allocate();
         if (sl < 0) continue;
         keyToSlot.current.set(d.key, sl);
-        const comesFromSeat = d.kind === 'played' || d.kind === 'cut';
+        const comesFromSeat = (d.kind === 'played' && !laidCard) || d.kind === 'cut';
         const startX = cutCard
           ? d.ox
           : firstLoad
@@ -665,6 +669,7 @@ export function useCardSprites({
         );
       } else if (
         firstLoad ||
+        laidCard ||
         (d.kind === 'cut' && skipCutSequence) ||
         (reduceMotion && (d.kind === 'cut' || model.phase === 'playing'))
       ) {

@@ -154,7 +154,8 @@ export function usePlayPresentation(
   const shownCards = cards(presented);
   const heard = useRef(cardsHeard(presented));
   useEffect(() => {
-    if (cardPlayed(heard.current, presented)) play('card');
+    // Laid-down cards sounded as they came down (PID-366), not again in the hand's pile.
+    if (cardPlayed(heard.current, presented) && !presented.layDown) play('card');
     heard.current = cardsHeard(presented, heard.current);
     // A new hand can start on the felt the result left empty: its trick still turns over.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the cards on the felt, not the object

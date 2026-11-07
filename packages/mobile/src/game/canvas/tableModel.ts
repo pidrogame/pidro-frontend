@@ -25,6 +25,7 @@ import type { GameTableController } from '@/game/useGameTableController';
 import { isTrumpCard, sortCards } from '@/utils/cards';
 import { cardKey, type CardKey } from './cardKey';
 import type { SecondDealShow } from './useSecondDealPresentation';
+import type { LayDownShow } from './useLayDownPresentation';
 import type { HeldStyle } from './layout';
 
 export type TableCard = {
@@ -118,6 +119,8 @@ export type TableModel = {
   secondDealShow?: SecondDealShow;
   /** Trumps killed over six, face up for everyone, by the seat that killed them (PID-306). */
   killed?: Partial<Record<RelativePosition, Card[]>>;
+  /** A settled hand laid down (`useLayDownPresentation`, PID-366). */
+  layDown?: LayDownShow;
 };
 
 export type TrickResult = {

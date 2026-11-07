@@ -103,6 +103,24 @@ export function secondDealDurationMs(dealt: number, timing: SecondDealTiming = s
     timing.dealerHoldMs
   );
 }
+// A settled hand laid down (PID-366): the holder's trumps turn face up in a
+// fan, hold, and gather to their pile; then the hand's result. About the same
+// length however many cards; the server holds the next deal 2.5 s longer.
+/** Between one card and the next. */
+export const LAY_DOWN_STAGGER_MS = 80;
+/** The last card leaves by then at the latest: a long fan closes up. */
+export const LAY_DOWN_FAN_MS = 400;
+/** One card's flight into the fan, turning face up on the way. */
+export const LAY_DOWN_FLIGHT_MS = 240;
+/** The whole fan on the felt, to be read. */
+export const LAY_DOWN_HOLD_MS = 1_200;
+/** The fan gathers to the holder's pile in one motion. */
+export const LAY_DOWN_GATHER_MS = 500;
+/** When card `i` of `n` leaves for the fan. */
+export const layDownAt = (i: number, n: number) =>
+  i * Math.min(LAY_DOWN_STAGGER_MS, LAY_DOWN_FAN_MS / Math.max(1, n - 1));
+/** When the last of `n` cards is down. */
+export const layDownLandsMs = (n: number) => layDownAt(n - 1, n) + LAY_DOWN_FLIGHT_MS;
 /** Killed trumps lie face up at the start of play this long, or until the first card lands (PID-306). */
 export const KILLED_SHOW_MS = 3_000;
 /** Cards in one swoop leave a hair apart, so it reads as a handful. */
