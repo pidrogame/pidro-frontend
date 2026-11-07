@@ -83,6 +83,8 @@ describe('played-card piles', () => {
       // elsewhere on the circle, upright phones out past it (PID-333).
       const east = playedCardTarget(layout, 'east', 0, 1);
       expect(east).toMatchObject({ y: layout.front?.east.y ?? layout.trick.cy, rot: -Math.PI / 2 });
+      // West's top points at the middle too, as its player lays it (PID-388).
+      expect(playedCardTarget(layout, 'west', 0, 1).rot).toBe(Math.PI / 2);
       if (layout.front) expect(east.x).toBe(layout.front.east.x);
       else if (layout.profile === 'phone-portrait')
         expect(east.x).toBeGreaterThanOrEqual(layout.trick.cx + layout.trick.r);
@@ -137,19 +139,34 @@ describe('upright piles: the newest in front, the earlier ones behind (PID-381)'
           // The newest stays on its point of the circle.
           const point = { north: [0, -L.trick.r], south: [0, L.trick.r] }[rel];
           if (point) expect(cards.at(-1).y).toBe(L.trick.cy + point[1]);
-          else expect(Math.abs(cards.at(-1).x - L.trick.cx)).toBeCloseTo(L.trick.across);
-          // Every earlier card shows at least 0.16 of a card; side cards all turn one way.
+          else if (rel === 'east') expect(cards.at(-1).x - L.trick.cx).toBeCloseTo(L.trick.across);
+          // West's column stands out, its newest at the foot beside your pile (PID-388).
+          else expect(L.trick.cx - cards.at(-1).x).toBeGreaterThan(L.trick.across);
+          // Every earlier card shows at least 0.16 of a card, at its index:
+          // East's foot, West's top (PID-388); side cards all turn one way.
           for (let i = 0; i + 1 < count; i++) {
             const [a, b] = [cards[i], cards[i + 1]];
             const half = (c) => (L.cardW * c.scale) / 2;
             const shown =
-              rel === 'east' || rel === 'west'
+              rel === 'east'
                 ? a.y + half(a) - (b.y + half(b))
-                : b.x - half(b) - (a.x - half(a));
+                : rel === 'west'
+                  ? b.y - half(b) - (a.y - half(a))
+                  : b.x - half(b) - (a.x - half(a));
             expect(shown).toBeGreaterThanOrEqual(L.cardW * 0.16 - 1e-9);
             expect(a.rot).toBe(b.rot);
           }
         }
+      // West's newest lies at the foot of its column, beside your pile's
+      // earlier cards, and never on them (PID-388).
+      for (const count of [5, 6]) {
+        const west = playedCardTarget(L, 'west', count - 1, count, 1);
+        const westRight = west.x + (L.cardW * west.scale * (110 / 78)) / 2;
+        for (let i = 0; i < count; i++) {
+          const south = playedCardTarget(L, 'south', i, count, 1);
+          expect(south.x - (L.cardW * south.scale) / 2).toBeGreaterThanOrEqual(westRight - 1e-9);
+        }
+      }
     });
   }
 });
@@ -305,9 +322,10 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
       const south = [0, 1, 2, 3].map((i) => playedCardTarget(L, 'south', i, 4).x);
       const southHalf = (Math.max(...south) - Math.min(...south) + L.cardW * L.trick.pileScale) / 2;
       expect(east.x - played / 2 - L.trick.cx).toBeGreaterThan(southHalf);
-      // And of their stacks along the edges, a folded hand beside them included.
+      // And of their stacks along the edges, a folded hand beside them included:
+      // West's column stands out up to that gap (PID-388).
       const stack = sideStackInner(L.cardW, 0) + TRICK_GAP;
-      expect(west.x - played / 2).toBeGreaterThan(stack);
+      expect(west.x - played / 2).toBeGreaterThanOrEqual(stack - 1e-9);
       expect(east.x + played / 2).toBeLessThan(width - stack);
     });
   }
@@ -788,11 +806,23 @@ describe('a played card waits on the cross for its seat’s next card (PID-308)'
   it('West’s card lies as its trail does: it never turns on the way', () => {
     for (const [width, height] of [
       [640, 360],
+      [667, 375],
       [780, 360],
       [844, 390],
     ]) {
       const L = computeLayout(width, height, { top: 0, bottom: 0, left: 0, right: 0 });
       expect(trailSpot(L, 'west', 1).rot).toBe(playedCardTarget(L, 'west', 0, 1).rot);
+      // Its top toward the middle on every phone, its trail up toward the index (PID-388).
+      expect(playedCardTarget(L, 'west', 0, 1).rot).toBe(Math.PI / 2);
+      expect(trailSpot(L, 'west', 1).y).toBeLessThan(playedCardTarget(L, 'west', 0, 1).y);
+      // Five deep, each side's trail stays in its band, clear of its seat.
+      for (const rel of ['west', 'east'])
+        for (let back = 1; back <= 5; back++) {
+          const card = trailSpot(L, rel, back, 5);
+          const half = (L.cardW * card.scale) / 2;
+          expect(card.y - half).toBeGreaterThanOrEqual(L.band.top - 1e-9);
+          expect(card.y + half).toBeLessThanOrEqual(L.band.bottom + 1e-9);
+        }
     }
   });
 });

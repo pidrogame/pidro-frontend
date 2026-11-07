@@ -564,18 +564,10 @@ export function playedCardTarget(
   const spacing = Math.min(L.cardW * 0.38, portrait ? 24 : 32);
   const off = index - (count - 1) / 2;
   const upright = L.profile === 'phone-portrait';
-  // Side cards face their owner: the card's top edge points at the table
-  // center (east top→left, west top→right), matching the seat rot below.
-  // Phones whose West trail steps down lay West's cards as East's, so each
-  // index shows down the trail and no card turns on its way there: landscape
-  // phones (PID-308), and upright ones, whose side piles hang down (PID-381).
-  const westAsEast = upright || (!!L.front && !L.sidesUnder);
-  const rot =
-    rel === 'east' || (rel === 'west' && westAsEast)
-      ? -Math.PI / 2
-      : rel === 'west'
-        ? Math.PI / 2
-        : 0;
+  // Side cards face their owner on every table: the card's top edge points at
+  // the table center (east top→left, west top→right), matching the seat rot
+  // below (PID-388). East's index lies at the foot, West's at the top.
+  const rot = rel === 'east' ? -Math.PI / 2 : rel === 'west' ? Math.PI / 2 : 0;
   // Landscape phones: the card lands on its seat's spot of the cross. More
   // than one card in a trick (a seat that kept seven trumps) overlaps along
   // the seat's axis, as in Classic: sideways at North and South, down the
@@ -594,11 +586,20 @@ export function playedCardTarget(
   // earlier ones behind them a little smaller, each showing its rank and
   // suit. North's and yours run left, centred on their point of the circle,
   // short of the side piles' earlier cards; East's and West's hang down their
-  // column from the trick's line, the newest on top, short of your hand.
+  // column from the trick's line, short of your hand: East's newest on top,
+  // West's at the foot, so each earlier index shows (PID-388).
   if (upright) {
     const big = L.cardW * pileScale;
     const small = big * PILE_TRAIL_SCALE;
     const sideways = rel === 'east' || rel === 'west';
+    // West's newest lies at the foot of its column, beside your pile's earlier
+    // cards: the column stands out by what a full-size card is wider, as far
+    // as the stack's gap allows (`across` leaves it 1.5 of it), and your pile
+    // runs no further than that card (PID-388).
+    const westOut = Math.min(((big - small) * CARD_RATIO) / 2, TRICK_GAP / 2);
+    const sideIn = across - (small * CARD_RATIO) / 2 - PILE_GAP;
+    const westIn =
+      rel === 'south' ? Math.min(sideIn, across + westOut - (big * CARD_RATIO) / 2) : sideIn;
     const room = sideways
       ? // Clear of a lifted card, its 3% growth and slight tilt included.
         L.hand.cy -
@@ -608,7 +609,7 @@ export function playedCardTarget(
         PILE_GAP -
         L.trick.cy -
         big / 2
-      : 2 * (across - (small * CARD_RATIO) / 2 - PILE_GAP) - big;
+      : sideIn + westIn - big;
     const steps = pileSpacing(count, room, L.cardW);
     const width = (i: number) => (i >= count - live ? big : small);
     // From the newest card's centre back to this one's: each card's back
@@ -620,10 +621,10 @@ export function playedCardTarget(
     const rise = Math.max(0, shown - room);
     return {
       x: sideways
-        ? L.trick.cx + (rel === 'east' ? across : -across)
-        : L.trick.cx + shown / 2 - back,
+        ? L.trick.cx + (rel === 'east' ? across : -across - westOut)
+        : L.trick.cx + (sideIn - westIn) / 2 + shown / 2 - back,
       y: sideways
-        ? L.trick.cy + back - rise
+        ? L.trick.cy - rise + (rel === 'east' ? back : shown - back)
         : L.trick.cy + (rel === 'north' ? -L.trick.r : L.trick.r),
       rot,
       scale: index >= count - live ? pileScale : pileScale * PILE_TRAIL_SCALE,
@@ -649,8 +650,8 @@ export function playedCardTarget(
 /**
  * Landscape phones (PID-308): a seat's earlier cards this hand trail behind
  * its played card, smaller: sideways at North and South, up West's column
- * and down East's, toward each card's index. `back` counts from the card nearest it (1),
- * of `count`.
+ * and down East's, toward each card's index (PID-388). `back` counts from the
+ * card nearest it (1), of `count`.
  */
 export const TRAIL_SCALE = 0.72;
 const TRAIL_NEAR = 0.42;
@@ -660,19 +661,18 @@ const trailReach = (cardW: number) =>
   cardW * (TRAIL_NEAR + 4 * TRAIL_STEP) + (cardW * TRAIL_SCALE) / 2;
 export function trailSpot(L: TableLayout, rel: RelativePosition, back: number, count = 5) {
   const spot = playedCardTarget(L, rel, 0, 1);
-  // A side card's index lies at the foot at East, and at West too unless West's
-  // seat leaves it room above: the trail steps toward the index, closing up to
-  // stay in its column (PID-308).
+  // A side card's index lies at the foot at East and at the top at West: the
+  // trail steps toward it, closing up to stay in its column (PID-308).
   const side = rel === 'west' || rel === 'east';
-  const up = rel === 'west' && !!L.sidesUnder;
-  const room =
+  const up = rel === 'west';
+  const reach =
     side && L.band
-      ? (up ? spot.y - L.band.top : L.band.bottom - spot.y) -
-        (L.cardW * TRAIL_SCALE) / 2 -
-        L.cardW * TRAIL_NEAR
+      ? (up ? spot.y - L.band.top : L.band.bottom - spot.y) - (L.cardW * TRAIL_SCALE) / 2
       : Infinity;
+  const room = reach - L.cardW * TRAIL_NEAR;
   const step = Math.max(0, Math.min(L.cardW * TRAIL_STEP, room / Math.max(1, count - 1)));
-  const d = L.cardW * TRAIL_NEAR + (back - 1) * step;
+  // Where even the nearest would leave the band, the trail closes up behind its card.
+  const d = Math.max(0, Math.min(reach, L.cardW * TRAIL_NEAR + (back - 1) * step));
   return {
     ...spot,
     x: spot.x - (side ? 0 : d),

@@ -100,7 +100,10 @@ PID-381, upright phones: each seat's newest card lies in front at full size,
 its earlier cards this hand behind it at 0.8 of that and shaded (point cards
 keep their light with `count=on`), each showing 0.26 of a card, its rank and
 suit; a long pile closes its oldest cards toward 0.16 first. North's and yours
-run along the circle, East's and West's hang down their column.
+run along the circle, East's and West's hang down their column. Each side
+card points its top at the middle (PID-388), so East's index lies at the foot
+and West's at the top: East's newest card lies on the trick's line with its
+earlier ones below, West's oldest there and its newest at the foot.
 `/table-dev?fixture=piles&cards=1|3|5|6` has every seat play that many cards
 (at 6 East put two into the first trick), the current trick all four down;
 `led=east` has East alone lead it, `you=out` has you out before it, `next=on`
@@ -313,10 +316,12 @@ PID-307: the trick is Classic's cross around the trump mark, each played card
 (rank and suit always showing), and the front rows hold only the current trick:
 a finished trick clears after its hold. A seat's extra cards in one trick lie
 along its axis (sides downward, North and you sideways). Grammar cases
-`table-two-rows-{bidding,second-deal,dealer-throws,you-deal,kill,trick,third,seven,hand-end}`
+`table-two-rows-{bidding,second-deal,dealer-throws,you-deal,kill,trick,third,seven,piles-5,hand-end}`
 run at 844×390, 780×360 (Marcel's TCL) and 640×360, print every card's, seat
 part's and the trump mark's rectangle in dp, and fail when any two are under
-12 dp apart or anything but the hands leaves the screen.
+12 dp apart or anything but the hands leaves the screen. Every side card
+points its top at the middle (PID-388): East's turned a quarter left, West's a
+quarter right, so West's trail steps up its column and East's down.
 
 `/table-dev?fixture=details&bidder=east` (PID-272) shows a winning bid of 7,
 count help off, six subtly offset backs at each opponent, and a spade hand with

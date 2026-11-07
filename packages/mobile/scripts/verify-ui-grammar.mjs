@@ -1621,6 +1621,9 @@ const allCases = [
     ['turning', 'phase=playing&role=player&trick=turning', 'seat-south', { played: 9, mark: true }],
     // East kept seven trumps and put two cards into the first trick.
     ['seven', 'phase=playing&role=player&trick=seven', 'seat-south', { played: 5, mark: true }],
+    // Five tricks: each side's four earlier cards trail toward its index, up
+    // West's column and down East's, closing up short of the seats (PID-388).
+    ['piles-5', 'fixture=piles&cards=5', 'seat-south', { played: 20, mark: true }],
     ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
   ].map(([name, query, testId, twoRows]) => ({
     name: `table-two-rows-${name}`,
@@ -6332,6 +6335,8 @@ async function assertTwoRows(page, testCase, viewport) {
   await page.getByTestId(`rendered-played-card-count-${played}`).waitFor({ timeout: 20_000 });
   if (played) await page.waitForTimeout(600);
   const sprites = await page.evaluate(() => window.__pidroCardMotion?.() ?? []);
+  for (const card of sprites.filter((s) => s.kind === 'played'))
+    assertFacesMiddle(`${testCase.name}: ${card.key}`, card.key.split('-')[3], card);
   const spriteBox = (s) => {
     const c = Math.abs(Math.cos(s.rotation));
     const n = Math.abs(Math.sin(s.rotation));
@@ -6460,6 +6465,14 @@ async function assertTwoRows(page, testCase, viewport) {
   );
 }
 
+// PID-388: a side seat's played card points its top at the middle, as its
+// player lays it: East's turned a quarter left, West's a quarter right.
+function assertFacesMiddle(label, rel, card) {
+  if (rel !== 'east' && rel !== 'west') return;
+  const turn = Math.sin(card.rotation) * (rel === 'west' ? 1 : -1);
+  assert.ok(turn > 0.99, `${label} points its top at the middle (${card.rotation} rad)`);
+}
+
 // PID-381: on upright phones each seat's newest card lies in front at full
 // size and its earlier ones behind it, all of one smaller size and shaded,
 // but for point cards with count help on. Each earlier card shows at least
@@ -6488,14 +6501,18 @@ function assertPiles(testCase, viewport, cards, { counted = false, out }) {
         Math.abs(s.shade - (shaded ? 1 : 0)) < 0.01,
         `${label} ${shaded ? 'is' : 'is not'} shaded: ${s.shade}`
       );
+      assertFacesMiddle(label, rel, s);
       const next = pile[i + 1];
       if (!next) return;
-      // How much of this card the next one leaves: its side cards' index is at the foot.
+      // How much of this card the next one leaves at its index: a side card's
+      // lies at the foot at East and at the top at West (PID-388).
       const w = (c) => c.width * c.scale;
       const shown =
-        Math.abs(Math.sin(s.rotation)) > 0.5
+        rel === 'east'
           ? s.y + w(s) / 2 - (next.y + w(next) / 2)
-          : next.x - w(next) / 2 - (s.x - w(s) / 2);
+          : rel === 'west'
+            ? next.y - w(next) / 2 - (s.y - w(s) / 2)
+            : next.x - w(next) / 2 - (s.x - w(s) / 2);
       assert.ok(shown >= cardW * 0.16 - 0.05, `${label} shows ${shown.toFixed(1)}pt`);
       if (viewport.name === 'portrait' && pile.length <= 5)
         assert.ok(

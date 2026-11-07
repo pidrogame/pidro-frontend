@@ -446,11 +446,8 @@ export function SeatLayer({
                 }
                 fromScale={rel === 'south' ? (L.cardW * handScale(L.profile)) / pileCardW(L) : 1}
                 flip={!seats[rel]?.isYou}
-                // East's ranks lie at the bottom, and upright phones' West's (PID-381):
-                // there newer cards lie higher.
-                at={(i, n) =>
-                  pileSpot(L, rel, laidPile(L, rel).rot < 0 && !L.front ? n - 1 - i : i, n)
-                }
+                // East's ranks lie at the bottom: upright, its newer cards lie higher.
+                at={(i, n) => pileSpot(L, rel, rel === 'east' && !L.front ? n - 1 - i : i, n)}
                 pile={laidPile(L, rel)}
                 gather={laid.step === 'gather'}
                 cardW={pileCardW(L)}
