@@ -521,6 +521,13 @@ const allCases = [
     photo: 'guest',
   },
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
+  // Development builds' test-ad row under About the app; the browser has no ads (PID-390).
+  {
+    name: 'settings-test-ad',
+    path: '/ui-dev?state=settings',
+    testId: 'app-update-section',
+    testAd: true,
+  },
   ...tellCases,
   ...newsCases,
   ...['en', 'sv'].flatMap((locale) =>
@@ -3457,6 +3464,16 @@ async function assertAppUpdate(page, { appUpdate, locale }) {
   if (detail) assert.equal(await support.innerText(), detail);
   await section.getByText(sv ? 'Byggnummer' : 'Build number', { exact: true }).waitFor();
   await section.getByText('Beta', { exact: true }).waitFor();
+  await waitForScreenshotReady(page);
+}
+
+// The dev-only ad row sits inside About the app and, on the web, only says why it can't run.
+async function assertTestAd(page) {
+  const row = page.getByTestId('app-update-section').getByTestId('settings-test-ad');
+  await row.scrollIntoViewIfNeeded();
+  await row.getByText('Show a test ad', { exact: true }).waitFor();
+  await row.getByText('Ads need a phone', { exact: true }).waitFor();
+  assert.equal(await row.getByRole('button').count(), 0, 'no ad button on the web');
   await waitForScreenshotReady(page);
 }
 
@@ -9788,6 +9805,7 @@ async function main() {
             await waitForScreenshotReady(page);
           }
           if (testCase.appUpdate) await assertAppUpdate(page, testCase);
+          if (testCase.testAd) await assertTestAd(page);
           if (testCase.newTableFixture?.startsWith('ready-error')) {
             const sv = testCase.newTableLanguage === 'sv';
             await page

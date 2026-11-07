@@ -1347,3 +1347,17 @@ UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
 UI_CASES=league-friends-en,league-friends-sv,league-friends-not_placed-en,league-friends-not_placed-sv,league-friends-sheet-en,league-friends-sheet-sv,league-pin-scroll-en,league-pin-scroll-sv,league-pin-first-partial-en,league-pin-first-partial-sv,league-game-up-en,league-game-up-sv,league-game-down-en,league-game-down-sv,league-game-same-en,league-game-same-sv,league-game-new-en,league-game-new-sv,league-game-delayed-en,league-game-delayed-sv,league-game-off-en,league-game-off-sv,league-game-opted_out-en,league-game-opted_out-sv,league-game-guest-en,league-game-guest-sv,league-game-solo-en,league-game-solo-sv,league-game-crew-en,league-game-crew-sv,league-game-up-island,league-game-up-island-left,league-game-up-island-right,league-game-up-android-gesture,league-home-tick-up-en,league-home-tick-up-en-reduced,league-home-tick-down-en,league-home-tick-down-en-reduced,league-home-tick-up-sv,league-home-tick-up-sv-reduced,league-home-tick-down-sv,league-home-tick-down-sv-reduced \
 node scripts/verify-ui-grammar.mjs
 ```
+
+## `/ui-dev?state=settings` — Show a test ad (PID-390)
+
+Development builds (`__DEV__` or variant `development`) show **Show a test ad** under
+Settings → About the app. On a phone it runs the rewarded-ad path with Google's test
+unit and prints `earned`, `dismissed` or `unavailable` plus the error. Expo web shows
+"Ads need a phone" and no button. Grammar case `settings-test-ad` asserts that
+state at all four sizes. The ad itself needs a development build on a device: see
+`../../docs/native-sdks.md`.
+
+```sh
+UI_CASES=settings-test-ad UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+  MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
+```

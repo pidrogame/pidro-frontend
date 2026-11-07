@@ -12,6 +12,7 @@ import { APP_CONFIG } from '@/constants/config';
 import { PidroSpacing } from '@/design/tokens';
 import { useTranslation, type TranslationKey } from '@/i18n';
 import { useGameStore } from '@/stores/game';
+import { showTestAdRow, TestAdRow } from './TestAdRow';
 
 export function AppUpdateSection() {
   const { t } = useTranslation();
@@ -160,6 +161,7 @@ export function AppUpdateSection() {
           onPress={handleUpdate}
         />
       )}
+      {showTestAdRow ? <TestAdRow /> : null}
     </Surface>
   );
 }
