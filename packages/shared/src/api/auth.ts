@@ -1,5 +1,6 @@
 import type { ApiClient } from './client';
 import type { ClassicAlreadyClaimed, ClassicNewAccount } from './classic';
+import type { AdsState } from './ads';
 import type { FriendPlayer } from './friends';
 import type { PremiumSource } from './premium';
 import type { SeatInvitation } from '../types/lobby';
@@ -42,6 +43,8 @@ export type User = {
   premium?: boolean;
   premium_until?: string | null;
   premium_source?: PremiumSource | null;
+  /** From `/me` only; absent from an older server, which means no ads. */
+  ads?: AdsState;
 };
 
 interface AuthResponseEnvelope {
@@ -164,11 +167,15 @@ interface PasswordResetRequestEnvelope {
 interface UserResponseEnvelope {
   data: {
     user: User;
+    ads?: AdsState;
     seat_invitations?: SeatInvitation[];
   };
 }
 
 export type PasswordResetRequestResponse = PasswordResetRequestEnvelope['data'];
+
+// This build can show the ad /me may say is due; the server counts an offer only on such reads.
+const AD_AWARE = { params: { ads_aware: true } };
 
 export function createAuthApi(api: ApiClient) {
   const providerLogin = async (
@@ -257,12 +264,13 @@ export function createAuthApi(api: ApiClient) {
     },
 
     getMe: async (): Promise<User> => {
-      const response = await api.get<UserResponseEnvelope>('/api/v1/auth/me');
-      return response.data.data.user;
+      const response = await api.get<UserResponseEnvelope>('/api/v1/auth/me', AD_AWARE);
+      const { user, ads } = response.data.data;
+      return ads ? { ...user, ads } : user;
     },
 
     getSeatInvitations: async (): Promise<SeatInvitation[]> => {
-      const response = await api.get<UserResponseEnvelope>('/api/v1/auth/me');
+      const response = await api.get<UserResponseEnvelope>('/api/v1/auth/me', AD_AWARE);
       return response.data.data.seat_invitations ?? [];
     },
 

@@ -31,14 +31,17 @@ test('the lobby follows preference until a filter is saved, including All and le
   expect(lobbyRuleSetFilter('louisiana', 'finnish')).toBe('finnish');
 });
 
+// ads_aware: this build can show the ad the server may ask for (402 AD_REQUIRED, PID-120).
 test('Quick game creates a solo table with exactly the preferred rules', () => {
   expect(quickGameRequest('finnish')).toEqual({
     rule_set: 'finnish',
     seats: { seat_2: 'ai', seat_3: 'ai', seat_4: 'ai' },
+    ads_aware: true,
   });
   expect(quickGameRequest('louisiana')).toEqual({
     rule_set: 'louisiana',
     seats: { seat_2: 'ai', seat_3: 'ai', seat_4: 'ai' },
+    ads_aware: true,
   });
 });
 

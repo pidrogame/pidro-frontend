@@ -163,4 +163,6 @@ export interface CreateRoomRequest {
     seat_3: SeatType;
     seat_4: SeatType;
   };
+  /** This build can show the ad a solo game may need: the server answers 402 AD_REQUIRED instead of dealing. */
+  ads_aware?: boolean;
 }

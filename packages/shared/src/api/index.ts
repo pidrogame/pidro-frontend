@@ -26,6 +26,7 @@ export {
   type UpgradeGuestResponse,
   type User,
 } from './auth';
+export { type AdsApi, type AdsState, createAdsApi } from './ads';
 export { type ApiClient, createApiClient, type SessionClearer, type TokenGetter } from './client';
 export {
   createFriendsApi,

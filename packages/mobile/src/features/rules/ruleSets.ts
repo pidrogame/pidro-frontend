@@ -20,5 +20,9 @@ export function shouldExplainLouisiana(ruleSet: RuleSet, seen: boolean, spectato
 }
 
 export function quickGameRequest(preferred: RuleSet): CreateRoomRequest {
-  return { rule_set: preferred, seats: { seat_2: 'ai', seat_3: 'ai', seat_4: 'ai' } };
+  return {
+    rule_set: preferred,
+    seats: { seat_2: 'ai', seat_3: 'ai', seat_4: 'ai' },
+    ads_aware: true,
+  };
 }
