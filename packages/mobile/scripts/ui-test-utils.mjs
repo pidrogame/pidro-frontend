@@ -53,6 +53,9 @@ export const talkCases = [
   'reply',
   'start',
   'sv-offer',
+  // PID-396: the upright tail held halfway out, and an offer while you deal.
+  'offer-slide',
+  'deal-bidding',
   // PID-329: a face tapped at the table.
   'person',
   'person-guest',

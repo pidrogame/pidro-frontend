@@ -538,7 +538,11 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
   // PID-328: what the band offers.
   'talk-offer': { offer: momentOffer('partner_trick') },
   'talk-offer-turn': { offer: momentOffer('partner_trick') },
+  // PID-396: upright, the offer's tail held halfway out of the bubble.
+  'talk-offer-slide': { offer: momentOffer('partner_trick'), slide: 0.5 },
   'talk-start': { offer: momentOffer('start') },
+  // PID-396: you deal, and the game offers a greeting while your pack rests.
+  'talk-deal-bidding': { offer: momentOffer('start') },
   'talk-reply': {
     landed: [said('west', 'word_well')],
     offer: replyOffer({ item: 'word_well' }),
@@ -956,7 +960,7 @@ function TableDevHarness() {
             feedback={fixture?.startsWith('flaky-') ? fixture.slice(6) : params.feedback}
             canPass={params.pass !== 'disabled'}
             deal={params.deal}
-            dealer={params.dealer}
+            dealer={fixture === 'talk-deal-bidding' ? 'south' : params.dealer}
             autoClear={params.clear === 'true'}
             ruleSet={ruleSet}
             rulesFixtureSeen={rulesFixtureSeen}

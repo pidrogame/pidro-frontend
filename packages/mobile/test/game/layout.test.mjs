@@ -33,6 +33,8 @@ import {
   trickOnCross,
   TRAIL_SCALE,
   landscapeSideSeatTop,
+  landscapeSouthY,
+  liftOverPack,
   SIDE_SEAT_WIDTH,
   sideSeatTop,
   sideStackInner,
@@ -254,6 +256,54 @@ describe('side stacks and the hand', () => {
     });
   }
 
+  // PID-396: a landscape iPad's talk column (182pt, 24 from the edge) has the
+  // corner right of your hand, and your name the room left of a full one: your
+  // pack stands above the hand's left end, a full pack of 52 clear of the
+  // column, the trump picker, West's backs and your seat, and on screen.
+  for (const [width, height, insets] of [
+    [1024, 768, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [1194, 834, { top: 24, bottom: 20, left: 0, right: 0 }],
+    [1366, 1024, { top: 24, bottom: 20, left: 0, right: 0 }],
+  ]) {
+    it(`stands your pack above your hand's left end on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, 0, 0);
+      const pack = packSpot(L, 'south');
+      const w = northBackWidth(L.cardW);
+      const h = (w * 110) / 78;
+      const lean = (packLayers(52) - 1) * w * PACK_STEP;
+      const box = {
+        left: pack.x - w / 2,
+        right: pack.x + w / 2 + lean * 0.55,
+        top: pack.y - h / 2 - lean,
+        bottom: pack.y + h / 2,
+      };
+      expect(pack.sideways).toBe(false);
+      expect(box.left).toBeCloseTo(handLeft(L, 9), -1);
+      expect(box.bottom).toBeLessThanOrEqual(
+        L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L) - TRICK_GAP + 0.01
+      );
+      expect(box.right).toBeLessThan(width - insets.right - 24 - 182);
+      const picker = trumpPicker(L, L.top, 0);
+      expect(box.right).toBeLessThan(picker.left);
+      expect(box.left).toBeGreaterThan(sideStackInner(L.cardW, insets.left));
+      expect(box.bottom).toBeLessThan(landscapeSouthY(L) - AVATAR_SIZE[L.profile] / 2);
+      expect(box.top).toBeGreaterThan(L.top);
+    });
+  }
+
+  // PID-396: on a landscape phone the offered word card rises just over your
+  // pack while you deal. At 844×390 the pack of 16 measures 313.8pt at its top
+  // in Expo web, and talk's row ends 8pt above the bottom.
+  it('lifts the offered card on a landscape phone just clear of your pack', () => {
+    const L = computeLayout(844, 390, { top: 0, bottom: 0, left: 0, right: 0 }, 0, 0);
+    const lifted = 382 - liftOverPack(L, 16, 382);
+    expect(lifted).toBeLessThanOrEqual(313.8 - 4);
+    expect(lifted).toBeGreaterThanOrEqual(313.8 - 12);
+    // The first deal's thicker pack lifts it further; nothing to clear, no lift.
+    expect(liftOverPack(L, 52, 382)).toBeGreaterThan(liftOverPack(L, 16, 382));
+    expect(liftOverPack(L, 16, 200)).toBe(0);
+  });
+
   // PID-394: North deals from beside its fan, a full hand's, its top back
   // level with the fan; a full pack of 52 still under the header row and on
   // screen. Landscape phones seat North right of the fan: the pack lies left
@@ -327,7 +377,8 @@ describe('side stacks and the hand', () => {
         } else {
           // Under the stack's top, on the free side of the seat, never over the backs.
           expect(pack.y - w / 2 - rise).toBeGreaterThan(stacks.top);
-          const inner = rel === 'west' ? stacks.backW * (110 / 78) : width - stacks.backW * (110 / 78);
+          const inner =
+            rel === 'west' ? stacks.backW * (110 / 78) : width - stacks.backW * (110 / 78);
           if (L.front) expect(rel === 'west' ? left > inner : right < inner).toBe(true);
           else expect(pack.y - w / 2 - rise).toBeGreaterThan(stacks.top + stacks.maxHeight);
         }
@@ -620,13 +671,7 @@ describe('small and landscape phones leave the ticker out', () => {
   ]) {
     it(`${shown ? 'shows' : 'hides'} it on ${width}×${height}`, () => {
       const portrait = height > width;
-      const L = computeLayout(
-        width,
-        height,
-        insets,
-        portrait ? 60 : 0,
-        portrait ? 0 : 0
-      );
+      const L = computeLayout(width, height, insets, portrait ? 60 : 0, portrait ? 0 : 0);
       expect(showsTicker(L)).toBe(shown);
       expect(tickerPlacement(L, { tableTop: 60, plaqueLeft: 12, plaqueTop: 8 }) !== null).toBe(
         shown
@@ -809,13 +854,7 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
       const portrait = height > width;
       const tableTop = insets.top + (portrait ? HEADER : 0);
       const headerBottom = insets.top + HEADER + 8;
-      const L = computeLayout(
-        width,
-        height,
-        insets,
-        portrait ? HEADER : 0,
-        portrait ? 0 : 0
-      );
+      const L = computeLayout(width, height, insets, portrait ? HEADER : 0, portrait ? 0 : 0);
       const P = trumpPicker(L, tableTop, headerBottom);
       const bottom = P.top + P.height;
 

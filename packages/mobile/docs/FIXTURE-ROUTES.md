@@ -192,9 +192,14 @@ heart, thumb), `talk-offer-turn` (the same on your turn, dimmed), `talk-reply` (
 Well played: Thanks!, heart) and `talk-start` (Hello!, Good luck). In a fixture the gold line
 holds still and the offer stays. Landscape phones keep the card, one coin and the speech button
 right of your hand, and drop the coin, then the button, where the hand leaves less room.
-Upright phones keep the bubble in its corner and offer a card and a coin only in the room left
-of it beside your avatar, which phones under about 460pt wide do not have: there the bubble
-carries the offer alone, the gold line over it (PID-393).
+Upright phones (PID-396) say the word in the bubble's tail: a cream face joined to the
+bubble as one pill, the gold line under them, the word one tap. It takes the room left of the
+bubble, short of your avatar's turn ring, at body size, then the small size, then in two lines
+("Nice / trick!"); where none fits (Thanks! on a 360×780 phone) the bubble lights alone and
+opens the words. `talk-offer-slide` holds the tail halfway out of the bubble. While you deal
+(`talk-deal-bidding`: Hello! during bidding, your pack resting), a landscape phone lifts the
+word card over your pack, or lights the bubble alone where the card has no button beside it
+(640 and 667 wide), and a landscape iPad stands your pack above your hand's left end.
 
 A face at the table (PID-329) is `fixture=talk-person` (Antti's sheet: Quiet, Report, Block),
 `talk-person-guest` (a guest's, without Block), `talk-report` (the one question; a tap on a

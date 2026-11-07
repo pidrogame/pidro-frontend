@@ -80,6 +80,8 @@ export interface TalkFixture {
   draft?: string;
   /** The server refuses what is typed, as for words it filters. */
   filtered?: boolean;
+  /** Upright phones: the offer's tail held this far out of the bubble (PID-396). */
+  slide?: number;
 }
 
 /**

@@ -133,7 +133,10 @@ const packRise = (backW: number, count: number) => (packLayers(count) - 1) * bac
  * corner under the left end of your hand, the right one being talk's
  * (PID-393); where the table has no room for it there (the shortest phones),
  * it lies sideways.
- * Landscape keeps it right of the hand, level with it, below East's front row.
+ * Landscape phones keep it right of the hand, level with it, below East's
+ * front row; what talk offers rises over it (`liftOverPack`). A landscape
+ * iPad's talk column has that corner (PID-396), and your name the room left
+ * of a full hand: the pack stands above its left end.
  */
 export function packSpot(L: TableLayout, dealer: RelativePosition) {
   const portrait = L.profile.endsWith('portrait');
@@ -190,6 +193,12 @@ export function packSpot(L: TableLayout, dealer: RelativePosition) {
       sideways: true,
     };
   }
+  if (L.profile === 'tablet-landscape')
+    return {
+      x: handLeft(L, FULL_HAND) + w / 2,
+      y: L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L) - TRICK_GAP - h / 2,
+      sideways: false,
+    };
   if (!portrait)
     return {
       x: Math.min(L.hand.cx + L.hand.maxWidth / 2 + 8 + w / 2, L.width - w / 2 - 12),
@@ -209,6 +218,16 @@ export function packSpot(L: TableLayout, dealer: RelativePosition) {
     y: L.bottom - 2 - w / 2,
     sideways: true,
   };
+}
+/**
+ * On a landscape phone, how far the word card talk offers right of your hand
+ * rises while your pack of `count` lies under it (PID-396): from talk's row,
+ * whose bottom is at `rowBottom`, to just above the pack's top back.
+ */
+export function liftOverPack(L: TableLayout, count: number, rowBottom: number): number {
+  const w = northBackWidth(L.cardW, compactNorth(L));
+  const top = packSpot(L, 'south').y - (w * CARD_RATIO) / 2 - packRise(w, count);
+  return Math.max(0, rowBottom - top + 8);
 }
 /**
  * How a hand holds its cards. `still`: a dead straight row. `tilt`: each card

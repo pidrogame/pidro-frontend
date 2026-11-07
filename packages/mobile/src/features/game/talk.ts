@@ -116,5 +116,30 @@ export function unreadBy(
     .map(([seat]) => seat as Position);
 }
 
+/**
+ * The offered word as the upright bubble's tail says it (PID-396), largest
+ * first: one line at body size, one at the small label size, two at the small
+ * size. Each width is the tail's, its padding included.
+ */
+export const TAIL_SIZES = ['body', 'small', 'two'] as const;
+export type TailSize = (typeof TAIL_SIZES)[number];
+/** Under this the tail holds no word worth reading: the bubble lights alone. */
+export const TAIL_MIN = 56;
+
+export function tailFit(room: number, widths: Record<TailSize, number>): TailSize | null {
+  if (room < TAIL_MIN) return null;
+  return TAIL_SIZES.find((size) => widths[size] <= room) ?? null;
+}
+
+/** A word in two lines, broken at the space nearest its middle: "Nice / trick!". */
+export function twoLines(text: string): string {
+  const spaces = [...text.matchAll(/ /g)].map((match) => match.index);
+  if (!spaces.length) return text;
+  const at = spaces.reduce((best, i) =>
+    Math.abs(i - text.length / 2) < Math.abs(best - text.length / 2) ? i : best
+  );
+  return `${text.slice(0, at)}\n${text.slice(at + 1)}`;
+}
+
 /** The most a typed line holds. */
 export const SAY_MAX = 80;

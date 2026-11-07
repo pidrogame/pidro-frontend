@@ -68,6 +68,7 @@ import {
   AVATAR_SIZE,
   computeLayout,
   handRight,
+  liftOverPack,
   northSeatBottom,
   showsTicker,
   TIGHT_AVATAR,
@@ -716,8 +717,8 @@ export function GameCanvasTable({
   const talkPlace: TalkPlace = layout.profile.startsWith('tablet') ? 'column' : 'corner';
   // Upright phones (PID-393): the bubble's centre level with your avatar's,
   // which sits under your hand on a tight phone, above its name and line
-  // otherwise. What it offers takes the room left of it, short of your avatar
-  // and its turn light.
+  // otherwise. What it offers grows out of it as a tail (PID-396), into the
+  // room left of it, short of your avatar and its turn light.
   const upright = layout.profile === 'phone-portrait';
   const yourSize = layout.tight ? TIGHT_AVATAR : AVATAR_SIZE[layout.profile];
   const yours = avatarParts(yourSize);
@@ -734,9 +735,13 @@ export function GameCanvasTable({
       insets.right -
       PidroSpacing.sm -
       TALK_ROW -
-      PidroSpacing.sm -
       (width / 2 + (yours.turn?.radius ?? yourSize / 2) + TRICK_GAP)
     : width - insets.right - PidroSpacing.sm * 2 - handRight(layout, model.yourHand.length);
+  // Landscape phones: while you deal, the offer's word card rises over your pack (PID-396).
+  const talkLift =
+    layout.profile === 'phone-landscape' && model.dealerRelative === 'south' && model.pack
+      ? liftOverPack(layout, model.pack, height - insets.bottom - PidroSpacing.xs)
+      : 0;
   // At a talk table a person's face offers Quiet, Report and Block (PID-329).
   const onFace = (playerId: string | null, persona?: BotPersona | null) => {
     const player = players.find((candidate) => candidate.playerId === playerId);
@@ -917,19 +922,20 @@ export function GameCanvasTable({
                         bottom: insets.bottom + PidroSpacing.xs,
                       },
               ]}>
-              {talk.offer ? (
+              {talk.offer && !upright ? (
                 <TalkOffer
                   offer={talk.offer}
                   place={talkPlace}
                   dim={isYourTurn}
                   hold={!!talkFixture}
                   room={talkRoom}
-                  anchored={upright}
+                  lift={talkLift}
                   unread={talk.unread}
                   onSend={talk.send}
                   onOpen={() => talk.open(typing === 'type' ? 'typing' : 'words')}
                 />
               ) : (
+                // Upright, one bubble through the offer, so its tail can fold back (PID-396).
                 <TalkBand
                   place={talkPlace}
                   line={talk.line}
@@ -937,8 +943,16 @@ export function GameCanvasTable({
                   draft={talk.draft}
                   turn={isYourTurn}
                   unread={talk.unread}
+                  offer={talk.offer}
+                  room={talkRoom}
+                  dim={isYourTurn}
+                  hold={!!talkFixture}
+                  slide={talkFixture?.slide}
+                  onSend={talk.send}
                   onOpen={() =>
-                    talk.open(typing === 'type' ? 'typing' : talk.line ? 'log' : 'words')
+                    talk.open(
+                      typing === 'type' ? 'typing' : talk.line && !talk.offer ? 'log' : 'words'
+                    )
                   }
                 />
               )}

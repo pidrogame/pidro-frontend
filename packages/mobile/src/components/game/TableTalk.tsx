@@ -2,11 +2,19 @@
  * Table talk (PID-114): words are cards, faces are plain emoji. One tap says it.
  * Board: Chat-Scene (states), chat.css (materials), Chat-Land, Chat-iPad.
  */
-import { useEffect } from 'react';
-import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  StyleSheet,
+  Text,
+  View,
+  type StyleProp,
+  type TextStyle,
+  type ViewStyle,
+} from 'react-native';
 import Animated, {
   Easing,
   FadeOut,
+  runOnJS,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -22,14 +30,19 @@ import {
   PidroLayout,
   PidroRadii,
   PidroSpacing,
+  PidroType,
 } from '@/design/tokens';
 import { OFFER_MS, type Offer } from '@/features/game/offers';
 import {
   isCoin,
   TALK_EMOJI,
+  TAIL_SIZES,
+  tailFit,
   talkKey,
+  twoLines,
   type Landed,
   type Said,
+  type TailSize,
   type TalkItem,
 } from '@/features/game/talk';
 import type { SaidAt } from '@/game/canvas/SeatLayer';
@@ -130,11 +143,14 @@ export function TalkSpeech({
   label,
   muted = false,
   unread = false,
+  joined = false,
 }: {
   onPress: () => void;
   label: string;
   muted?: boolean;
   unread?: boolean;
+  /** A tail joins it on the left (PID-396): the two are one pill. */
+  joined?: boolean;
 }) {
   return (
     <PressableFX
@@ -142,7 +158,7 @@ export function TalkSpeech({
       accessibilityLabel={label}
       testID="talk-speech"
       onPress={onPress}
-      style={styles.speech}>
+      style={[styles.speech, joined && styles.joined]}>
       <TalkIcon size={26} muted={muted} />
       {unread ? <View testID="talk-speech-dot" pointerEvents="none" style={styles.unread} /> : null}
     </PressableFX>
@@ -231,7 +247,8 @@ export type TalkPlace = 'band' | 'corner' | 'column';
 
 /**
  * Where talk sits: a speech bubble in the bottom right corner on phones,
- * beside the hand on an iPad, a band in the log's sheet.
+ * beside the hand on an iPad, a band in the log's sheet. On upright phones
+ * the bubble says what the game offers in its tail (PID-396).
  */
 export function TalkBand({
   place,
@@ -243,6 +260,12 @@ export function TalkBand({
   unread,
   prompt,
   testID = 'talk-band',
+  offer = null,
+  room = 0,
+  dim = false,
+  hold,
+  slide,
+  onSend,
 }: {
   place: TalkPlace;
   line: Said | null;
@@ -257,6 +280,15 @@ export function TalkBand({
   /** What it says when there is nothing to show. */
   prompt?: string;
   testID?: string;
+  /** Upright phones: what the game offers, said in the bubble's tail. */
+  offer?: Offer | null;
+  /** The width free left of the bubble, short of your seat. */
+  room?: number;
+  dim?: boolean;
+  /** Fixtures hold the gold line, and the tail at `slide` of the way out. */
+  hold?: boolean;
+  slide?: number;
+  onSend?: (item: TalkItem) => void;
 }) {
   useTranslation();
   const empty = prompt ?? t('talk.say');
@@ -264,9 +296,15 @@ export function TalkBand({
   // In a corner the speech button holds the words, and says so.
   if (place === 'corner')
     return (
-      <TalkSpeech
+      <TalkTail
+        offer={offer}
+        room={room}
+        dim={dim}
+        hold={hold}
+        slide={slide}
+        onSend={onSend}
         label={draft ? `${first} ${draft}`.trim() : empty}
-        onPress={onOpen}
+        onOpen={onOpen}
         unread={unread}
       />
     );
@@ -309,6 +347,159 @@ export function TalkBand({
   );
 }
 
+/** Between the tail's word and its edges, inside its 1pt border. */
+const TAIL_PAD = 10;
+/** The bubble's row is fixed: large type grows the tail only this far, then takes a smaller size. */
+const TAIL_SCALE = 1.3;
+const TAIL_TYPE: Record<TailSize, TextStyle> = {
+  body: { fontSize: 17, lineHeight: 21 },
+  small: { fontSize: PidroType.label.fontSize, lineHeight: PidroType.label.lineHeight },
+  two: { fontSize: PidroType.label.fontSize, lineHeight: PidroType.label.lineHeight },
+};
+
+/**
+ * The bubble, and on upright phones what the game offers (PID-396): the word
+ * grows out of it as a tail, a cream face joined to it as one pill, the gold
+ * line under them for six seconds. The word sends, the bubble opens the
+ * words. It slides out from under the bubble and folds back when the offer
+ * goes; Reduce Motion cuts. It takes the largest size of the word `room`
+ * holds; where none fits, the bubble wears the line alone.
+ */
+function TalkTail({
+  offer,
+  room,
+  dim,
+  hold,
+  slide,
+  onSend,
+  label,
+  onOpen,
+  unread,
+}: {
+  offer: Offer | null;
+  room: number;
+  dim: boolean;
+  hold?: boolean;
+  slide?: number;
+  onSend?: (item: TalkItem) => void;
+  label: string;
+  onOpen: () => void;
+  unread?: boolean;
+}) {
+  const reduceMotion = useReducedMotion();
+  // The offer the tail says, kept while it folds back.
+  const [said, setSaid] = useState(offer);
+  if (offer && offer !== said) setSaid(offer);
+  const item = said?.words[0];
+  const text = item ? t(talkKey(item)) : '';
+  // Each size of the word, measured as the tail draws it.
+  const [widths, setWidths] = useState<{ text: string } & Partial<Record<TailSize, number>>>({
+    text: '',
+  });
+  const measured = widths.text === text && TAIL_SIZES.every((size) => widths[size] != null);
+  const size = measured ? tailFit(room, widths as Record<TailSize, number>) : null;
+  const out = useSharedValue(0);
+  const left = useSharedValue(1);
+  const tailed = !!offer && !!size;
+  useEffect(() => {
+    if (tailed) {
+      out.set(
+        slide ??
+          (reduceMotion ? 1 : withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }))
+      );
+    } else if (!offer && said) {
+      // Reduce Motion folds it in no time: a cut.
+      out.set(
+        withTiming(
+          0,
+          { duration: reduceMotion ? 0 : 200, easing: Easing.in(Easing.cubic) },
+          (done) => {
+            if (done) runOnJS(setSaid)(null);
+          }
+        )
+      );
+    }
+  }, [tailed, offer, said, slide, reduceMotion, out]);
+  useEffect(() => {
+    left.set(1);
+    if (offer && !reduceMotion && !hold)
+      left.set(withTiming(0, { duration: OFFER_MS, easing: Easing.linear }));
+  }, [offer, left, reduceMotion, hold]);
+  const drain = useAnimatedStyle(() => ({ transform: [{ scaleX: left.value }] }));
+  const width = size ? widths[size]! : 0;
+  const slideOut = useAnimatedStyle(() => ({
+    transform: [{ translateX: (1 - out.value) * width }],
+  }));
+  const shown = size === 'two' ? twoLines(text) : text;
+  const start = slide != null ? 1 - slide : reduceMotion ? 0 : 1;
+  return (
+    <View
+      testID={offer ? 'talk-offer' : undefined}
+      accessibilityLiveRegion={offer ? 'polite' : undefined}
+      style={[styles.offerRow, styles.tailRow, offer && dim && styles.dim]}>
+      {offer ? (
+        <Animated.View
+          testID="talk-offer-line"
+          pointerEvents="none"
+          style={[styles.under, drain]}
+        />
+      ) : null}
+      {item && size ? (
+        <View testID={`talk-tail-${size}`} style={[styles.tailClip, { width }]}>
+          <Animated.View
+            // Where it starts, until the animated style takes over: under the bubble.
+            style={[{ transform: [{ translateX: start * width }] }, slideOut]}>
+            <PressableFX
+              accessibilityRole="button"
+              accessibilityLabel={text}
+              testID={`talk-${item}`}
+              disabled={!offer}
+              onPress={() => onSend?.(item)}
+              style={[styles.tailFace, { width }]}>
+              <PidroText
+                style={[styles.word, TAIL_TYPE[size]]}
+                numberOfLines={size === 'two' ? 2 : 1}
+                maxFontSizeMultiplier={TAIL_SCALE}
+                align="center">
+                {shown}
+              </PidroText>
+            </PressableFX>
+          </Animated.View>
+        </View>
+      ) : null}
+      <TalkSpeech
+        label={tailed ? t('talk.say_else') : label}
+        onPress={onOpen}
+        unread={unread}
+        joined={!!(item && size)}
+      />
+      {offer && item && !measured ? (
+        <View
+          pointerEvents="none"
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={styles.measure}>
+          {TAIL_SIZES.map((each) => (
+            <PidroText
+              key={each}
+              style={[styles.word, TAIL_TYPE[each], styles.measured]}
+              maxFontSizeMultiplier={TAIL_SCALE}
+              onLayout={({ nativeEvent }) => {
+                const measure = Math.ceil(nativeEvent.layout.width) + 2 * (TAIL_PAD + 1);
+                setWidths((was) => ({
+                  ...(was.text === text ? was : { text }),
+                  [each]: measure,
+                }));
+              }}>
+              {each === 'two' ? twoLines(text) : text}
+            </PidroText>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 /** How far a landing sits from its ring. */
 const BESIDE = 10;
 const PLACE: Record<SaidAt, (ring: number) => ViewStyle> = {
@@ -340,16 +531,16 @@ export function TalkOffer({
   onSend,
   onOpen,
   room = Infinity,
-  anchored = false,
+  lift = 0,
   unread,
 }: {
   offer: Offer;
   place: TalkPlace;
   dim: boolean;
-  /** The corner's width free beside your hand or seat: the row drops what does not fit. */
+  /** The corner's width free right of your hand: the row drops what does not fit. */
   room?: number;
-  /** Upright phones (PID-393): the speech button keeps its corner, and `room` lies left of it. */
-  anchored?: boolean;
+  /** How far the word card rises to keep clear of your pack while you deal (PID-396). */
+  lift?: number;
   unread?: boolean;
   /** Fixtures hold the gold line still for a screenshot. */
   hold?: boolean;
@@ -366,26 +557,20 @@ export function TalkOffer({
   }, [offer, left, reduceMotion, hold]);
   const drain = useAnimatedStyle(() => ({ transform: [{ scaleX: left.value }] }));
   // Landscape keeps one coin (Chat-Land), then gives up coin, button and card as room runs out.
-  // Upright phones keep the button in its corner: the card and coin go, and the line stays on it.
   const corner = place === 'corner';
   const fits = (width: number) => !corner || room >= width;
-  const button = anchored ? 0 : GAP + TALK_ROW;
-  const worded = fits(MIN_WORD);
+  const button = GAP + TALK_ROW;
   const cardWidth = corner ? Math.min(CORNER_WORD, room) : undefined;
-  const speech =
-    anchored || fits(CORNER_WORD + button) ? (
-      <TalkSpeech
-        label={t(worded ? 'talk.say_else' : 'talk.say')}
-        onPress={onOpen}
-        unread={unread}
-      />
-    ) : null;
+  const speech = fits(CORNER_WORD + button) ? (
+    <TalkSpeech label={t('talk.say_else')} onPress={onOpen} unread={unread} />
+  ) : null;
   const shownCoins = corner
     ? fits(CORNER_WORD + GAP + TALK_ROW + button)
       ? offer.coins.slice(0, 1)
       : []
     : offer.coins;
-  if (!worded && !anchored)
+  // A card with no button beside it would rise into East's backs: while you deal there, the bubble lights alone.
+  if (!fits(MIN_WORD) || (lift > 0 && !speech))
     return <TalkSpeech label={t('talk.say')} onPress={onOpen} unread={unread} />;
   const coins = shownCoins.map((item) => (
     <TalkCoin
@@ -395,7 +580,7 @@ export function TalkOffer({
       onPress={() => onSend(item)}
     />
   ));
-  const words = (corner ? offer.words.slice(0, worded ? 1 : 0) : offer.words).map((item) => (
+  const words = (corner ? offer.words.slice(0, 1) : offer.words).map((item) => (
     <TalkWord
       key={item}
       item={item}
@@ -409,7 +594,13 @@ export function TalkOffer({
       testID="talk-offer"
       accessibilityLiveRegion="polite"
       style={[place === 'column' ? styles.column : null, dim && styles.dim]}>
-      <Animated.View testID="talk-offer-line" pointerEvents="none" style={[styles.drain, drain]} />
+      {lift ? null : (
+        <Animated.View
+          testID="talk-offer-line"
+          pointerEvents="none"
+          style={[styles.drain, drain]}
+        />
+      )}
       {place === 'column' ? (
         <>
           {words}
@@ -420,7 +611,19 @@ export function TalkOffer({
         </>
       ) : (
         <View style={styles.offerRow}>
-          {words}
+          {lift ? (
+            // The line rides up with the card, off your pack.
+            <View style={{ transform: [{ translateY: -lift }] }}>
+              <Animated.View
+                testID="talk-offer-line"
+                pointerEvents="none"
+                style={[styles.drain, drain]}
+              />
+              {words}
+            </View>
+          ) : (
+            words
+          )}
           {coins}
           {speech}
         </View>
@@ -431,6 +634,37 @@ export function TalkOffer({
 
 const styles = StyleSheet.create({
   dim: { opacity: 0.6 },
+  tailRow: { gap: 0 },
+  // The word's slot left of the bubble: the tail slides out of the bubble's edge.
+  tailClip: {
+    height: TALK_ROW,
+    overflow: 'hidden',
+    borderTopLeftRadius: PidroRadii.lg,
+    borderBottomLeftRadius: PidroRadii.lg,
+  },
+  tailFace: {
+    height: TALK_ROW,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: TAIL_PAD,
+    borderTopLeftRadius: PidroRadii.lg,
+    borderBottomLeftRadius: PidroRadii.lg,
+    backgroundColor: PidroColors.leagueCardFace,
+    borderWidth: 1,
+    borderRightWidth: 0,
+    borderColor: PidroColors.leagueCardEdge,
+  },
+  measure: { position: 'absolute', right: 0, bottom: 0, width: 400, opacity: 0 },
+  measured: { alignSelf: 'flex-start' },
+  under: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -6,
+    height: 2,
+    backgroundColor: PidroBevel.rim,
+    transformOrigin: 'left',
+  },
   column: { gap: 10 },
   offerRow: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
   cornerWord: { minHeight: TALK_ROW },
@@ -478,6 +712,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: PidroBevel.panelDeep,
   },
+  joined: { borderTopLeftRadius: 0, borderBottomLeftRadius: 0 },
   speech: {
     width: TALK_ROW,
     height: TALK_ROW,

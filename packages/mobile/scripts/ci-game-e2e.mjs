@@ -710,8 +710,8 @@ async function stageThreeTableTalk() {
         await said.waitForTimeout(2_000);
         continue;
       }
-      // An upright phone has no room beside the bubble for the offer's word
-      // card (PID-393): its gold line rides on the bubble, which opens the words.
+      // On an upright phone the bubble says the offered word in its tail
+      // (PID-396): one tap says it. Where the tail cannot fit, the bubble opens the words.
       const offered = heard.getByTestId('talk-offer');
       if (!(await offered.waitFor({ timeout: 4_000 }).then(ok, lost))) {
         log(`no offer yet (attempt ${attempt}); saying it again`);
@@ -721,10 +721,14 @@ async function stageThreeTableTalk() {
       await heard.screenshot({ path: resolve(artifactDir, 'talk-offer.png') });
       // CI pacing ends a hand in seconds: an offer can go before the tap, and
       // game over can cover the landing. Either way, say it again.
-      const thanked = await sayFrom(heard).then(
-        (sheet) => tap(sheet.getByTestId('talk-word_thanks')).then(ok, lost),
-        lost
-      );
+      const tail = offered.getByTestId('talk-word_thanks');
+      const oneTap = await tail.isVisible().catch(lost);
+      const thanked = oneTap
+        ? await tap(tail).then(ok, lost)
+        : await sayFrom(heard).then(
+            (sheet) => tap(sheet.getByTestId('talk-word_thanks')).then(ok, lost),
+            lost
+          );
       if (!thanked) {
         log(`the offer went before Thanks! was said (attempt ${attempt}); saying it again`);
         continue;
@@ -735,11 +739,12 @@ async function stageThreeTableTalk() {
         continue;
       }
       await said.screenshot({ path: resolve(artifactDir, 'talk-reply-landed.png') });
+      log(oneTap ? 'Thanks! said in one tap on the tail' : 'Thanks! said through the bubble');
       answered = true;
     }
     if (!answered)
       throw new Error('no Thanks! from an offer came back to Well played within two minutes');
-    log('the offer opened the words and Thanks! came back to the first phone');
+    log('the offer said Thanks! and it came back to the first phone');
 
     // PID-318: both are adults, so both read typed talk. What one types lands
     // at their seat on the other phone.

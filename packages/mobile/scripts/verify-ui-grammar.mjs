@@ -5583,30 +5583,50 @@ const OFFER_WORDS = {
   offer: { en: 'Nice trick!', sv: 'Snyggt stick!' },
   'offer-turn': { en: 'Nice trick!' },
   'offer-tap': { en: 'Nice trick!' },
+  'offer-slide': { en: 'Nice trick!' },
   reply: { en: 'Thanks!' },
   start: { en: 'Hello!' },
+  'deal-bidding': { en: 'Hello!' },
+};
+
+/**
+ * The size each upright phone's tail takes (PID-396): one line at body size,
+ * one at the small size, two lines, or none (the bubble lights alone), from
+ * the room left of the bubble (85pt at 390, 77 at 360×640, 70 at 360×780, 91
+ * at 402) and the word as drawn.
+ */
+const TAIL_SIZE = {
+  'portrait/reply': 'body',
+  'portrait/offer': 'two',
+  'small-portrait/reply': 'body',
+  'small-portrait/offer': 'two',
+  'iphone-insets-portrait/offer': 'small',
+  'compact-portrait/reply': 'small',
+  'compact-portrait/offer': 'two',
+  'android-portrait/reply': null,
+  'android-portrait/offer': 'two',
 };
 
 /**
  * What the game offers to say (PID-328): a word card beside the speech
  * button, clear of your seat (and in landscape of your hand), dimmed but kept
  * on your turn, and one tap says it and puts the button back. Upright phones
- * (PID-393) leave no card's room left of the bubble beside your avatar: the
- * bubble carries the offer alone, its gold line over it, and a tap opens the
- * words.
+ * (PID-396) say the word in the bubble's tail: a cream face joined to the
+ * bubble as one pill, the word whole, the bubble still a 52pt button; one
+ * tap on the word says it and the tail folds back. Where no size fits, the
+ * bubble carries the gold line alone and opens the words.
  */
 async function assertTalkOffer(page, testCase, viewport, corner) {
   const word = OFFER_WORDS[testCase.talk]?.[testCase.locale];
   if (!word) return false;
+  if (testCase.talk === 'deal-bidding') return assertTalkDeal(page, word, viewport);
   const offer = page.getByTestId('talk-offer');
   await offer.waitFor();
   await offer.getByTestId('talk-offer-line').waitFor();
   const card = offer.getByRole('button', { name: word, exact: true });
   const upright = corner && viewport.height > viewport.width;
-  if (upright) {
-    assert.equal(await card.count(), 0, 'no word card beside your avatar');
-    await offer.getByTestId('talk-speech').waitFor();
-  } else await card.waitFor();
+  const tail = upright ? await assertTail(page, offer, card, testCase, viewport) : null;
+  if (!upright) await card.waitFor();
   // An offer's faces are TalkCoin's plain emoji, nothing gold.
   const offered = await offer.locator('[data-testid^="talk-coin_"]').all();
   // Nice trick! brings heart and thumb; Hello and Thanks come alone.
@@ -5623,17 +5643,46 @@ async function assertTalkOffer(page, testCase, viewport, corner) {
   const box = await getStableBox(offer, page);
   assertInsideViewport('talk offer', box, viewport);
   const you = await getStableBox(page.getByTestId('seat-south'), page);
-  assert.ok(!overlaps(box, you), 'the offer keeps clear of your seat');
+  // Upright, the tail reaches into the seat's name column beside the avatar
+  // (PID-396): it keeps off what the seat draws, its face, turn ring and words.
+  const drawn = upright
+    ? await page.getByTestId('seat-south').evaluate((seat) =>
+        [...seat.querySelectorAll('img, circle, *')]
+          .filter(
+            (node) =>
+              ['IMG', 'circle'].includes(node.tagName) ||
+              (node.childElementCount === 0 && node.textContent.trim())
+          )
+          .map((node) => {
+            const { x, y, width, height } = node.getBoundingClientRect();
+            return { label: node.textContent || node.tagName, x, y, width, height };
+          })
+          .filter(({ width, height }) => width && height)
+      )
+    : [you];
+  for (const part of drawn)
+    assert.ok(
+      !overlaps(box, part),
+      `the offer keeps clear of your seat: ${JSON.stringify({ box, part })}`
+    );
   if (upright) await assertBubble(box, you, viewport);
   assert.equal(
     await offer.evaluate((node) => Number(getComputedStyle(node).opacity)),
     testCase.talk === 'offer-turn' ? 0.6 : 1,
     'on your turn the offer dims, and only then'
   );
-  if (testCase.talk === 'offer-tap' && upright) {
+  if (testCase.talk === 'offer-tap' && upright && !tail) {
     await offer.getByTestId('talk-speech').click();
     await page.getByTestId('talk-sheet-typing').getByTestId('talk-word_nice').click();
     await page.getByTestId('talk-landed').getByText(word).waitFor();
+  } else if (testCase.talk === 'offer-tap' && upright) {
+    // One tap says it; the tail folds back under the bubble, itself again.
+    await card.click();
+    await offer.waitFor({ state: 'detached' });
+    await page.locator('[data-testid^="talk-tail-"]').waitFor({ state: 'detached' });
+    await page.getByTestId('talk-landed').getByText(word).waitFor();
+    const bubble = await getStableBox(page.getByTestId('talk-speech'), page);
+    await assertBubble(bubble, await getStableBox(page.getByTestId('seat-south'), page), viewport);
   } else if (testCase.talk === 'offer-tap') {
     await card.click();
     await offer.waitFor({ state: 'detached' });
@@ -5641,6 +5690,102 @@ async function assertTalkOffer(page, testCase, viewport, corner) {
   }
   await waitForScreenshotReady(page);
   await assertMinimumTouchTargets(page, testCase.name, viewport);
+  return true;
+}
+
+/** The upright tail (PID-396), its size pinned where TAIL_SIZE names one; null where none fits. */
+async function assertTail(page, offer, card, testCase, viewport) {
+  const speech = offer.getByTestId('talk-speech');
+  await speech.waitFor();
+  const tails = offer.locator('[data-testid^="talk-tail-"]');
+  const size = (await tails.count())
+    ? (await tails.first().getAttribute('data-testid')).replace('talk-tail-', '')
+    : null;
+  const key = `${viewport.name}/${testCase.talk.replace(/-(turn|tap|slide)$/, '')}`;
+  if (testCase.locale === 'en' && key in TAIL_SIZE)
+    assert.equal(size, TAIL_SIZE[key], `${testCase.name}: the tail's size in ${viewport.name}`);
+  const bubble = await getStableBox(speech, page);
+  assert.ok(bubble.width >= 52 && bubble.height >= 52, 'the bubble stays a 52pt button');
+  if (!size) {
+    assert.equal(await card.count(), 0, 'no word where the tail cannot fit');
+    return null;
+  }
+  const slot = await getStableBox(tails.first(), page);
+  // The tail slides out in 260ms: measure it where it rests.
+  let face = await getStableBox(card, page);
+  for (let was = null; was?.x !== face.x;) {
+    was = face;
+    await page.waitForTimeout(120);
+    face = await getStableBox(card, page);
+  }
+  assert.ok(Math.abs(slot.x + slot.width - bubble.x) <= 1, 'the tail joins the bubble');
+  assert.ok(Math.abs(slot.y - bubble.y) <= 1 && Math.abs(slot.height - bubble.height) <= 1);
+  assert.ok(slot.width >= 44, 'the word is a thumb wide at least');
+  assert.ok(slot.x >= 0, 'the tail stays on screen');
+  // Fixtures hold it halfway out of the bubble.
+  const out = testCase.talk === 'offer-slide' ? 0.5 : 1;
+  assert.ok(
+    Math.abs(face.x - (slot.x + slot.width * (1 - out))) <= 2,
+    `the tail is ${out * 100}% out: ${JSON.stringify({ slot, face })}`
+  );
+  // The word whole: no ellipsis, nothing cut.
+  const clipped = await card.evaluate((node) =>
+    [...node.querySelectorAll('*')].some(
+      (child) =>
+        child.childElementCount === 0 &&
+        (child.scrollWidth > child.clientWidth + 1 || child.scrollHeight > child.clientHeight + 1)
+    )
+  );
+  assert.equal(clipped, false, `the word is whole in its ${size} tail`);
+  return size;
+}
+
+/**
+ * You deal and the game offers a greeting while your pack rests (PID-396):
+ * landscape phones lift the word card over the pack, iPads stand the pack
+ * above the hand's left end, and upright phones keep the pack bottom left.
+ * Where the card could only rise into East's backs (the narrowest landscape
+ * phones), the bubble lights alone.
+ */
+async function assertTalkDeal(page, word, viewport) {
+  await page.getByTestId('talk-speech').waitFor();
+  const backs = [];
+  for (const image of await page.getByTestId('dealer-pack').locator('img').all()) {
+    const box = await image.boundingBox();
+    if (box) backs.push(box);
+  }
+  assert.ok(backs.length, `your pack shows in ${viewport.name}`);
+  const x = Math.min(...backs.map((b) => b.x));
+  const y = Math.min(...backs.map((b) => b.y));
+  const pack = {
+    x,
+    y,
+    width: Math.max(...backs.map((b) => b.x + b.width)) - x,
+    height: Math.max(...backs.map((b) => b.y + b.height)) - y,
+  };
+  assertInsideViewport('your pack', pack, viewport);
+  const card = page.getByRole('button', { name: word, exact: true });
+  const said = page
+    .getByTestId('talk-offer')
+    .locator('[role="button"]')
+    .or(page.getByTestId('talk-offer-line'));
+  const parts = await said.all();
+  if (viewport.width < 700 && viewport.width > viewport.height)
+    assert.equal(await card.count(), 0, 'no card rises into East’s backs');
+  else assert.ok(parts.length, 'the offer shows');
+  for (const part of parts) {
+    const box = await getStableBox(part, page);
+    assertInsideViewport('the offer', box, viewport);
+    // The bubble itself sat over your pack at 640 and 667 wide before (PID-394).
+    if ((await part.getAttribute('data-testid')) === 'talk-speech' && viewport.width < 700)
+      continue;
+    assert.ok(
+      !overlaps(box, pack),
+      `the offer keeps off your pack: ${JSON.stringify({ box, pack })}`
+    );
+  }
+  await waitForScreenshotReady(page);
+  await assertMinimumTouchTargets(page, 'table-talk-deal-bidding', viewport);
   return true;
 }
 

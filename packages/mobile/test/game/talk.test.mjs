@@ -3,7 +3,9 @@ import {
   land,
   landingMs,
   saidFrom,
+  tailFit,
   talkTable,
+  twoLines,
   typingFor,
   unreadBy,
 } from '../../src/features/game/talk.ts';
@@ -97,5 +99,25 @@ describe('table talk', () => {
     expect(unreadBy(seats, 'east')).toEqual(['south']);
     expect(unreadBy({ ...seats, east: { occupant_type: 'vacant' } }, 'south')).toEqual([]);
     expect(unreadBy(null, 'south')).toEqual([]);
+  });
+
+  // PID-396: an upright bubble's tail says the offered word in the largest size its room holds.
+  it('fits the offered word to the tail: body, then small, then two lines, else the bubble alone', () => {
+    const nice = { body: 99, small: 87, two: 56 };
+    expect(tailFit(99, nice)).toBe('body');
+    expect(tailFit(98.5, nice)).toBe('small');
+    expect(tailFit(87, nice)).toBe('small');
+    expect(tailFit(86.5, nice)).toBe('two');
+    expect(tailFit(56, nice)).toBe('two');
+    // Too wide in every size: Thanks! on a 360pt phone.
+    expect(tailFit(70, { body: 83, small: 72, two: 72 })).toBeNull();
+    // Under 56pt even a word that would fit is left out.
+    expect(tailFit(55.5, { body: 40, small: 36, two: 36 })).toBeNull();
+  });
+
+  it('breaks a word in two at the space nearest its middle', () => {
+    expect(twoLines('Nice trick!')).toBe('Nice\ntrick!');
+    expect(twoLines('ab cd efghijk lm')).toBe('ab cd\nefghijk lm');
+    expect(twoLines('Thanks!')).toBe('Thanks!');
   });
 });
