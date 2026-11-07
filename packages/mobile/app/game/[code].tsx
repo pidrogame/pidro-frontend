@@ -32,6 +32,7 @@ import type { Position, Room } from '@/types/lobby';
 import type { LegalAction, ServerGameState } from '@/types/game';
 import { GameJoinFailureScreen } from '@/components/game/GameJoinFailureScreen';
 import { GameLoadingScreen } from '@/components/game/GameLoadingScreen';
+import { AdSheet } from '@/components/ads/AdSheet';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { NewTableScreen } from '@/components/lobby/NewTableScreen';
 import { InviteLinkModal } from '@/components/invites/InviteLinkModal';
@@ -43,6 +44,7 @@ import { Surface } from '@/components/ui/Surface';
 import { PidroSpacing } from '@/design/tokens';
 import { loadGameCanvasTable } from '@/game/canvas/loadGameCanvasTable';
 import { gameExitPath, parseGameOrigin } from '@/navigation/gameRoute';
+import { useAdOffer } from '@/features/ads/useAdOffer';
 import { canManageRoom } from '@/features/invites/hostControls';
 import { claimDailyGuestSavePrompt } from '@/features/auth/guestSavePrompt';
 import { tableInvitation } from '@/features/invites/tableInvitation';
@@ -663,6 +665,14 @@ export default function GameScreen() {
       }),
     [readiness, isChannelJoined, role, handleSeatEvent]
   );
+  // The server counts a solo rematch as the next solo game, so it may need a short ad first (PID-120).
+  const adOffer = useAdOffer('solo');
+  // After an ad the channel may have rejoined: ask with what the table says now, not at the tap.
+  const playAgain = useRef(handlePlayAgain);
+  useEffect(() => {
+    playAgain.current = handlePlayAgain;
+  }, [handlePlayAgain]);
+  const handleSoloPlayAgain = () => void adOffer.play(async () => playAgain.current());
   const rematch = rematchVote(readiness, youPositionAbs);
   const tableReopened = tableIsWaiting && hasGameState;
   useEffect(() => {
@@ -853,9 +863,9 @@ export default function GameScreen() {
           progressionSummary={progressionSummary}
           leagueProgress={leagueProgress}
           onLeave={() => handleLeaveGame()}
-          onPlayAgain={handlePlayAgain}
+          onPlayAgain={origin === 'single-player' ? handleSoloPlayAgain : handlePlayAgain}
           rematch={rematch}
-          rematchPending={rematchPending}
+          rematchPending={rematchPending || adOffer.busy}
           roomFinished={readiness ? readiness.status === 'finished' : true}
           onHome={() => handleLeaveGame('/home')}
           playAgainLabel={origin === 'single-player' ? t('game.play_again') : undefined}
@@ -866,6 +876,7 @@ export default function GameScreen() {
           notice={notice}
           onDismissNotice={dismissNotice}
         />
+        <AdSheet {...adOffer.sheet} />
         <AuthSheet
           isOpen={accountSheetOpen}
           reason="postGame"

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { lobbyApi } from '@/api/lobby';
+import { useAdOffer, type AdSheetPhase } from '@/features/ads/useAdOffer';
 import { createSoloRoom } from '@/features/game/solo';
 import { gameRoute } from '@/navigation/gameRoute';
 import { useLobbyStore } from '@/stores/lobby';
@@ -10,8 +11,12 @@ import { useTranslation, type TranslationKey } from '@/i18n';
 export const TABLE_UNKNOWN_ERROR = 'social.quick_unknown' as const;
 
 /** You and three bots, started the same way from Home and from an empty Tables screen. */
-export function useQuickGame(initialError: TranslationKey | null = null) {
+export function useQuickGame(
+  initialError: TranslationKey | null = null,
+  adFixture: AdSheetPhase | null = null
+) {
   useTranslation();
+  const ad = useAdOffer('solo', adFixture);
   const router = useRouter();
   const upsertLobbyRoom = useLobbyStore((state) => state.upsertLobbyRoom);
   const [loading, setLoading] = useState(false);
@@ -25,7 +30,7 @@ export function useQuickGame(initialError: TranslationKey | null = null) {
     router.replace(gameRoute(response.code, 'single-player'));
   };
 
-  const start = async () => {
+  const deal = async () => {
     setLoading(true);
     setError(null);
 
@@ -33,6 +38,7 @@ export function useQuickGame(initialError: TranslationKey | null = null) {
       await createSinglePlayerRoom();
     } catch (err: unknown) {
       const { code } = apiErrorInfo(err);
+      if (code === 'AD_REQUIRED' && ad.required(deal)) return;
       if (code === 'ALREADY_IN_ROOM') {
         const lobbyResponse = await lobbyApi.listLobby().catch(() => null);
         if (!lobbyResponse) {
@@ -47,6 +53,7 @@ export function useQuickGame(initialError: TranslationKey | null = null) {
             await lobbyApi.leaveRoom('current').catch(() => undefined);
             await createSinglePlayerRoom();
           } catch (retryError) {
+            if (apiErrorInfo(retryError).code === 'AD_REQUIRED' && ad.required(deal)) return;
             setError({ cause: retryError, fallback: 'social.quick_clear' });
           }
         }
@@ -59,8 +66,9 @@ export function useQuickGame(initialError: TranslationKey | null = null) {
   };
 
   return {
-    start,
-    loading,
+    start: () => ad.play(deal),
+    loading: loading || ad.busy,
+    adSheet: ad.sheet,
     error: failure ? localizedError(failure.cause, failure.fallback) : null,
   };
 }

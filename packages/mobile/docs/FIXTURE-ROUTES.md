@@ -1391,3 +1391,35 @@ UI_CASES=settings-premium-none-en,settings-premium-until-en,settings-premium-lif
   UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
+
+## `/home?fixture=ad-<state>` — A short ad, then we deal (PID-120)
+
+The sheet that opens instead of dealing when the server says the next solo game needs a
+short ad (`/me.ads.next_game_needs_ad`, or a `402 AD_REQUIRED` from room creation). The
+same sheet opens from Home's Quick game, the empty Tables screen and Play again after a
+solo game. The fixture sets only the state it opens in; Watch the ad on the web answers
+`unavailable`, which reports to the server and deals, so the grammar never taps it.
+
+| `state`       | Shows                                                                    |
+| ------------- | ------------------------------------------------------------------------ |
+| `offer`       | The ad is loaded: Watch the ad (wood), Go Premium (glass), the free line |
+| `loading`     | The ad is loading: Watch the ad busy, everything else as `offer`         |
+| `dismissed`   | The ad closed early: "Watch it to the end and we deal.", Watch the ad    |
+| `unavailable` | No ad: "No ad right now, so we deal." while dealing; nothing else to tap |
+
+testIDs `ad-sheet`, `ad-watch`, `ad-premium`, `ad-close`. Grammar cases
+`ad-sheet-{offer,loading,dismissed,unavailable}-{en,sv}` at 390×844, 375×667, 844×390 and
+768×1024 assert the copy, 44pt targets, no clipping or scrolling, and no digit or `!` in
+the sheet. The rewarded ad and Google's consent form need a development build on a
+device (`../../docs/native-sdks.md`); the browser has no ads.
+
+`/ui-dev?state=settings&fixture=privacy-choices` forces **Privacy choices** under About
+the app (PID-119), which a phone shows only when Google's consent status says a privacy
+options form is required. Grammar cases `settings-privacy-choices-{en,sv}` also check that
+the row is absent without the fixture.
+
+```sh
+UI_CASES=ad-sheet-offer-en,ad-sheet-loading-en,ad-sheet-dismissed-en,ad-sheet-unavailable-en,ad-sheet-offer-sv,ad-sheet-loading-sv,ad-sheet-dismissed-sv,ad-sheet-unavailable-sv,settings-privacy-choices-en,settings-privacy-choices-sv \
+  UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+  MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
+```

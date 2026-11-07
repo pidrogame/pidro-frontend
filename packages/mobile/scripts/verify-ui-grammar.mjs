@@ -546,8 +546,27 @@ const allCases = [
       authenticated: true,
     },
   ]),
+  // PID-119: Google's privacy choices, shown only where its form is required (forced here).
+  ...['en', 'sv'].map((locale) => ({
+    name: `settings-privacy-choices-${locale}`,
+    path: `/ui-dev?state=settings&fixture=privacy-choices&locale=${locale}`,
+    testId: 'app-update-section',
+    privacyChoices: true,
+    locale,
+  })),
   ...tellCases,
   ...newsCases,
+  // PID-120: the short-ad sheet before a solo game, in each state; nothing counts down.
+  ...['en', 'sv'].flatMap((locale) =>
+    ['offer', 'loading', 'dismissed', 'unavailable'].map((state) => ({
+      name: `ad-sheet-${state}-${locale}`,
+      path: `/home?fixture=ad-${state}`,
+      testId: 'ad-sheet',
+      authenticated: true,
+      adSheet: state,
+      locale,
+    }))
+  ),
   ...['en', 'sv'].flatMap((locale) =>
     ['update', 'image', 'news', 'ios', 'link'].map((popup) => ({
       name: `popup-${popup}-${locale}`,
@@ -3585,6 +3604,111 @@ async function assertPremium(page, { premium, locale }, viewport) {
   // The whole panel is on screen at once, on every size.
   const box = await panel.boundingBox();
   assertInsideViewport('Premium panel', box, viewport);
+  await waitForScreenshotReady(page);
+}
+
+const AD_COPY = {
+  en: {
+    title: 'A short ad, then we deal',
+    watch: 'Watch the ad',
+    premium: 'Go Premium',
+    free: 'Online tables are always free',
+    close: 'Not now',
+    dismissed: 'The ad stopped before the end. Watch it to the end and we deal.',
+    unavailable: 'No ad right now, so we deal.',
+  },
+  sv: {
+    title: 'En kort reklam, sedan delar vi ut',
+    watch: 'Se reklamen',
+    premium: 'Skaffa Premium',
+    free: 'Bord online är alltid gratis',
+    close: 'Inte nu',
+    dismissed: 'Reklamen stängdes före slutet. Se den till slutet så delar vi ut.',
+    unavailable: 'Ingen reklam just nu, så vi delar ut.',
+  },
+};
+
+// PID-120: one calm choice. Watch the ad is busy while it loads and while we deal; nothing
+// counts down, nothing is counted, nothing shouts, and the whole window fits without scrolling.
+async function assertAdSheet(page, testCase, viewport) {
+  const state = testCase.adSheet;
+  if (!state) return;
+  const copy = AD_COPY[testCase.locale];
+  const body = page.getByTestId('ad-sheet');
+  const title = page.getByText(copy.title, { exact: true });
+  await title.waitFor();
+  const window = title.locator('xpath=ancestor::*[.//*[@data-testid="ad-sheet"]][1]');
+  const windowBox = await getStableBox(window, page);
+  assertInsideViewport(`${testCase.name} window`, windowBox, viewport);
+  const outside = await window.evaluate((root) =>
+    [...root.querySelectorAll('*')]
+      .filter((node) => node.getClientRects().length && !node.closest('[role="progressbar"]'))
+      .filter((node) => {
+        const box = node.getBoundingClientRect();
+        return (
+          box.top < 0 ||
+          box.left < 0 ||
+          box.bottom > innerHeight + 1 ||
+          box.right > innerWidth + 1 ||
+          (getComputedStyle(node).overflowY !== 'visible' &&
+            node.scrollHeight > node.clientHeight + 2)
+        );
+      })
+      .map((node) => node.textContent || node.tagName)
+  );
+  assert.deepEqual(outside, [], `${testCase.name}: the sheet clips or scrolls`);
+  const text = await window.innerText();
+  assert.doesNotMatch(text, /[0-9!]/, `${testCase.name}: no countdown, count or exclamation`);
+
+  const watch = body.getByTestId('ad-watch');
+  const busy = state === 'loading' || state === 'unavailable';
+  assert.equal(await watch.getByRole('progressbar').count(), busy ? 1 : 0, `${testCase.name} busy`);
+  assert.equal((await watch.getAttribute('aria-disabled')) === 'true', busy);
+  if (!busy) await watch.getByText(copy.watch, { exact: true }).waitFor();
+  await body.getByTestId('ad-premium').getByText(copy.premium, { exact: true }).waitFor();
+  await body.getByText(copy.free, { exact: true }).waitFor();
+  await body.getByRole('button', { name: copy.close, exact: true }).waitFor();
+  for (const id of ['ad-watch', 'ad-premium', 'ad-close']) {
+    const box = await getStableBox(body.getByTestId(id), page);
+    assert.ok(box.height >= 44 && box.width >= 44, `${testCase.name} ${id}: 44pt target`);
+    assertInsideViewport(`${testCase.name} ${id}`, box, viewport);
+  }
+  // While the cards are dealt, nothing else can be chosen.
+  for (const id of ['ad-premium', 'ad-close'])
+    assert.equal(
+      (await body.getByTestId(id).getAttribute('aria-disabled')) === 'true',
+      state === 'unavailable',
+      `${testCase.name} ${id} disabled`
+    );
+  for (const line of ['dismissed', 'unavailable'])
+    assert.equal(
+      await body.getByText(copy[line], { exact: true }).count(),
+      state === line ? 1 : 0,
+      `${testCase.name}: the ${line} line`
+    );
+  await waitForScreenshotReady(page);
+}
+
+// The row sits in About the app; without the fixture a browser never shows it.
+async function assertPrivacyChoices(page, testCase) {
+  const sv = testCase.locale === 'sv';
+  const row = page.getByTestId('app-update-section').getByTestId('settings-privacy-choices');
+  await row.scrollIntoViewIfNeeded();
+  const button = row.getByRole('button', { name: sv ? 'Integritetsval' : 'Privacy choices' });
+  const box = await getStableBox(button, page);
+  assert.ok(box.height >= 44, `${testCase.name}: 44pt target`);
+  await row
+    .getByText(sv ? 'Ändra vad du har godkänt för reklam.' : 'Change what you agreed to for ads.')
+    .waitFor();
+  await page.goto(`${baseUrl}/ui-dev?state=settings&locale=${testCase.locale}`);
+  await page.getByTestId('app-update-section').waitFor();
+  assert.equal(
+    await page.getByTestId('settings-privacy-choices').count(),
+    0,
+    'hidden unless required'
+  );
+  await page.goBack();
+  await row.scrollIntoViewIfNeeded();
   await waitForScreenshotReady(page);
 }
 
@@ -9138,7 +9262,14 @@ async function main() {
         // Timing, not layout: one phone is enough (PID-364).
         if (testCase.sweep === 'on' || (testCase.reducedMotion && testCase.flaky))
           return viewport.name === 'portrait';
-        if (testCase.news || testCase.league || testCase.popup || testCase.premium)
+        if (
+          testCase.news ||
+          testCase.league ||
+          testCase.popup ||
+          testCase.premium ||
+          testCase.adSheet ||
+          testCase.privacyChoices
+        )
           return TELL_VIEWPORTS.includes(viewport.name);
         if (
           (testCase.welcome || testCase.name.startsWith('age')) &&
@@ -9408,6 +9539,7 @@ async function main() {
             photoLocale:
               testCase.photo ||
               testCase.popup ||
+              testCase.adSheet ||
               testCase.storeNotice ||
               testCase.league ||
               testCase.path === '/welcome' ||
@@ -9649,6 +9781,7 @@ async function main() {
           ].includes(testCase.name) ||
           testCase.homeProfile ||
           testCase.popup ||
+          testCase.adSheet ||
           testCase.storeNotice ||
           testCase.photo ||
           testCase.tell ||
@@ -9937,6 +10070,8 @@ async function main() {
           if (testCase.appUpdate) await assertAppUpdate(page, testCase);
           if (testCase.testAd) await assertTestAd(page);
           if (testCase.premium) await assertPremium(page, testCase, caseViewport);
+          await assertAdSheet(page, testCase, caseViewport);
+          if (testCase.privacyChoices) await assertPrivacyChoices(page, testCase);
           if (testCase.newTableFixture?.startsWith('ready-error')) {
             const sv = testCase.newTableLanguage === 'sv';
             await page
@@ -10209,7 +10344,8 @@ async function main() {
           if (
             !testCase.welcome &&
             testCase.testId !== 'feedback-sheet' &&
-            testCase.testId !== 'news-sheet'
+            testCase.testId !== 'news-sheet' &&
+            testCase.testId !== 'ad-sheet'
           )
             await assertHomeHeaderClear(page, new URL(page.url()).pathname, caseViewport);
           await assertHomeProfile(page, testCase, caseViewport);

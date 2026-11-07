@@ -31,6 +31,7 @@ import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { SeatInvitations } from '@/components/invites/SeatInvitations';
 import { OpenChair } from '@/components/lobby/OpenChair';
 import { AuthFlowButton, AuthFlowHeading } from '@/components/auth/AuthFlow';
+import { AdSheet } from '@/components/ads/AdSheet';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
@@ -561,6 +562,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
           onClose={() => setPasswordSeat(null)}
         />
       ) : null}
+      <AdSheet {...quickGame.adSheet} />
       <AuthSheet
         isOpen={accountSheetOpen}
         reason="multiplayer"

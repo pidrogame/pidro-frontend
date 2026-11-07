@@ -4,6 +4,7 @@ import { Redirect, useRouter, type Href } from 'expo-router';
 import { useNetworkState } from 'expo-network';
 import type { InvitePreview } from '@pidro/shared';
 import { captureAnalytics } from '@/analytics/PostHogAnalytics';
+import { adsApi } from '@/api/ads';
 import { invitesApi } from '@/api/invites';
 import { ClassicPlaque } from '@/components/home/ClassicPlaque';
 import { LogoGlow } from '@/components/home/LogoGlow';
@@ -24,6 +25,7 @@ import { useAgeGateStore } from '@/stores/ageGate';
 import { useLobbyStore } from '@/stores/lobby';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { useTranslation } from '@/i18n';
+import { apiErrorInfo } from '@/utils/apiErrors';
 import { Background } from '@/components/ui/Background';
 
 type LaunchState = 'idle' | 'creatingGuest' | 'creatingRoom' | 'roomFailed' | 'joiningInvite';
@@ -71,7 +73,12 @@ export default function WelcomeScreen() {
     setLaunchState('creatingRoom');
     setLaunchError(null);
     try {
-      const response = await createSoloRoom();
+      const response = await createSoloRoom().catch(async (error: unknown) => {
+        // A first game has no sheet to offer an ad in: it never waits for one.
+        if (apiErrorInfo(error).code !== 'AD_REQUIRED') throw error;
+        await adsApi.unavailable();
+        return createSoloRoom();
+      });
       if (response.room) upsertLobbyRoom(response.room, 'my_rejoinable');
       router.replace(gameRoute(response.code, 'single-player'));
     } catch {

@@ -20,6 +20,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { publicPlayerName, type ProfileIdentity } from '@pidro/shared';
 import { lobbyApi } from '@/api/lobby';
 import { useLobbyChannel } from '@/channels/hooks/useLobbyChannel';
+import { AdSheet } from '@/components/ads/AdSheet';
 import { AuthSheet, type AuthSheetReason } from '@/components/auth/AuthSheet';
 import { FeedbackAsk } from '@/components/feedback/FeedbackAsk';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
@@ -47,6 +48,7 @@ import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tok
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useWaitingCount } from '@/hooks/useWaitingCount';
 import { TABLE_UNKNOWN_ERROR, useQuickGame } from '@/hooks/useQuickGame';
+import { adSheetFixture } from '@/features/ads/useAdOffer';
 import { canTell, tellFixture } from '@/features/feedback';
 import { newsFixture } from '@/features/news';
 import { useAuthStore } from '@/stores/auth';
@@ -172,7 +174,10 @@ export default function HomeScreen() {
   const noticeInset = useNoticeInset();
   const pillClearance = guest ? { bottom: 0, right: 0 } : rawPillClearance;
   const playerName = publicPlayerName(user?.username, t('social.player'), user?.display_name);
-  const quickGame = useQuickGame(fixture === 'table-unknown' ? TABLE_UNKNOWN_ERROR : null);
+  const quickGame = useQuickGame(
+    fixture === 'table-unknown' ? TABLE_UNKNOWN_ERROR : null,
+    adSheetFixture(fixture)
+  );
 
   useLobbyChannel(
     useCallback(() => {
@@ -543,6 +548,7 @@ export default function HomeScreen() {
           newsOpen ||
           tellOpen ||
           accountSheetReason != null ||
+          quickGame.adSheet.phase != null ||
           Boolean(league?.pending_result && league.pending_result.move !== 'stayed')
         }
       />
@@ -555,6 +561,7 @@ export default function HomeScreen() {
         onRetry={() => (newsPreview ? undefined : void openNews())}
         onClose={() => (newsPreview ? setPreviewOpen(false) : closeNews())}
       />
+      <AdSheet {...quickGame.adSheet} />
       <FeedbackSheet
         open={tellOpen}
         chip={tellChip}
