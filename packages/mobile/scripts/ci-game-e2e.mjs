@@ -688,7 +688,7 @@ async function stageThreeTableTalk() {
 
     // PID-328: praise is answered. Offers wait out bidding, take one trick at a
     // time and stop for a hand after three are ignored, so say it again until
-    // the other phone offers Thanks!.
+    // the other phone offers an answer, and answer Thanks!.
     let answered = false;
     const ok = () => true;
     const lost = () => false;
@@ -710,24 +710,23 @@ async function stageThreeTableTalk() {
         await said.waitForTimeout(2_000);
         continue;
       }
-      const thanks = heard
-        .getByTestId('talk-offer')
-        .getByRole('button', { name: 'Thanks!', exact: true });
-      if (
-        !(await thanks.waitFor({ timeout: 4_000 }).then(
-          () => true,
-          () => false
-        ))
-      ) {
-        log(`no Thanks! offered yet (attempt ${attempt}); saying it again`);
+      // An upright phone has no room beside the bubble for the offer's word
+      // card (PID-393): its gold line rides on the bubble, which opens the words.
+      const offered = heard.getByTestId('talk-offer');
+      if (!(await offered.waitFor({ timeout: 4_000 }).then(ok, lost))) {
+        log(`no offer yet (attempt ${attempt}); saying it again`);
         await said.waitForTimeout(2_500);
         continue;
       }
       await heard.screenshot({ path: resolve(artifactDir, 'talk-offer.png') });
       // CI pacing ends a hand in seconds: an offer can go before the tap, and
       // game over can cover the landing. Either way, say it again.
-      if (!(await tap(thanks).then(ok, lost))) {
-        log(`the offer went before the tap (attempt ${attempt}); saying it again`);
+      const thanked = await sayFrom(heard).then(
+        (sheet) => tap(sheet.getByTestId('talk-word_thanks')).then(ok, lost),
+        lost
+      );
+      if (!thanked) {
+        log(`the offer went before Thanks! was said (attempt ${attempt}); saying it again`);
         continue;
       }
       const back = said.getByTestId('talk-landed').filter({ hasText: 'Thanks!' });
@@ -739,8 +738,8 @@ async function stageThreeTableTalk() {
       answered = true;
     }
     if (!answered)
-      throw new Error('no offered Thanks! came back to Well played within two minutes');
-    log('one tap on the offered Thanks! came back to the first phone');
+      throw new Error('no Thanks! from an offer came back to Well played within two minutes');
+    log('the offer opened the words and Thanks! came back to the first phone');
 
     // PID-318: both are adults, so both read typed talk. What one types lands
     // at their seat on the other phone.
