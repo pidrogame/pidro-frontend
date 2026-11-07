@@ -103,5 +103,10 @@ if (dryRun) {
   console.log('✓ dry run — nothing shipped');
   process.exit(0);
 }
-const result = spawnSync(command[0], command[1], { stdio: 'inherit' });
+// The config defaults to the beta variant; a production update must carry production's
+// ad and purchase keys (docs/native-sdks.md), as the production build profile does.
+const result = spawnSync(command[0], command[1], {
+  stdio: 'inherit',
+  env: { ...process.env, APP_VARIANT: 'production' },
+});
 process.exit(result.status ?? 1);

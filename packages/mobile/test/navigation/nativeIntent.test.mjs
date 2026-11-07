@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { createRequire } from 'node:module';
 import { createPendingInviteStore } from '../../../shared/src/stores/pendingInvite.ts';
 import { redirectSystemPath } from '../../app/+native-intent.tsx';
@@ -21,9 +21,16 @@ const baseConfig = {
   android: { package: 'com.oneapps.pidro' },
 };
 
+// A production config needs its AdMob app ids (nativeConfig.test.mjs), as on EAS.
+const ADMOB = ['EXPO_PUBLIC_ADMOB_APP_ID_IOS', 'EXPO_PUBLIC_ADMOB_APP_ID_ANDROID'];
+beforeEach(() => {
+  for (const name of ADMOB) process.env[name] = 'ca-app-pub-1111111111111111~2222222222';
+});
+
 afterEach(() => {
   delete process.env.APP_VARIANT;
   delete process.env.EXPO_PUBLIC_FACEBOOK_CLIENT_TOKEN;
+  for (const name of ADMOB) delete process.env[name];
   delete require.cache[configPath];
 });
 
