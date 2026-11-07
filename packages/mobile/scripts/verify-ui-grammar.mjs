@@ -1206,23 +1206,20 @@ const allCases = [
     testId: 'seat-north',
     teams: 'spectator',
   },
-  // PID-383: the two faces with each score, in a fixed order (you, partner;
-  // the opponent on your left, then on your right), the partner's line in the
-  // first hand only, and the sheet's line. Mia has initials, Antti is the
+  // PID-383: the partner's line in the first hand only, and the sheet's line
+  // (PID-387 took the faces off the plaque). Mia has initials, Antti is the
   // drawn bot, Marcel has a photo, Eli none.
   ...['en', 'sv'].flatMap((locale) => {
     const sv = locale === 'sv';
     const view = (name) => (sv ? `Visa profilen för ${name}, ` : `View ${name}’s profile, `);
     const at = (fixture, rest = '') => `/table-dev?fixture=${fixture}&locale=${locale}${rest}`;
-    const faces = { us: ['p-south', 'b-north'], them: ['p-west', 'p-east'] };
     return [
-      { name: `table-teams-${locale}`, path: at('teams'), partnerLine: true, faces },
-      { name: `table-teams-hand2-${locale}`, path: at('teams-hand2'), partnerLine: false, faces },
+      { name: `table-teams-${locale}`, path: at('teams'), partnerLine: true },
+      { name: `table-teams-hand2-${locale}`, path: at('teams-hand2'), partnerLine: false },
       {
         name: `table-teams-spectator-${locale}`,
         path: at('teams', '&role=spectator'),
         partnerLine: false,
-        faces: { us: ['b-north', 'p-south'], them: ['p-east', 'p-west'] },
       },
       {
         name: `table-teams-sheet-partner-${locale}`,
@@ -5889,10 +5886,10 @@ async function assertTeams(page, testCase) {
 }
 
 // PID-383: the plaque keeps the header's height and its place beside the
-// menu, its faces inside it in their fixed order; the partner's seat says so
-// in the first hand only; the sheet says whose side a seat plays on.
+// menu, with no faces since PID-387; the partner's seat says so in the first
+// hand only; the sheet says whose side a seat plays on.
 const PLAQUE_HEIGHT = 53;
-async function assertTeamFaces(page, testCase, viewport) {
+async function assertTeamLines(page, testCase, viewport) {
   if (!testCase.teamCase) return;
   const where = `${testCase.name} in ${viewport.name}`;
   const sv = testCase.locale === 'sv';
@@ -5913,7 +5910,7 @@ async function assertTeamFaces(page, testCase, viewport) {
   const plaque = page.getByRole('button', { name: sv ? /^(VI|N\/S) / : /^(US|N\/S) / });
   const box = await getStableBox(plaque, page);
   assert.equal(Math.round(box.height), PLAQUE_HEIGHT, `${where}: the plaque grew`);
-  // It keeps its width: 170pt before the faces, whatever the labels.
+  // It keeps its width: 170pt, whatever the labels.
   assert.ok(box.width <= 171, `${where}: the plaque is ${box.width}pt wide`);
   assertInsideViewport('score plaque', box, viewport);
   const menu = await getStableBox(
@@ -5921,61 +5918,12 @@ async function assertTeamFaces(page, testCase, viewport) {
     page
   );
   assert.ok(box.x + box.width + 8 <= menu.x, `${where}: the plaque runs into the menu`);
-  const ids = await page.evaluate(() =>
-    Object.fromEntries(
-      ['us', 'them'].map((column) => [
-        column,
-        [0, 1].map((i) => {
-          const face = document.querySelector(`[data-testid="score-face-${column}-${i}"]`);
-          if (!face) return null;
-          const r = face.getBoundingClientRect();
-          return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, size: r.width };
-        }),
-      ])
-    )
+  // PID-387: the plaque is labels and figures again; the faces were too small to read.
+  assert.equal(
+    await page.locator('[data-testid^="score-face"]').count(),
+    0,
+    `${where}: the plaque draws faces`
   );
-  const inside = (f) =>
-    f.x >= box.x && f.right <= box.x + box.width && f.y >= box.y && f.bottom <= box.y + box.height;
-  for (const column of ['us', 'them']) {
-    const [first, second] = ids[column];
-    assert.ok(first && second, `${where}: ${column} has two faces`);
-    for (const face of [first, second]) {
-      assert.equal(Math.round(face.size), 18, `${where}: a face is ${face.size}pt`);
-      assert.ok(inside(face), `${where}: a ${column} face leaves the plaque`);
-    }
-    // A pair: the second just overlapping the first, to its right.
-    assert.ok(second.x > first.x && second.x < first.right, `${where}: ${column} is not a pair`);
-  }
-  assert.ok(ids.us[1].right < ids.them[0].x, `${where}: the columns' faces mix`);
-  // Which player each face is: the seat with the same face, by its picture.
-  const seatOf = await page.evaluate((faces) => {
-    // The dealer chip is an image too: only the face counts.
-    const picture = (root) =>
-      [...root.querySelectorAll('img')].find((img) => !img.src.includes('dealer-chip'))?.src ??
-      (root.querySelector('svg') ? 'drawn' : 'none');
-    const seats = Object.fromEntries(
-      ['north', 'east', 'south', 'west'].map((rel) => [
-        picture(document.querySelector(`[data-testid="seat-${rel}"]`)),
-        rel,
-      ])
-    );
-    return Object.fromEntries(
-      ['us', 'them'].map((column) => [
-        column,
-        [0, 1].map((i) => {
-          const face = document.querySelector(`[data-testid="score-face-${column}-${i}"]`);
-          return seats[picture(face)] ?? null;
-        }),
-      ])
-    );
-  }, testCase.faces);
-  // Fixture seats: you (Mia) south, Antti north, Marcel west, Eli east.
-  const REL = { 'p-south': 'south', 'b-north': 'north', 'p-west': 'west', 'p-east': 'east' };
-  const expected = {
-    us: testCase.faces.us.map((id) => REL[id]),
-    them: testCase.faces.them.map((id) => REL[id]),
-  };
-  assert.deepEqual(seatOf, expected, `${where}: the faces under each score`);
   const north = await page.getByTestId('seat-north').getAttribute('aria-label');
   const partner = sv ? 'din partner' : 'your partner';
   assert.equal(
@@ -6007,7 +5955,7 @@ async function assertTeamFaces(page, testCase, viewport) {
     .click();
   await page.getByTestId('hand-history').waitFor({ state: 'detached' });
   console.log(
-    `team faces ${where}: plaque ${Math.round(box.width * 10) / 10}×${box.height}, ${JSON.stringify(expected)}, partner line ${testCase.partnerLine}`
+    `teams ${where}: plaque ${Math.round(box.width * 10) / 10}×${box.height}, partner line ${testCase.partnerLine}`
   );
 }
 
@@ -10146,7 +10094,7 @@ async function main() {
           await assertSmallTable(page, testCase, caseViewport);
           await assertStatusSeats(page, testCase, caseViewport);
           await assertTeams(page, testCase);
-          await assertTeamFaces(page, testCase, caseViewport);
+          await assertTeamLines(page, testCase, caseViewport);
           await assertRowControls(page, testCase.name, screenshotDir);
           await assertFriendComponents(page, testCase.name, screenshotDir);
           await assertRuleInteractions(page, testCase, viewport, screenshotDir);

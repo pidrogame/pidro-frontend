@@ -4,7 +4,6 @@
  * this only reads it from the viewer's seat.
  */
 import type { Position } from '@/types/lobby';
-import type { RelativePosition } from '@/types/game';
 
 /** A trick worth this much holds a five: the big moment. */
 export const PIDRO_POINTS = 5;
@@ -27,19 +26,4 @@ export function whosePoints(
   return northSouth(scorer) === northSouth(viewer)
     ? { side: 'ours', column: 'us' }
     : { side: 'theirs', column: 'them' };
-}
-
-/**
- * The two faces under each score column (PID-383): you, then your partner;
- * the opponent on your left, then the one on your right. You always sit
- * South, so your left is West. A spectator reads N/S and E/W in that order.
- */
-export function scoreFaces<S extends { absolutePosition: Position }>(
-  seats: Record<RelativePosition, S | null>,
-  viewer: Position | null
-): Record<'us' | 'them', [S | null, S | null]> {
-  if (viewer) return { us: [seats.south, seats.north], them: [seats.west, seats.east] };
-  const at = (position: Position) =>
-    Object.values(seats).find((seat) => seat?.absolutePosition === position) ?? null;
-  return { us: [at('north'), at('south')], them: [at('east'), at('west')] };
 }

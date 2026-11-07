@@ -1018,7 +1018,6 @@ export function GameCanvasTable({
             <Scoreboard
               scores={tableState?.scores ?? null}
               youPosition={youPositionAbs}
-              seats={model.seats}
               history={tableState?.hand_history}
               roomCode={viewModel?.roomCode ?? room.code}
               top={headerTop(insets.top)}

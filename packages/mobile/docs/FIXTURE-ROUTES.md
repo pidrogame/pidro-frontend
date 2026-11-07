@@ -140,17 +140,16 @@ reads his line on every frame until the result shows.
 
 Teams (PID-383) use `/table-dev?fixture=teams&locale=en|sv`: you are Mia
 (initials), Antti the drawn bot across is your partner, Marcel at West has a
-photo and Eli at East none. Each score label has its two faces beside it, 18pt
-and overlapping: you, then your partner; the opponent on your left, then on
-your right. The plaque keeps its 53pt and the header its height, upright and
-sideways. It is the first hand of the game, so Antti's empty line reads
+photo and Eli at East none. The score plaque is labels and figures only
+(PID-387 took off the faces PID-383 put beside them): 53pt tall, 170pt wide,
+upright and sideways. It is the first hand of the game, so Antti's empty line reads
 "Your partner"; `fixture=teams-hand2` is the second hand, where it is silent.
 `role=spectator` keeps N/S and E/W, N/S's faces first, and no partner line.
 Tap a seat for its sheet: "Your partner" or "Plays against you" under the
 name, nothing for a spectator. Grammar cases
 `table-teams[-hand2|-spectator|-sheet-partner|-sheet-opponent|-sheet-spectator]-{en,sv}`
-check the faces' order and size inside the plaque, its height and the menu's
-clearance, that it still opens every hand, the partner line, and the sheet's
+check that the plaque has no faces, its size and the menu's clearance, that it
+still opens every hand, the partner line, and the sheet's
 line, at 390×844, 375×667, 360×780 (Android insets), 844×390 and 768×1024.
 
 PID-277 uses `/table-dev?fixture=bot-crew&locale=en|sv`: Marcel is thinking,
