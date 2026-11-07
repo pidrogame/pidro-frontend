@@ -96,6 +96,22 @@ Upright phones draw cards as big as Classic's (PID-333). Grammar cases
 check at 390×844 and 375×667 that no seat, back fan, pile, throw, the trump
 mark, your hand or the chat band touches another, and print the card heights.
 
+PID-381, upright phones: each seat's newest card lies in front at full size,
+its earlier cards this hand behind it at 0.8 of that and shaded (point cards
+keep their light with `count=on`), each showing 0.26 of a card, its rank and
+suit; a long pile closes its oldest cards toward 0.16 first. North's and yours
+run along the circle, East's and West's hang down their column.
+`/table-dev?fixture=piles&cards=1|3|5|6` has every seat play that many cards
+(at 6 East put two into the first trick), the current trick all four down;
+`led=east` has East alone lead it, `you=out` has you out before it, `next=on`
+has West lead the next trick 2.5 s in, its last card settling back. Grammar
+cases `table-upright-piles-{1,3,5,6,5-count,6-count,5-led,5-out,settle,settle-reduced}`
+run at 390×844, 375×667 and 360×780 (the TCL's `android-portrait`): every card
+of every pile against every other thing, the newest full size, the earlier
+ones one smaller size, the shade, at least 0.16 of a card each and on 390×844
+up to five deep the whole index, and the settle's timing (one cut with Reduce
+Motion). Tablets keep their fan.
+
 PID-214 bid presentation uses `/table-dev?phase=bidding&role=player&bids=round|high&locale=sv`.
 `table-bid-*` and `locale-sv-table-bid-*` check every seat's visible/spoken bid,
 the high-bid tone and compact south status without changing bid event identities.

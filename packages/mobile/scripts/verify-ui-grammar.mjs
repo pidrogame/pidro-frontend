@@ -1652,11 +1652,34 @@ const allCases = [
       'hand-points',
       { played: 16, ended: true },
     ],
+    // PID-381: every seat's newest card in front at full size, its earlier
+    // ones behind it, smaller and shaded, each rank and suit in view. At 6
+    // East kept seven trumps; `led`: East alone has led, the others' last
+    // cards wait; `out`: you went out, your pile has no newest card.
+    ...[
+      ['piles-1', 'cards=1', 4],
+      ['piles-3', 'cards=3', 12],
+      ['piles-5', 'cards=5', 20],
+      ['piles-6', 'cards=6', 25],
+      ['piles-5-count', 'cards=5&count=on', 20, { counted: true }],
+      ['piles-6-count', 'cards=6&count=on', 25, { counted: true }],
+      ['piles-5-led', 'cards=5&led=east', 17],
+      ['piles-5-out', 'cards=5&you=out', 19, { out: 'south' }],
+      // West leads the next trick: its last card settles back, or cuts there.
+      ['piles-settle', 'cards=5&next=on', 21, { settle: true }],
+      ['piles-settle-reduced', 'cards=5&next=on', 21, { settle: true, reduced: true }],
+    ].map(([name, query, played, piles = {}]) => [
+      name,
+      `fixture=piles&${query}`,
+      'seat-south',
+      { played, mark: true, piles, ended: !!piles.out },
+    ]),
   ].map(([name, query, testId, upright]) => ({
     name: `table-upright-${name}`,
     path: `/table-dev?${query}`,
     testId,
     upright,
+    ...(upright.piles?.reduced && { reducedMotion: true }),
   })),
   // PID-267: the bots bid while the cards are still being dealt. Until the
   // deal ends no seat and no log line shows a bid; then all three show.
@@ -6489,6 +6512,107 @@ async function assertTwoRows(page, testCase, viewport) {
   );
 }
 
+// PID-381: on upright phones each seat's newest card lies in front at full
+// size and its earlier ones behind it, all of one smaller size and shaded,
+// but for point cards with count help on. Each earlier card shows at least
+// 0.16 of a card, and on 390×844 up to five deep its whole index: the card
+// art's rank and suit reach 0.357 of its width.
+const POINT_RANKS = [14, 11, 10, 5, 2];
+function assertPiles(testCase, viewport, cards, { counted = false, out }) {
+  const part = (s, i) => Number(s.key.split('-')[i]);
+  const liveTrick = Math.max(...cards.map((s) => part(s, 1)));
+  const full = Math.max(...cards.map((s) => s.scale));
+  const behind = new Set();
+  const cardW = cardSize(viewport.width, viewport.height);
+  for (const rel of ['north', 'east', 'south', 'west']) {
+    const pile = cards
+      .filter((s) => s.key.split('-')[3] === rel)
+      .sort((a, b) => part(a, 1) - part(b, 1) || part(a, 2) - part(b, 2));
+    const last = part(pile.at(-1), 1);
+    pile.forEach((s, i) => {
+      const label = `${testCase.name} ${viewport.name}: ${rel}'s ${s.key}`;
+      const front = rel !== out && part(s, 1) === last;
+      if (front) assert.ok(Math.abs(s.scale - full) < 0.001, `${label} is full size`);
+      else behind.add(s.scale.toFixed(4));
+      const lit = counted && POINT_RANKS.includes(Number(s.key.split('_').at(-1)));
+      const shaded = !lit && (!front || last !== liveTrick);
+      assert.ok(
+        Math.abs(s.shade - (shaded ? 1 : 0)) < 0.01,
+        `${label} ${shaded ? 'is' : 'is not'} shaded: ${s.shade}`
+      );
+      const next = pile[i + 1];
+      if (!next) return;
+      // How much of this card the next one leaves: its side cards' index is at the foot.
+      const w = (c) => c.width * c.scale;
+      const shown =
+        Math.abs(Math.sin(s.rotation)) > 0.5
+          ? s.y + w(s) / 2 - (next.y + w(next) / 2)
+          : next.x - w(next) / 2 - (s.x - w(s) / 2);
+      assert.ok(shown >= cardW * 0.16 - 0.05, `${label} shows ${shown.toFixed(1)}pt`);
+      if (viewport.name === 'portrait' && pile.length <= 5)
+        assert.ok(
+          shown >= w(s) * 0.357 - 0.05,
+          `${label} shows ${shown.toFixed(1)}pt of its ${(w(s) * 0.357).toFixed(1)}pt index`
+        );
+    });
+  }
+  assert.ok(behind.size <= 1, `${testCase.name}: earlier cards are one size: ${[...behind]}`);
+  for (const scale of behind) {
+    const ratio = Number(scale) / full;
+    assert.ok(ratio >= 0.75 && ratio < 0.9, `${testCase.name}: earlier cards at ${ratio}`);
+  }
+}
+
+// PID-381: when West's next card lands, its last one settles back where it
+// lies, to the earlier cards' size and shade: in one motion after the new card
+// has landed, or with Reduce Motion in one cut.
+async function assertSettle(page, testCase, viewport, reduced) {
+  await page.getByTestId('rendered-played-card-count-20').waitFor({ timeout: 20_000 });
+  const frames = await page.evaluate(
+    () =>
+      new Promise((done) => {
+        const frames = [];
+        let landed;
+        const sample = () => {
+          const at = performance.now();
+          const played = (window.__pidroCardMotion?.() ?? []).filter((s) => s.kind === 'played');
+          const card = played.find((s) => s.key.startsWith('trick-4-') && s.key.includes('-west-'));
+          if (played.length === 21) landed ??= at;
+          frames.push({ at, count: played.length, card });
+          if (landed !== undefined && at - landed > 1200) done(frames);
+          else requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      })
+  );
+  const before = frames[0].card;
+  const after = frames.at(-1).card;
+  const landed = frames.find((f) => f.count === 21).at;
+  const label = `${testCase.name} ${viewport.name}`;
+  assert.equal(before.shade, 0, `${label}: West's last card is lit before`);
+  assert.equal(after.shade, 1, `${label}: West's last card is shaded after`);
+  assert.ok(Math.abs(after.scale / before.scale - 0.8) < 0.001, `${label}: it settles to 0.8`);
+  assert.ok(Math.abs(after.x - before.x) < 0.5, `${label}: it stays in West's column`);
+  const between = frames.filter(
+    (f) => f.card.scale < before.scale - 0.001 && f.card.scale > after.scale + 0.001
+  );
+  const scales = frames.map((f) => f.card.scale);
+  assert.ok(
+    scales.every((v, i) => !i || v <= scales[i - 1] + 1e-6),
+    `${label}: one motion, never back up`
+  );
+  if (reduced) assert.equal(between.length, 0, `${label}: Reduce Motion cuts`);
+  else {
+    assert.ok(between.length >= 3, `${label}: it settles in motion (${between.length} frames)`);
+    const start = between[0].at - landed;
+    const end = frames.find((f) => f.card.scale <= after.scale + 0.001).at - landed;
+    assert.ok(start >= 250 && end <= 340 + 250 + 200, `${label}: settles ${start}–${end}ms`);
+    console.log(
+      `settle ${label}: from ${start.toFixed(0)}ms to ${end.toFixed(0)}ms after the lead`
+    );
+  }
+}
+
 // PID-333: on upright phones every seat (its badges included), back fan,
 // played card, throw, the trump mark, your hand and the chat band keep off
 // one another; the bid window and hand result keep off your hand and the
@@ -6501,6 +6625,7 @@ async function assertUpright(page, testCase, viewport) {
     result = false,
     mark = false,
     ended = result,
+    piles,
   } = testCase.upright;
   const named = (label, b) => ({ label, x: b.x, y: b.y, width: b.width, height: b.height });
   const union = (label, boxes) => {
@@ -6522,6 +6647,7 @@ async function assertUpright(page, testCase, viewport) {
     await page.getByTestId(`second-deal-thrown-${rel}`).waitFor({ timeout: 20_000 });
   }
   if (thrown.length) await page.waitForTimeout(700);
+  if (piles?.settle) await assertSettle(page, testCase, viewport, piles.reduced);
   await page.getByTestId(`rendered-played-card-count-${played}`).waitFor({ timeout: 20_000 });
   await page.waitForTimeout(600);
   const sprites = await page.evaluate(() => window.__pidroCardMotion?.() ?? []);
@@ -6554,9 +6680,13 @@ async function assertUpright(page, testCase, viewport) {
   // A seat's cards in a trick lie as one pile.
   const cards = sprites.filter((s) => s.kind === 'played');
   assert.equal(cards.length, played, `${testCase.name}: every played card is measured`);
+  if (piles) assertPiles(testCase, viewport, cards, piles);
   for (const rel of ['north', 'east', 'south', 'west']) {
-    const pile = cards.filter((s) => s.key.split('-')[3] === rel).map(spriteBox);
-    if (pile.length) table.push([union(`${rel}'s cards`, pile)]);
+    // Card by card: a pile's earlier cards hang past its newest (PID-381).
+    const pile = cards
+      .filter((s) => s.key.split('-')[3] === rel)
+      .map((s, i) => ({ ...spriteBox(s), label: `${rel}'s card ${i + 1}` }));
+    if (pile.length) table.push(pile);
   }
   // A hand that has ended has no cards left to hold.
   const held = sprites.filter((s) => s.kind === 'hand');
@@ -8924,7 +9054,13 @@ async function main() {
           );
         if (testCase.twoRows)
           return ['landscape', 'android-landscape', 'small-landscape'].includes(viewport.name);
-        if (testCase.upright) return ['portrait', 'small-portrait'].includes(viewport.name);
+        // PID-381: the piles on the TCL's 360×780 too. Tablets keep their fan.
+        if (testCase.upright)
+          return [
+            'portrait',
+            'small-portrait',
+            ...(testCase.upright.piles ? ['android-portrait'] : []),
+          ].includes(viewport.name);
         if (testCase.newTableFixture)
           return [
             'portrait',
