@@ -593,13 +593,10 @@ export function playedCardTarget(
     const small = big * PILE_TRAIL_SCALE;
     const sideways = rel === 'east' || rel === 'west';
     // West's newest lies at the foot of its column, beside your pile's earlier
-    // cards: the column stands out by what a full-size card is wider, as far
-    // as the stack's gap allows (`across` leaves it 1.5 of it), and your pile
-    // runs no further than that card (PID-388).
-    const westOut = Math.min(((big - small) * CARD_RATIO) / 2, TRICK_GAP / 2);
+    // cards (PID-388): a long pile of yours steps right of it, as far as East's
+    // earlier cards make room by keeping to its newest card's outer edge.
+    const grow = ((big - small) * CARD_RATIO) / 2;
     const sideIn = across - (small * CARD_RATIO) / 2 - PILE_GAP;
-    const westIn =
-      rel === 'south' ? Math.min(sideIn, across + westOut - (big * CARD_RATIO) / 2) : sideIn;
     const room = sideways
       ? // Clear of a lifted card, its 3% growth and slight tilt included.
         L.hand.cy -
@@ -609,7 +606,7 @@ export function playedCardTarget(
         PILE_GAP -
         L.trick.cy -
         big / 2
-      : sideIn + westIn - big;
+      : 2 * sideIn - big;
     const steps = pileSpacing(count, room, L.cardW);
     const width = (i: number) => (i >= count - live ? big : small);
     // From the newest card's centre back to this one's: each card's back
@@ -621,8 +618,11 @@ export function playedCardTarget(
     const rise = Math.max(0, shown - room);
     return {
       x: sideways
-        ? L.trick.cx + (rel === 'east' ? across : -across - westOut)
-        : L.trick.cx + (sideIn - westIn) / 2 + shown / 2 - back,
+        ? L.trick.cx + (rel === 'east' ? across + (width(index) < big ? grow : 0) : -across)
+        : L.trick.cx +
+          (rel === 'south' ? Math.max(0, (shown + width(count - 1)) / 2 - sideIn + grow) : 0) +
+          shown / 2 -
+          back,
       y: sideways
         ? L.trick.cy - rise + (rel === 'east' ? back : shown - back)
         : L.trick.cy + (rel === 'north' ? -L.trick.r : L.trick.r),

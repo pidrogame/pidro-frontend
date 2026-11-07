@@ -139,9 +139,7 @@ describe('upright piles: the newest in front, the earlier ones behind (PID-381)'
           // The newest stays on its point of the circle.
           const point = { north: [0, -L.trick.r], south: [0, L.trick.r] }[rel];
           if (point) expect(cards.at(-1).y).toBe(L.trick.cy + point[1]);
-          else if (rel === 'east') expect(cards.at(-1).x - L.trick.cx).toBeCloseTo(L.trick.across);
-          // West's column stands out, its newest at the foot beside your pile (PID-388).
-          else expect(L.trick.cx - cards.at(-1).x).toBeGreaterThan(L.trick.across);
+          else expect(Math.abs(cards.at(-1).x - L.trick.cx)).toBeCloseTo(L.trick.across);
           // Every earlier card shows at least 0.16 of a card, at its index:
           // East's foot, West's top (PID-388); side cards all turn one way.
           for (let i = 0; i + 1 < count; i++) {
@@ -322,10 +320,9 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
       const south = [0, 1, 2, 3].map((i) => playedCardTarget(L, 'south', i, 4).x);
       const southHalf = (Math.max(...south) - Math.min(...south) + L.cardW * L.trick.pileScale) / 2;
       expect(east.x - played / 2 - L.trick.cx).toBeGreaterThan(southHalf);
-      // And of their stacks along the edges, a folded hand beside them included:
-      // West's column stands out up to that gap (PID-388).
+      // And of their stacks along the edges, a folded hand beside them included.
       const stack = sideStackInner(L.cardW, 0) + TRICK_GAP;
-      expect(west.x - played / 2).toBeGreaterThanOrEqual(stack - 1e-9);
+      expect(west.x - played / 2).toBeGreaterThan(stack);
       expect(east.x + played / 2).toBeLessThan(width - stack);
     });
   }
