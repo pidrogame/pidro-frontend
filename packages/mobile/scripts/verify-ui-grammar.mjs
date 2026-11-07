@@ -1711,6 +1711,13 @@ const allCases = [
     ['bidding-north', 'phase=bidding&role=player&dealer=north', 'bidding-window', { pack: true }],
     ['bidding-east', 'phase=bidding&role=player&dealer=east', 'bidding-window', { pack: true }],
     ['bidding-west', 'phase=bidding&role=player&dealer=west', 'bidding-window', { pack: true }],
+    // Tight North's long name runs right toward East's pack and stops short of it.
+    [
+      'bidding-east-long',
+      'phase=bidding&role=player&dealer=east&names=long',
+      'bidding-window',
+      { pack: true },
+    ],
     [
       'second-deal-east',
       'deal=draw&dealer=east&holdMs=600000',

@@ -129,9 +129,10 @@ const packRise = (backW: number, count: number) => (packLayers(count) - 1) * bac
  * East's and West's lie sideways, as their backs do, on the free side of
  * their seat: upright, above it, at the screen's edge; on landscape phones
  * under it, beside their backs; on landscape tablets, whose header row is
- * above them, under their backs. Yours waits in the bottom-right corner,
- * under the right end of your hand and clear of East's stack; where the table
- * has no room for it there upright (the shortest phones), it lies sideways.
+ * above them, under their backs. Upright, yours waits in the bottom-left
+ * corner under the left end of your hand, the right one being talk's
+ * (PID-393); where the table has no room for it there (the shortest phones),
+ * it lies sideways.
  * Landscape keeps it right of the hand, level with it, below East's front row.
  */
 export function packSpot(L: TableLayout, dealer: RelativePosition) {
@@ -195,15 +196,16 @@ export function packSpot(L: TableLayout, dealer: RelativePosition) {
       y: Math.min(L.hand.cy, L.bottom - h / 2 - 4),
       sideways: false,
     };
+  const left = L.hand.cx - L.hand.maxWidth / 2 - 8;
   const below = L.hand.cy + (L.cardH * handScale(L.profile)) / 2 + 10 + full;
   if (below + h + 4 <= L.bottom)
     return {
-      x: Math.min(L.hand.cx + L.hand.maxWidth / 2 - w / 2 + 8, L.width - w / 2 - 12),
+      x: Math.max(left + w / 2, L.insets.left + w / 2 + 12),
       y: below + h / 2,
       sideways: false,
     };
   return {
-    x: Math.min(L.hand.cx + L.hand.maxWidth / 2 - h / 2 + 8, L.width - h / 2 - full * 0.55 - 4),
+    x: Math.max(left + h / 2, L.insets.left + h / 2 + 4),
     y: L.bottom - 2 - w / 2,
     sideways: true,
   };

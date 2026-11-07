@@ -224,6 +224,36 @@ describe('side stacks and the hand', () => {
     expect(pack.y + packH / 2).toBeLessThanOrEqual(L.bottom);
   });
 
+  // PID-394: upright, talk has the bottom-right corner (PID-393), so your
+  // pack lies left of your seat, short of your name's column (156pt, 200 on
+  // iPads; a tight phone's name runs under its avatar), a full pack of 52
+  // leaning right included, and on screen.
+  for (const [width, height, insets] of [
+    [360, 780, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [430, 932, { top: 59, bottom: 34, left: 0, right: 0 }],
+    [768, 1024, { top: 24, bottom: 20, left: 0, right: 0 }],
+  ]) {
+    it(`lays your pack left of your seat on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, 60, 0);
+      const pack = packSpot(L, 'south');
+      const w = northBackWidth(L.cardW);
+      const h = (w * 110) / 78;
+      const [across, along] = pack.sideways ? [h, w] : [w, h];
+      const lean = (packLayers(52) - 1) * w * PACK_STEP;
+      const seatLeft = L.tight
+        ? width / 2 - TIGHT_AVATAR / 2
+        : width / 2 - (L.profile.startsWith('tablet') ? 200 : 156) / 2;
+      expect(pack.x - across / 2).toBeGreaterThanOrEqual(insets.left);
+      expect(pack.x + across / 2 + lean * 0.55).toBeLessThanOrEqual(seatLeft);
+      expect(pack.y + along / 2).toBeLessThanOrEqual(L.bottom);
+      expect(pack.y - along / 2 - lean).toBeGreaterThanOrEqual(
+        L.hand.cy + (L.cardH * handScale(L.profile)) / 2
+      );
+    });
+  }
+
   // PID-394: North deals from beside its fan, a full hand's, its top back
   // level with the fan; a full pack of 52 still under the header row and on
   // screen. Landscape phones seat North right of the fan: the pack lies left

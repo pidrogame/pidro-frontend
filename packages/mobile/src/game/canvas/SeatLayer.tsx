@@ -295,10 +295,20 @@ export function SeatLayer({
   // East and West sit low beside North's pile (PID-393): their names run
   // under them, as on every upright phone.
   const besideName = !portrait || tight;
+  // Both deals' backs fly in from the pack beside the dealer (PID-394).
+  const dealer = dealerRel ?? 'south';
+  const from = packSpot(L, dealer);
+  const packBackW = northBackWidth(L.cardW, compactNorth(L));
+  const taken = secondDeal?.taken ?? 0;
   const tightNorthLeft = width / 2 - size / 2;
+  // East's pack lies at the end of tight North's row: the name stops short of it.
+  const northRight =
+    dealer === 'east' && (packCount > 0 || taken > 0)
+      ? from.x - (packBackW * (110 / 78)) / 2
+      : width - insets.right;
   const seatWidth = (rel: RelativePosition) =>
     tight && rel === 'north'
-      ? { maxWidth: width - insets.right - PidroSpacing.sm - tightNorthLeft, gap: PidroSpacing.xs }
+      ? { maxWidth: northRight - PidroSpacing.sm - tightNorthLeft, gap: PidroSpacing.xs }
       : portrait
         ? rel === 'north' || rel === 'south'
           ? { width: centerColumn }
@@ -348,10 +358,6 @@ export function SeatLayer({
         )
       : L.sides.cy;
   const sideInset = portrait ? 0 : 12;
-  // Both deals' backs fly in from the pack beside the dealer (PID-394).
-  const dealer = dealerRel ?? 'south';
-  const from = packSpot(L, dealer);
-  const packBackW = northBackWidth(L.cardW, compactNorth(L));
   // The rob: the rest of the pack slides to the dealer's backs, or your hand.
   const sideEdge = (rel: 'east' | 'west') => {
     const edge = rel === 'east' ? insets.right : insets.left;
@@ -368,7 +374,6 @@ export function SeatLayer({
       : dealer === 'south'
         ? { x: L.hand.cx, y: L.hand.cy }
         : { x: sideEdge(dealer), y: sideStackCy };
-  const taken = secondDeal?.taken ?? 0;
 
   return (
     <View style={[StyleSheet.absoluteFill, quiet && styles.quiet]} pointerEvents="box-none">
