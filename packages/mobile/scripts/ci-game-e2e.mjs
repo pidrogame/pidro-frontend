@@ -859,17 +859,40 @@ async function stageFourLegendSeat() {
     const bid = page.locator('[data-testid^="seat-"][data-testid$="-bid"]').first();
     await dealer.waitFor({ timeout: 30_000 });
     await bid.waitFor({ timeout: 30_000 });
-    // A badge's centre against the centre of the avatar it sits on.
-    const offset = (badge) =>
-      badge.evaluate((node) => {
-        const b = node.getBoundingClientRect();
-        const a = node.parentElement.getBoundingClientRect();
-        return {
-          seat: node.dataset.testid,
-          x: b.x + b.width / 2 - (a.x + a.width / 2),
-          y: b.y + b.height / 2 - (a.y + a.height / 2),
+    // A badge's centre against the centre of the avatar it sits on, once it has
+    // landed: the bid slides in from under the avatar (BID_ARRIVAL_MS), so it
+    // counts after ten frames without moving. A badge drawn anew meanwhile is
+    // measured again; one still moving after five seconds fails.
+    const settle = (node) =>
+      new Promise((landed, moving) => {
+        const measure = () => {
+          const b = node.getBoundingClientRect();
+          const a = node.parentElement.getBoundingClientRect();
+          return {
+            seat: node.dataset.testid,
+            x: b.x + b.width / 2 - (a.x + a.width / 2),
+            y: b.y + b.height / 2 - (a.y + a.height / 2),
+          };
         };
+        let last = measure();
+        let still = 0;
+        const limit = setTimeout(
+          () => moving(new Error(`the badge is still moving: ${JSON.stringify(last)}`)),
+          5_000
+        );
+        const frame = () => {
+          if (!node.isConnected) return (clearTimeout(limit), landed(null));
+          const now = measure();
+          still = now.x === last.x && now.y === last.y ? still + 1 : 0;
+          last = now;
+          if (still < 10) return requestAnimationFrame(frame);
+          clearTimeout(limit);
+          landed(now);
+        };
+        requestAnimationFrame(frame);
       });
+    const offset = async (badge) =>
+      (await badge.evaluate(settle, undefined, { timeout: 30_000 })) ?? offset(badge);
     const [d, b] = [await offset(dealer), await offset(bid)];
     await page.screenshot({ path: resolve(artifactDir, 'legend-hand.png') });
     if (!(d.x < 0 && d.y > 0))
