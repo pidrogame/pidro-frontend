@@ -1,5 +1,5 @@
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import type { RuleSet } from '@pidro/shared';
 import { RuleSetSelector } from '@/components/rules/RuleSet';
@@ -15,13 +15,16 @@ import { Surface } from '@/components/ui/Surface';
 import { Modal } from '@/components/ui/Modal';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { TextLink } from '@/components/ui/TextLink';
+import { Toast } from '@/components/ui/Toast';
 import { useLeague } from '@/components/league/LeagueHost';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { AppUpdateSection } from '@/components/settings/AppUpdateSection';
+import { PremiumSection } from '@/components/settings/PremiumSection';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { TellRow } from '@/components/feedback/TellRow';
 import { PidroSpacing } from '@/design/tokens';
 import { canTell, tellFixture } from '@/features/feedback';
+import { premiumFixture } from '@/features/premium/premium';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 
@@ -59,6 +62,8 @@ export function SettingsScreen({
   const [fixtureChoice, setFixtureChoice] = useState<RuleSet | undefined>();
   const tell = __DEV__ ? tellFixture(fixture) : null;
   const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
+  const [toast, setToast] = useState<string | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
 
   const changeHidden = (hidden: boolean) => {
     setLeagueFailed(false);
@@ -68,130 +73,140 @@ export function SettingsScreen({
   };
 
   return (
-    <ScreenShell
-      scroll
-      compact={width <= height}
-      testID="settings-screen"
-      contentStyle={{
-        ...styles.shell,
-        paddingBottom: bottomClearance + PidroSpacing.md,
-        paddingRight: rightClearance + PidroSpacing.md,
-      }}>
-      <ScreenHeader title={t('settings.title')} subtitle={t('settings.subtitle')} onBack={onBack} />
-      <Surface variant="window" style={styles.panel} padded>
-        {tells ? <TellRow testID="settings-tell" onPress={() => setTellOpen(true)} /> : null}
-        <View style={styles.languageColumn}>
-          <LanguageSelector />
-        </View>
-        <View style={styles.preferencesColumn}>
-          {registered && league && league.status !== 'guest' && league.status !== 'off' ? (
-            <>
-              <Surface variant="subtle" style={styles.row} testID="settings-league">
-                <View style={styles.rowCopy}>
-                  <PidroText role="label">{t('league.settings.hidden')}</PidroText>
-                  <PidroText role="metadata" tone="muted">
-                    {t('league.settings.help')}
+    <View style={styles.root}>
+      <ScreenShell
+        scroll
+        compact={width <= height}
+        testID="settings-screen"
+        contentStyle={{
+          ...styles.shell,
+          paddingBottom: bottomClearance + PidroSpacing.md,
+          paddingRight: rightClearance + PidroSpacing.md,
+        }}>
+        <ScreenHeader
+          title={t('settings.title')}
+          subtitle={t('settings.subtitle')}
+          onBack={onBack}
+        />
+        <Surface variant="window" style={styles.panel} padded>
+          {tells ? <TellRow testID="settings-tell" onPress={() => setTellOpen(true)} /> : null}
+          <View style={styles.languageColumn}>
+            <LanguageSelector />
+          </View>
+          <View style={styles.preferencesColumn}>
+            {registered && league && league.status !== 'guest' && league.status !== 'off' ? (
+              <>
+                <Surface variant="subtle" style={styles.row} testID="settings-league">
+                  <View style={styles.rowCopy}>
+                    <PidroText role="label">{t('league.settings.hidden')}</PidroText>
+                    <PidroText role="metadata" tone="muted">
+                      {t('league.settings.help')}
+                    </PidroText>
+                  </View>
+                  <PidroSwitch
+                    accessibilityLabel={t('league.settings.hidden')}
+                    value={league.status === 'opted_out'}
+                    disabled={leagueBusy}
+                    onValueChange={(hidden) => {
+                      setLeagueFailed(false);
+                      if (hidden && league.status === 'placed') setHideConfirm(true);
+                      else changeHidden(hidden);
+                    }}
+                  />
+                </Surface>
+                {leagueFailed && !hideConfirm ? (
+                  <PidroText role="metadata" tone="danger" accessibilityRole="alert">
+                    {t('league.settings.error')}
                   </PidroText>
-                </View>
-                <PidroSwitch
-                  accessibilityLabel={t('league.settings.hidden')}
-                  value={league.status === 'opted_out'}
-                  disabled={leagueBusy}
-                  onValueChange={(hidden) => {
-                    setLeagueFailed(false);
-                    if (hidden && league.status === 'placed') setHideConfirm(true);
-                    else changeHidden(hidden);
-                  }}
-                />
-              </Surface>
-              {leagueFailed && !hideConfirm ? (
-                <PidroText role="metadata" tone="danger" accessibilityRole="alert">
-                  {t('league.settings.error')}
-                </PidroText>
-              ) : null}
-            </>
-          ) : null}
-          <Surface variant="subtle" style={styles.rulesRow} testID="settings-preferred-rules">
-            <PidroText role="label">{t('rules.preferred')}</PidroText>
-            <RuleSetSelector
-              value={initialFixture ? (fixtureChoice ?? initialFixture) : preferredRuleSet}
-              onChange={initialFixture ? setFixtureChoice : setPreferredRuleSet}
+                ) : null}
+              </>
+            ) : null}
+            <Surface variant="subtle" style={styles.rulesRow} testID="settings-preferred-rules">
+              <PidroText role="label">{t('rules.preferred')}</PidroText>
+              <RuleSetSelector
+                value={initialFixture ? (fixtureChoice ?? initialFixture) : preferredRuleSet}
+                onChange={initialFixture ? setFixtureChoice : setPreferredRuleSet}
+              />
+            </Surface>
+            <SettingRow
+              title={t('settings.sound')}
+              subtitle={t('settings.soundHint')}
+              value={soundEnabled}
+              onValueChange={toggleSound}
             />
-          </Surface>
-          <SettingRow
-            title={t('settings.sound')}
-            subtitle={t('settings.soundHint')}
-            value={soundEnabled}
-            onValueChange={toggleSound}
-          />
-          <SettingRow
-            title={t('settings.haptics')}
-            subtitle={t('settings.hapticsHint')}
-            value={hapticEnabled}
-            onValueChange={toggleHaptic}
-          />
-          <SettingRow
-            title={t('settings.countHelp')}
-            subtitle={t('settings.countHelpHint')}
-            value={countHelp}
-            onValueChange={toggleCountHelp}
-          />
-          <SettingRow
-            title={t('settings.showBid')}
-            subtitle={t('settings.showBidHint')}
-            value={showBid}
-            onValueChange={toggleShowBid}
-          />
-          <Surface variant="subtle" style={styles.rulesRow} testID="settings-pace">
-            <PidroText role="label">{t('settings.pace')}</PidroText>
-            <View style={styles.choices}>
-              {(['quick', 'own'] as const).map((value) => (
-                <ActionPill
-                  key={value}
-                  size="lg"
-                  label={t(value === 'quick' ? 'settings.paceQuick' : 'settings.paceOwn')}
-                  selected={pace === value}
-                  onPress={() => setPace(value)}
-                />
-              ))}
-            </View>
-            <PidroText role="metadata" tone="muted">
-              {t('settings.paceHint')} {t('settings.paceSolo')}
-            </PidroText>
-          </Surface>
-        </View>
-      </Surface>
-      {signedIn ? <AccountSection /> : null}
-      <AppUpdateSection />
-      <Modal
-        isOpen={hideConfirm}
-        onClose={() => !leagueBusy && setHideConfirm(false)}
-        title={t('league.settings.hidden')}
-        description={t('league.settings.midweek')}
-        supportedOrientations={['portrait', 'landscape']}>
-        <View testID="league-hide-confirm">
-          {leagueFailed ? (
-            <PidroText role="metadata" tone="danger" accessibilityRole="alert">
-              {t('league.settings.error')}
-            </PidroText>
-          ) : null}
-          <BevelButton
-            label={t('league.settings.hidden')}
-            fullWidth
-            loading={leagueBusy}
-            onPress={() => changeHidden(true)}
-          />
-          <TextLink
-            label={t('common.cancel')}
-            disabled={leagueBusy}
-            onPress={() => setHideConfirm(false)}
-          />
-        </View>
-      </Modal>
-      {tells ? (
-        <FeedbackSheet open={tellOpen} fixture={tell?.sheet} onClose={() => setTellOpen(false)} />
-      ) : null}
-    </ScreenShell>
+            <SettingRow
+              title={t('settings.haptics')}
+              subtitle={t('settings.hapticsHint')}
+              value={hapticEnabled}
+              onValueChange={toggleHaptic}
+            />
+            <SettingRow
+              title={t('settings.countHelp')}
+              subtitle={t('settings.countHelpHint')}
+              value={countHelp}
+              onValueChange={toggleCountHelp}
+            />
+            <SettingRow
+              title={t('settings.showBid')}
+              subtitle={t('settings.showBidHint')}
+              value={showBid}
+              onValueChange={toggleShowBid}
+            />
+            <Surface variant="subtle" style={styles.rulesRow} testID="settings-pace">
+              <PidroText role="label">{t('settings.pace')}</PidroText>
+              <View style={styles.choices}>
+                {(['quick', 'own'] as const).map((value) => (
+                  <ActionPill
+                    key={value}
+                    size="lg"
+                    label={t(value === 'quick' ? 'settings.paceQuick' : 'settings.paceOwn')}
+                    selected={pace === value}
+                    onPress={() => setPace(value)}
+                  />
+                ))}
+              </View>
+              <PidroText role="metadata" tone="muted">
+                {t('settings.paceHint')} {t('settings.paceSolo')}
+              </PidroText>
+            </Surface>
+          </View>
+        </Surface>
+        {signedIn ? <AccountSection /> : null}
+        {signedIn || premiumFixture(fixture) ? (
+          <PremiumSection fixture={fixture} onToast={setToast} />
+        ) : null}
+        <AppUpdateSection />
+        <Modal
+          isOpen={hideConfirm}
+          onClose={() => !leagueBusy && setHideConfirm(false)}
+          title={t('league.settings.hidden')}
+          description={t('league.settings.midweek')}
+          supportedOrientations={['portrait', 'landscape']}>
+          <View testID="league-hide-confirm">
+            {leagueFailed ? (
+              <PidroText role="metadata" tone="danger" accessibilityRole="alert">
+                {t('league.settings.error')}
+              </PidroText>
+            ) : null}
+            <BevelButton
+              label={t('league.settings.hidden')}
+              fullWidth
+              loading={leagueBusy}
+              onPress={() => changeHidden(true)}
+            />
+            <TextLink
+              label={t('common.cancel')}
+              disabled={leagueBusy}
+              onPress={() => setHideConfirm(false)}
+            />
+          </View>
+        </Modal>
+        {tells ? (
+          <FeedbackSheet open={tellOpen} fixture={tell?.sheet} onClose={() => setTellOpen(false)} />
+        ) : null}
+      </ScreenShell>
+      {toast ? <Toast key={toast} message={toast} onDismiss={dismissToast} /> : null}
+    </View>
   );
 }
 
@@ -220,6 +235,7 @@ function SettingRow({
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   shell: { gap: PidroSpacing.md },
   panel: { gap: PidroSpacing.sm, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
   languageColumn: { flexGrow: 1, flexBasis: 280, minWidth: 0 },

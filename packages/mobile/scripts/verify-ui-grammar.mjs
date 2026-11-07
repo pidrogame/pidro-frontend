@@ -528,6 +528,24 @@ const allCases = [
     testId: 'app-update-section',
     testAd: true,
   },
+  // PID-124: Settings → Premium as the server says it, the phone's panel and the web's line.
+  ...['en', 'sv'].flatMap((locale) => [
+    ...['none', 'until', 'lifetime', 'restoring'].map((premium) => ({
+      name: `settings-premium-${premium}-${locale}`,
+      path: `/ui-dev?state=settings&fixture=premium-${premium}&locale=${locale}`,
+      testId: 'settings-premium',
+      locale,
+      premium,
+    })),
+    {
+      name: `settings-premium-web-${locale}`,
+      path: `/ui-dev?state=settings&locale=${locale}`,
+      testId: 'settings-premium',
+      locale,
+      premium: 'web',
+      authenticated: true,
+    },
+  ]),
   ...tellCases,
   ...newsCases,
   ...['en', 'sv'].flatMap((locale) =>
@@ -3496,6 +3514,57 @@ async function assertTestAd(page) {
   await row.getByText('Show a test ad', { exact: true }).waitFor();
   await row.getByText('Ads need a phone', { exact: true }).waitFor();
   assert.equal(await row.getByRole('button').count(), 0, 'no ad button on the web');
+  await waitForScreenshotReady(page);
+}
+
+// The status line is the server's answer; Restore is busy while it runs; Manage is for the store.
+async function assertPremium(page, { premium, locale }, viewport) {
+  const panel = page.getByTestId('settings-premium');
+  await panel.scrollIntoViewIfNeeded();
+  const sv = locale === 'sv';
+  const text = await panel.innerText();
+  if (premium === 'web') {
+    assert.equal(
+      text.replace(/\s+/g, ' ').trim(),
+      sv
+        ? 'Premium Premium hanteras i Pidro-appen på din telefon.'
+        : 'Premium Premium is managed in the Pidro app on your phone.'
+    );
+  } else {
+    const status = {
+      none: sv ? 'Du har inte Premium' : "You don't have Premium",
+      until: sv ? 'Premium till 12 mars 2027' : 'Premium until 12 March 2027',
+      lifetime: sv ? 'Premium för alltid' : 'Lifetime Premium',
+      restoring: sv ? 'Du har inte Premium' : "You don't have Premium",
+    }[premium];
+    assert.equal(await panel.getByTestId('premium-status').innerText(), status);
+    const restore = panel.getByRole('button', { name: sv ? 'Återställ köp' : 'Restore purchases' });
+    assert.equal(await restore.count(), 1, 'one Restore purchases');
+    assert.equal(
+      await restore.isDisabled(),
+      premium === 'restoring',
+      'Restore is untappable only while it runs'
+    );
+    const manage = panel.getByRole('button', {
+      name: sv ? 'Hantera prenumeration' : 'Manage subscription',
+    });
+    assert.equal(await manage.count(), premium === 'until' ? 1 : 0, 'Manage only for the store');
+    await panel
+      .getByText(
+        sv
+          ? 'Premium hör till ditt App Store-konto. Det gäller på det Pidro-konto där du senast återställde det. Byt när du vill med Återställ köp.'
+          : 'Premium belongs to your App Store account. It is active on the Pidro account you last restored it on. Switch it any time with Restore purchases.',
+        { exact: true }
+      )
+      .waitFor();
+    for (const button of await panel.getByRole('button').all()) {
+      const box = await button.boundingBox();
+      assert.ok(box.height >= 44, `${premium}: a button is ${box.height}px tall`);
+    }
+  }
+  // The whole panel is on screen at once, on every size.
+  const box = await panel.boundingBox();
+  assertInsideViewport('Premium panel', box, viewport);
   await waitForScreenshotReady(page);
 }
 
@@ -9049,7 +9118,7 @@ async function main() {
         // Timing, not layout: one phone is enough (PID-364).
         if (testCase.sweep === 'on' || (testCase.reducedMotion && testCase.flaky))
           return viewport.name === 'portrait';
-        if (testCase.news || testCase.league || testCase.popup)
+        if (testCase.news || testCase.league || testCase.popup || testCase.premium)
           return TELL_VIEWPORTS.includes(viewport.name);
         if (
           (testCase.welcome || testCase.name.startsWith('age')) &&
@@ -9847,6 +9916,7 @@ async function main() {
           }
           if (testCase.appUpdate) await assertAppUpdate(page, testCase);
           if (testCase.testAd) await assertTestAd(page);
+          if (testCase.premium) await assertPremium(page, testCase, caseViewport);
           if (testCase.newTableFixture?.startsWith('ready-error')) {
             const sv = testCase.newTableLanguage === 'sv';
             await page
