@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { optimisticPlay, turnLight } from '../../src/features/game/playPresentation.ts';
+import {
+  blockedTapNudges,
+  optimisticPlay,
+  turnLight,
+} from '../../src/features/game/playPresentation.ts';
 import { buildTableModel } from '../../src/game/canvas/tableModel.ts';
 
 const hand = [
@@ -81,5 +85,16 @@ describe('turn-light presentation', () => {
     // Reduced motion lands immediately, but does not skip the server's reading time.
     expect(turnLight({ ...timing, landsAt: 0, collectUntil: 2500, now: 1000 })).toBeNull();
     expect(turnLight({ ...timing, landsAt: 0, now: 1000 })).toBe('west');
+  });
+});
+
+describe('a tap the table did not play (PID-364)', () => {
+  it('answers with the card and the turn light, unless your card is on its way or the cards are being dealt', () => {
+    const calm = { inFlight: false, dealing: false };
+    for (const reason of ['not_your_turn', 'invalid_action', 'invalid_phase'])
+      expect(blockedTapNudges(reason, calm)).toBe(true);
+    expect(blockedTapNudges('pending', calm)).toBe(false);
+    expect(blockedTapNudges('not_your_turn', { inFlight: true, dealing: false })).toBe(false);
+    expect(blockedTapNudges('invalid_phase', { inFlight: false, dealing: true })).toBe(false);
   });
 });

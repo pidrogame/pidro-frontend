@@ -78,12 +78,14 @@ export interface PlayerAvatarProps {
    * `progress` is the time left, 1 to 0; the arc runs clockwise from twelve.
    * `attention` is for your own turn: the light pings once and then breathes.
    * With `endsAt` and `durationMs` the arc runs down on its own clock, so
-   * nothing around it re-renders while a timer runs.
+   * nothing around it re-renders while a timer runs. Each new `nudge` lights
+   * another player's shine once: your tap waits for them (PID-364).
    */
   turn?: {
     progress: number;
     urgent?: boolean;
     attention?: boolean;
+    nudge?: number;
     endsAt?: number;
     durationMs?: number;
   } | null;
@@ -206,7 +208,13 @@ export function PlayerAvatar({
     <View style={{ width: size, height: size }}>
       <ActedLight size={size} acted={acted} />
       {turn && arc ? (
-        <TurnLight size={size} arc={arc} urgent={turn.urgent} attention={turn.attention} />
+        <TurnLight
+          size={size}
+          arc={arc}
+          urgent={turn.urgent}
+          attention={turn.attention}
+          nudge={turn.nudge}
+        />
       ) : null}
 
       {seated ? (
@@ -654,6 +662,9 @@ const BREATH_MS = 2000;
 const URGENT_BREATH_MS = 450;
 /** Another player's shine, held still: present, but quieter than yours. */
 const OTHER_SHINE = 0.55;
+/** A nudge brightens it to full and back: a fade, so it stays with reduced motion. */
+const NUDGE_UP_MS = 220;
+const NUDGE_DOWN_MS = 380;
 
 /**
  * The shine behind whoever is on turn: a soft glow just outside the timer
@@ -665,14 +676,44 @@ function TurnLight({
   arc,
   urgent,
   attention,
+  nudge,
 }: {
   size: number;
   arc: { radius: number; stroke: number };
   urgent?: boolean;
   attention?: boolean;
+  nudge?: number;
 }) {
   const calm = useReducedMotion() || isStillCapture();
   const breathing = !!attention && !calm;
+  const [shine] = useState(() => new RNAnimated.Value(OTHER_SHINE));
+  const nudged = useRef(nudge);
+  useEffect(() => {
+    if (nudge === nudged.current) return;
+    nudged.current = nudge;
+    if (attention) return;
+    shine.stopAnimation();
+    // A still capture holds the lit frame, so a baseline shows the answer.
+    if (isStillCapture()) {
+      shine.setValue(1);
+      return;
+    }
+    const useNativeDriver = Platform.OS !== 'web';
+    RNAnimated.sequence([
+      RNAnimated.timing(shine, {
+        toValue: 1,
+        duration: NUDGE_UP_MS,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver,
+      }),
+      RNAnimated.timing(shine, {
+        toValue: OTHER_SHINE,
+        duration: NUDGE_DOWN_MS,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver,
+      }),
+    ]).start();
+  }, [nudge, attention, shine]);
   // One native loop through a whole breath: no JS between frames or between breaths.
   const [phase] = useState(() => new RNAnimated.Value(0));
   // Where the breath turns back: 1 from rest, or wherever it was when the timer turned urgent.
@@ -735,13 +776,10 @@ function TurnLight({
   return (
     <RNAnimated.View
       key={breathing ? 'breathing' : 'still'}
+      testID="turn-light"
       pointerEvents="none"
       renderToHardwareTextureAndroid={breathing}
-      style={[
-        glowBox(size, glow),
-        { opacity: attention ? 1 : OTHER_SHINE },
-        breathing ? motion : null,
-      ]}
+      style={[glowBox(size, glow), { opacity: attention ? 1 : shine }, breathing ? motion : null]}
     />
   );
 }

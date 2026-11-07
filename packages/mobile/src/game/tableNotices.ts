@@ -8,6 +8,7 @@ import {
   getRankLabel,
   type Suit,
 } from '@pidro/shared';
+import type { Card } from '@/types/game';
 
 export type TableNotice = {
   variant: 'warning' | 'success' | 'error';
@@ -16,10 +17,24 @@ export type TableNotice = {
   error?: unknown;
   seat?: { name?: string | null; position?: 'north' | 'east' | 'south' | 'west' | null };
   autoTurn?: { scope: 'room' | 'you'; action?: Record<string, unknown> };
+  /** Cards played for you while you were away, and whether that left you out of the hand. */
+  away?: { cards: Card[]; out: boolean };
   /** Compatibility for development fixtures only. Runtime producers use keys. */
   message?: string;
 };
 export type QueuedTableNotice = TableNotice & { roomCode: string };
+
+/** What the band says about an action the server did not take. */
+export function refusalNotice(error: unknown): TableNotice {
+  const body = errorPayload(error);
+  const code = body.error_code ?? body.reason;
+  if (code === 'too_late') return { key: 'game.too_late', variant: 'warning' };
+  return {
+    error,
+    key: 'error.action_failed',
+    variant: code === 'already_played_for_you' ? 'warning' : 'error',
+  };
+}
 
 export function tableNoticeText(notice: TableNotice): string {
   if (notice.error !== undefined) {
@@ -29,6 +44,7 @@ export function tableNoticeText(notice: TableNotice): string {
     return localizedError(notice.error, notice.key);
   }
   if (notice.autoTurn) return autoTurnText(notice.autoTurn);
+  if (notice.away) return awayText(notice.away);
   if (notice.seat && notice.key) {
     return t(notice.key, {
       ...notice.params,
@@ -37,6 +53,21 @@ export function tableNoticeText(notice: TableNotice): string {
     });
   }
   return notice.key ? t(notice.key, notice.params) : (notice.message ?? '');
+}
+
+function awayText({ cards, out }: NonNullable<TableNotice['away']>): string {
+  const labels = cards.map((card) => `${getRankLabel(card.rank)}${SUIT_SYMBOLS[card.suit]}`);
+  const last = labels[labels.length - 1];
+  const list =
+    labels.length === 1
+      ? last
+      : labels.length === 2
+        ? t('game.list_two', { first: labels[0], last })
+        : t('game.list_more', { first: labels[0], rest: labels.slice(1, -1).join(', '), last });
+  return t(out ? 'game.away_played_out' : 'game.away_played', {
+    count: cards.length,
+    cards: list,
+  });
 }
 
 function autoTurnText({ scope, action }: NonNullable<TableNotice['autoTurn']>): string {
@@ -115,6 +146,7 @@ function identity(notice: TableNotice): string {
     notice.autoTurn?.scope,
     notice.autoTurn &&
       Object.entries(notice.autoTurn.action ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+    notice.away,
   ]);
 }
 

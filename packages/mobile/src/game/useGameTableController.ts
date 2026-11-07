@@ -22,10 +22,9 @@ import { useGameStore, useGameViewModel } from '@/stores/game';
 import { pushGameAction, sendCard } from '@/channels/hooks/useGameChannel';
 import { playActionHaptic } from './useGameHaptics';
 import { useTableNotices } from '@/components/game/TableFeedback';
-import type { TableNotice } from './tableNotices';
+import { refusalNotice, type TableNotice } from './tableNotices';
 import { blockedPlay } from '@/diagnostics/actions';
 import { gameDiagnostics } from '@/diagnostics/buffer';
-import { errorPayload } from '@pidro/shared';
 
 export type GameTableController = {
   viewModel: GameViewModel | null;
@@ -155,19 +154,7 @@ export function useGameTableController(): GameTableController {
   } = useTableNotices(viewModel?.roomCode ?? '');
   const showActionError = useCallback(
     (action: string, err: unknown) => {
-      const error = errorPayload(err);
-      addNotice(
-        error.reason === 'pending'
-          ? { key: 'game.tap_wait', variant: 'warning' }
-          : {
-              error: err,
-              key: 'error.action_failed',
-              variant:
-                (error.error_code ?? error.reason) === 'already_played_for_you'
-                  ? 'warning'
-                  : 'error',
-            }
-      );
+      addNotice(refusalNotice(err));
     },
     [addNotice]
   );
@@ -190,7 +177,6 @@ export function useGameTableController(): GameTableController {
     async (card: Card) => {
       if (isPlayingCard || !isPlayingTurn) {
         blockedPlay(isPlayingCard ? 'pending' : 'not_your_turn');
-        if (!isPlayingCard) showActionError('Play card', { reason: 'not_your_turn' });
         return false;
       }
       setIsPlayingCard(true);

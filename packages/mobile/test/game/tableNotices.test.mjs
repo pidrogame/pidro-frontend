@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { enqueueTableNotice, tableNoticeText } from '../../src/game/tableNotices.ts';
+import { enqueueTableNotice, refusalNotice, tableNoticeText } from '../../src/game/tableNotices.ts';
 import { setLocale, t } from '@pidro/shared';
 
 const notice = (message, variant = 'warning') => ({ message, variant });
@@ -42,6 +42,45 @@ it('says which card, pass or bid the timer made, in both table languages', () =>
   } finally {
     setLocale('en');
   }
+});
+
+it('says a tap was late, and what was played for you while you were away (PID-364)', () => {
+  const spade = (rank) => ({ rank, suit: 'spades' });
+  const away = (cards, out = false) =>
+    tableNoticeText({ variant: 'warning', away: { cards, out } });
+  try {
+    setLocale('en');
+    expect(tableNoticeText(refusalNotice({ reason: 'too_late' }))).toBe(
+      'Too late, the trick moved on.'
+    );
+    expect(refusalNotice({ reason: 'too_late' }).variant).toBe('warning');
+    expect(away([spade(10)])).toBe('While you were away, 10♠ was played for you.');
+    expect(away([spade(10), { rank: 5, suit: 'hearts' }])).toBe(
+      'While you were away, 10♠ and 5♥ were played for you.'
+    );
+    expect(away([spade(10), spade(14), { rank: 5, suit: 'hearts' }])).toBe(
+      'While you were away, 10♠, A♠ and 5♥ were played for you.'
+    );
+    expect(away([spade(10)], true)).toBe(
+      "While you were away, 10♠ was played for you, you're out this hand."
+    );
+    expect(away([spade(10), { rank: 5, suit: 'hearts' }], true)).toBe(
+      "While you were away, 10♠ and 5♥ were played for you, you're out this hand."
+    );
+    setLocale('sv');
+    expect(tableNoticeText(refusalNotice({ reason: 'too_late' }))).toBe(
+      'För sent – sticket gick vidare.'
+    );
+    expect(away([spade(10), { rank: 5, suit: 'hearts' }], true)).toBe(
+      'Medan du var borta spelades 10♠ och 5♥ åt dig, du är ute den här given.'
+    );
+  } finally {
+    setLocale('en');
+  }
+  // A server refusal keeps its own words.
+  expect(tableNoticeText(refusalNotice({ error_code: 'must_follow_suit' }))).toBe(
+    tableNoticeText({ variant: 'error', error: { error_code: 'must_follow_suit' } })
+  );
 });
 
 describe('table notice queue', () => {

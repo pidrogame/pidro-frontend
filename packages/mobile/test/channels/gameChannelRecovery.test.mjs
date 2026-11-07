@@ -20,6 +20,14 @@ it('fences and retries an untimed card using the snapshot turn cursor', async ()
   await check('untimed');
 });
 
+it('back after a drop, says which card the bot played for you, and drops the kept tap quietly', async () => {
+  await check('away');
+});
+
+it('back after a drop, says nothing when the card that left was the one you tapped', async () => {
+  await check('away-own');
+});
+
 async function check(scenario) {
   if (!process.env.CHANNEL_RECOVERY_CHILD) {
     const child = Bun.spawnSync([process.execPath, 'test', import.meta.path], {
@@ -120,8 +128,9 @@ async function check(scenario) {
     },
   };
   if (scenario === 'untimed') response.turn_timer = null;
+  const notices = [];
   function Table() {
-    useGameChannel({ roomCode: 'TEST' });
+    useGameChannel({ roomCode: 'TEST', onSeatEvent: (notice) => notices.push(notice) });
     return null;
   }
   const root = createRoot(document.getElementById('root'));
@@ -152,6 +161,37 @@ async function check(scenario) {
       const before = pushes.length;
       socket.beforeBackground(() => {});
       expect(pushes).toHaveLength(before);
+    } else if (scenario === 'away' || scenario === 'away-own') {
+      // A♣ tapped, the reply lost; the bot that kept the seat played a card meanwhile.
+      let pending;
+      await act(async () => {
+        pending = sendCard(card);
+      });
+      await act(async () => pushes.at(-1).reply.callbacks.timeout());
+      const queen = { rank: 12, suit: 'clubs' };
+      const played = scenario === 'away' ? queen : card;
+      const kept = scenario === 'away' ? card : queen;
+      const sent = pushes.length;
+      joinRef = '2';
+      await act(async () =>
+        joined.callbacks.ok({
+          ...response,
+          game_state: {
+            ...state,
+            current_player: 'north',
+            tricks: [{ cards: [{ player: 'west', card: played }], winner: 'west' }],
+            current_trick: [],
+            players: { west: { hand: [kept] } },
+          },
+          legal_actions: [],
+        })
+      );
+      expect(notices.filter((notice) => notice.away)).toEqual(
+        scenario === 'away' ? [{ away: { cards: [queen], out: false }, variant: 'warning' }] : []
+      );
+      // Quiet either way: no retry, and no "too late" from the kept tap.
+      expect(pushes.slice(sent).filter(({ event }) => event === 'play_card')).toEqual([]);
+      expect(await pending).toBe(scenario === 'away-own');
     } else if (scenario === 'rejoin') {
       await act(async () =>
         joined.callbacks.ok({

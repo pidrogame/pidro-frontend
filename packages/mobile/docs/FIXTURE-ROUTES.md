@@ -86,12 +86,26 @@ PID-214 bid presentation uses `/table-dev?phase=bidding&role=player&bids=round|h
 the high-bid tone and compact south status without changing bid event identities.
 
 Flaky connections use `/table-dev?phase=playing&fixture=flaky-offline&locale=en|sv`.
-Replace `offline` with `auto-card`, `auto-pass`, `auto-bid`, `late-card`, `refused`, or `settling` for the
+Replace `offline` with `auto-card`, `auto-pass`, `auto-bid` or `late-card` for the
 quiet notices, or `spectator&role=spectator` for all four hands of card backs.
-`table-flaky-{offline,auto-card,auto-pass,auto-bid,late-card,refused,spectator,settling}-{en,sv}` checks
-the band, no scrolling, and all four spectators' hands at 390×844, 375×667,
-844×390 and 768×1024. These are presentation fixtures; socket-drop verification
+PID-364 adds `late-tap` ("Too late, the trick moved on."), `away-one` (10♠ was
+played for you while you were away) and `away-out&out=you&botTurn=north` (10♠
+and 5♥, and you are out: your cards folded). `early-tap&botTurn=north` is Marcel's
+turn: tapping your card says nothing, the card shakes and settles and his shine
+lights once (a still capture holds it lit). `out-tap&out=you&botTurn=north`: you
+are out, and a tap on your folded cards does nothing at all.
+`table-flaky-{offline,auto-card,auto-pass,auto-bid,late-card,late-tap,away-one,away-out,early-tap,out-tap,spectator}-{en,sv}`
+checks the band, no scrolling, and all four spectators' hands at 390×844, 375×667,
+844×390 and 768×1024; the tap cases tap a card and sample its position every
+frame. `table-flaky-early-tap-reduced` holds the card still under reduced motion;
+the shine still lights. These are presentation fixtures; socket-drop verification
 uses the real game route and local backend.
+
+The sweep (PID-364): `/table-dev?deal=hand&sweep=on&count=on|off` has Eli (East)
+alone holding trumps while the server plays his last four out, 500 ms apart,
+then the result; `sweep=held` stops after two. `table-sweep-{en,sv}` captures
+"Takes the rest" mid-sweep at the four sizes; `table-sweep-hold-count-{on,off}`
+reads his line on every frame until the result shows.
 
 PID-277 uses `/table-dev?fixture=bot-crew&locale=en|sv`: Marcel is thinking,
 and all three drawn bots open their short card through their avatar or nameplate.

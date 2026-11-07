@@ -5,7 +5,7 @@
  * NOTE: web loads CanvasKit through the platform-specific loader before this
  * module is imported. Native imports this module directly.
  */
-import { useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -20,7 +20,7 @@ import type { BotPersona, RematchVote } from '@pidro/shared';
 import type { Room } from '@/types/lobby';
 import type { ActiveTurnTimer, Card, RelativePosition, ServerGameState, Suit } from '@/types/game';
 import { useGameTableController } from '@/game/useGameTableController';
-import { useTableHaptics } from '@/game/useGameHaptics';
+import { playSelectionHaptic, useTableHaptics } from '@/game/useGameHaptics';
 import { usePlayGuard } from '@/game/usePlayGuard';
 import { useGameStore } from '@/stores/game';
 import { ConnectionBanner } from '@/components/ui/ConnectionBanner';
@@ -43,6 +43,8 @@ import { useHandPresentationReady } from './useHandPresentationReady';
 import { useDealPresentation } from './useDealPresentation';
 import { useSecondDealPresentation } from './useSecondDealPresentation';
 import { usePlayPresentation } from './usePlayPresentation';
+import { PLAY_CARD_TRAVEL_MS } from './animationTiming';
+import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
@@ -264,6 +266,7 @@ function TimedSeatLayer({
   topReserve,
   bottomReserve,
   statusByRel,
+  nudge,
   players,
   onProfile,
   quiet,
@@ -280,6 +283,7 @@ function TimedSeatLayer({
   topReserve: number;
   bottomReserve: number;
   statusByRel: Partial<Record<RelativePosition, SeatLine | null>> | undefined;
+  nudge: number;
   players: NonNullable<ReturnType<typeof useGameTableController>['viewModel']>['players'];
   onProfile: (playerId: string | null, persona?: BotPersona | null) => void;
   quiet: boolean;
@@ -314,6 +318,7 @@ function TimedSeatLayer({
       bottomReserve={bottomReserve}
       statusByRel={statusByRel}
       turnByRel={turnByRel}
+      nudge={nudge}
       quiet={quiet}
       levels={levels}
       secondDeal={secondDeal}
@@ -479,15 +484,27 @@ export function GameCanvasTable({
     isPrivateDealerRob ? dealerRobPresentation : null
   );
   const turnTimer = useGameStore((state) => state.turnTimer);
-  const onBlockedPlay = (reason: string) => {
-    if (!controller.isPlayingCard) controller.showActionError('Play card', { reason });
-  };
-  const playPresentation = usePlayPresentation(
-    presented,
-    controller.handlePlayCard,
-    turnTimer,
-    onBlockedPlay
+  // A tap the table did not play: the card shakes, the seat on turn lights, a light tick.
+  const [nudge, setNudge] = useState(0);
+  const playedAt = useRef(0);
+  const { handlePlayCard } = controller;
+  const sendPlay = useCallback(
+    (card: Card) => {
+      playedAt.current = Date.now();
+      return handlePlayCard(card);
+    },
+    [handlePlayCard]
   );
+  const onBlockedPlay = (reason: string) => {
+    const inFlight =
+      controller.isPlayingCard || Date.now() < playedAt.current + PLAY_CARD_TRAVEL_MS;
+    // The deal, the sort and the second deal all count: the cards are still moving.
+    const dealing = presented.dealStage != null;
+    if (!blockedTapNudges(reason, { inFlight, dealing })) return;
+    playSelectionHaptic();
+    setNudge((count) => count + 1);
+  };
+  const playPresentation = usePlayPresentation(presented, sendPlay, turnTimer, onBlockedPlay);
   const model = useMemo(
     () => (held ? { ...playPresentation.model, held } : playPresentation.model),
     [playPresentation.model, held]
@@ -761,6 +778,7 @@ export function GameCanvasTable({
             textures={textures}
             onPlayCard={playCard}
             onBlockedPlay={onBlockedPlay}
+            nudge={nudge}
             topReserve={topReserve}
             bottomReserve={bottomReserve}
             previewSuit={previewSuit}
@@ -777,6 +795,7 @@ export function GameCanvasTable({
             bottomReserve={bottomReserve}
             // The next hand's lines wait for its deal.
             statusByRel={classicEnd ? undefined : statusByRel}
+            nudge={nudge}
             players={viewModel?.players ?? []}
             onProfile={onFace}
             quiet={handResult.result != null && !classicEnd}

@@ -44,3 +44,15 @@ export function turnLight({
   if (now < landsAt) return previousTurn;
   return pending ? null : turn;
 }
+
+/**
+ * A tap the table did not play (PID-364) answers without words: the card
+ * shakes and the seat on turn lights up. A tap while your own card is on its
+ * way, or while the table is still dealing or settling, does nothing at all.
+ */
+export function blockedTapNudges(
+  reason: string,
+  { inFlight, dealing }: { inFlight: boolean; dealing: boolean }
+) {
+  return reason !== 'pending' && !inFlight && !dealing;
+}

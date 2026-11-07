@@ -116,6 +116,8 @@ const PRESS_SLOP = 20;
 const PRESS_MAX_MS = 10_000;
 /** A tapped card that has not flown by then was not played; drop it back. */
 const PRESS_UNPLAYED_MS = 700;
+/** A tap the table did not play shakes its card this far, as a share of its width. */
+const SHAKE = 0.06;
 /** A, J, 10, 5 and 2: the cards that score in Pidro. */
 const POINT_RANKS = new Set([14, 11, 10, 5, 2]);
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
@@ -167,6 +169,8 @@ type Opts = {
   L: TableLayout;
   onPlayCard?: (card: Card) => void;
   onBlockedPlay?: (reason: string) => void;
+  /** Each new count shakes the card last tapped. */
+  nudge?: number;
   enabled: boolean;
   /** Picking trump: the suit under the finger, whose trumps lift in the hand. */
   previewSuit?: Suit | null;
@@ -178,6 +182,7 @@ export function useCardSprites({
   L,
   onPlayCard,
   onBlockedPlay,
+  nudge = 0,
   enabled,
   previewSuit = null,
 }: Opts) {
@@ -209,6 +214,7 @@ export function useCardSprites({
   const modelRef = useRef<TableModel | undefined>(model);
   const onPlayRef = useRef(onPlayCard);
   const onBlockedRef = useRef(onBlockedPlay);
+  const tappedKey = useRef<string | null>(null);
   modelRef.current = model;
   onPlayRef.current = onPlayCard;
   onBlockedRef.current = onBlockedPlay;
@@ -908,6 +914,7 @@ export function useCardSprites({
   }, [leadKey, reduceMotion, leadGlow]);
 
   const playByKey = useCallback((key: string) => {
+    tappedKey.current = key;
     const card = modelRef.current?.yourHand.find((c) => c.key === key)?.card;
     cardTap(() => {
       if (card && onPlayRef.current) onPlayRef.current(card);
@@ -915,7 +922,8 @@ export function useCardSprites({
     });
   }, []);
 
-  const blockedTap = useCallback((code: DiagnosticCode) => {
+  const blockedTap = useCallback((code: DiagnosticCode, key: string) => {
+    tappedKey.current = key;
     blockedCardTap(code);
     onBlockedRef.current?.(code === 'illegal_action' ? 'invalid_action' : code);
   }, []);
@@ -962,6 +970,7 @@ export function useCardSprites({
             const b = ts[i];
             if (Math.abs(e.x - b.x) < b.w / 2 + 6 && Math.abs(e.y - b.y) < b.h / 2 + 6) {
               blockedPress.value = b.code;
+              pressKey.value = b.key;
               break;
             }
           }
@@ -975,7 +984,8 @@ export function useCardSprites({
       .onEnd((_e, success) => {
         'worklet';
         if (success && pressSlot.value >= 0) runOnJS(playByKey)(pressKey.value);
-        else if (success && blockedPress.value) runOnJS(blockedTap)(blockedPress.value);
+        else if (success && blockedPress.value)
+          runOnJS(blockedTap)(blockedPress.value, pressKey.value);
       })
       .onFinalize((_e, success) => {
         'worklet';
@@ -989,6 +999,25 @@ export function useCardSprites({
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playByKey, blockedTap]);
+
+  // A tap the table did not play: its card shakes side to side and settles (PID-364).
+  const shook = useRef(nudge);
+  useEffect(() => {
+    if (nudge === shook.current) return;
+    shook.current = nudge;
+    const slot = keyToSlot.current.get(tappedKey.current ?? '');
+    const x = [...handTargets.value, ...blockedTargets.value].find((t) => t.slot === slot)?.x;
+    if (slot === undefined || x === undefined || reduceMotion) return;
+    const d = cardW * SHAKE;
+    sx[slot].value = withSequence(
+      withTiming(x + d, { duration: 50 }),
+      withTiming(x - d, { duration: 80 }),
+      withTiming(x + d / 2, { duration: 80 }),
+      withTiming(x, { duration: 90 })
+    );
+    // The pools and targets are stable for this mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nudge]);
 
   // Every card's shadow and gold glow, blurred once per card size.
   useKeptBlurs();

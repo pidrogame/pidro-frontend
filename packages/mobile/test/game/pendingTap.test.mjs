@@ -39,7 +39,7 @@ it('retains an unanswered intent, retries on rejoin, accepts once and ignores la
 });
 
 it('refuses explicitly, clears a moot revision, and never replays into the next hand', async () => {
-  for (const outcome of ['refused', 'played', 'turn', 'hand', 'trick', 'cancel']) {
+  for (const outcome of ['refused', 'late', 'played', 'turn', 'hand', 'trick', 'cancel']) {
     let reject;
     let pushes = 0;
     const intent = pendingPlay({
@@ -55,6 +55,8 @@ it('refuses explicitly, clears a moot revision, and never replays into the next 
     intent.rejoin();
     intent.observe({ ...state, state_revision: 9 });
     if (outcome === 'refused') reject({ reason: 'illegal_card' });
+    // The server's stale-turn answer: the client sent on its turn, so the turn moved on.
+    if (outcome === 'late') reject({ reason: 'Not your turn', error_code: 'not_your_turn' });
     if (outcome === 'played')
       intent.observe({
         ...state,
@@ -74,7 +76,7 @@ it('refuses explicitly, clears a moot revision, and never replays into the next 
           ? false
           : outcome === 'refused'
             ? 'illegal_card'
-            : 'not_your_turn'
+            : 'too_late'
     );
     intent.rejoin();
     expect(pushes).toBe(1);

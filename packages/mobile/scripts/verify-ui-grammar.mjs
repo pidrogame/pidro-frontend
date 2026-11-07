@@ -1245,22 +1245,36 @@ const allCases = [
       'auto-pass',
       'auto-bid',
       'late-card',
-      'refused',
+      'late-tap',
+      'away-one',
+      'away-out',
+      'early-tap',
+      'out-tap',
       'spectator',
-      'settling',
     ].map((state) => ({
       name: `table-flaky-${state}-${locale}`,
-      path: `/table-dev?phase=playing&fixture=flaky-${state}&role=${state === 'spectator' ? 'spectator' : 'player'}&locale=${locale}`,
+      path: `/table-dev?phase=playing&fixture=flaky-${state}&role=${state === 'spectator' ? 'spectator' : 'player'}&locale=${locale}${state.endsWith('-out') || state === 'out-tap' ? '&out=you' : ''}${state.endsWith('-out') || state === 'early-tap' || state === 'out-tap' ? '&botTurn=north' : ''}`,
       locale,
       testId:
         state === 'offline'
           ? 'connection-banner'
           : state === 'spectator'
             ? 'seat-south-cards'
-            : 'table-feedback',
+            : state === 'early-tap' || state === 'out-tap'
+              ? 'seat-north'
+              : 'table-feedback',
       flaky: state,
     }))
   ),
+  // PID-364: with reduced motion the card holds still; the seat on turn still lights.
+  {
+    name: 'table-flaky-early-tap-reduced',
+    path: '/table-dev?phase=playing&fixture=flaky-early-tap&role=player&locale=en&botTurn=north',
+    locale: 'en',
+    testId: 'seat-north',
+    flaky: 'early-tap',
+    reducedMotion: true,
+  },
   ...['island-left', 'island-right'].map((safeArea) => ({
     name: `table-playing-${safeArea}`,
     path: `/table-dev?phase=playing&safeArea=${safeArea}`,
@@ -1613,6 +1627,21 @@ const allCases = [
       'compact-landscape',
     ],
   },
+  // PID-364: the server plays Eli's trumps out; his line keeps "Takes the rest"
+  // between the cards, and until the hand's result shows.
+  ...['en', 'sv'].map((locale) => ({
+    name: `table-sweep-${locale}`,
+    path: `/table-dev?deal=hand&sweep=held&count=on&locale=${locale}`,
+    locale,
+    testId: 'seat-east',
+    sweep: 'held',
+  })),
+  ...['on', 'off'].map((count) => ({
+    name: `table-sweep-hold-count-${count}`,
+    path: `/table-dev?deal=hand&sweep=on&count=${count}&locale=en`,
+    testId: 'seat-east',
+    sweep: 'on',
+  })),
   // Everyone else is out: the rest of the hand is yours.
   {
     name: 'table-takes-the-rest',
@@ -2081,6 +2110,83 @@ function boxesOverlap(a, b) {
   );
 }
 
+/**
+ * PID-364: Marcel (North) is on turn. Your tap on a card answers without words:
+ * the card shakes and settles, and his shine lights (a still capture holds it lit).
+ * Out for the hand, a tap on your folded cards does nothing at all.
+ */
+async function assertBlockedTap(page, testCase) {
+  const out = testCase.flaky === 'out-tap';
+  await page.getByTestId(`rendered-hand-card-count-${out ? 0 : 2}`).waitFor({ state: 'attached' });
+  await page.waitForTimeout(1_500);
+  const shine = () =>
+    page
+      .getByTestId('seat-north')
+      .getByTestId('turn-light')
+      .evaluate((light) => Number(getComputedStyle(light).opacity));
+  assert.equal(await shine(), 0.55, `${testCase.name}: North's shine starts quiet`);
+  const hand = (await page.evaluate(() => window.__pidroCardMotion()))
+    .filter((sprite) => sprite.kind === 'hand')
+    .sort((a, b) => a.x - b.x);
+  const spot = out
+    ? await getStableBox(page.getByTestId('seat-south-folded'), page)
+    : { x: hand[0].x - (hand[0].width * hand[0].scale) / 2 + 4, y: hand[0].y - 4 };
+  const key = hand[0]?.key;
+  await page.evaluate((key) => {
+    const xs = [];
+    const started = performance.now();
+    const sample = () => {
+      const sprite = window.__pidroCardMotion().find((s) => s.key === key);
+      if (sprite) xs.push(sprite.x);
+      if (performance.now() - started < 700) requestAnimationFrame(sample);
+      else window.__pidroShake = xs;
+    };
+    requestAnimationFrame(sample);
+  }, key);
+  await page.mouse.click(
+    out ? spot.x + spot.width / 2 : spot.x,
+    out ? spot.y + spot.height / 2 : spot.y
+  );
+  await page.waitForFunction(() => window.__pidroShake);
+  const xs = await page.evaluate(() => window.__pidroShake);
+  assert.equal(await page.getByTestId('table-feedback').count(), 0, `${testCase.name}: no words`);
+  if (out) {
+    assert.equal(xs.length, 0, `${testCase.name}: no card of yours to shake`);
+    assert.equal(await shine(), 0.55, `${testCase.name}: North's shine stays quiet`);
+    return;
+  }
+  const swing = Math.max(...xs.map((x) => Math.abs(x - xs[0])));
+  if (testCase.reducedMotion) assert.equal(swing, 0, `${testCase.name}: the card holds still`);
+  else assert.ok(swing >= 2, `${testCase.name}: the card shook only ${swing.toFixed(1)}px`);
+  assert.ok(Math.abs(xs.at(-1) - xs[0]) < 0.5, `${testCase.name}: the card settled back`);
+  assert.equal(await shine(), 1, `${testCase.name}: North's shine lit`);
+  console.log(`${testCase.name}: shook ${swing.toFixed(1)}px and settled; North lit; no words`);
+}
+
+/** PID-364: Eli's seat line through the sweep, every frame until the result (or 1.5 s held). */
+async function assertSweep(page, testCase) {
+  if (!testCase.sweep) return;
+  const rest = testCase.locale === 'sv' ? 'Tar resten' : 'Takes the rest';
+  await page.getByTestId('seat-east').getByText(rest, { exact: true }).waitFor({ timeout: 20_000 });
+  let lines;
+  if (testCase.sweep === 'on') {
+    await page.waitForFunction(() => window.__pidroSweep.result, null, { timeout: 20_000 });
+    lines = await page.evaluate(() => window.__pidroSweep);
+    assert.ok(lines.cards.length >= 4, `${testCase.name}: the sweep played ${lines.cards}`);
+  } else {
+    lines = { seen: [], cards: [] };
+    for (let at = 0; at < 1_500; at += 100) {
+      lines.seen.push(await page.getByTestId('seat-east').innerText());
+      await page.waitForTimeout(100);
+    }
+  }
+  for (const line of lines.seen)
+    assert.ok(line.includes(rest), `${testCase.name}: Eli's line read ${JSON.stringify(line)}`);
+  console.log(
+    `${testCase.name}: ${JSON.stringify([...new Set(lines.seen)])} through ${lines.cards.join(', ')}`
+  );
+}
+
 async function assertTargetGeometry(page, testCase, viewport) {
   const target = testCase.testId ? page.getByTestId(testCase.testId).first() : null;
   if (target) {
@@ -2118,10 +2224,18 @@ async function assertTargetGeometry(page, testCase, viewport) {
           : 'Time ran out — we played 5♣ for you',
         'auto-pass': sv ? 'Tiden tog slut – vi passade åt dig' : 'Time ran out — we passed for you',
         'auto-bid': sv ? 'Tiden tog slut – vi bjöd 7 åt dig' : 'Time ran out — we bid 7 for you',
-        refused: sv ? 'Det är inte din tur.' : 'It is not your turn.',
-        settling: sv ? 'Ett ögonblick – försök igen strax' : 'One moment — please try again',
+        'late-tap': sv ? 'För sent – sticket gick vidare.' : 'Too late, the trick moved on.',
+        'away-one': sv
+          ? 'Medan du var borta spelades 10♠ åt dig.'
+          : 'While you were away, 10♠ was played for you.',
+        'away-out': sv
+          ? 'Medan du var borta spelades 10♠ och 5♥ åt dig, du är ute den här given.'
+          : "While you were away, 10♠ and 5♥ were played for you, you're out this hand.",
       };
       if (words[testCase.flaky]) assert.equal(await target.innerText(), words[testCase.flaky]);
+      if (testCase.flaky === 'away-out') await page.getByTestId('seat-south-folded').waitFor();
+      if (testCase.flaky === 'early-tap' || testCase.flaky === 'out-tap')
+        await assertBlockedTap(page, testCase);
       if (testCase.flaky === 'spectator') {
         const badge = await page.getByTestId('watching-badge').boundingBox();
         assertInsideViewport('watching badge', badge, viewport);
@@ -8524,6 +8638,9 @@ async function main() {
         if (testCase.tell)
           return (testCase.tellViewports ?? TELL_VIEWPORTS).includes(viewport.name);
         if (testCase.league === 'pin-first-partial') return viewport.name === 'landscape';
+        // Timing, not layout: one phone is enough (PID-364).
+        if (testCase.sweep === 'on' || (testCase.reducedMotion && testCase.flaky))
+          return viewport.name === 'portrait';
         if (testCase.news || testCase.league || testCase.popup)
           return TELL_VIEWPORTS.includes(viewport.name);
         if (
@@ -8541,6 +8658,7 @@ async function main() {
           testCase.scores ||
           testCase.botVoice ||
           testCase.flaky ||
+          testCase.sweep ||
           testCase.startupUpdate ||
           testCase.storeNotice ||
           testCase.photo
@@ -8638,6 +8756,25 @@ async function main() {
         const started = performance.now();
         const page = await context.newPage();
         if (testCase.reducedMotion) await page.emulateMedia({ reducedMotion: 'reduce' });
+        // From the first frame: Eli's line and the cards on the felt until the result (PID-364).
+        if (testCase.sweep === 'on')
+          await page.addInitScript(() => {
+            const sweep = { seen: [], cards: [], result: false };
+            window.__pidroSweep = sweep;
+            const sample = () => {
+              sweep.result = !!document.querySelector(
+                '[data-testid="hand-result"], [data-testid="hand-points"]'
+              );
+              if (sweep.result) return;
+              const line = document.querySelector('[data-testid="seat-east"]')?.innerText;
+              const cards = document.querySelector('[data-testid^="rendered-played-card-count-"]')
+                ?.dataset.testid;
+              if (line != null && sweep.seen.at(-1) !== line) sweep.seen.push(line);
+              if (line != null && cards && sweep.cards.at(-1) !== cards) sweep.cards.push(cards);
+              requestAnimationFrame(sample);
+            };
+            requestAnimationFrame(sample);
+          });
         // Reuse CI's existing tablet shards without resizing any other screen.
         const caseViewport = testCase.lobbyFixture
           ? (viewport.lobbyViewport ?? viewport)
@@ -9302,6 +9439,7 @@ async function main() {
           await assertBotVoice(page, testCase, caseViewport);
           await assertTalk(page, testCase, caseViewport);
           await assertPlayLines(page, testCase, caseViewport);
+          await assertSweep(page, testCase);
           await assertTwoRows(page, testCase, caseViewport);
           await assertUpright(page, testCase, caseViewport);
           if (testCase.locale && testCase.path.includes('game_over')) {

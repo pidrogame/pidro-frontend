@@ -32,7 +32,7 @@ import type {
   ServerGameState,
 } from '@pidro/shared';
 import { TableFeedback, TableSeatDecision, useTableNotices } from '@/components/game/TableFeedback';
-import type { TableNotice } from '@/game/tableNotices';
+import { refusalNotice, type TableNotice } from '@/game/tableNotices';
 import { loadGameCanvasTable } from '@/game/canvas/loadGameCanvasTable';
 import { useGameStore } from '@/stores/game';
 import { useLocale } from '@/i18n';
@@ -121,6 +121,16 @@ const OUT_PLAYERS = {
       { rank: 9, suit: 'clubs' },
     ]),
     south: { hand: OUT_HAND },
+  },
+  // You went out while away (PID-364): your last two cards folded face down.
+  you: {
+    north: { hand: 4 },
+    east: { hand: 4 },
+    west: { hand: 4 },
+    south: cold([
+      { rank: 12, suit: 'hearts' },
+      { rank: 9, suit: 'clubs' },
+    ]),
   },
   lone: {
     north: cold([]),
@@ -627,8 +637,13 @@ const FLAKY_NOTICES: Record<string, TableNotice> = {
       action: { type: 'play_card', card: { rank: 5, suit: 'clubs' } },
     },
   },
-  refused: { variant: 'error', error: { reason: 'not_your_turn' } },
-  settling: { variant: 'warning', key: 'game.tap_wait' },
+  // PID-364: a tap that arrived after the table moved on, and what was played while you were away.
+  'late-tap': refusalNotice({ reason: 'too_late' }),
+  'away-one': { variant: 'warning', away: { cards: [spade(10)], out: false } },
+  'away-out': {
+    variant: 'warning',
+    away: { cards: [spade(10), { rank: 5, suit: 'hearts' }], out: true },
+  },
 };
 
 /** The real notice queue: `timed` replays a burst, otherwise one notice shows until tapped. */
@@ -734,6 +749,7 @@ function TableDevHarness() {
     you?: string;
     kill?: string;
     end?: string;
+    sweep?: string;
     pace?: string;
     invitation?: string;
     botTurn?: Position;
@@ -793,6 +809,7 @@ function TableDevHarness() {
             }
             countHelp={params.count === 'on'}
             own={params.pace === 'own'}
+            sweep={params.sweep === 'on' || params.sweep === 'held' ? params.sweep : undefined}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -864,12 +881,14 @@ function TableDevHarness() {
             dealerLate={fixture === 'dealer-late' ? Number(params.late) || 0 : undefined}
             talk={TALK_FIXTURES[fixture ?? '']}
             talkTurn={
-              fixture?.endsWith('-turn') ||
-              !(
-                TALK_FIXTURES[fixture ?? '']?.offer ||
-                TALK_FIXTURES[fixture ?? '']?.draft ||
-                TALK_FIXTURES[fixture ?? '']?.sheet === 'typing'
-              )
+              // A tap that is not your turn (PID-364): West is on turn.
+              !['flaky-early-tap', 'flaky-out-tap', 'flaky-away-out'].includes(fixture ?? '') &&
+              (fixture?.endsWith('-turn') ||
+                !(
+                  TALK_FIXTURES[fixture ?? '']?.offer ||
+                  TALK_FIXTURES[fixture ?? '']?.draft ||
+                  TALK_FIXTURES[fixture ?? '']?.sheet === 'typing'
+                ))
             }
             talkGuest={fixture === 'talk-person-guest' || fixture === 'talk-guest'}
             talkTeen={fixture === 'talk-teen'}
@@ -1286,7 +1305,7 @@ function RolePreview({
               ? botTurn
               : talkTurn
                 ? 'south'
-                : 'west',
+                : botTurn,
       trump: previewPhase === 'playing' || previewPhase === 'second_deal' ? 'spades' : null,
       dealer: dealerPosition,
       scores: {
@@ -1455,7 +1474,7 @@ function RolePreview({
       store.setTurnTimer({
         timerId: 1,
         scope: 'seat',
-        position: talkTurn ? 'south' : 'west',
+        position: talkTurn ? 'south' : botTurn,
         phase: 'playing',
         durationMs: 30_000,
         transitionDelayMs: 0,
@@ -1960,17 +1979,22 @@ const HAND_ENDS: Record<HandEnd, { bidder: Position; bid: number; ns: number }> 
  * `end=they-made|we-made|we-missed|they-missed`; Tune changes how long
  * the result stays (`showMs=` in the link). `count=on` shows the result's
  * panel; off, Classic's end (PID-332). `pace=own` waits for a tap.
+ * `sweep=on` (PID-364): the others are out of trumps and the server plays
+ * Eli's (East) last four out, one a trick, 500 ms apart, before the result;
+ * `sweep=held` stops after two.
  */
 function HandEndPreview({
   room,
   result,
   countHelp,
   own,
+  sweep,
 }: {
   room: Room;
   result: HandEnd;
   countHelp: boolean;
   own: boolean;
+  sweep?: 'on' | 'held';
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
@@ -2035,6 +2059,11 @@ function HandEndPreview({
       play('north', { rank: 5, suit: 'diamonds' }),
       play('east', heart(7)),
     ];
+    // Eli's trumps, highest first, as the server plays a settled hand out.
+    const swept = [heart(11), heart(7), heart(5), { rank: 5, suit: 'diamonds' } as Card].map(
+      (card) => ({ winner: 'east', cards: [play('east', card)] })
+    );
+    const out = { hand: 0, eliminated: true, folded_count: 0 };
     const scored = (card: Card, points: number, position: Position) => ({
       card,
       points,
@@ -2062,7 +2091,9 @@ function HandEndPreview({
         scored(heart(5), 5, 'west'),
         scored({ rank: 5, suit: 'diamonds' }, 5, 'north'),
       ],
-      tricks: [...earlier, { winner: 'south', cards: [...last, play('south', heart(11))] }],
+      tricks: sweep
+        ? [...earlier, ...swept]
+        : [...earlier, { winner: 'south', cards: [...last, play('south', heart(11))] }],
     };
     const base = {
       variant: 'finnish',
@@ -2136,14 +2167,46 @@ function HandEndPreview({
     store.setYouPosition('south');
     store.setChannelStatus(true);
     store.setLegalActions([]);
-    const timers = frames.map(([at, state]) =>
+    const played: [number, Record<string, unknown>][] = sweep
+      ? [
+          ...swept
+            .slice(0, sweep === 'held' ? 3 : 4)
+            .map((_, done): [number, Record<string, unknown>] => [
+              done * 500,
+              {
+                ...base,
+                phase: 'playing',
+                dealer: 'west',
+                hand_number: 5,
+                current_player: 'east',
+                transition_delay_ms: 500,
+                scores: before,
+                tricks: [...earlier, ...swept.slice(0, done)],
+                current_trick: [],
+                players: {
+                  north: out,
+                  east: { hand: 4 - done },
+                  west: out,
+                  south: { ...out, hand: [] },
+                },
+              },
+            ]),
+          ...(sweep === 'on' ? [[2000, frames[1][1]] as [number, Record<string, unknown>]] : []),
+        ]
+      : frames;
+    const timers = played.map(([at, state]) =>
       setTimeout(() => store.setServerState(state as unknown as ServerGameState), at)
     );
     // Own pace waits for a tap; Tune replays it.
-    if (!own)
-      timers.push(setTimeout(() => setRun((n) => n + 1), 1500 + handResultTiming.showMs + 6_000));
+    if (!own && sweep !== 'held')
+      timers.push(
+        setTimeout(
+          () => setRun((n) => n + 1),
+          played[played.length - 1][0] + handResultTiming.showMs + 6_000
+        )
+      );
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, room, result, countHelp, own]);
+  }, [Table, run, room, result, countHelp, own, sweep]);
 
   return (
     <View style={{ flex: 1 }}>

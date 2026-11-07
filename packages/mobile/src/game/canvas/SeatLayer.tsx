@@ -101,7 +101,8 @@ function avatarFor(
   dealer: boolean,
   line: SeatLine | null,
   turn: SeatTurn | undefined,
-  team: 'us' | 'them'
+  team: 'us' | 'them',
+  nudge = 0
 ): Omit<PlayerAvatarProps, 'size'> {
   // Only a real bot has a persona, whatever status the room gave the seat first.
   const crew = data.seatStatus !== 'vacant' ? data.bot_persona : null;
@@ -132,6 +133,7 @@ function avatarFor(
           endsAt: turn?.endsAt,
           durationMs: turn?.durationMs,
           attention: data.isYou,
+          nudge,
         }
       : null,
     away,
@@ -160,6 +162,8 @@ type Props = {
   bottomReserve?: number;
   statusByRel?: Partial<Record<RelativePosition, SeatLine | null>>;
   turnByRel?: Partial<Record<RelativePosition, SeatTurn>>;
+  /** Counts your taps the table did not play: each lights the seat on turn once. */
+  nudge?: number;
   onProfile?: Partial<Record<RelativePosition, () => void>>;
   /** A hand's result is showing: avatar and name only (PID-236). */
   quiet?: boolean;
@@ -187,6 +191,7 @@ export function SeatLayer({
   bottomReserve = 0,
   statusByRel,
   turnByRel,
+  nudge,
   onProfile,
   quiet = false,
   levels = true,
@@ -468,7 +473,7 @@ export function SeatLayer({
         const seat = quiet
           ? { ...avatarFor(data, false, null, undefined, team), level: null, turn: null }
           : {
-              ...avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team),
+              ...avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team, nudge),
               ...(!levels && { level: null }),
             };
         const holds = !quiet && bid?.seat === rel ? bid.amount : null;

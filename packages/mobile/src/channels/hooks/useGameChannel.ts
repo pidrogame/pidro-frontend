@@ -26,10 +26,15 @@ import { diagnosticAction, diagnosticCode, gameDiagnostics } from '@/diagnostics
 import { pushAttempt } from '@/diagnostics/actions';
 import { diagnosticMetadata } from '@/diagnostics/metadata';
 import { pendingPlay } from '@/features/game/pendingPlay';
+import { awayPlays } from '@/features/game/awayPlays';
 import { randomUUID } from '@/diagnostics/uuid';
 
 let globalGameChannel: Channel | null = null;
 let pendingCard: ReturnType<typeof pendingPlay> | null = null;
+/** Your last card sent and the state it left, unless the server refused it. */
+let sentCard: { card: Card; from: ServerGameState } | null = null;
+/** Cards a "Time ran out" notice named that no state has shown yet. */
+let toldCards: Card[] = [];
 let notifySeatEvent: ((event: SeatEvent) => void) | undefined;
 let gameRefCount = 0;
 let currentTopic: string | null = null;
@@ -255,6 +260,7 @@ export const useGameChannel = ({
         .receive('ok', (resp: unknown) => {
           if (disposed || globalGameChannel !== channel) return;
           const response = resp as Record<string, unknown> | undefined;
+          let away: ReturnType<typeof awayPlays> = null;
 
           // Batch all state updates to avoid navigation context issues
           unstable_batchedUpdates(() => {
@@ -276,6 +282,19 @@ export const useGameChannel = ({
             if (response?.readiness) setReadiness(response.readiness as ReadinessSnapshot);
             const gameState = extractGameState(response);
             if (gameState) {
+              // Back after a drop: say what the table played from your hand meanwhile.
+              const before = useGameStore.getState().serverState;
+              const sent =
+                sentCard &&
+                sentCard.from.hand_number === before?.hand_number &&
+                sentCard.from.game_instance_id === before?.game_instance_id
+                  ? [sentCard.card]
+                  : [];
+              away =
+                before && role === 'player' && position
+                  ? awayPlays(before, gameState, position, { tapped: sent, told: toldCards })
+                  : null;
+              toldCards = [];
               setServerState(gameState);
               observed(gameState);
             }
@@ -293,6 +312,11 @@ export const useGameChannel = ({
               maybeAutoSelectDealer(gameState, legalActions, position ?? youPositionRef.current);
             }
           });
+          if (away) {
+            onSeatEventRef.current?.({ away, variant: 'warning' });
+            // A card played for you settled that turn; the notice says so, the tap stays quiet.
+            pendingCard?.cancel();
+          }
           if (useGameStore.getState().role !== 'player') pendingCard?.cancel();
           else {
             const state = useGameStore.getState().serverState;
@@ -341,6 +365,7 @@ export const useGameChannel = ({
         const gameState = extractGameState(data);
         if (gameState) {
           const legalActions = (data?.legal_actions as LegalAction[] | undefined) ?? [];
+          toldCards = [];
           unstable_batchedUpdates(() => {
             setServerState(gameState);
             observed(gameState);
@@ -401,6 +426,8 @@ export const useGameChannel = ({
         }
 
         if (position && position === youPositionRef.current) {
+          const card = action?.type === 'play_card' ? (action.card as Card | undefined) : undefined;
+          if (card) toldCards.push(card);
           onSeatEventRef.current?.({
             autoTurn: { scope: 'you', action },
             variant: 'warning',
@@ -703,10 +730,18 @@ export function sendCard(card: Card): Promise<boolean> {
     send: () => pushGameAction('play_card', payload, actionId),
   });
   pendingCard = intent;
+  const sent = { card, from: serverState };
+  sentCard = sent;
   intent.rejoin();
-  return intent.promise.finally(() => {
-    if (pendingCard === intent) pendingCard = null;
-  });
+  return intent.promise
+    .catch((error) => {
+      // Refused or too late: the table did not take this card from you.
+      if (sentCard === sent) sentCard = null;
+      throw error;
+    })
+    .finally(() => {
+      if (pendingCard === intent) pendingCard = null;
+    });
 }
 
 export function pushGameAction(event: string, payload: object, actionId?: string) {

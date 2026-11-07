@@ -50,6 +50,15 @@ export const en = {
   "game.auto_you_select_dealer": "Time ran out, so the dealer was picked for you.",
   "game.auto_you_dealer": "Time ran out, so the dealer was picked for you: %{position}.",
   "game.auto_you_acted": "Time ran out, so the game moved on for you.",
+  "game.too_late": "Too late, the trick moved on.",
+  "game.away_played": {
+    one: "While you were away, %{cards} was played for you.",
+    other: "While you were away, %{cards} were played for you.",
+  },
+  "game.away_played_out": {
+    one: "While you were away, %{cards} was played for you, you're out this hand.",
+    other: "While you were away, %{cards} were played for you, you're out this hand.",
+  },
   "game.you": "You",
   "game.your": "Your",
   "game.we": "We",
@@ -245,7 +254,6 @@ export const en = {
   "game.load_description":
     "Your game is still on the server. Try loading the table again, or leave safely.",
   "game.loading": "Loading table…",
-  "game.tap_wait": "One moment — please try again",
   "game.joining": "Joining room…",
   "game.restore_failed": "The table could not be restored",
   "game.restore_description":
@@ -353,6 +361,15 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "game.auto_you_select_dealer": "Tiden gick ut, så givaren valdes åt dig.",
   "game.auto_you_dealer": "Tiden gick ut, så givaren valdes åt dig: %{position}.",
   "game.auto_you_acted": "Tiden gick ut, så spelet gick vidare åt dig.",
+  "game.too_late": "För sent – sticket gick vidare.",
+  "game.away_played": {
+    one: "Medan du var borta spelades %{cards} åt dig.",
+    other: "Medan du var borta spelades %{cards} åt dig.",
+  },
+  "game.away_played_out": {
+    one: "Medan du var borta spelades %{cards} åt dig, du är ute den här given.",
+    other: "Medan du var borta spelades %{cards} åt dig, du är ute den här given.",
+  },
   "game.you": "Du",
   "game.your": "Din",
   "game.we": "Vi",
@@ -550,7 +567,6 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "game.load_description":
     "Ditt spel finns kvar på servern. Försök ladda bordet igen eller lämna det säkert.",
   "game.loading": "Laddar bordet…",
-  "game.tap_wait": "Ett ögonblick – försök igen strax",
   "game.joining": "Ansluter till bordet…",
   "game.restore_failed": "Det gick inte att återställa bordet",
   "game.restore_description":

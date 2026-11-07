@@ -47,6 +47,8 @@ type Props = {
   textures: CardTextures;
   onPlayCard: (card: Card) => void;
   onBlockedPlay?: (reason: string) => void;
+  /** Counts taps the table did not play; each new count shakes the tapped card. */
+  nudge?: number;
   topReserve?: number;
   bottomReserve?: number;
   /** Picking trump: lift the cards this suit would make trump. */
@@ -58,6 +60,7 @@ export default function GameCanvas({
   textures,
   onPlayCard,
   onBlockedPlay,
+  nudge = 0,
   topReserve = 0,
   bottomReserve = 0,
   previewSuit = null,
@@ -85,6 +88,7 @@ export default function GameCanvas({
     L,
     onPlayCard,
     onBlockedPlay,
+    nudge,
     enabled: true,
     previewSuit,
   });
