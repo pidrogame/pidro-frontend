@@ -437,8 +437,11 @@ export function SeatLayer({
                 }
                 fromScale={rel === 'south' ? (L.cardW * handScale(L.profile)) / pileCardW(L) : 1}
                 flip={!seats[rel]?.isYou}
-                // East's ranks lie at the bottom: upright, its newer cards lie higher.
-                at={(i, n) => pileSpot(L, rel, rel === 'east' && !L.front ? n - 1 - i : i, n)}
+                // East's ranks lie at the bottom, and upright phones' West's (PID-381):
+                // there newer cards lie higher.
+                at={(i, n) =>
+                  pileSpot(L, rel, laidPile(L, rel).rot < 0 && !L.front ? n - 1 - i : i, n)
+                }
                 pile={laidPile(L, rel)}
                 gather={laid.step === 'gather'}
                 cardW={pileCardW(L)}
@@ -1060,7 +1063,6 @@ function LaidFan({
   square: boolean;
 }) {
   const n = cards.length;
-  const sideways = rel === 'east' || rel === 'west';
   return (
     <Animated.View
       testID={`lay-down-${rel}`}
@@ -1076,8 +1078,8 @@ function LaidFan({
           fromScale={fromScale}
           flip={flip}
           to={at(i, n)}
-          // Faces lie as played cards do, their tops toward the middle.
-          rot={(rel === 'east' ? -90 : sideways ? 90 : 0) + (square ? 0 : ((i * 37) % 7) - 3)}
+          // Faces lie as their pile's played cards do, so none turns on the way there.
+          rot={pile.rot + (square ? 0 : ((i * 37) % 7) - 3)}
           pile={pile}
           delay={layDownAt(i, n)}
           gather={gather}

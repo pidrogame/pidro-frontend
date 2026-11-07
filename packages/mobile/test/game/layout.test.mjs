@@ -23,7 +23,9 @@ import {
   northSeatBottom,
   packSpot,
   pileCardW,
+  pileSpacing,
   pileSpot,
+  PILE_TRAIL_SCALE,
   playedCardTarget,
   trailSpot,
   trickOnCross,
@@ -85,6 +87,69 @@ describe('played-card piles', () => {
       else if (layout.profile === 'phone-portrait')
         expect(east.x).toBeGreaterThanOrEqual(layout.trick.cx + layout.trick.r);
       else expect(east.x).toBe(layout.trick.cx + layout.trick.r);
+    });
+  }
+});
+
+// PID-381: a seat's earlier cards each show their rank and suit; a long pile
+// closes on its oldest first, never below 0.16 of a card, its newest two kept.
+describe('pileSpacing', () => {
+  const w = 60;
+  const near = (steps, want) => {
+    expect(steps.length).toBe(want.length);
+    steps.forEach((step, i) => expect(step).toBeCloseTo(want[i]));
+  };
+  it('a one-card pile has nothing behind it', () => {
+    expect(pileSpacing(1, 100, w)).toEqual([]);
+    expect(pileSpacing(0, 100, w)).toEqual([]);
+  });
+  it('keeps the full step where the room allows', () => {
+    near(pileSpacing(5, 200, w), [15.6, 15.6, 15.6, 15.6]);
+  });
+  it('closes the oldest first, then the next', () => {
+    // 6 cards: 5 steps of 15.6 = 78 wanted. 74 room: only the oldest gives.
+    near(pileSpacing(6, 74, w), [11.6, 15.6, 15.6, 15.6, 15.6]);
+    // 64 room: 14 over. The oldest and the next close to the floor, the third gives 2.
+    near(pileSpacing(6, 64, w), [9.6, 9.6, 13.6, 15.6, 15.6]);
+  });
+  it('never closes below the floor, nor the newest two', () => {
+    near(pileSpacing(7, 0, w), [9.6, 9.6, 9.6, 9.6, 15.6, 15.6]);
+    near(pileSpacing(3, 0, w), [15.6, 15.6]);
+  });
+});
+
+describe('upright piles: the newest in front, the earlier ones behind (PID-381)', () => {
+  for (const [width, height, insets] of [
+    [390, 844, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [375, 667, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
+  ]) {
+    it(`on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, 60, utilityDockReserve(height));
+      for (const rel of ['north', 'east', 'south', 'west'])
+        for (const count of [1, 3, 5, 6]) {
+          const cards = Array.from({ length: count }, (_, i) =>
+            playedCardTarget(L, rel, i, count, 1)
+          );
+          expect(cards.at(-1).scale).toBe(L.trick.pileScale);
+          for (const c of cards.slice(0, -1))
+            expect(c.scale).toBeCloseTo(L.trick.pileScale * PILE_TRAIL_SCALE);
+          // The newest stays on its point of the circle.
+          const point = { north: [0, -L.trick.r], south: [0, L.trick.r] }[rel];
+          if (point) expect(cards.at(-1).y).toBe(L.trick.cy + point[1]);
+          else expect(Math.abs(cards.at(-1).x - L.trick.cx)).toBeCloseTo(L.trick.across);
+          // Every earlier card shows at least 0.16 of a card; side cards all turn one way.
+          for (let i = 0; i + 1 < count; i++) {
+            const [a, b] = [cards[i], cards[i + 1]];
+            const half = (c) => (L.cardW * c.scale) / 2;
+            const shown =
+              rel === 'east' || rel === 'west'
+                ? a.y + half(a) - (b.y + half(b))
+                : b.x - half(b) - (a.x - half(a));
+            expect(shown).toBeGreaterThanOrEqual(L.cardW * 0.16 - 1e-9);
+            expect(a.rot).toBe(b.rot);
+          }
+        }
     });
   }
 });

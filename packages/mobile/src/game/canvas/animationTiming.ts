@@ -7,6 +7,8 @@ export const HAND_PRESENTATION_TIMEOUT_MS = 2_000;
 export const FOLD_FLIGHT_MS = 360;
 
 export const PLAY_CARD_TRAVEL_MS = 340;
+/** Upright phones: a seat's card settles back into its pile as the next one lands (PID-381). */
+export const PILE_SETTLE_MS = 250;
 // A bounded overshoot settles on the same deadline as the turn light.
 export const PLAY_CARD_CURVE = [0.22, 0.8, 0.3, 1.06] as const;
 export const PLAY_CARD_LIFT = 0.12;

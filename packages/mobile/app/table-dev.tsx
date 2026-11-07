@@ -4,7 +4,7 @@
  * overlay to show with mock data. Native renders directly; web lazy-loads CanvasKit.
  * DevOverlays is pure RN (no Skia) so it's safe to import statically. Throwaway.
  */
-import { useEffect, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Text, View } from 'react-native';
 import { Asset } from 'expo-asset';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -172,21 +172,67 @@ const BOT_TRICKS_TAKEN = [
     two_of_trump: null,
   },
 ];
-const TRICKS: Record<string, { taken: typeof BOT_TRICKS_TAKEN; current: unknown[]; hand: Card[] }> =
-  {
-    full: { taken: [], current: [...BOT_TRICK, play('south', 14)], hand: BOT_TRICK_HAND.slice(1) },
-    third: {
-      taken: BOT_TRICKS_TAKEN,
-      current: [play('south', 5), play('west', 12), play('north', 6), play('east', 11)],
-      hand: [heart(2)],
-    },
-    turning: { taken: BOT_TRICKS_TAKEN, current: [play('east', 11)], hand: [heart(5), heart(2)] },
-    seven: {
-      taken: [],
-      current: [...BOT_TRICK, play('east', 3), play('south', 14)],
-      hand: BOT_TRICK_HAND.slice(1),
-    },
+type FixtureTrick = {
+  taken: typeof BOT_TRICKS_TAKEN;
+  current: unknown[];
+  hand: Card[];
+  out?: boolean;
+  /** Played 2.5 s in: the next trick's lead. */
+  next?: unknown[];
+};
+// `fixture=piles&cards=1|3|5|6` (PID-381): every seat has played `cards`
+// cards this hand, the current trick all four down; at 6 East kept seven
+// trumps and put two into the first trick. `led=east`: East alone has led
+// the current trick, everyone else's last card waits. `you=out`: you went out
+// before the current trick. `next=on`: 2.5 s in, West leads the next trick and
+// its last card settles back (PID-381). Any cards will do: the piles are what
+// is measured.
+const PILE_RANKS = [10, 7, 12, 14, 5, 9, 11, 13, 2, 8, 3, 6, 4];
+const PILE_SUITS = ['hearts', 'spades', 'diamonds', 'clubs'] as const;
+const pileCard = (i: number): Card => ({
+  rank: PILE_RANKS[i % 13],
+  suit: PILE_SUITS[(i + Math.floor(i / 13)) % 4],
+});
+function pileTrick(cards: number, led: boolean, out: boolean, next: boolean): FixtureTrick {
+  let at = 0;
+  const trick = (t: number) =>
+    (['west', 'north', 'east', 'south'] as const).flatMap((player) =>
+      (out && player === 'south' && t === cards - 1) ||
+      (led && player !== 'east' && t === cards - 1)
+        ? []
+        : (player === 'east' && t === 0 && cards === 6 ? [0, 1] : [0]).map(() => ({
+            player,
+            card: pileCard(at++),
+          }))
+    );
+  const tricks = Array.from({ length: cards }, (_, t) => trick(t));
+  return {
+    taken: tricks.slice(0, -1).map((plays, t) => ({
+      cards: plays,
+      winner: (['west', 'north', 'east', 'south'] as const)[t % 4],
+      points: 1,
+      two_of_trump: null,
+    })),
+    current: tricks.at(-1)!,
+    hand: [pileCard(at), pileCard(at + 1), pileCard(at + 2)],
+    out,
+    next: next ? [{ player: 'west', card: pileCard(at + 3) }] : undefined,
   };
+}
+const TRICKS: Record<string, FixtureTrick> = {
+  full: { taken: [], current: [...BOT_TRICK, play('south', 14)], hand: BOT_TRICK_HAND.slice(1) },
+  third: {
+    taken: BOT_TRICKS_TAKEN,
+    current: [play('south', 5), play('west', 12), play('north', 6), play('east', 11)],
+    hand: [heart(2)],
+  },
+  turning: { taken: BOT_TRICKS_TAKEN, current: [play('east', 11)], hand: [heart(5), heart(2)] },
+  seven: {
+    taken: [],
+    current: [...BOT_TRICK, play('east', 3), play('south', 14)],
+    hand: BOT_TRICK_HAND.slice(1),
+  },
+};
 // `invitation=partner|opponent|rules`: in a game with bots, Bertil holds a seat
 // for you (PID-258); `rules` is an older server that does not say as what.
 const BERTIL: SeatInvitation = {
@@ -788,6 +834,8 @@ function TableDevHarness() {
     sheet?: string;
     by?: Position;
     cards?: string;
+    led?: string;
+    next?: string;
   }>();
   const fixture = params.fixture;
   const ruleSet: RuleSet = fixture?.startsWith('louisiana') ? 'louisiana' : 'finnish';
@@ -806,6 +854,18 @@ function TableDevHarness() {
   const autoPlay = params.autoplay === 'true';
   // `sheet=kalle` (PID-340): Kalle's sheet from `Status-Player` over the table.
   const sheet = playerSheetFixture(params.sheet);
+  const piles = useMemo(
+    () =>
+      fixture === 'piles'
+        ? pileTrick(
+            [1, 3, 5, 6].includes(Number(params.cards)) ? Number(params.cards) : 5,
+            params.led === 'east',
+            params.you === 'out',
+            params.next === 'on'
+          )
+        : undefined,
+    [fixture, params.cards, params.led, params.you, params.next]
+  );
   const [isHandReady, setIsHandReady] = useState(false);
   const [dismissed, setDismissed] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -900,8 +960,8 @@ function TableDevHarness() {
             connected={params.connection !== 'lost' && fixture !== 'flaky-offline'}
             bidRound={BID_ROUNDS[params.bids ?? ''] ?? null}
             outPlayers={OUT_PLAYERS[params.out as keyof typeof OUT_PLAYERS] ?? null}
-            botTrick={params.trick === 'bots' || !!TRICKS[params.trick ?? '']}
-            trick={TRICKS[params.trick ?? '']}
+            botTrick={params.trick === 'bots' || !!TRICKS[params.trick ?? ''] || !!piles}
+            trick={piles ?? TRICKS[params.trick ?? '']}
             botCrew={fixture === 'bot-crew'}
             botTurn={params.botTurn}
             botHand={Number(params.botHand) || 4}
@@ -929,6 +989,7 @@ function TableDevHarness() {
             talkTurn={
               // A tap that is not your turn (PID-364): West is on turn.
               !['flaky-early-tap', 'flaky-out-tap', 'flaky-away-out'].includes(fixture ?? '') &&
+              !piles?.out &&
               (fixture?.endsWith('-turn') ||
                 !(
                   TALK_FIXTURES[fixture ?? '']?.offer ||
@@ -1422,7 +1483,9 @@ function RolePreview({
           north: { hand: 5 },
           east: { hand: 5 },
           west: { hand: 5 },
-          south: { hand: trick?.hand ?? BOT_TRICK_HAND },
+          south: trick?.out
+            ? { hand: 0, eliminated: true, revealed_cards: [] }
+            : { hand: trick?.hand ?? BOT_TRICK_HAND },
         },
         highest_bid: { position: 'east', amount: 6 },
         tricks: trick?.taken ?? [],
@@ -1516,7 +1579,12 @@ function RolePreview({
                   { type: 'play_card', card: { rank: 5, suit: 'clubs' } },
                 ]
               : outPlayers || botTrick || details
-                ? (details ? DETAILS_HAND : botTrick ? BOT_TRICK_HAND : OUT_HAND).map((card) => ({
+                ? (details
+                    ? DETAILS_HAND
+                    : botTrick
+                      ? (trick?.hand ?? BOT_TRICK_HAND)
+                      : OUT_HAND
+                  ).map((card) => ({
                     type: 'play_card' as const,
                     card,
                   }))
@@ -1573,6 +1641,23 @@ function RolePreview({
     talkTeen,
     teamsHand,
   ]);
+
+  // `fixture=piles&next=on`: the trick on the table is taken, and West leads the next.
+  useEffect(() => {
+    if (!Table || !trick?.next) return;
+    const timer = setTimeout(() => {
+      const store = useGameStore.getState();
+      store.setServerState({
+        ...store.serverState!,
+        tricks: [
+          ...trick.taken,
+          { cards: trick.current, winner: 'west', points: 1, two_of_trump: null },
+        ],
+        current_trick: trick.next,
+      } as ServerGameState);
+    }, 2_500);
+    return () => clearTimeout(timer);
+  }, [Table, trick]);
 
   // The dealer cut as the server times it: the cut, then the deal 3 s later.
   // The phone is busy for `dealerLate` ms when the cut arrives, as an old

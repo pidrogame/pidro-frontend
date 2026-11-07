@@ -514,30 +514,62 @@ const PILE_SCALE = 0.82;
  * at 390×844, beside a hand of 88pt.
  */
 const PHONE_PILE_SCALE = 0.89;
-/** Upright phones: between the cards of a seat's pile, as a share of a card's width; each shows its rank. */
-const PHONE_PILE_STEP = 0.22;
+/**
+ * Upright phones (PID-381): how much of each earlier card in a seat's pile
+ * shows, as a share of a card's width: its rank and suit. A long pile closes
+ * to PHONE_PILE_LEAST at the least.
+ */
+const PHONE_PILE_STEP = 0.26;
+const PHONE_PILE_LEAST = 0.16;
+/** Upright phones: a seat's earlier cards, behind its newest, as a share of its size. */
+export const PILE_TRAIL_SCALE = 0.8;
+/** Upright phones: between a pile and the next pile, or your hand. */
+const PILE_GAP = 2;
 /** Played cards shrink a little where the trick circle has to. */
 const COMPACT_PILE_SCALE = 0.72;
 const LANDSCAPE_PILE_SCALE = 0.8;
 
+/**
+ * Upright phones (PID-381): how much shows of each earlier card in a pile of
+ * `count`, oldest first, where together they may show `room`. A long pile
+ * closes on its oldest cards first, to PHONE_PILE_LEAST at the least; its
+ * newest two earlier cards keep the full step.
+ */
+export function pileSpacing(count: number, room: number, cardW: number): number[] {
+  const steps = Array.from({ length: Math.max(0, count - 1) }, () => cardW * PHONE_PILE_STEP);
+  let over = steps.length * cardW * PHONE_PILE_STEP - room;
+  for (let i = 0; i < steps.length - 2 && over > 0; i++) {
+    const cut = Math.min(over, cardW * (PHONE_PILE_STEP - PHONE_PILE_LEAST));
+    steps[i] -= cut;
+    over -= cut;
+  }
+  return steps;
+}
+
+/**
+ * Where card `index` of a seat's `count` played cards this hand lies. On
+ * upright phones its newest `live` lie at full size (`trickOnCross`), the
+ * earlier ones behind them a little smaller (PID-381); elsewhere `live` is
+ * not used.
+ */
 export function playedCardTarget(
   L: TableLayout,
   rel: RelativePosition,
   index: number,
-  count: number
+  count: number,
+  live = count
 ) {
   const portrait = L.profile.endsWith('portrait');
   const pileScale = L.trick.pileScale;
-  const spacing =
-    L.profile === 'phone-portrait'
-      ? L.cardW * PHONE_PILE_STEP
-      : Math.min(L.cardW * 0.38, portrait ? 24 : 32);
+  const spacing = Math.min(L.cardW * 0.38, portrait ? 24 : 32);
   const off = index - (count - 1) / 2;
+  const upright = L.profile === 'phone-portrait';
   // Side cards face their owner: the card's top edge points at the table
   // center (east top→left, west top→right), matching the seat rot below.
-  // Landscape phones whose West trail steps down lay West's cards as East's, so
-  // each index shows down the trail and no card turns on its way there (PID-308).
-  const westAsEast = !!L.front && !L.sidesUnder;
+  // Phones whose West trail steps down lay West's cards as East's, so each
+  // index shows down the trail and no card turns on its way there: landscape
+  // phones (PID-308), and upright ones, whose side piles hang down (PID-381).
+  const westAsEast = upright || (!!L.front && !L.sidesUnder);
   const rot =
     rel === 'east' || (rel === 'west' && westAsEast)
       ? -Math.PI / 2
@@ -558,6 +590,45 @@ export function playedCardTarget(
   // Each pile center lands on a cardinal point of the trick circle. Multiple
   // cards spread along the tangent so the ring remains the visual ruler.
   const across = L.trick.across;
+  // Upright phones (PID-381): a seat's newest cards lie at full size, its
+  // earlier ones behind them a little smaller, each showing its rank and
+  // suit. North's and yours run left, centred on their point of the circle,
+  // short of the side piles' earlier cards; East's and West's hang down their
+  // column from the trick's line, the newest on top, short of your hand.
+  if (upright) {
+    const big = L.cardW * pileScale;
+    const small = big * PILE_TRAIL_SCALE;
+    const sideways = rel === 'east' || rel === 'west';
+    const room = sideways
+      ? // Clear of a lifted card, its 3% growth and slight tilt included.
+        L.hand.cy -
+        L.cardH / 2 -
+        handLift(L) -
+        (L.cardH * 0.015 + 2.5) -
+        PILE_GAP -
+        L.trick.cy -
+        big / 2
+      : 2 * (across - (small * CARD_RATIO) / 2 - PILE_GAP) - big;
+    const steps = pileSpacing(count, room, L.cardW);
+    const width = (i: number) => (i >= count - live ? big : small);
+    // From the newest card's centre back to this one's: each card's back
+    // edge lies its step behind the next one's.
+    let back = (width(count - 1) - width(index)) / 2;
+    for (let i = index; i < count - 1; i++) back += steps[i];
+    const shown = steps.reduce((sum, step) => sum + step, 0);
+    // A side pile too long even at the least step rises above the line.
+    const rise = Math.max(0, shown - room);
+    return {
+      x: sideways
+        ? L.trick.cx + (rel === 'east' ? across : -across)
+        : L.trick.cx + shown / 2 - back,
+      y: sideways
+        ? L.trick.cy + back - rise
+        : L.trick.cy + (rel === 'north' ? -L.trick.r : L.trick.r),
+      rot,
+      scale: index >= count - live ? pileScale : pileScale * PILE_TRAIL_SCALE,
+    };
+  }
   const x =
     rel === 'west'
       ? L.trick.cx - across
@@ -571,11 +642,7 @@ export function playedCardTarget(
       ? L.trick.cy - L.trick.r
       : rel === 'south'
         ? L.trick.cy + L.trick.r
-        : L.trick.cy +
-          off * spacing * (rel === 'east' ? -1 : 1) +
-          // Out there, their piles hang down from the trick's line, clear of
-          // their seats above (PID-333).
-          (across > L.trick.r ? ((count - 1) / 2) * spacing : 0);
+        : L.trick.cy + off * spacing * (rel === 'east' ? -1 : 1);
   return { x, y, rot, scale: pileScale };
 }
 
@@ -867,7 +934,8 @@ export function computeLayout(
   // Upright phones lay East's and West's played cards out past the circle
   // where they grew into it (PID-333): as far as the hand's widest points
   // between them ("−14 | 14", about 3.5 figures, PID-332) and a four-card pile
-  // at North or yours need, short of a folded hand beside their stacks.
+  // at North or yours need, as PID-333 spread it (0.22 of a card apart), short
+  // of a folded hand beside their stacks.
   const halfPlayed = (cardH * pileScale) / 2;
   const across =
     profile === 'phone-portrait'
@@ -875,7 +943,7 @@ export function computeLayout(
           Math.max(
             trickR,
             handPointsSize({ cardH }) * 1.75 + TRICK_GAP / 2 + halfPlayed,
-            (3 * PHONE_PILE_STEP * cardW + cardW * pileScale) / 2 + TRICK_GAP / 2 + halfPlayed
+            (3 * 0.22 * cardW + cardW * pileScale) / 2 + TRICK_GAP / 2 + halfPlayed
           ),
           cx -
             Math.max(sideStackInner(cardW, insets.left), sideStackInner(cardW, insets.right)) -

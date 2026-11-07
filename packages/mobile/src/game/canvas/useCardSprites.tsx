@@ -68,6 +68,7 @@ import {
   DEAL_PACKET_TRAVEL_MS,
   DEAL_SORT_DURATION_MS,
   PLAY_CARD_TRAVEL_MS,
+  PILE_SETTLE_MS,
   PLAY_CARD_CURVE,
   PLAY_CARD_LIFT,
   OPPONENT_CARD_LIFT,
@@ -194,6 +195,8 @@ export function useCardSprites({
   const sop = Array.from({ length: MAX }, () => useSharedValue(0));
   const flight = Array.from({ length: MAX }, () => useSharedValue(1));
   const collection = Array.from({ length: MAX }, () => useSharedValue(0));
+  /** How far a shaded card's shade has come in: upright piles fade it in (PID-381). */
+  const sshade = Array.from({ length: MAX }, () => useSharedValue(0));
   /* eslint-enable react-hooks/rules-of-hooks */
 
   const [slots, setSlots] = useState<SlotInfo[]>(() => Array(MAX).fill(null));
@@ -399,32 +402,32 @@ export function useCardSprites({
     // earlier cards this hand trail behind it, smaller and shaded, all still
     // there to be counted. A card from an earlier trick waits on the cross for
     // its seat's next card, shaded too. With "Help me keep count" on, point cards
-    // keep their light wherever they lie.
+    // keep their light wherever they lie. Upright phones keep their piles on the
+    // circle, the latest card in front and the earlier ones behind it (PID-381).
+    const upright = L.profile === 'phone-portrait';
     REL.forEach((rel) => {
       const cards = played[rel] ?? [];
       const onCross = trickOnCross(
         cards.map(trickNo),
         liveTrick,
-        rel === 'south',
+        // Upright, your cards lift in the row, not into your spot: your
+        // card stays in front until your next one lands.
+        rel === 'south' && !upright,
         model.canPlay,
         !!model.seats[rel]?.out
       );
       const live = cards.filter((tc) => trickNo(tc) === onCross);
       const earlier = cards.filter((tc) => trickNo(tc) !== onCross);
       cards.forEach((tc, i) => {
-        let target = playedCardTarget(L, rel, i, cards.length);
+        let target = playedCardTarget(L, rel, i, cards.length, live.length);
         const counted = model.countHelp && POINT_RANKS.has(tc.card.rank);
-        let shade = false;
-        if (L.front) {
-          const li = live.indexOf(tc);
-          if (li >= 0) {
-            target = playedCardTarget(L, rel, li, live.length);
-            shade = onCross !== liveTrick && !counted;
-          } else {
-            target = trailSpot(L, rel, earlier.length - earlier.indexOf(tc), earlier.length);
-            shade = !counted;
-          }
-        }
+        const li = live.indexOf(tc);
+        const shade = (!!L.front || upright) && !counted && (li < 0 || onCross !== liveTrick);
+        if (L.front)
+          target =
+            li >= 0
+              ? playedCardTarget(L, rel, li, live.length)
+              : trailSpot(L, rel, earlier.length - earlier.indexOf(tc), earlier.length);
         const seat = L.seats[rel];
         desired.push({
           key: tc.key,
@@ -651,6 +654,25 @@ export function useCardSprites({
       const playingFlight =
         model.phase === 'playing' && (d.kind === 'played' || slots[sl]?.kind === 'played');
       targets.current.set(sl, signature);
+      // Upright phones (PID-381): a card lying in its pile settles back in
+      // place, smaller and shaded, as its seat's next card lands; in one short
+      // motion, or at once where the table itself moved.
+      const settles =
+        upright &&
+        !isNew &&
+        !firstLoad &&
+        !reduceMotion &&
+        d.kind === 'played' &&
+        slots[sl]?.kind === 'played' &&
+        flight[sl].value === 1;
+      const settleAt = prevLayout.current === L ? PLAY_CARD_TRAVEL_MS : 0;
+      const settle = { duration: PILE_SETTLE_MS, easing: Easing.out(Easing.cubic) };
+      if (isNew || d.blocked !== slots[sl]?.blocked)
+        sshade[sl].value = settles
+          ? withDelay(settleAt, withTiming(d.blocked ? 1 : 0, settle))
+          : d.blocked
+            ? 1
+            : 0;
       if (cutCard && !reduceMotion) {
         const pace = cutPace.current;
         const delay = d.delayOrder * CUT_CARD_STAGGER_MS * pace;
@@ -721,6 +743,11 @@ export function useCardSprites({
           withTiming(d.tscale * 1.035, { duration: 120 }),
           withTiming(d.tscale, { duration: 440 })
         );
+      } else if (settles && targetChanged && !collectTo) {
+        sx[sl].value = withDelay(settleAt, withTiming(d.tx, settle));
+        sy[sl].value = withDelay(settleAt, withTiming(d.ty, settle));
+        srot[sl].value = withDelay(settleAt, withTiming(d.trot, settle));
+        sscale[sl].value = withDelay(settleAt, withTiming(d.tscale, settle));
       } else if (
         !pressed &&
         targetChanged &&
@@ -1067,6 +1094,7 @@ export function useCardSprites({
             w={cardW}
             h={cardH}
             dimmed={s.blocked}
+            shade={sshade[i]}
             winner={s.winner}
             winnerReveal={winnerReveal}
             leading={s.leading}
@@ -1121,6 +1149,7 @@ export function useCardSprites({
                 leading: slot.leading,
                 flight: flight[i].value,
                 opacity: sop[i].value,
+                shade: slot.blocked ? sshade[i].value : 0,
                 collection: collection[i].value,
                 collectTo: slot.collectTo,
               },
@@ -1161,6 +1190,7 @@ function CardSprite({
   w,
   h,
   dimmed,
+  shade,
   winner,
   winnerReveal,
   leading,
@@ -1184,6 +1214,7 @@ function CardSprite({
   w: number;
   h: number;
   dimmed: boolean;
+  shade: SharedValue<number>;
   winner: boolean;
   winnerReveal: SharedValue<number>;
   leading: boolean;
@@ -1250,6 +1281,7 @@ function CardSprite({
           height={h}
           r={r}
           color="rgba(6, 22, 38, 0.52)"
+          opacity={shade}
         />
       )}
       {/* A fine gold rim on the card's own edge, never past it. */}
