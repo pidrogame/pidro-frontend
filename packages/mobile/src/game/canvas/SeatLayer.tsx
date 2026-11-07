@@ -62,6 +62,7 @@ import {
   PACK_STEP,
   northFanStep,
   sideStackStep,
+  uprightSeatReach,
   pileCardW,
   pileSpot,
   seatNameGap,
@@ -293,15 +294,17 @@ export function SeatLayer({
     });
   const besideName = !portrait || tight;
   // Tight North's avatar stays on the table's axis, its name running right;
-  // East and West run toward each other, each up to the middle.
+  // East and West run toward each other, short of North's widest pile (PID-393).
   const tightNorthLeft = width / 2 - size / 2;
+  const tightReach = (rel: RelativePosition) =>
+    uprightSeatReach(L, rel === 'east' ? insets.right : insets.left) - PidroSpacing.sm;
   const seatWidth = (rel: RelativePosition) =>
     tight
       ? {
           maxWidth:
             rel === 'north'
               ? width - insets.right - PidroSpacing.sm - tightNorthLeft
-              : (width - insets.left - insets.right) / 2 - PidroSpacing.xs * 2,
+              : tightReach(rel),
           gap: PidroSpacing.xs,
         }
       : portrait
@@ -327,11 +330,11 @@ export function SeatLayer({
       parts.name.lineHeight +
       parts.status.lineHeight;
   // East and west sit above their side stacks, name and status included, so a
-  // full stack never runs under them (`sideSeatTop`). Tight West shares its
-  // column with the plaque's ticker, and side names run toward North's: both
-  // side seats start below the ticker and North's row. Landscape drops the
-  // stacks below the trick's center line (L.sides), opening a gap under the
-  // seat; on the shortest phones the seats eat into that drop instead.
+  // full stack never runs under them (`sideSeatTop`): on upright phones low
+  // beside the trick, their backs closing up under them where the hand leaves
+  // less room (PID-393). Landscape drops the stacks below the trick's center
+  // line (L.sides), opening a gap under the seat; on the shortest phones the
+  // seats eat into that drop instead.
   const sideSeatPos = {
     top: sideSeatTop(L, {
       tableTop,
@@ -339,22 +342,19 @@ export function SeatLayer({
       headerBottom: insets.top + TABLE_HEADER + PidroSpacing.xs,
     }),
   };
-  // On the shortest phones your seat under the hand leaves a full side stack
-  // no room below its seat: its backs close up to fit (PID-304).
   const handTop = L.hand.cy - L.cardH / 2;
-  const sideReach = tight
-    ? Math.min(stacks.maxHeight, handTop - 12 - (sideSeatPos.top + stackedSeat + PidroSpacing.sm))
-    : stacks.maxHeight;
-  const sideStackCy = portrait
-    ? Math.max(
-        L.sides.cy,
-        Math.min(
-          sideSeatPos.top + stackedSeat + PidroSpacing.sm,
-          Math.max(stacks.top, handTop - 12 - sideReach)
-        ) +
-          sideReach / 2
-      )
-    : L.sides.cy;
+  const sideReach = stacks.maxHeight;
+  const sideStackCy =
+    L.profile === 'tablet-portrait'
+      ? Math.max(
+          L.sides.cy,
+          Math.min(
+            sideSeatPos.top + stackedSeat + PidroSpacing.sm,
+            Math.max(stacks.top, handTop - 12 - sideReach)
+          ) +
+            sideReach / 2
+        )
+      : L.sides.cy;
   // Tight side seats keep their dealer chip, on the avatar's outer corner, on screen.
   const sideInset = tight ? PidroSpacing.sm : portrait ? 0 : 12;
   // Both deals' backs fly in from the pack beside the dealer (PID-394).
@@ -555,11 +555,13 @@ export function SeatLayer({
             nameRoom={
               L.sidesUnder && (rel === 'east' || rel === 'west')
                 ? (L.sideSeatWidth ?? SIDE_SEAT_WIDTH)
-                : !portrait
-                  ? reach(rel)
-                  : rel === 'north' || rel === 'south'
-                    ? centerColumn
-                    : sideColumn - PidroSpacing.xs * 2
+                : tight && (rel === 'east' || rel === 'west')
+                  ? tightReach(rel) - size - PidroSpacing.xs
+                  : !portrait
+                    ? reach(rel)
+                    : rel === 'north' || rel === 'south'
+                      ? centerColumn
+                      : sideColumn - PidroSpacing.xs * 2
             }
             style={[
               tight && rel === 'south'

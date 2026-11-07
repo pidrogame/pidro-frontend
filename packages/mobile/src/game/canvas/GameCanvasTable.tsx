@@ -60,25 +60,24 @@ import { useSettingsStore } from '@/stores/settings';
 import { blockPlayer } from '@/stores/friends';
 import { LastTrick, type LastTrickView } from './LastTrick';
 
-import {
-  TABLE_HEADER,
-  TableChromeBars,
-  headerTop,
-  useTableReserves,
-  useTableSize,
-} from './TableChrome';
+import { TABLE_HEADER, headerTop, useTableReserves, useTableSize } from './TableChrome';
 import { TableSignals, scoreGlow, tablePidro } from './TableSignals';
 import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
 import { HandPoints } from './HandPoints';
 import {
+  AVATAR_SIZE,
   computeLayout,
   handRight,
   northSeatBottom,
   showsTicker,
+  TIGHT_AVATAR,
+  TIGHT_SOUTH_GAP,
   tickerPlacement,
+  TRICK_GAP,
   trumpPicker,
   type HeldStyle,
 } from './layout';
+import { avatarParts } from '@/features/avatar';
 import { RuleSetChip } from '@/components/rules/RuleSet';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
 import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
@@ -86,7 +85,13 @@ import { t, useTranslation } from '@/i18n';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import type { TableNotice } from '@/game/tableNotices';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
-import { TalkBand, TalkLanding, TalkOffer, type TalkPlace } from '@/components/game/TableTalk';
+import {
+  TALK_ROW,
+  TalkBand,
+  TalkLanding,
+  TalkOffer,
+  type TalkPlace,
+} from '@/components/game/TableTalk';
 import { TalkSheet } from '@/components/game/TalkSheet';
 import { talkTable, typingFor, unreadBy, type Said } from '@/features/game/talk';
 import { useTableTalk, type TalkFixture } from '@/game/useTableTalk';
@@ -708,11 +713,30 @@ export function GameCanvasTable({
   );
   // A sheet left open when talk stops (game over, a seat to a bot) must not reopen later.
   if (!talking && talk.sheet) talk.open(null);
-  const talkPlace: TalkPlace = layout.profile.startsWith('tablet')
-    ? 'column'
-    : width > height
-      ? 'corner'
-      : 'band';
+  const talkPlace: TalkPlace = layout.profile.startsWith('tablet') ? 'column' : 'corner';
+  // Upright phones (PID-393): the bubble's centre level with your avatar's,
+  // which sits under your hand on a tight phone, above its name and line
+  // otherwise. What it offers takes the room left of it, short of your avatar
+  // and its turn light.
+  const upright = layout.profile === 'phone-portrait';
+  const yourSize = layout.tight ? TIGHT_AVATAR : AVATAR_SIZE[layout.profile];
+  const yours = avatarParts(yourSize);
+  const bubbleTop = layout.tight
+    ? layout.hand.cy + layout.cardH / 2 + TIGHT_SOUTH_GAP + (yourSize - TALK_ROW) / 2
+    : layout.bottom -
+      PidroSpacing.xs -
+      4 -
+      yours.name.lineHeight -
+      yours.status.lineHeight -
+      (yourSize + TALK_ROW) / 2;
+  const talkRoom = upright
+    ? width -
+      insets.right -
+      PidroSpacing.sm -
+      TALK_ROW -
+      PidroSpacing.sm -
+      (width / 2 + (yours.turn?.radius ?? yourSize / 2) + TRICK_GAP)
+    : width - insets.right - PidroSpacing.sm * 2 - handRight(layout, model.yourHand.length);
   // At a talk table a person's face offers Quiet, Report and Block (PID-329).
   const onFace = (playerId: string | null, persona?: BotPersona | null) => {
     const player = players.find((candidate) => candidate.playerId === playerId);
@@ -730,7 +754,7 @@ export function GameCanvasTable({
             : player.playerId === profile.playerId
         )
       : undefined;
-  // Your turn while typing (PID-318): the keyboard goes, the cards come back, the words wait in the band.
+  // Your turn while typing (PID-318): the keyboard goes, the cards come back, the words wait in the bubble.
   const [turnSeen, setTurnSeen] = useState(false);
   if (isYourTurn !== turnSeen) {
     setTurnSeen(isYourTurn);
@@ -774,9 +798,10 @@ export function GameCanvasTable({
 
   // While you type the table shrinks to fit above the composer, like a stream beside its chat.
   // Your hand may slide under it: you cannot play while typing, and your turn closes the box.
+  // A tight phone's seats are already the smallest tap targets, so its table keeps its size.
   const [dock, setDock] = useState<number | null>(null);
   const fit =
-    talk.sheet === 'typing' && dock != null && height > width
+    talk.sheet === 'typing' && dock != null && height > width && !layout.tight
       ? Math.min(1, (dock - insets.top) / (layout.hand.cy - layout.cardH / 2 - insets.top))
       : 1;
   const reduceMotion = useReducedMotion();
@@ -868,8 +893,7 @@ export function GameCanvasTable({
             <TableSignals model={model} topReserve={topReserve} bottomReserve={bottomReserve} />
           ) : null}
 
-          <TableChromeBars reserves={reserves} />
-          {/* The band shares its slot with the loading bar and the connection banner; they win. */}
+          {/* Talk yields to the loading bar, a notice and the connection banner while they show. */}
           {talking &&
           isChannelJoined &&
           !notice &&
@@ -880,20 +904,14 @@ export function GameCanvasTable({
               pointerEvents="box-none"
               style={[
                 styles.talk,
-                talkPlace === 'band'
+                talkPlace === 'column'
                   ? {
-                      left: insets.left + PidroSpacing.sm,
-                      right: insets.right + PidroSpacing.sm,
-                      bottom: insets.bottom,
-                      height: bottomReserve,
-                      justifyContent: 'center',
+                      right: insets.right + PidroSpacing.lg,
+                      bottom: insets.bottom + PidroSpacing.md,
+                      width: TALK_COLUMN,
                     }
-                  : talkPlace === 'column'
-                    ? {
-                        right: insets.right + PidroSpacing.lg,
-                        bottom: insets.bottom + bottomReserve + PidroSpacing.md,
-                        width: TALK_COLUMN,
-                      }
+                  : upright
+                    ? { right: insets.right + PidroSpacing.sm, top: bubbleTop }
                     : {
                         right: insets.right + PidroSpacing.sm,
                         bottom: insets.bottom + PidroSpacing.xs,
@@ -905,12 +923,9 @@ export function GameCanvasTable({
                   place={talkPlace}
                   dim={isYourTurn}
                   hold={!!talkFixture}
-                  room={
-                    width -
-                    insets.right -
-                    PidroSpacing.sm * 2 -
-                    handRight(layout, model.yourHand.length)
-                  }
+                  room={talkRoom}
+                  anchored={upright}
+                  unread={talk.unread}
                   onSend={talk.send}
                   onOpen={() => talk.open(typing === 'type' ? 'typing' : 'words')}
                 />
@@ -921,6 +936,7 @@ export function GameCanvasTable({
                   lineName={talk.line ? who(talk.line).name : ''}
                   draft={talk.draft}
                   turn={isYourTurn}
+                  unread={talk.unread}
                   onOpen={() =>
                     talk.open(typing === 'type' ? 'typing' : talk.line ? 'log' : 'words')
                   }
@@ -1069,12 +1085,15 @@ export function GameCanvasTable({
               testID="table-loading"
               style={[styles.bannerWrap, reserves.noticeSlot]}
               pointerEvents="none">
-              <LeagueProgress
-                progress={loading ?? textures.loaded}
-                label={t('game.loading')}
-                width={LOADING_BAR_WIDTH}
-                align="center"
-              />
+              {/* Upright it floats over your seat (PID-393): on the panel the dock gave it. */}
+              <View style={!reserves.landscape && styles.noticePanel}>
+                <LeagueProgress
+                  progress={loading ?? textures.loaded}
+                  label={t('game.loading')}
+                  width={LOADING_BAR_WIDTH}
+                  align="center"
+                />
+              </View>
             </View>
           ) : null}
 
@@ -1219,8 +1238,14 @@ const styles = StyleSheet.create({
   },
   fitted: { flex: 1, transformOrigin: 'top center' },
   root: { flex: 1, backgroundColor: Platform.OS === 'android' ? undefined : T.bgDeep },
-  // Elevation too: on Android the dock's elevation 38 would paint over a zIndex alone.
   talk: { position: 'absolute', zIndex: 39, elevation: 39 },
+  noticePanel: {
+    padding: PidroSpacing.sm,
+    borderRadius: PidroRadii.lg,
+    backgroundColor: PidroColors.panel,
+    borderWidth: 1,
+    borderColor: PidroColors.border,
+  },
   bannerWrap: {
     position: 'absolute',
     left: 0,

@@ -121,15 +121,20 @@ export function TalkWord({
   );
 }
 
-/** The quiet speech button: opens the hand of words. `muted` draws talk off (no table has that state yet). */
+/**
+ * The quiet speech button: opens the hand of words. `muted` draws talk off (no
+ * table has that state yet); `unread` dots it while a line waits in the log (PID-393).
+ */
 export function TalkSpeech({
   onPress,
   label,
   muted = false,
+  unread = false,
 }: {
   onPress: () => void;
   label: string;
   muted?: boolean;
+  unread?: boolean;
 }) {
   return (
     <PressableFX
@@ -139,6 +144,7 @@ export function TalkSpeech({
       onPress={onPress}
       style={styles.speech}>
       <TalkIcon size={26} muted={muted} />
+      {unread ? <View testID="talk-speech-dot" pointerEvents="none" style={styles.unread} /> : null}
     </PressableFX>
   );
 }
@@ -224,8 +230,8 @@ export function TalkLanding({
 export type TalkPlace = 'band' | 'corner' | 'column';
 
 /**
- * Where talk sits at the table: the band under the hand on phones, the free
- * corner right of the hand in landscape, beside the hand on an iPad.
+ * Where talk sits: a speech bubble in the bottom right corner on phones,
+ * beside the hand on an iPad, a band in the log's sheet.
  */
 export function TalkBand({
   place,
@@ -234,6 +240,7 @@ export function TalkBand({
   onOpen,
   draft,
   turn,
+  unread,
   prompt,
   testID = 'talk-band',
 }: {
@@ -245,6 +252,8 @@ export function TalkBand({
   draft?: string;
   /** Your turn came while you typed. */
   turn?: boolean;
+  /** Someone said something while the sheet was closed. */
+  unread?: boolean;
   /** What it says when there is nothing to show. */
   prompt?: string;
   testID?: string;
@@ -254,7 +263,13 @@ export function TalkBand({
   const first = turn ? t('talk.turn_first') : '';
   // In a corner the speech button holds the words, and says so.
   if (place === 'corner')
-    return <TalkSpeech label={draft ? `${first} ${draft}`.trim() : empty} onPress={onOpen} />;
+    return (
+      <TalkSpeech
+        label={draft ? `${first} ${draft}`.trim() : empty}
+        onPress={onOpen}
+        unread={unread}
+      />
+    );
   return (
     <PressableFX
       accessibilityRole="button"
@@ -313,9 +328,9 @@ const TAIL: Record<SaidAt, ViewStyle> = {
 };
 
 /**
- * What the game offers to say (PID-328): a word card and up to two coins in
- * place of the band's line, a thin gold line running down for six seconds,
- * the speech button still at the end. On your turn it stays but dims.
+ * What the game offers to say (PID-328): a word card and a coin beside the
+ * speech button, a thin gold line running down for six seconds. On your turn
+ * it stays but dims.
  */
 export function TalkOffer({
   offer,
@@ -325,12 +340,17 @@ export function TalkOffer({
   onSend,
   onOpen,
   room = Infinity,
+  anchored = false,
+  unread,
 }: {
   offer: Offer;
   place: TalkPlace;
   dim: boolean;
-  /** The corner's width free right of your hand: the row drops what does not fit. */
+  /** The corner's width free beside your hand or seat: the row drops what does not fit. */
   room?: number;
+  /** Upright phones (PID-393): the speech button keeps its corner, and `room` lies left of it. */
+  anchored?: boolean;
+  unread?: boolean;
   /** Fixtures hold the gold line still for a screenshot. */
   hold?: boolean;
   onSend: (item: TalkItem) => void;
@@ -346,18 +366,27 @@ export function TalkOffer({
   }, [offer, left, reduceMotion, hold]);
   const drain = useAnimatedStyle(() => ({ transform: [{ scaleX: left.value }] }));
   // Landscape keeps one coin (Chat-Land), then gives up coin, button and card as room runs out.
+  // Upright phones keep the button in its corner: the card and coin go, and the line stays on it.
   const corner = place === 'corner';
   const fits = (width: number) => !corner || room >= width;
+  const button = anchored ? 0 : GAP + TALK_ROW;
+  const worded = fits(MIN_WORD);
   const cardWidth = corner ? Math.min(CORNER_WORD, room) : undefined;
-  const speech = fits(CORNER_WORD + GAP + TALK_ROW) ? (
-    <TalkSpeech label={t('talk.say_else')} onPress={onOpen} />
-  ) : null;
+  const speech =
+    anchored || fits(CORNER_WORD + button) ? (
+      <TalkSpeech
+        label={t(worded ? 'talk.say_else' : 'talk.say')}
+        onPress={onOpen}
+        unread={unread}
+      />
+    ) : null;
   const shownCoins = corner
-    ? fits(CORNER_WORD + 2 * (GAP + TALK_ROW))
+    ? fits(CORNER_WORD + GAP + TALK_ROW + button)
       ? offer.coins.slice(0, 1)
       : []
     : offer.coins;
-  if (corner && room < MIN_WORD) return <TalkSpeech label={t('talk.say')} onPress={onOpen} />;
+  if (!worded && !anchored)
+    return <TalkSpeech label={t('talk.say')} onPress={onOpen} unread={unread} />;
   const coins = shownCoins.map((item) => (
     <TalkCoin
       key={item}
@@ -366,19 +395,13 @@ export function TalkOffer({
       onPress={() => onSend(item)}
     />
   ));
-  const words = (corner ? offer.words.slice(0, 1) : offer.words).map((item) => (
+  const words = (corner ? offer.words.slice(0, worded ? 1 : 0) : offer.words).map((item) => (
     <TalkWord
       key={item}
       item={item}
       onPress={() => onSend(item)}
       big
-      style={
-        place === 'band'
-          ? styles.offerWord
-          : corner
-            ? [styles.cornerWord, { width: cardWidth }]
-            : null
-      }
+      style={corner ? [styles.cornerWord, { width: cardWidth }] : null}
     />
   ));
   return (
@@ -386,10 +409,7 @@ export function TalkOffer({
       testID="talk-offer"
       accessibilityLiveRegion="polite"
       style={[place === 'column' ? styles.column : null, dim && styles.dim]}>
-      <Animated.View
-        pointerEvents="none"
-        style={[styles.drain, place !== 'band' && styles.drainTight, drain]}
-      />
+      <Animated.View testID="talk-offer-line" pointerEvents="none" style={[styles.drain, drain]} />
       {place === 'column' ? (
         <>
           {words}
@@ -413,18 +433,16 @@ const styles = StyleSheet.create({
   dim: { opacity: 0.6 },
   column: { gap: 10 },
   offerRow: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
-  offerWord: { flex: 1, minHeight: TALK_ROW },
   cornerWord: { minHeight: TALK_ROW },
   drain: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: -8,
+    top: -6,
     height: 2,
     backgroundColor: PidroBevel.rim,
     transformOrigin: 'left',
   },
-  drainTight: { top: -6 },
   face: { alignItems: 'center', justifyContent: 'center' },
   card: {
     minHeight: TALK_ROW,
@@ -449,6 +467,17 @@ const styles = StyleSheet.create({
   },
   bigWord: { fontSize: 19, lineHeight: 23 },
   typed: { fontFamily: PidroFonts.ui, fontWeight: '700', fontSize: 15, lineHeight: 20 },
+  unread: {
+    position: 'absolute',
+    top: 7,
+    right: 7,
+    width: 10,
+    height: 10,
+    borderRadius: PidroRadii.full,
+    backgroundColor: PidroColors.countBadge,
+    borderWidth: 1.5,
+    borderColor: PidroBevel.panelDeep,
+  },
   speech: {
     width: TALK_ROW,
     height: TALK_ROW,

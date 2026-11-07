@@ -5,11 +5,10 @@
  * the menu on the right. Portrait reserves it above the north seat; landscape
  * seats North inside the row, between the two (see the Table boards).
  */
-import { Platform, StyleSheet, View, useWindowDimensions, type ViewStyle } from 'react-native';
+import { Platform, useWindowDimensions, type ViewStyle } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
+import { PidroLayout, PidroSpacing } from '@/design/tokens';
 import { SCORE_PLAQUE_HEIGHT } from './Scoreboard';
-import { utilityDockReserve } from './layout';
 
 /** Gap between the safe top and the header row, and the reserve's breathing room. */
 export const HEADER_INSET = PidroSpacing.xs;
@@ -25,9 +24,6 @@ export function headerTop(insetTop: number): number {
 }
 /** The header row's height from the safe top: the taller of the plaque and the menu. */
 export const TABLE_HEADER = HEADER_INSET + Math.max(SCORE_PLAQUE_HEIGHT, PidroLayout.touchTarget);
-// One shared portrait slot below the hand. It can host chat, an adaptive ad,
-// or compact table details, but those modes should never stack vertically.
-export { UTILITY_DOCK_RESERVE } from './layout';
 
 /**
  * The size the table lays itself out in. Android draws the app edge to edge,
@@ -45,62 +41,25 @@ export function useTableSize(): { width: number; height: number } {
 export interface TableReserves {
   landscape: boolean;
   topReserve: number;
+  /** Nothing docks under the hand any more (PID-393): the felt runs to the edge. */
   bottomReserve: number;
   /** Where notices and the connection banner float: never over the header or a seat. */
   noticeSlot: ViewStyle;
 }
 
-export interface TableDockHeights {
-  top?: number;
-  bottom?: number;
-}
-
-export function useTableReserves({
-  top = TABLE_HEADER,
-  bottom,
-}: TableDockHeights = {}): TableReserves {
+export function useTableReserves({ top = TABLE_HEADER }: { top?: number } = {}): TableReserves {
   const { width, height } = useTableSize();
-  bottom ??= utilityDockReserve(height);
   const insets = useSafeAreaInsets();
   const landscape = width > height;
   return {
     landscape,
     topReserve: landscape ? 0 : top,
-    bottomReserve: landscape ? 0 : bottom,
-    // Portrait: the dock under the hand. Landscape: the felt below the header
-    // row, between the side seats, where North no longer sits.
+    bottomReserve: 0,
+    // Portrait: floating at the bottom, over your seat, only while it shows.
+    // Landscape: the felt below the header row, between the side seats, where
+    // North no longer sits.
     noticeSlot: landscape
       ? { top: insets.top + TABLE_HEADER + PidroSpacing.xs }
-      : { bottom: insets.bottom, height: bottom, justifyContent: 'center' },
+      : { bottom: insets.bottom + PidroSpacing.xs },
   };
 }
-
-/** Portrait-only dock frames. Their contents can own the heights passed above. */
-export function TableChromeBars({ reserves }: { reserves: TableReserves }) {
-  const insets = useSafeAreaInsets();
-  if (reserves.landscape) return null;
-
-  return (
-    <>
-      <View
-        testID="table-utility-dock"
-        pointerEvents="none"
-        style={[styles.utilityDock, { height: insets.bottom + reserves.bottomReserve }]}
-      />
-    </>
-  );
-}
-
-const styles = StyleSheet.create({
-  utilityDock: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 38,
-    elevation: 38,
-    backgroundColor: PidroColors.panel,
-    borderTopWidth: 1,
-    borderTopColor: PidroColors.border,
-  },
-});

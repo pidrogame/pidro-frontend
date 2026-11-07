@@ -21,7 +21,7 @@ import {
 } from '@/game/tableNotices';
 import { useTranslation } from '@/i18n';
 import { localizedError } from '@pidro/shared';
-import { PidroSpacing } from '@/design/tokens';
+import { PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { isStillCapture } from '@/utils/stillCapture';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
@@ -186,12 +186,16 @@ export function TableFeedback({
           aria-live="polite"
           aria-atomic
           onPress={onDismiss}
-          style={{
-            width: noticeWidth,
-            minHeight: landscape ? 44 : 52,
-            justifyContent: 'center',
-            paddingVertical: PidroSpacing.xs,
-          }}>
+          style={[
+            {
+              width: noticeWidth,
+              minHeight: landscape ? 44 : 52,
+              justifyContent: 'center',
+              paddingVertical: PidroSpacing.xs,
+            },
+            // Upright it floats over your seat (PID-393): on the panel the dock gave it.
+            !landscape && top === undefined && styles.panel,
+          ]}>
           <PidroText role="metadata" align="center" tone="default">
             {message}
           </PidroText>
@@ -202,6 +206,13 @@ export function TableFeedback({
 }
 
 const styles = StyleSheet.create({
+  panel: {
+    paddingHorizontal: PidroSpacing.sm,
+    borderRadius: PidroRadii.lg,
+    backgroundColor: PidroColors.panel,
+    borderWidth: 1,
+    borderColor: PidroColors.border,
+  },
   noticeOverlay: {
     position: 'absolute',
     left: 0,

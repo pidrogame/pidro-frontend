@@ -532,6 +532,8 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
     landed: [said('north', 'coin_heart'), said('west', 'word_well'), said('east', 'coin_thumb')],
   },
   'talk-line': { line: said('north', 'word_thanks') },
+  // PID-393: North said something while the sheet was closed: the bubble wears a dot.
+  'talk-unread': { line: said('north', 'word_thanks'), unread: true },
   'talk-sheet': { sheet: 'words' },
   // PID-328: what the band offers.
   'talk-offer': { offer: momentOffer('partner_trick') },

@@ -1394,7 +1394,7 @@ const allCases = [
     testId: 'seat-north',
     verifyCatchUp: true,
   },
-  // PID-302: a phone still decoding the cards shows a quiet bar in the dock.
+  // PID-302: a phone still decoding the cards shows a quiet bar in the notice slot.
   {
     name: 'table-loading',
     path: '/table-dev?phase=bidding&role=player&loading=0.4',
@@ -1610,7 +1610,7 @@ const allCases = [
   ]),
   // PID-304: small phones, from Marcel's TCL. ironman3001 deals at West and a
   // long North name holds the bid in one; no seat may touch a played card,
-  // your hand or the chat band, and every corner keeps its one meaning.
+  // or your hand, and every corner keeps its one meaning.
   ...[
     ['west-deals', 'fixture=details&dealer=west&bidder=east', { dealer: 'west', bidder: 'east' }],
     ['north-bid', 'fixture=details&dealer=west&bidder=north', { dealer: 'west', bidder: 'north' }],
@@ -1697,8 +1697,8 @@ const allCases = [
     ...(name === 'trick' && { levels: false }),
   })),
   // PID-333: upright phones draw cards as big as Classic's. Nothing on the
-  // table touches anything else, the chat band stays free, and the card
-  // heights print in dp.
+  // table touches anything else, and the card heights print in dp; PID-393
+  // prints where East and West sit against the trick's line.
   ...[
     ['bidding', 'phase=bidding', 'bidding-window', {}],
     [
@@ -5581,21 +5581,29 @@ const OFFER_WORDS = {
 };
 
 /**
- * What the band offers (PID-328): a word card where the band's line was, clear
- * of your seat (and in landscape of your hand), dimmed but kept on your turn,
- * and one tap says it and puts the band back.
+ * What the game offers to say (PID-328): a word card beside the speech
+ * button, clear of your seat (and in landscape of your hand), dimmed but kept
+ * on your turn, and one tap says it and puts the button back. Upright phones
+ * (PID-393) leave no card's room left of the bubble beside your avatar: the
+ * bubble carries the offer alone, its gold line over it, and a tap opens the
+ * words.
  */
-async function assertTalkOffer(page, testCase, viewport, landscape) {
+async function assertTalkOffer(page, testCase, viewport, corner) {
   const word = OFFER_WORDS[testCase.talk]?.[testCase.locale];
   if (!word) return false;
   const offer = page.getByTestId('talk-offer');
   await offer.waitFor();
+  await offer.getByTestId('talk-offer-line').waitFor();
   const card = offer.getByRole('button', { name: word, exact: true });
-  await card.waitFor();
+  const upright = corner && viewport.height > viewport.width;
+  if (upright) {
+    assert.equal(await card.count(), 0, 'no word card beside your avatar');
+    await offer.getByTestId('talk-speech').waitFor();
+  } else await card.waitFor();
   // An offer's faces are TalkCoin's plain emoji, nothing gold.
   const offered = await offer.locator('[data-testid^="talk-coin_"]').all();
   // Nice trick! brings heart and thumb; Hello and Thanks come alone.
-  if (!landscape && testCase.talk.includes('offer'))
+  if (!corner && testCase.talk.includes('offer'))
     assert.ok(offered.length > 0, 'the offer holds a face');
   for (const face of offered) {
     assert.match(await face.innerText(), /^(👍|❤️|😂|😅|😮)$/u, 'an offered face is an emoji');
@@ -5609,14 +5617,17 @@ async function assertTalkOffer(page, testCase, viewport, landscape) {
   assertInsideViewport('talk offer', box, viewport);
   const you = await getStableBox(page.getByTestId('seat-south'), page);
   assert.ok(!overlaps(box, you), 'the offer keeps clear of your seat');
-  if (!landscape && viewport.width < 600)
-    assert.ok(box.y >= you.y + you.height, 'the offer sits in the band, under your seat');
+  if (upright) await assertBubble(box, you, viewport);
   assert.equal(
     await offer.evaluate((node) => Number(getComputedStyle(node).opacity)),
     testCase.talk === 'offer-turn' ? 0.6 : 1,
     'on your turn the offer dims, and only then'
   );
-  if (testCase.talk === 'offer-tap') {
+  if (testCase.talk === 'offer-tap' && upright) {
+    await offer.getByTestId('talk-speech').click();
+    await page.getByTestId('talk-sheet-typing').getByTestId('talk-word_nice').click();
+    await page.getByTestId('talk-landed').getByText(word).waitFor();
+  } else if (testCase.talk === 'offer-tap') {
     await card.click();
     await offer.waitFor({ state: 'detached' });
     await page.getByTestId('talk-landed').getByText(word).waitFor();
@@ -5624,6 +5635,23 @@ async function assertTalkOffer(page, testCase, viewport, landscape) {
   await waitForScreenshotReady(page);
   await assertMinimumTouchTargets(page, testCase.name, viewport);
   return true;
+}
+
+/**
+ * Upright phones (PID-393): the bubble sits in the bottom right corner, its
+ * centre level with your avatar's. Expo web drops your seat's empty line,
+ * lowering the avatar 14pt where the seat has nothing to say; a phone keeps it.
+ */
+async function assertBubble(box, you, viewport) {
+  assert.ok(
+    Math.abs(viewport.width - 12 - (box.x + box.width)) <= 1,
+    `the bubble sits in the right corner: ${JSON.stringify(box)}`
+  );
+  const avatar = you.y + Math.min(you.height, 56) / 2;
+  assert.ok(
+    Math.abs(box.y + box.height / 2 - avatar) <= 15,
+    `the bubble is level with your avatar: ${JSON.stringify({ box, you })}`
+  );
 }
 
 const PERSON_SHEETS = { person: 'person', 'person-guest': 'person', report: 'report' };
@@ -5717,7 +5745,7 @@ const DRAFT = 'Nice one with that five';
  * closes, refused words stay with "Try other words", and your turn closes the
  * box with the words waiting in the band.
  */
-async function assertTalkTyping(page, testCase, viewport, landscape) {
+async function assertTalkTyping(page, testCase, viewport, corner) {
   const state = testCase.talk;
   const sv = testCase.locale === 'sv';
   if (['type', 'guest', 'teen'].includes(state)) {
@@ -5767,9 +5795,9 @@ async function assertTalkTyping(page, testCase, viewport, landscape) {
       await page.getByTestId('talk-landed').getByText(DRAFT).waitFor();
     }
   } else if (state === 'typing-turn') {
-    // Your turn closed the box; the words wait in the band, or in a corner's speech button.
+    // Your turn closed the box; the words wait in the iPad's band, or in a phone's speech button.
     assert.equal(await page.getByTestId('talk-sheet-typing').count(), 0, 'the box closed');
-    if (landscape) {
+    if (corner) {
       const speech = page.getByTestId('talk-speech');
       await speech.waitFor();
       assert.equal(await speech.getAttribute('aria-label'), `Your turn first. ${DRAFT}`);
@@ -5785,29 +5813,40 @@ async function assertTalkTyping(page, testCase, viewport, landscape) {
 }
 
 /**
- * Table talk (PID-114). The band sits under your seat and never moves the table,
- * a landing stays clear of every seat's cards, the hand of words fits without
- * scrolling, and one tap sends and closes it.
+ * Table talk (PID-114). A phone's speech bubble sits in the corner (PID-393),
+ * an iPad's band beside the hand; neither moves the table. A landing stays
+ * clear of every seat's cards, the hand of words fits without scrolling, and
+ * one tap sends and closes it.
  */
 async function assertTalk(page, testCase, viewport) {
   if (!testCase.talk) return;
-  // Phones on their side keep a speech button in the corner; an iPad keeps the band beside the hand.
-  const landscape = viewport.width > viewport.height && viewport.height < 600;
-  if (await assertTalkOffer(page, testCase, viewport, landscape)) return;
+  // Phones keep a speech bubble in the corner; an iPad keeps the band beside the hand.
+  const corner = Math.min(viewport.width, viewport.height) < 600;
+  if (await assertTalkOffer(page, testCase, viewport, corner)) return;
   if (await assertTalkPerson(page, testCase, viewport)) return;
-  if (await assertTalkTyping(page, testCase, viewport, landscape)) return;
-  // The table's own; the log's sheet holds a second band.
-  const opener = page.getByTestId(landscape ? 'talk-speech' : 'talk-band').first();
+  if (await assertTalkTyping(page, testCase, viewport, corner)) return;
+  // The table's own; the log's sheet holds a band.
+  const opener = page.getByTestId(corner ? 'talk-speech' : 'talk-band').first();
   await opener.waitFor();
   const openerBox = await getStableBox(opener, page);
   assertInsideViewport('talk opener', openerBox, viewport);
   const you = await getStableBox(page.getByTestId('seat-south'), page);
-  if (!landscape && viewport.width < 600)
-    assert.ok(openerBox.y >= you.y + you.height, 'the band sits under your seat');
+  if (corner && viewport.height > viewport.width) await assertBubble(openerBox, you, viewport);
   assert.ok(!overlaps(openerBox, you), 'talk keeps clear of your seat');
-  // Landscape keeps only the speech button in its corner; it opens the log.
-  if (testCase.talk === 'line' && !landscape)
+  // Phones keep only the speech bubble in their corner; it opens the log.
+  if (testCase.talk === 'line' && !corner)
     await opener.getByText(testCase.locale === 'sv' ? 'Tack!' : 'Thanks!').waitFor();
+  // A dot while a line waits unread; opening the log reads it. Without one, no dot.
+  assert.equal(
+    await opener.getByTestId('talk-speech-dot').count(),
+    corner && testCase.talk === 'unread' ? 1 : 0,
+    'the bubble wears a dot only while a line waits unread'
+  );
+  if (testCase.talk === 'unread' && corner) {
+    await opener.click();
+    await page.getByTestId('talk-sheet-typing').waitFor();
+    assert.equal(await page.getByTestId('talk-speech-dot').count(), 0, 'open, the dot goes');
+  }
   if (testCase.talk === 'quiet' || testCase.talk === 'send')
     assert.equal(await page.getByTestId('talk-landed').count(), 0, 'nothing has landed yet');
   if (testCase.talk === 'send') {
@@ -5868,8 +5907,8 @@ async function assertTalk(page, testCase, viewport) {
       ['Jocke: Love it', 'You: Ha'].sort(),
       'each landing speaks its word'
     );
-    // Phones on their side keep only the speech button; elsewhere the band says You 😂.
-    if (!landscape) {
+    // Phones keep only the speech button; an iPad's band says You 😂.
+    if (!corner) {
       const band = page.getByTestId('talk-band').first();
       await band.getByText('😂').waitFor();
       assert.match(await band.getAttribute('aria-label'), /Ha/);
@@ -6331,7 +6370,7 @@ async function assertPlayLines(page, testCase, viewport) {
 }
 
 // PID-304: each seat (avatar, name, status and corner badges) keeps off the
-// others, every played card, your hand and the chat band under it; the dealer
+// others, every played card and your hand; the dealer
 // chip sits bottom left, the winning bid top right at the bot badge's size.
 // Tight phones show no ticker or Last trick: the score panel opens the log.
 const STATUS_SEATS = {
@@ -6482,12 +6521,6 @@ async function assertSmallTable(page, testCase, viewport) {
   const rest = await page.getByTestId('player-hand-top').boundingBox();
   hand.push({ ...hand[0], y: rest.y, height: Math.max(...hand.map((h) => h.height)) });
   const others = [...cards, { ...union(hand), label: 'your hand' }];
-  const dock = page.getByTestId('table-utility-dock');
-  if (await dock.count()) {
-    const box = await getStableBox(dock.first(), page);
-    others.push({ ...box, label: 'the chat band' });
-    assert.ok(apart(union(hand), box), `${testCase.name}: your hand reaches the chat band`);
-  }
   const rels = Object.keys(seats);
   for (const [i, a] of rels.entries()) {
     for (const b of rels.slice(i + 1)) {
@@ -6841,9 +6874,10 @@ async function assertSettle(page, testCase, viewport, reduced) {
 }
 
 // PID-333: on upright phones every seat (its badges included), back fan,
-// played card, throw, the trump mark, your hand and the chat band keep off
-// one another; the bid window and hand result keep off your hand and the
-// band. The rectangles and the drawn card heights print in dp.
+// played card, throw, the trump mark and your hand keep off one another; the
+// bid window and hand result keep off your hand. The rectangles and the drawn
+// card heights print in dp, and (PID-393) where East and West sit against
+// the trick's line.
 async function assertUpright(page, testCase, viewport) {
   if (!testCase.upright) return;
   const {
@@ -6936,11 +6970,19 @@ async function assertUpright(page, testCase, viewport) {
     assertInsideViewport(`${testCase.name} your hand`, hand, viewport);
     table.push([hand]);
   }
-  const dock = named(
-    'the chat band',
-    await getStableBox(page.getByTestId('table-utility-dock').first(), page)
-  );
-  table.push([dock]);
+  // PID-393: East's and West's backs end TRICK_GAP above a lifted card of yours.
+  const cardH = cardSize(viewport.width, viewport.height) * (110 / 78);
+  const rest = hand ? (await page.getByTestId('player-hand-top').boundingBox()).y : Infinity;
+  const lifted = rest - Math.min(16, cardH * 0.14) - (cardH * 0.015 + 2.5);
+  for (const rel of ['east', 'west']) {
+    const backs = await images(`seat-${rel}-cards`);
+    if (!backs.length) continue;
+    const bottom = Math.max(...backs.map((b) => b.y + b.height));
+    assert.ok(
+      bottom <= lifted - TRICK_GAP + 1,
+      `${testCase.name}: ${rel}'s backs reach a lifted card of yours in ${viewport.name}: ${bottom} > ${lifted} - ${TRICK_GAP}`
+    );
+  }
   if (mark) {
     const center = await page.getByTestId('table-trick-center').boundingBox();
     const size = cardSize(viewport.width, viewport.height) * TRUMP_MARK;
@@ -6967,10 +7009,20 @@ async function assertUpright(page, testCase, viewport) {
   const closest = pairs.reduce((min, pair) => (pair[2] < min[2] ? pair : min));
   const dp = (v) => v.toFixed(1).padStart(6);
   const tall = (s) => (s.height * s.scale).toFixed(1);
+  // PID-393: where East's and West's avatars sit against the trick's line, and their backs' step.
+  const line = (await page.getByTestId('table-trick-center').boundingBox())?.y;
+  const sides = ['west', 'east'].map((rel) => {
+    const seat = table.flat().find((b) => b.label === `${rel}'s seat`);
+    return `${rel} ${(seat.y + Math.min(seat.height, 56) / 2 - line).toFixed(1)}`;
+  });
+  const westBacks = (await images('seat-west-cards')).map((b) => b.y).sort((a, b) => a - b);
+  const step =
+    westBacks.length > 1 ? (westBacks.at(-1) - westBacks[0]) / (westBacks.length - 1) : 0;
   console.log(
     [
       `upright ${testCase.name} ${viewport.name} (${viewport.width}×${viewport.height}), in dp:`,
       `  card heights: your hand ${held.length ? held[0].height.toFixed(1) : '–'}, played ${cards.length ? tall(cards[0]) : '–'}`,
+      `  side avatars from the trick's line (y ${line?.toFixed(1)}): ${sides.join(', ')}; west's backs ${westBacks.length} at ${step.toFixed(1)} apart`,
       ...table
         .flat()
         .map(
@@ -6991,8 +7043,8 @@ async function assertUpright(page, testCase, viewport) {
   }
   if (result) assert.equal(windows.length, 1, `${testCase.name}: the hand result shows`);
   for (const w of windows)
-    for (const b of [hand ?? dock, dock, ...(packBox ? [packBox] : [])])
-      assert.ok(gap(w, b) >= 0, `${testCase.name}: ${w.label} overlaps ${b.label}`);
+    for (const b of [hand, packBox])
+      if (b) assert.ok(gap(w, b) >= 0, `${testCase.name}: ${w.label} overlaps ${b.label}`);
 }
 
 // Folded backs stay in their seat's hand area, never on any Skia played card,
@@ -7540,20 +7592,9 @@ async function assertSeatPlacement(page, viewport) {
     );
   }
 
-  if (portrait) {
-    const utilityDock = page.getByTestId('table-utility-dock').first();
-    await utilityDock.waitFor({ state: 'visible', timeout: 20_000 });
-    const dockBox = await getStableBox(utilityDock, page);
-    if (!dockBox) throw new Error('portrait utility dock has no geometry');
-    assertInsideViewport('portrait utility dock', dockBox, viewport);
-    if (Math.abs(dockBox.y + dockBox.height - viewport.height) > 2) {
-      throw new Error(`portrait utility dock is not bottom-anchored: ${JSON.stringify(dockBox)}`);
-    }
-    if (seats.south.y + seats.south.height > dockBox.y - 4) {
-      throw new Error(
-        `seat-south overlaps the portrait utility dock: south=${JSON.stringify(seats.south)} dock=${JSON.stringify(dockBox)}`
-      );
-    }
+  // PID-393: nothing docks under your seat any more; the felt runs to the edge.
+  if (portrait && (await page.getByTestId('table-utility-dock').count())) {
+    throw new Error('a portrait table still docks a panel under the hand');
   }
 
   // Portrait: North and South own a centered name column; East and West share

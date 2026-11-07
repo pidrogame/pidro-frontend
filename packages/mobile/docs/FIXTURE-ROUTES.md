@@ -97,7 +97,9 @@ Upright phones draw cards as big as Classic's (PID-333). Grammar cases
 `table-upright-bidding|second-deal|trick|hand-end|hand-classic` (`phase=bidding`,
 `deal=draw&holdMs=600000`, `trick=full`, `deal=hand&count=on`, and Classic's end)
 check at 390×844 and 375×667 that no seat, back fan, pile, throw, the trump
-mark, your hand or the chat band touches another, and print the card heights.
+mark or your hand touches another, that East's and West's backs end TRICK_GAP
+above a lifted card of yours, and print the card heights and (PID-393) where
+East's and West's avatars sit against the trick's line.
 
 PID-381, upright phones: each seat's newest card lies in front at full size,
 its earlier cards this hand behind it at 0.8 of that and shaded (point cards
@@ -174,18 +176,24 @@ All run at 390×844, 375×667,
 not the real people's biographies or a guarantee about their bidding strategy.
 
 Table talk (PID-114) uses `/table-dev?fixture=talk-quiet|landed|coin|line|sheet|log&locale=en|sv`:
-four people at the table (Bengt, Antti, Jocke, Mikko), so the band shows. `landed` has your
-word at your seat, `coin` a coin at North and East and a word at West, `line` the band's last
-line after a landing fades, `sheet` the hand of words, `log` what was said this game. A tap
-in a fixture lands at once and sends nothing. `table-talk-*` checks the band under your seat,
-landings clear of every seat's cards, a sheet with no scrolling and one tap that sends and
-closes it, at 390×844, 375×667, 844×390, 640×360 and both iPad sizes.
+four people at the table (Bengt, Antti, Jocke, Mikko), so talk shows: on phones a speech
+bubble in the bottom right corner, upright level with your avatar (PID-393), on an iPad a band
+beside the hand. `landed` has your word at your seat, `coin` a coin at North and East and a
+word at West, `line` the last line after a landing fades, `unread` the same line come while
+the sheet was closed (the bubble wears a dot until it opens), `sheet` the hand of words, `log`
+what was said this game. A tap in a fixture lands at once and sends nothing. `table-talk-*`
+checks the bubble in its corner, landings clear of every seat's cards, a sheet with no
+scrolling and one tap that sends and closes it, at 390×844, 375×667, 844×390, 640×360 and
+both iPad sizes.
 
-What the band offers (PID-328) is `fixture=talk-offer` (your partner's trick: Nice trick!,
+What talk offers (PID-328) is `fixture=talk-offer` (your partner's trick: Nice trick!,
 heart, thumb), `talk-offer-turn` (the same on your turn, dimmed), `talk-reply` (Antti said
 Well played: Thanks!, heart) and `talk-start` (Hello!, Good luck). In a fixture the gold line
 holds still and the offer stays. Landscape phones keep the card, one coin and the speech button
 right of your hand, and drop the coin, then the button, where the hand leaves less room.
+Upright phones keep the bubble in its corner and offer a card and a coin only in the room left
+of it beside your avatar, which phones under about 460pt wide do not have: there the bubble
+carries the offer alone, the gold line over it (PID-393).
 
 A face at the table (PID-329) is `fixture=talk-person` (Antti's sheet: Quiet, Report, Block),
 `talk-person-guest` (a guest's, without Block), `talk-report` (the one question; a tap on a
@@ -196,7 +204,7 @@ Well played neither lands nor stays as the line). `table-talk-face-tap` starts f
 Typing (PID-318) is `fixture=talk-type` (an adult's empty composer, faces and words above the box),
 `talk-guest` (Want to type? Make a free account), `talk-teen` (nothing about typing),
 `talk-typing` (the box, a draft in it, and who will not see it: Antti), `talk-typing-turn`
-(your turn closed the box; the draft waits in the band) and `talk-filtered` (Send is refused:
+(your turn closed the box; the draft waits in the speech bubble) and `talk-filtered` (Send is refused:
 Try other words, and the draft stays). Everyone but Antti reads typed talk in these fixtures.
 
 Friends locale previews use `/ui-dev?state=friends&fixture=added-you&locale=sv`
@@ -300,7 +308,7 @@ and your turn `/table-dev?phase=playing&role=player&trick=bots&names=long&count=
 Grammar cases `table-small-west-deals`, `table-small-north-bid` and
 `table-small-your-turn` run at 390×844, 360×780 (Android 24/48 insets),
 360×640 and both landscapes, and fail when a seat (its badges included)
-touches another seat, a played card, your hand or the chat band.
+touches another seat, a played card or your hand.
 `/table-dev?deal=hand` shows the dealer chip sliding from West to North.
 
 PID-305, landscape phones: Classic's two rows per seat, one card size. Each
@@ -369,7 +377,8 @@ the top-level blocks never overlap, and that nothing leaves the screen, at
 The table's header is one row: the score plaque left, the menu right
 (`TABLE_HEADER` in `TableChrome.tsx`). Portrait reserves it above the north seat;
 landscape seats North inside it. Notices and the Reconnecting… banner share one
-slot (`useTableReserves().noticeSlot`): the dock under the hand in portrait, the
+slot (`useTableReserves().noticeSlot`): floating at the bottom over your seat in
+portrait, on the panel the old dock gave them, only while one shows (PID-393); the
 felt below the header in landscape, below the toolbar in the waiting room. The
 grammar fails when the header, a notice or a protected window covers the north
 seat or its cards.

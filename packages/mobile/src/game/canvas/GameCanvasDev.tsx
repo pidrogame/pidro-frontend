@@ -18,7 +18,7 @@ import { HandResultPanel, useHandResult, viewerOf } from './HandResult';
 import { Scoreboard } from './Scoreboard';
 import { handHistory } from './DevOverlays';
 import { TableSettings } from './TableSettings';
-import { TableChromeBars, headerTop, useTableReserves, useTableSize } from './TableChrome';
+import { headerTop, useTableReserves, useTableSize } from './TableChrome';
 import { computeLayout, showsTicker, tickerPlacement } from './layout';
 import { useCardTextures } from './cardTextures';
 import { buildTableModel } from './tableModel';
@@ -785,7 +785,6 @@ export default function GameCanvasDev({
               }
         }
       />
-      <TableChromeBars reserves={reserves} />
       {handResult.result ? (
         <HandResultPanel
           key={handResult.result.hand.hand_number}

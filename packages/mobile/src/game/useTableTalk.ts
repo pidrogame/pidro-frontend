@@ -25,6 +25,9 @@ import { playActionHaptic } from './useGameHaptics';
 /** The hand of words, the game's log, or a face tapped at the table (PID-329). */
 export type TalkSheet = 'words' | 'typing' | 'log' | 'person' | 'report' | 'reported';
 
+/** The sheets that show what was said, or answer it: opening one reads the log. */
+const READS: readonly TalkSheet[] = ['words', 'typing', 'log'];
+
 export interface TableTalk {
   /** What each seat shows right now. */
   landed: Partial<Record<Position, Landed>>;
@@ -32,6 +35,8 @@ export interface TableTalk {
   line: Said | null;
   /** What was said this game, on this device only. */
   log: Said[];
+  /** Someone else said something while no sheet of words was open (PID-393). */
+  unread: boolean;
   sheet: TalkSheet | null;
   /** Whose face was tapped, for the person and report sheets. */
   person: string | null;
@@ -67,6 +72,7 @@ export interface TalkFixture {
   landed?: Said[];
   line?: Said | null;
   log?: Said[];
+  unread?: boolean;
   sheet?: TalkSheet | null;
   person?: string;
   offer?: Offer | null;
@@ -95,9 +101,11 @@ export function useTableTalk(
   const [log, setLog] = useState<Said[]>(fixture?.log ?? []);
   const [sheet, setSheet] = useState<TalkSheet | null>(fixture?.sheet ?? null);
   const [person, setPerson] = useState<string | null>(fixture?.person ?? null);
+  const [unread, setUnread] = useState(fixture?.unread ?? false);
   const open = useCallback((next: TalkSheet | null, who?: string) => {
     setSheet(next);
     if (who) setPerson(who);
+    if (next && READS.includes(next)) setUnread(false);
   }, []);
   const [offer, setOffer] = useState<Offer | null>(fixture?.offer ?? null);
   const [quiet, setQuiet] = useState<string[]>(fixture?.quiet ?? []);
@@ -106,9 +114,11 @@ export function useTableTalk(
   const pace = useRef(FRESH_PACE);
   const where = useRef({ ...at, offered: false });
   const offerTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const reading = useRef(false);
   useEffect(() => {
     where.current = { ...at, offered: offer != null };
     quietRef.current = quiet;
+    reading.current = sheet != null && READS.includes(sheet);
   });
   // Held on this device, gone with the game: a rematch starts a clean log.
   const [game, setGame] = useState(you.game);
@@ -118,6 +128,7 @@ export function useTableTalk(
     setLine(null);
     setLog([]);
     open(null);
+    setUnread(false);
     setOffer(null);
     setQuiet([]);
     setDraft('');
@@ -177,6 +188,7 @@ export function useTableTalk(
       const said = saidFrom(payload);
       if (!said || quietRef.current.includes(said.userId)) return;
       show(said);
+      if (said.userId !== you.userId && !reading.current) setUnread(true);
       // The other three may answer what someone said.
       if (said.userId !== you.userId) offerNow(replyOffer(said));
     });
@@ -258,6 +270,7 @@ export function useTableTalk(
     landed: shown,
     line: line && heard(line) ? line : null,
     log: log.filter(heard),
+    unread,
     sheet,
     person,
     offer,

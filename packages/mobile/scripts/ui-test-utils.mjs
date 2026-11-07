@@ -39,6 +39,8 @@ export const talkCases = [
   'face',
   'coin',
   'line',
+  // PID-393: a line came while the sheet was closed; the bubble wears a dot.
+  'unread',
   'sheet',
   'log',
   'send',

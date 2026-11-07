@@ -54,15 +54,19 @@ export type TableLayout = {
   sidesUnder?: boolean;
   /** How wide those side seats are. */
   sideSeatWidth?: number;
-  /** Vertical center of the east and west card-back stacks. */
-  sides: { cy: number };
+  /**
+   * Vertical center of the east and west card-back stacks. Upright phones
+   * (PID-393): `seat` is the center of their avatars, `reach` how tall their
+   * stacks draw.
+   */
+  sides: { cy: number; seat?: number; reach?: number };
   seats: Record<RelativePosition, Seat>;
   hand: { cx: number; cy: number; maxWidth: number };
   /** The table's top edge: under the safe top and, upright, the header row. */
   top: number;
   /** The safe-area insets it was laid out in. */
   insets: Insets;
-  /** The table's lowest edge: above the home indicator and anything docked under it. */
+  /** The table's lowest edge: above the home indicator. */
   bottom: number;
 };
 
@@ -74,12 +78,18 @@ const CARD_RATIO = 110 / 78; // from the legacy card art (spike)
  */
 const LANDSCAPE_SIDE_DROP = 16;
 /**
- * Portrait lowers East and West a little below the trick's center line, as a
- * share of a card's height, so the three other players stop reading as one
- * row across the top. Only as far as the hand allows; their backs stay in
+ * iPads upright lower East and West a little below the trick's center line,
+ * as a share of a card's height, so the three other players stop reading as
+ * one row across the top. Only as far as the hand allows; their backs stay in
  * full view below them, so they can still be counted.
  */
 const PORTRAIT_SIDE_DROP = 0.45;
+/**
+ * Upright phones (PID-393): the least step between East's or West's backs, as
+ * a share of a back, at which six still count at a glance. A stack closes to
+ * it before its seat rises.
+ */
+const SIDE_STACK_LEAST = 0.3;
 /**
  * Portrait North, top to bottom, as SeatLayer draws it: a gap, the fan of
  * backs, a gap, then the seat (avatar, level chip, name and status).
@@ -311,7 +321,8 @@ const sideStackReach = (cardW: number) =>
 /** East and west's backs along the edges, up to six, as SeatLayer stacks them. */
 export function sideStacks(L: TableLayout) {
   const backW = sideBackWidth(L.cardW);
-  const maxHeight = sideStackReach(L.cardW);
+  // Upright phones' stacks close up to fit under their seats (PID-393).
+  const maxHeight = L.sides.reach ?? sideStackReach(L.cardW);
   // Portrait stacks follow the lowered side line, as do landscape phones'
   // under their seats; landscape tablet seats keep to the trick's line and
   // only their stacks drop (LANDSCAPE_SIDE_DROP).
@@ -321,10 +332,10 @@ export function sideStacks(L: TableLayout) {
 }
 
 /**
- * Where East and West's seats start: above their stacks. Portrait keeps the
- * opponents a triangle where it can: a step below North, the stacks moving
- * down under them as far as the hand allows; on the smallest phones the
- * seats rise beside North instead. Landscape seats never rise into the
+ * Where East and West's seats start: above their stacks. Upright phones seat
+ * them low, beside the trick (`L.sides.seat`, PID-393). iPads upright keep
+ * the opponents a triangle: a step below North, the stacks moving down under
+ * them as far as the hand allows. Landscape seats never rise into the
  * header row; on phones they sit under it and under North's seat, at the
  * inner top corner of their stack. `seatHeight` is the seat drawn above the stack.
  */
@@ -345,10 +356,11 @@ export function sideSeatTop(
       tableTop + 8 + AVATAR_SIZE[L.profile] + LEVEL_HANG + TRICK_GAP + BADGE_RISE
     );
   if (!L.profile.endsWith('portrait')) return Math.max(headerBottom, stacks.top - 12 - seatHeight);
+  if (L.sides.seat != null) return L.sides.seat - sideAvatar(L) / 2;
   const northSeatTop =
     northFanTop(L, tableTop) + northBackWidth(L.cardW, compactNorth(L)) * CARD_RATIO + 12;
   return Math.max(
-    L.tight ? northSeatTop + seatHeight + 8 : tableTop + 8,
+    tableTop + 8,
     Math.min(
       Math.max(northSeatTop + 16, stacks.top - 12 - seatHeight),
       stacks.lowestTop - 12 - seatHeight
@@ -379,7 +391,7 @@ export function trumpPicker(L: TableLayout, tableTop: number, headerBottom: numb
   const columns = portrait ? 2 : 4;
   const rows = 4 / columns;
   const width = columns * TRUMP_BUTTON.width + (columns - 1) * TRUMP_GAP;
-  const seat = L.tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
+  const seat = sideAvatar(L);
   const seatsBottom =
     L.tight || !portrait
       ? sideSeatTop(L, { tableTop, seatHeight: seat, headerBottom }) + seat + TRUMP_GAP
@@ -578,10 +590,13 @@ export function landscapeNameReach(
 }
 /** A tight seat: the avatar alone, its name beside it, no level chip. */
 export const TIGHT_AVATAR = 44;
+/** East's and West's avatar. */
+const sideAvatar = (L: Pick<TableLayout, 'tight' | 'profile'>) =>
+  L.tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
 /** Between your hand and your tight avatar: the turn ring's room. */
 export const TIGHT_SOUTH_GAP = 6;
-/** Your tight seat under the hand: the gap, the avatar, its short line and a gap above the dock. */
-const TIGHT_SOUTH_SEAT = TIGHT_SOUTH_GAP + TIGHT_AVATAR + 4 + 14 + 2;
+/** Your tight seat under the hand: the gap, the avatar, its short line and air above the home indicator. */
+const TIGHT_SOUTH_SEAT = TIGHT_SOUTH_GAP + TIGHT_AVATAR + 4 + 14 + 8;
 /**
  * Small phones leave the ticker out: the seats' status lines say the same,
  * and the table needs the room (Marcel, 2026-10-15). Landscape phones too.
@@ -628,6 +643,20 @@ export function pileSpacing(count: number, room: number, cardW: number): number[
   }
   return steps;
 }
+
+/**
+ * Upright phones (PID-381): how far North's or your pile reaches either side
+ * of its point of the circle, short of East's and West's earlier cards.
+ */
+const pileHalfSpan = (L: TableLayout) =>
+  L.trick.across - (L.cardW * L.trick.pileScale * PILE_TRAIL_SCALE * CARD_RATIO) / 2 - PILE_GAP;
+/**
+ * Tight upright phones (PID-393): how far in from its screen `edge` East's or
+ * West's seat reaches at most, its name running beside the avatar toward the
+ * middle, TRICK_GAP short of North's widest pile beside it.
+ */
+export const uprightSeatReach = (L: TableLayout, edge: number) =>
+  L.width / 2 - pileHalfSpan(L) - TRICK_GAP - edge;
 
 /**
  * Where card `index` of a seat's `count` played cards this hand lies. On
@@ -679,7 +708,7 @@ export function playedCardTarget(
     // cards (PID-388): a long pile of yours steps right of it, as far as East's
     // earlier cards make room by keeping to its newest card's outer edge.
     const grow = ((big - small) * CARD_RATIO) / 2;
-    const sideIn = across - (small * CARD_RATIO) / 2 - PILE_GAP;
+    const sideIn = pileHalfSpan(L);
     const room = sideways
       ? // Clear of a lifted card, its 3% growth and slight tilt included.
         L.hand.cy -
@@ -805,8 +834,12 @@ export function pileSpot(L: TableLayout, rel: RelativePosition, i: number, n: nu
       L.profile === 'phone-portrait'
         ? L.trick.r - 6 - (sideways ? (w * CARD_RATIO) / 2 : 0)
         : Infinity;
-    const step = n > 1 ? Math.max(0, Math.min(w * 0.44, (2 * reach - w) / (n - 1))) : 0;
-    const off = (i - (n - 1) / 2) * step;
+    // There East's and West's seats sit just above their spot (PID-393): a
+    // fan rises at most half a gap above it and closes up to keep its bottom.
+    const rise = sideways && L.profile === 'phone-portrait' ? TRICK_GAP / 2 : Infinity;
+    const span = Math.min(2 * reach - w, rise + reach - w / 2);
+    const step = n > 1 ? Math.max(0, Math.min(w * 0.44, span / (n - 1))) : 0;
+    const off = i * step - Math.min(rise, ((n - 1) * step) / 2);
     return sideways ? { x: at.x, y: at.y + off } : { x: at.x + off, y: at.y };
   }
   const at = L.front[rel];
@@ -868,18 +901,6 @@ export function handLeft(L: TableLayout, n: number): number {
   return L.hand.cx - half * handStep(L, n) - (L.cardW * handScale(L.profile) * 1.03) / 2;
 }
 
-/**
- * The portrait slot below the hand (chat, an adaptive ad or table details).
- * Short phones get a slimmer one, still room for a 50pt banner, so the trick
- * keeps clear of North and the hand.
- */
-export const UTILITY_DOCK_RESERVE = 72;
-const COMPACT_DOCK_RESERVE = 52;
-const COMPACT_HEIGHT = 700;
-export function utilityDockReserve(height: number): number {
-  return height < COMPACT_HEIGHT ? COMPACT_DOCK_RESERVE : UTILITY_DOCK_RESERVE;
-}
-
 export function pickProfile(w: number, h: number): Profile {
   // The lobby picks its layout here too (app/lobby.tsx).
   const tablet = Math.min(w, h) >= 600; // shortest-side breakpoint; browser window counts as tablet
@@ -939,12 +960,13 @@ export function computeLayout(
     return { handY, northBottom, band: Math.max(0, handY - cardH / 2 - northBottom) };
   };
   const fitR = (band: number, scale: number) => band / 2 - (cardH * scale) / 2 - 8;
+  // Upright phones keep the circle clear of a lifted card of yours too: a
+  // short band has none to spare for it (PID-304, PID-393).
+  const lift = profile === 'phone-portrait' ? Math.min(16, cardH * 0.14) : 0;
   const roomy = portraitBand(false);
-  const tight = portrait && !tabletPortrait && fitR(roomy.band, COMPACT_PILE_SCALE) < MIN_COMFORT_R;
+  const tight =
+    portrait && !tabletPortrait && fitR(roomy.band, COMPACT_PILE_SCALE) - lift < MIN_COMFORT_R;
   const { handY: portraitHandY, northBottom, band } = portraitBand(tight);
-  // Your tight seat under the hand takes its room from the trick band where a
-  // phone has none spare: the circle then keeps clear of a lifted card too.
-  const lift = tight ? Math.min(16, cardH * 0.14) : 0;
   const usualPile = profile === 'phone-portrait' ? PHONE_PILE_SCALE : PILE_SCALE;
   const compact = portrait && fitR(band, usualPile) - lift < usualR;
   const handH = cardH * handScale(profile);
@@ -1036,17 +1058,32 @@ export function computeLayout(
       : trickR;
 
   const northY = tableTop + cardH * (portrait ? 0.48 : 0.22) + 10;
-  // Portrait drops the side line only as far as a full stack still ends above
-  // your hand (`sideStacks().lowestTop`); tight phones keep their seats up by North.
-  const portraitDrop =
-    portrait && !tight
-      ? clamp(
-          handY - cardH / 2 - 12 - sideStackReach(cardW) / 2 - trickCy,
-          0,
-          cardH * PORTRAIT_SIDE_DROP
-        )
-      : 0;
+  // iPads upright drop the side line only as far as a full stack still ends
+  // above your hand (`sideStacks().lowestTop`).
+  const portraitDrop = tabletPortrait
+    ? clamp(
+        handY - cardH / 2 - 12 - sideStackReach(cardW) / 2 - trickCy,
+        0,
+        cardH * PORTRAIT_SIDE_DROP
+      )
+    : 0;
   const sideCy = portrait ? trickCy + portraitDrop : trickCy + (twoRows ? 0 : LANDSCAPE_SIDE_DROP);
+  // Upright phones (PID-393): East and West come down toward the trick's
+  // line, so the four seats stand apart, North alone at the top. Each comes
+  // as far as its seat (on a tight phone the avatar, its name beside it;
+  // otherwise the avatar over its name and line) stays TRICK_GAP above the
+  // top edge of its played cards, which hang down from the line beside it.
+  // Its backs hang below it in the edge column, TRICK_GAP clear of a lifted
+  // card of yours. A full stack short of room closes up to SIDE_STACK_LEAST;
+  // only past that does the seat rise, as little as it must.
+  const upright = profile === 'phone-portrait';
+  const sideSize = sideAvatar({ tight, profile });
+  const sideBelow = (tight ? TIGHT_AVATAR : NORTH_SEAT_STACK.phone) - sideSize / 2 + TRICK_GAP;
+  const stackBottom = handY - cardH / 2 - Math.min(16, cardH * 0.14) - held - TRICK_GAP;
+  const stackLeast = sideBackWidth(cardW) * (1 + 5 * SIDE_STACK_LEAST);
+  const sideLow = Math.min(trickCy, trickCy - (cardW * pileScale) / 2 - sideBelow);
+  const sideSeat = sideLow - Math.max(0, sideLow + sideBelow + stackLeast - stackBottom);
+  const stackReach = Math.min(sideStackReach(cardW), stackBottom - sideSeat - sideBelow);
   // West's and East's spots: in toward the trump mark, just clear of the
   // trail North or you leave in front of you over a hand (PID-308), and of
   // their stacks.
@@ -1138,7 +1175,9 @@ export function computeLayout(
         }
       : undefined,
     tight,
-    sides: { cy: sideCy },
+    sides: upright
+      ? { cy: sideSeat + sideBelow + stackReach / 2, seat: sideSeat, reach: stackReach }
+      : { cy: sideCy },
     seats,
     top: tableTop,
     insets,

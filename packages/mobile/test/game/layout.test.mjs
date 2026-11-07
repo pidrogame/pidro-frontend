@@ -39,6 +39,7 @@ import {
   SIDE_SEAT_GAP,
   seatNameGap,
   sideStacks,
+  sideStackStep,
   showsTicker,
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
@@ -47,7 +48,6 @@ import {
   TRUMP_BUTTON,
   TRUMP_MARK,
   trumpPicker,
-  utilityDockReserve,
 } from '../../src/game/canvas/layout.ts';
 
 describe('played-card piles', () => {
@@ -129,7 +129,7 @@ describe('upright piles: the newest in front, the earlier ones behind (PID-381)'
     [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
   ]) {
     it(`on ${width}×${height}`, () => {
-      const L = computeLayout(width, height, insets, 60, utilityDockReserve(height));
+      const L = computeLayout(width, height, insets, 60);
       for (const rel of ['north', 'east', 'south', 'west'])
         for (const count of [1, 3, 5, 6]) {
           const cards = Array.from({ length: count }, (_, i) =>
@@ -206,7 +206,7 @@ describe('side stacks and the hand', () => {
       [430, 932, { top: 59, bottom: 34, left: 0, right: 0 }],
       [834, 1194, { top: 24, bottom: 20, left: 0, right: 0 }],
     ]) {
-      const L = computeLayout(width, height, insets, 60, utilityDockReserve(height));
+      const L = computeLayout(width, height, insets, 60);
       const stacks = sideStacks(L);
       expect(stacks.top).toBeGreaterThanOrEqual(L.trick.cy - stacks.maxHeight / 2);
       expect(stacks.top + stacks.maxHeight).toBeLessThanOrEqual(
@@ -322,9 +322,11 @@ describe('portrait trick fits between North and your hand', () => {
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
     [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }],
     [440, 956, { top: 62, bottom: 34, left: 0, right: 0 }],
+    [375, 667, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
   ]) {
     it(`clears North's seat and the hand on ${width}×${height}`, () => {
-      const L = computeLayout(width, height, insets, 60, utilityDockReserve(height));
+      const L = computeLayout(width, height, insets, 60);
       const half = (L.cardH * L.trick.pileScale) / 2;
       const northCardTop = L.trick.cy - L.trick.r - half;
       const southCardBottom = L.trick.cy + L.trick.r + half;
@@ -337,14 +339,15 @@ describe('portrait trick fits between North and your hand', () => {
         12 +
         (L.tight ? TIGHT_AVATAR : 98);
       expect(northCardTop).toBeGreaterThanOrEqual(northSeatBottom);
-      expect(southCardBottom).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2);
+      // Clear of a lifted card too (PID-393: 375×667 is no longer tight).
+      expect(southCardBottom).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2 - handLift(L) + 0.01);
     });
   }
 });
 
 describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
   const sizes = (width, height, insets) => {
-    const L = computeLayout(width, height, insets, 61, utilityDockReserve(height));
+    const L = computeLayout(width, height, insets, 61);
     return { L, hand: L.cardH * handScale(L.profile), played: L.cardH * L.trick.pileScale };
   };
   // Before PID-333 every upright phone drew a 54pt-wide card.
@@ -396,7 +399,9 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
       const { L, played } = sizes(width, height, insets);
       const east = playedCardTarget(L, 'east', 0, 1);
       const west = playedCardTarget(L, 'west', 0, 1);
-      const half = handPointsSize(L) * 1.75;
+      // On 360pt-wide phones whose played cards keep their full size (PID-393
+      // gave 360×640 the room) the stacks' edge leaves the points just that.
+      const half = handPointsSize(L) * 1.75 - 0.05;
       expect(east.x - played / 2 - L.trick.cx).toBeGreaterThan(half);
       expect(L.trick.cx - (west.x + played / 2)).toBeGreaterThan(half);
       // A four-card pile at North or yours stays clear of them too.
@@ -454,41 +459,94 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
 });
 
 describe('tight phones', () => {
-  const dock = (height) => utilityDockReserve(height);
   for (const [width, height, insets, tight] of [
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, true],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }, true],
-    // Marcel's TCL 5053Y, since its cards grew (PID-333).
-    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }, true],
+    // Marcel's TCL 5053Y went tight when its cards grew (PID-333), and out of
+    // it again when the dock under the hand went (PID-393).
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }, false],
+    [360, 700, { top: 24, bottom: 48, left: 0, right: 0 }, true],
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }, false],
     [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }, false],
   ]) {
     it(`${tight ? 'go' : 'stay out of'} tight on ${width}×${height}`, () => {
-      expect(computeLayout(width, height, insets, 60, dock(height)).tight).toBe(tight);
+      expect(computeLayout(width, height, insets, 60).tight).toBe(tight);
     });
   }
 
   // PID-304: the hand on the table's axis, your avatar and its short line
-  // under it, above the dock, and the trick still clear of the hand.
+  // under it, above the home indicator, and the trick still clear of the hand.
   for (const [width, height, insets] of [
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
-    [360, 720, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [360, 700, { top: 24, bottom: 48, left: 0, right: 0 }],
   ]) {
     it(`put your avatar under a centred hand on ${width}×${height}`, () => {
-      const L = computeLayout(width, height, insets, 60, dock(height));
+      const L = computeLayout(width, height, insets, 60);
       expect(L.tight).toBe(true);
       expect(L.hand.cx).toBe(width / 2);
       expect(L.hand.maxWidth).toBe(width - 32);
       const avatarTop = L.hand.cy + L.cardH / 2 + TIGHT_SOUTH_GAP;
-      // The avatar, a 4pt gap and one 14pt status line.
-      expect(avatarTop + TIGHT_AVATAR + 4 + 14).toBeLessThanOrEqual(L.bottom);
+      // The avatar, a 4pt gap, one 14pt status line and 8pt of air above the
+      // home indicator, the table's bottom edge (PID-393).
+      expect(L.bottom).toBe(height - insets.bottom);
+      expect(avatarTop + TIGHT_AVATAR + 4 + 14 + 8).toBeCloseTo(L.bottom);
       const south = playedCardTarget(L, 'south', 0, 1);
       expect(south.y + (L.cardH * south.scale) / 2).toBeLessThanOrEqual(
         L.hand.cy - L.cardH / 2 - handLift(L)
       );
     });
   }
+});
+
+// PID-393: with nothing docked under the hand, East and West come down from
+// beside North toward the trick's line, as far as their seat stays TRICK_GAP
+// above their played cards; their six backs hang below, clear of a lifted
+// card of yours, closing up before the seat would rise.
+describe('upright phones seat East and West low beside the trick', () => {
+  for (const [width, height, insets] of [
+    [390, 844, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }],
+    [440, 956, { top: 62, bottom: 34, left: 0, right: 0 }],
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    it(`on ${width}×${height}`, () => {
+      const tableTop = insets.top + 60;
+      const L = computeLayout(width, height, insets, 60);
+      expect(L.bottom).toBe(height - insets.bottom);
+      const size = L.tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
+      // A tight seat is its avatar, its name beside it; else avatar, chip, name and line.
+      const seatTop = L.sides.seat - size / 2;
+      const seatBottom = seatTop + (L.tight ? TIGHT_AVATAR : 98);
+      expect(sideSeatTop(L, { tableTop, seatHeight: 0, headerBottom: 0 })).toBeCloseTo(seatTop);
+      // Their avatars below North's seat: North alone at the top.
+      expect(L.sides.seat).toBeGreaterThan(northSeatBottom(L, tableTop));
+      // As low as the side piles allow: TRICK_GAP above their top edge.
+      for (const rel of ['east', 'west']) {
+        const card = playedCardTarget(L, rel, 0, 1);
+        expect(card.y - (L.cardW * card.scale) / 2 - seatBottom).toBeCloseTo(TRICK_GAP);
+        // A throw or a laid hand fanned there stays under the seat too.
+        for (let n = 2; n <= 9; n++) {
+          const high = Math.min(...Array.from({ length: n }, (_, i) => pileSpot(L, rel, i, n).y));
+          expect(high - pileCardW(L) / 2 - seatBottom).toBeGreaterThanOrEqual(TRICK_GAP / 2 - 0.01);
+        }
+      }
+      const { top, maxHeight, backW } = sideStacks(L);
+      expect(top).toBeCloseTo(seatBottom + TRICK_GAP);
+      const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
+      expect(top + maxHeight).toBeLessThanOrEqual(lifted - TRICK_GAP + 0.01);
+      // Six backs still count.
+      expect(sideStackStep(L.cardW, 6, maxHeight)).toBeGreaterThanOrEqual(backW * 0.3 - 0.01);
+    });
+  }
+
+  it('leaves the iPad upright as it was', () => {
+    const L = computeLayout(834, 1194, { top: 24, bottom: 20, left: 0, right: 0 }, 60);
+    expect(L.sides.seat).toBeUndefined();
+    expect(L.bottom).toBe(1194 - 20);
+  });
 });
 
 describe('the plaque ticker keeps off North’s fan', () => {
@@ -537,7 +595,7 @@ describe('small and landscape phones leave the ticker out', () => {
         height,
         insets,
         portrait ? 60 : 0,
-        portrait ? utilityDockReserve(height) : 0
+        portrait ? 0 : 0
       );
       expect(showsTicker(L)).toBe(shown);
       expect(tickerPlacement(L, { tableTop: 60, plaqueLeft: 12, plaqueTop: 8 }) !== null).toBe(
@@ -572,7 +630,7 @@ describe('count help shows the bidder’s whole name on phones (PID-220)', () =>
     it(`on ${width}×${height}, ${insets.top}pt top inset`, () => {
       const HEADER = 61;
       const tableTop = insets.top + HEADER;
-      const L = computeLayout(width, height, insets, HEADER, utilityDockReserve(height));
+      const L = computeLayout(width, height, insets, HEADER);
       const plaqueTop = insets.top > 0 ? insets.top : 8;
       const plaqueBottom = plaqueTop + 53 + 4;
       const placed = tickerPlacement(L, { tableTop, plaqueLeft: 12, plaqueTop }, true);
@@ -726,7 +784,7 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
         height,
         insets,
         portrait ? HEADER : 0,
-        portrait ? utilityDockReserve(height) : 0
+        portrait ? 0 : 0
       );
       const P = trumpPicker(L, tableTop, headerBottom);
       const bottom = P.top + P.height;
@@ -1135,8 +1193,7 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
   it('portrait 390×844', () => {
     const [width, height, insets] = [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }];
     const tableTop = insets.top + HEADER;
-    const dock = utilityDockReserve(height);
-    const L = computeLayout(width, height, insets, HEADER, dock);
+    const L = computeLayout(width, height, insets, HEADER);
     // Avatar, level chip, name and status, as SeatLayer stacks them.
     const parts = avatarParts(AVATAR_SIZE[L.profile]);
     const stack =
@@ -1154,7 +1211,7 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
       headerBottom: insets.top + HEADER + 8,
     });
     const northTop = northSeatBottom(L, tableTop) - stack;
-    const southBottom = height - insets.bottom - dock - 8;
+    const southBottom = height - insets.bottom - 8;
     const seats = {
       north: { ...center, top: northTop, bottom: northTop + stack },
       south: { ...center, top: southBottom - stack, bottom: southBottom },
