@@ -88,6 +88,10 @@ export interface PlayerSheet {
   record: { games: number; win_rate: number };
   /** How many medals they have earned. */
   medals: number;
+  /** The medals they earned, oldest first (PID-406). Locked ones are never sent. */
+  medal_list?: Achievement[];
+  /** How many medals can be earned at all. */
+  medal_total?: number;
   /** The viewer and this player: as partners, and against each other. */
   together: {
     games: number;
