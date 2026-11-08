@@ -16,6 +16,15 @@ export function premiumStatus(user: Partial<PremiumFields> | null | undefined) {
   };
 }
 
+/**
+ * What Settings shows: the Premium panel only to a player the server says has it, a quiet
+ * Restore purchases link to one it says has not, and nothing before it has said.
+ */
+export function premiumInSettings(user: Partial<PremiumFields> | null | undefined) {
+  if (user?.premium === true) return 'panel';
+  return user?.premium === false ? 'restore' : null;
+}
+
 let latest = 0;
 
 /** Never throws: a server that cannot look leaves the user as it last said. */

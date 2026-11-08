@@ -19,12 +19,11 @@ import { Toast } from '@/components/ui/Toast';
 import { useLeague } from '@/components/league/LeagueHost';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { AppUpdateSection } from '@/components/settings/AppUpdateSection';
-import { PremiumSection } from '@/components/settings/PremiumSection';
+import { PremiumSection, RestorePurchasesLink } from '@/components/settings/PremiumSection';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { TellRow } from '@/components/feedback/TellRow';
 import { PidroSpacing } from '@/design/tokens';
 import { canTell, tellFixture } from '@/features/feedback';
-import { premiumFixture } from '@/features/premium/premium';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 
@@ -172,10 +171,9 @@ export function SettingsScreen({
           </View>
         </Surface>
         {signedIn ? <AccountSection /> : null}
-        {signedIn || premiumFixture(fixture) ? (
-          <PremiumSection fixture={fixture} onToast={setToast} />
-        ) : null}
+        <PremiumSection fixture={fixture} onToast={setToast} />
         <AppUpdateSection />
+        <RestorePurchasesLink fixture={fixture} onToast={setToast} />
         <Modal
           isOpen={hideConfirm}
           onClose={() => !leagueBusy && setHideConfirm(false)}

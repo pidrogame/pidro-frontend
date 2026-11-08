@@ -54,6 +54,22 @@ const guestAuthFixture = JSON.stringify({
   },
   version: 0,
 });
+// PID-124: only a player with Premium sees Settings → Premium.
+const premiumAuthFixture = JSON.stringify({
+  state: {
+    accessToken: 'ui-grammar-token',
+    refreshToken: null,
+    user: {
+      id: 'ui-grammar-user',
+      username: 'Bengt',
+      age_band: '18_plus',
+      premium: true,
+      premium_until: null,
+      premium_source: 'promotional',
+    },
+  },
+  version: 0,
+});
 const ageGateFixture = JSON.stringify({
   state: { ageBand: '18_plus', termsVersion: '1' },
   version: 0,
@@ -532,12 +548,13 @@ const allCases = [
     testId: 'app-update-section',
     testAd: true,
   },
-  // PID-124: Settings → Premium as the server says it, the phone's panel and the web's line.
+  // PID-124: Settings → Premium only with Premium, the phone's panel and the web's line;
+  // without it, a quiet Restore purchases link at the bottom.
   ...['en', 'sv'].flatMap((locale) => [
     ...['none', 'until', 'lifetime', 'restoring'].map((premium) => ({
       name: `settings-premium-${premium}-${locale}`,
       path: `/ui-dev?state=settings&fixture=premium-${premium}&locale=${locale}`,
-      testId: 'settings-premium',
+      testId: ['none', 'restoring'].includes(premium) ? 'settings-restore' : 'settings-premium',
       locale,
       premium,
     })),
@@ -548,6 +565,7 @@ const allCases = [
       locale,
       premium: 'web',
       authenticated: true,
+      authFixture: premiumAuthFixture,
     },
   ]),
   // PID-119: Google's privacy choices, shown only where its form is required (forced here).
@@ -3681,11 +3699,41 @@ async function assertTestAd(page) {
   await waitForScreenshotReady(page);
 }
 
-// The status line is the server's answer; Restore is busy while it runs; Manage is for the store.
+// The panel is only for a player with Premium: the server's answer, Restore busy while it
+// runs, Manage for the store. Without Premium, no panel and a Restore link at the bottom.
 async function assertPremium(page, { premium, locale }, viewport) {
+  const sv = locale === 'sv';
+  const restoreName = sv ? 'Återställ köp' : 'Restore purchases';
+  if (premium === 'none' || premium === 'restoring') {
+    await page.getByTestId('settings-screen').waitFor();
+    const link = page.getByTestId('settings-restore');
+    await link.scrollIntoViewIfNeeded();
+    assert.equal(await page.getByTestId('settings-premium').count(), 0, 'no Premium panel');
+    assert.equal(await page.getByText(/Du har inte Premium|You don't have Premium/).count(), 0);
+    assert.equal(await link.innerText(), restoreName);
+    assert.equal(
+      await link.isDisabled(),
+      premium === 'restoring',
+      'Restore is untappable only while it runs'
+    );
+    const box = await getStableBox(link, page);
+    assert.ok(box.height >= 44, `${premium}: Restore is ${box.height}px tall`);
+    const about = await page.getByTestId('app-update-section').boundingBox();
+    assert.ok(box.y >= about.y + about.height, 'Restore comes after About the app');
+    const last = await page.getByTestId('settings-screen').evaluate((root) => {
+      const shown = [...root.querySelectorAll('[data-testid]')].filter(
+        (node) => node.getBoundingClientRect().height > 0
+      );
+      return Math.max(...shown.map((node) => node.getBoundingClientRect().bottom));
+    });
+    assert.ok(box.y + box.height >= last - 1, 'Restore is the last thing on Settings');
+    assertInsideViewport('Restore purchases', box, viewport);
+    await waitForScreenshotReady(page);
+    return;
+  }
+  assert.equal(await page.getByTestId('settings-restore').count(), 0, 'no link with Premium');
   const panel = page.getByTestId('settings-premium');
   await panel.scrollIntoViewIfNeeded();
-  const sv = locale === 'sv';
   const text = await panel.innerText();
   if (premium === 'web') {
     assert.equal(
@@ -3696,19 +3744,13 @@ async function assertPremium(page, { premium, locale }, viewport) {
     );
   } else {
     const status = {
-      none: sv ? 'Du har inte Premium' : "You don't have Premium",
       until: sv ? 'Premium till 12 mars 2027' : 'Premium until 12 March 2027',
       lifetime: sv ? 'Premium för alltid' : 'Lifetime Premium',
-      restoring: sv ? 'Du har inte Premium' : "You don't have Premium",
     }[premium];
     assert.equal(await panel.getByTestId('premium-status').innerText(), status);
-    const restore = panel.getByRole('button', { name: sv ? 'Återställ köp' : 'Restore purchases' });
+    const restore = panel.getByRole('button', { name: restoreName });
     assert.equal(await restore.count(), 1, 'one Restore purchases');
-    assert.equal(
-      await restore.isDisabled(),
-      premium === 'restoring',
-      'Restore is untappable only while it runs'
-    );
+    assert.equal(await restore.isDisabled(), false, 'Restore is ready');
     const manage = panel.getByRole('button', {
       name: sv ? 'Hantera prenumeration' : 'Manage subscription',
     });

@@ -1401,24 +1401,27 @@ UI_CASES=settings-test-ad UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-
 
 ## `/ui-dev?state=settings&fixture=premium-<state>` — Premium (PID-124)
 
-Settings → Premium sits between Account and About the app. It renders what the server
-said (`premium`, `premium_until`, `premium_source` on the session user); the fixture
-swaps in a made-up answer and shows the phone's panel on Expo web, where the real
-screen only says "Premium is managed in the Pidro app on your phone." The fixture's
-Restore purchases never reaches RevenueCat.
+Settings → Premium sits between Account and About the app, and only for a player the
+server says has Premium (`premium`, `premium_until`, `premium_source` on the session
+user). A player it says has none sees no panel, only a quiet **Restore purchases** link
+at the very bottom, under About the app, where the store is available; before the
+server has said, neither shows. The fixture swaps in a made-up answer and shows the
+phone's screen on Expo web, where the real panel only says "Premium is managed in the
+Pidro app on your phone." The fixture's Restore purchases never reaches RevenueCat.
 
-| `fixture=`          | Status line                 | Restore purchases | Manage subscription  |
-| ------------------- | --------------------------- | ----------------- | -------------------- |
-| `premium-none`      | You don't have Premium      | ready             | hidden               |
-| `premium-until`     | Premium until 12 March 2027 | ready             | shown (store)        |
-| `premium-lifetime`  | Lifetime Premium            | ready             | hidden (promotional) |
-| `premium-restoring` | You don't have Premium      | spinner, disabled | hidden               |
+| `fixture=`          | Premium panel               | Restore purchases            | Manage subscription  |
+| ------------------- | --------------------------- | ---------------------------- | -------------------- |
+| `premium-none`      | none                        | link at the bottom, ready    | none                 |
+| `premium-until`     | Premium until 12 March 2027 | button in the panel, ready   | shown (store)        |
+| `premium-lifetime`  | Lifetime Premium            | button in the panel, ready   | hidden (promotional) |
+| `premium-restoring` | none                        | link at the bottom, disabled | none                 |
 
 Grammar cases `settings-premium-{none,until,lifetime,restoring,web}-{en,sv}` assert the
 words, that Restore is disabled only while it runs, Manage only for a store purchase,
-44px buttons, and the whole panel on screen, at all four sizes. The `web` case is the
-real screen signed in. The restore itself, the toast and the store's sheet need a
-3.3.0 build on a device: see `../../docs/native-sdks.md`.
+44px targets, the whole panel on screen, and for a free player no panel and the link
+last on the screen, at all four sizes. The `web` case is the real screen signed in
+with Premium. The restore itself, the toast and the store's sheet need a 3.3.0 build
+on a device: see `../../docs/native-sdks.md`.
 
 ```sh
 UI_CASES=settings-premium-none-en,settings-premium-until-en,settings-premium-lifetime-en,settings-premium-restoring-en,settings-premium-web-en,settings-premium-none-sv,settings-premium-until-sv,settings-premium-lifetime-sv,settings-premium-restoring-sv,settings-premium-web-sv \

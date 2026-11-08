@@ -3,8 +3,14 @@ import { Linking, Platform, StyleSheet, View } from 'react-native';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { PidroText } from '@/components/ui/PidroText';
 import { Surface } from '@/components/ui/Surface';
+import { TextLink } from '@/components/ui/TextLink';
 import { PidroSpacing } from '@/design/tokens';
-import { premiumFixture, premiumStatus, restorePremium } from '@/features/premium/premium';
+import {
+  premiumFixture,
+  premiumInSettings,
+  premiumStatus,
+  restorePremium,
+} from '@/features/premium/premium';
 import { purchasesAvailable } from '@/features/premium/purchases';
 import { getLocale, useTranslation } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
@@ -15,31 +21,16 @@ const SUBSCRIPTIONS =
     ? 'https://play.google.com/store/account/subscriptions'
     : 'https://apps.apple.com/account/subscriptions';
 
-/** What the server says about Premium, Restore purchases and the store's subscription page. */
-export function PremiumSection({
-  fixture,
-  onToast,
-}: {
-  fixture?: string;
-  onToast: (message: string) => void;
-}) {
+type Props = { fixture?: string; onToast: (message: string) => void };
+
+/** The server's answer and the Restore purchases it ends in; a fixture never reaches the store. */
+function usePremium({ fixture, onToast }: Props) {
   const { t } = useTranslation();
   const preview = premiumFixture(fixture);
   const user = useAuthStore((state) => state.user);
-  const { premium, until, source } = premiumStatus(preview?.fields ?? user);
+  const fields = preview?.fields ?? user;
   const [busy, setBusy] = useState(preview?.restoring ?? false);
   const inFlight = useRef(false);
-
-  // The web app has no store: a fixture previews the phone's panel.
-  if (!preview && Platform.OS === 'web')
-    return (
-      <Surface variant="window" padded style={styles.panel} testID="settings-premium">
-        <PidroText role="label">{t('premium.title')}</PidroText>
-        <PidroText role="metadata" tone="muted">
-          {t('premium.web')}
-        </PidroText>
-      </Surface>
-    );
 
   async function restore() {
     if (preview || inFlight.current) return;
@@ -57,6 +48,34 @@ export function PremiumSection({
     );
   }
 
+  return {
+    shows: premiumInSettings(fields),
+    status: premiumStatus(fields),
+    preview,
+    storeAvailable: Boolean(preview) || purchasesAvailable(),
+    busy,
+    restore,
+  };
+}
+
+/** Only for a player with Premium: until when, Restore purchases and the store's subscription page. */
+export function PremiumSection(props: Props) {
+  const { t } = useTranslation();
+  const { shows, status, preview, storeAvailable, busy, restore } = usePremium(props);
+  const { until, source } = status;
+  if (shows !== 'panel') return null;
+
+  // The web app has no store: a fixture previews the phone's panel.
+  if (!preview && Platform.OS === 'web')
+    return (
+      <Surface variant="window" padded style={styles.panel} testID="settings-premium">
+        <PidroText role="label">{t('premium.title')}</PidroText>
+        <PidroText role="metadata" tone="muted">
+          {t('premium.web')}
+        </PidroText>
+      </Surface>
+    );
+
   // "12 March 2027" in English, "12 mars 2027" in Swedish.
   const date = until
     ? new Intl.DateTimeFormat(getLocale() === 'en' ? 'en-GB' : getLocale(), {
@@ -71,14 +90,10 @@ export function PremiumSection({
       <View style={styles.heading}>
         <PidroText role="label">{t('premium.title')}</PidroText>
         <PidroText role="body" testID="premium-status">
-          {!premium
-            ? t('premium.none')
-            : date
-              ? t('premium.until', { date })
-              : t('premium.lifetime')}
+          {date ? t('premium.until', { date }) : t('premium.lifetime')}
         </PidroText>
       </View>
-      {preview || purchasesAvailable() ? (
+      {storeAvailable ? (
         <BevelButton
           label={t('premium.restore')}
           material="glass"
@@ -98,12 +113,28 @@ export function PremiumSection({
           testID="premium-manage"
         />
       ) : null}
-      {preview || purchasesAvailable() ? (
+      {storeAvailable ? (
         <PidroText role="metadata" tone="muted">
           {t('premium.explain', { store: STORE })}
         </PidroText>
       ) : null}
     </Surface>
+  );
+}
+
+/** Without Premium, Restore purchases is a quiet link at the bottom: stores require a way back. */
+export function RestorePurchasesLink(props: Props) {
+  const { t } = useTranslation();
+  const { shows, storeAvailable, busy, restore } = usePremium(props);
+  if (shows !== 'restore' || !storeAvailable) return null;
+  return (
+    <TextLink
+      label={t('premium.restore')}
+      accessibilityRole="button"
+      disabled={busy}
+      onPress={restore}
+      testID="settings-restore"
+    />
   );
 }
 

@@ -46,7 +46,7 @@ test('premium is the server answer: once per identity, quiet when unavailable, o
     Object.assign(new Error(`HTTP ${status}`), { response: { status } });
   const until = { premium: true, premium_until: '2027-03-12T12:00:00Z', premium_source: 'store' };
   const none = { premium: false, premium_until: null, premium_source: null };
-  const { premiumStatus, refreshForIdentity, refreshPremium, restorePremium } =
+  const { premiumInSettings, premiumStatus, refreshForIdentity, refreshPremium, restorePremium } =
     await import('../../src/features/premium/premium.ts');
 
   // premiumStatus: an older server sends nothing, which is no Premium.
@@ -64,6 +64,20 @@ test('premium is the server answer: once per identity, quiet when unavailable, o
   expect(
     premiumStatus({ id: 'a', ...until, premium_until: null, premium_source: 'promotional' })
   ).toEqual({ premium: true, until: null, source: 'promotional' });
+
+  // Settings: the panel only with Premium, a Restore link without, nothing before the server says.
+  expect(premiumInSettings({ id: 'a', ...none })).toBe('restore');
+  expect(premiumInSettings(null)).toBe(null);
+  expect(premiumInSettings({ id: 'a', username: 'a' })).toBe(null);
+  expect(premiumInSettings({ id: 'a', ...until })).toBe('panel');
+  expect(
+    premiumInSettings({
+      id: 'a',
+      premium: true,
+      premium_until: null,
+      premium_source: 'promotional',
+    })
+  ).toBe('panel');
 
   // A sign-in identifies twice (effects can re-run) but refreshes once, and writes the answer.
   signIn('astrid');
