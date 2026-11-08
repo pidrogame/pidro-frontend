@@ -246,7 +246,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   });
   const summary = [
     `### ${full ? 'Release' : 'Feature'} checks`,
-    `- UI: ${selection.screens} captures; ${full ? 'every viewport/case' : selection.viewports.join(', ')}`,
+    `- UI: ${selection.screens} case/viewport checks; ${full ? 'every viewport/case' : selection.viewports.join(', ')} (additional state captures may follow)`,
     `- Unit: ${full ? 'complete suite' : selection.unitTests.join(', ')}`,
     `- Full game/account journeys: ${full ? 'run' : 'deferred to release'}`,
     '- Feature CI is representative regression coverage, not proof of every affected state.',

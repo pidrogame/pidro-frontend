@@ -120,7 +120,8 @@ attempts and focused repetition counts; retry success does not erase a failure.
 - **Push/PR:** affected unit files (transitive local imports plus conservative area
   rules) and a tiny selector/gate smoke set. Visual changes select representative
   affected cases plus table/lobby/home/login smoke, capped at 16 cases and one phone
-  viewport; layout changes add landscape (at most 32 captures). Docs/test-only edits
+  viewport; layout changes add landscape (at most 32 case/viewport pairs; a case can
+  capture additional interaction states at the same size). Docs/test-only edits
   need no app captures. Unknown paths or missing base use smoke, **never full fallback**.
   This is bounded regression coverage, not exhaustive impact analysis: the author
   must still prove the changed state, including new cases outside the sample.
