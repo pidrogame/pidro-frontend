@@ -8,7 +8,7 @@ web, in Expo Go, or when a build has no keys.
 
 | SDK               | Package                          | Version                                           |
 | ----------------- | -------------------------------- | ------------------------------------------------- |
-| RevenueCat        | `react-native-purchases`         | `^11.0.1`                                         |
+| RevenueCat        | `react-native-purchases`         | `~10.16.0` (11.x needs the PurchasesHybridCommon 20.x pod, unpublished while CocoaPods trunk was frozen Nov 1–7, 2026; RevenueCat says Expo apps stay on 10.x until it is) |
 | Google Mobile Ads | `react-native-google-mobile-ads` | `~17.0.0` (17.1 and later need React Native 0.86) |
 | Push              | `expo-notifications`             | `~56.0.26`                                        |
 
