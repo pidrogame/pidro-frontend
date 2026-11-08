@@ -106,7 +106,10 @@ test('popup actions acknowledge only the current player, retry failures, and kee
     ScrollView: box,
     Image: box,
   }));
-  mock.module('expo-application', () => ({ nativeApplicationVersion: '3.2.3' }));
+  mock.module('expo-application', () => ({
+    nativeApplicationVersion: '3.2.3',
+    nativeBuildVersion: '11',
+  }));
   mock.module('expo-asset', () => ({ Asset: {} }));
   mock.module('expo-router', () => ({
     useIsFocused: () => path === '/home',
@@ -197,6 +200,21 @@ test('popup actions acknowledge only the current player, retry failures, and kee
     await click('news.updateAndroid');
     expect(receipts.at(-1)).toEqual(['a', 43]);
     expect(document.querySelectorAll('button')).toHaveLength(0);
+
+    // No post, and the server's minimums: build 11 of 3.2.3 is new enough, until 12 is out.
+    await act(() => {
+      news.setState({ popup: null });
+      lobby.setState({
+        minimumNativeVersions: { android: '3.2.3' },
+        minimumNativeBuilds: { android: '11' },
+        nativeUpdatePopup: false,
+      });
+    });
+    expect(document.querySelectorAll('button')).toHaveLength(0);
+    await act(() => lobby.setState({ minimumNativeBuilds: { android: '12' } }));
+    expect(document.body.textContent).toContain('news.updateTitle');
+    await click('news.updateAndroid');
+    expect(receipts.at(-1)).toEqual(['a', 43]);
   } finally {
     await act(() => root.unmount());
     dom.window.close();

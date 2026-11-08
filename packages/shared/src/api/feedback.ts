@@ -3,6 +3,7 @@ import type { ApiClient } from './client';
 /** What comes along with a note, so the team can find the build and the phone. */
 export interface FeedbackNoteDetails {
   app_version?: string;
+  app_build?: string;
   native_build?: string;
   update_id?: string;
   channel?: string;

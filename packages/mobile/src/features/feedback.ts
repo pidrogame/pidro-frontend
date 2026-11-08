@@ -55,6 +55,7 @@ export function feedbackNote(
     reply_email: replyEmail.trim() || undefined,
     details: {
       app_version: value(details.appVersion),
+      app_build: value(details.nativeBuild),
       native_build: value(details.nativeBuild),
       update_id: value(details.updateId),
       channel: value(details.channel),

@@ -27,6 +27,7 @@ test('push never prompts, registers once per start and player, and forgets on si
     },
     ExecutionEnvironment: { StoreClient: 'storeClient' },
   }));
+  mock.module('expo-application', () => ({ nativeBuildVersion: '14' }));
   mock.module('expo-router', () => ({ router: { push: () => {} } }));
   mock.module('expo-notifications', () => ({
     AndroidImportance: { DEFAULT: 3 },
@@ -69,7 +70,13 @@ test('push never prompts, registers once per start and player, and forgets on si
   }
   const register = [
     'register',
-    { token: 'ExponentPushToken[abc]', platform: 'android', install_id: 'install-1' },
+    {
+      token: 'ExponentPushToken[abc]',
+      platform: 'android',
+      install_id: 'install-1',
+      app_version: '3.3.0',
+      app_build: '14',
+    },
   ];
   // Already granted, so the request returns without a dialog; once for Astrid this start.
   expect(calls.map(([name]) => name)).toEqual(['channel', 'prompt', 'token', 'register']);

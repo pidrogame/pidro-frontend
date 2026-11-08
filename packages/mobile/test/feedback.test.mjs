@@ -105,6 +105,7 @@ describe('a posted note', () => {
       body: 'Too fast.',
       details: {
         app_version: '1.0.0',
+        app_build: '7',
         native_build: '7',
         channel: 'beta',
         platform: 'ios',

@@ -6,6 +6,7 @@ export interface PushTokenRequest {
   platform: 'ios' | 'android';
   install_id: string;
   app_version: string;
+  app_build?: string;
 }
 
 export function createPushApi(api: ApiClient) {

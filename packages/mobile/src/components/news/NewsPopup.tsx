@@ -9,7 +9,7 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import { nativeApplicationVersion } from 'expo-application';
+import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
 import { Asset } from 'expo-asset';
 import { useIsFocused, usePathname } from 'expo-router';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -40,6 +40,7 @@ export function NewsPopup({ fixture, blocked }: { fixture?: string; blocked: boo
   const userId = useAuthStore((state) => state.user?.id);
   const { popup, popupLoaded, welcomeReady, status, locale: postLocale } = useNewsStore();
   const minimums = useLobbyStore((state) => state.minimumNativeVersions);
+  const minimumBuilds = useLobbyStore((state) => state.minimumNativeBuilds);
   const urls = useLobbyStore((state) => state.nativeStoreUrls);
   const nativeUpdatePopup = useLobbyStore((state) => state.nativeUpdatePopup);
   const [dismissed, setDismissed] = useState<string | null>(null);
@@ -52,7 +53,12 @@ export function NewsPopup({ fixture, blocked }: { fixture?: string; blocked: boo
     : platform === 'android' || platform === 'ios'
       ? urls[platform]
       : undefined;
-  const fallback = nativeStoreUpdate(platform, nativeApplicationVersion, minimums, urls);
+  const fallback = nativeStoreUpdate(
+    platform,
+    { version: nativeApplicationVersion, build: nativeBuildVersion },
+    { versions: minimums, builds: minimumBuilds },
+    urls
+  );
   const handled = handledThisStart.get(userId ?? '') ?? new Set<number>();
   const post = popupForStart({
     post: preview ?? popup,

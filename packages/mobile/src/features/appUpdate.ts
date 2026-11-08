@@ -20,27 +20,34 @@ export function startupUpdateDecision({
   return pending ? 'reload' : 'wait';
 }
 
+type PerPlatform = Partial<Record<'android' | 'ios', string>>;
+
+/**
+ * Below the minimum version, or on it and below the minimum build, gets the nudge. The
+ * beta keeps its version and counts builds; without a build minimum only the version counts.
+ */
 export function nativeStoreUpdate(
   platform: string,
-  installed: string | null,
-  minimums: Partial<Record<'android' | 'ios', string>>,
-  storeUrls: Partial<Record<'android' | 'ios', string>>
+  installed: { version: string | null; build: string | null },
+  minimums: { versions: PerPlatform; builds?: PerPlatform },
+  storeUrls: PerPlatform
 ) {
   if (platform !== 'android' && platform !== 'ios') return null;
-  const minimum = minimums[platform];
+  const minimum = minimums.versions[platform];
   const url = storeUrls[platform];
   if (!url) return null;
   const version = (value: string | null | undefined) =>
     value && /^\d+\.\d+\.\d+$/.test(value) ? value.split('.').map(Number) : null;
-  const current = version(installed);
+  const build = (value: string | null | undefined) =>
+    value && /^\d+$/.test(value) ? Number(value) : null;
+  const current = version(installed.version);
   const required = version(minimum);
   if (!current || !required) return null;
+  const nudge = { id: `${platform}:${minimum}:${url}`, url };
   const difference = current.findIndex((part, index) => part !== required[index]);
-  if (difference < 0 || current[difference]! > required[difference]!) return null;
-  return {
-    id: `${platform}:${minimum}:${url}`,
-    url,
-  };
+  if (difference >= 0) return current[difference]! < required[difference]! ? nudge : null;
+  const [have, need] = [build(installed.build), build(minimums.builds?.[platform])];
+  return have !== null && need !== null && have < need ? nudge : null;
 }
 
 export interface RunningUpdateInput {

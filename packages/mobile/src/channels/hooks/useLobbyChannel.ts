@@ -175,6 +175,7 @@ export const useLobbyChannel = (onRealtimeUpdate?: () => void) => {
           unstable_batchedUpdates(() => {
             useLobbyStore.setState({
               minimumNativeVersions: response?.minimum_native_versions ?? {},
+              minimumNativeBuilds: response?.minimum_native_builds ?? {},
               nativeStoreUrls: response?.native_store_urls ?? {},
               nativeUpdatePopup: response?.native_update_popup === true,
             });

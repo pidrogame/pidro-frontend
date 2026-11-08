@@ -4,6 +4,7 @@
  * the token on sign-out. A server without the endpoint yet answers 404: logged, not shown.
  */
 import { Linking, Platform } from 'react-native';
+import { nativeBuildVersion } from 'expo-application';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { router } from 'expo-router';
 import type { PermissionStatus } from 'expo-notifications';
@@ -49,6 +50,7 @@ export async function registerForPush(userId: string): Promise<boolean> {
       platform: Platform.OS as 'ios' | 'android',
       install_id: await getInstallId(),
       app_version: APP_CONFIG.version,
+      app_build: nativeBuildVersion ?? undefined,
     });
     registered = { token, userId };
     return true;

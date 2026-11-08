@@ -28,7 +28,7 @@ export function createNewsApi(api: ApiClient) {
   return {
     list: async (
       locale: Locale,
-      client?: { platform: string; app_version: string | null }
+      client?: { platform: string; app_version: string | null; app_build: string | null }
     ): Promise<NewsPage> => {
       const response = await api.get<{ data?: Partial<NewsPage> }>('/api/v1/news', {
         params: { locale, ...client },

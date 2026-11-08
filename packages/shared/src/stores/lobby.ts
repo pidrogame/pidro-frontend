@@ -11,6 +11,7 @@ interface LobbyState {
   rooms: Room[];
   lobby: LobbyCategories;
   minimumNativeVersions: Partial<Record<'android' | 'ios', string>>;
+  minimumNativeBuilds: Partial<Record<'android' | 'ios', string>>;
   nativeStoreUrls: Partial<Record<'android' | 'ios', string>>;
   nativeUpdatePopup: boolean;
   stats: LobbyStats;
@@ -33,6 +34,7 @@ const initialState = {
   rooms: [],
   lobby: emptyLobbyCategories(),
   minimumNativeVersions: {},
+  minimumNativeBuilds: {},
   nativeStoreUrls: {},
   nativeUpdatePopup: false,
   stats: {

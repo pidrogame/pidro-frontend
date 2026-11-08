@@ -1,6 +1,6 @@
 import { getLocale, type Locale, type NewsPost } from '@pidro/shared';
 import { Platform } from 'react-native';
-import { nativeApplicationVersion } from 'expo-application';
+import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
 import { create } from 'zustand';
 import { newsApi } from '@/api/news';
 import { NO_NEWS, newsClosed, newsOpened, newsReceived, type NewsState } from '@/features/news';
@@ -58,6 +58,7 @@ export async function loadNews({ maxAge = 0, opening = false } = {}): Promise<vo
     const page = await newsApi.list(locale, {
       platform: Platform.OS,
       app_version: nativeApplicationVersion,
+      app_build: nativeBuildVersion,
     });
     if (token !== authStore.getState().accessToken) return;
     if (locale !== getLocale()) {
