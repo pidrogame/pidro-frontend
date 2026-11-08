@@ -1,7 +1,7 @@
 /**
  * Rolls beta testers back to an earlier update group. From packages/mobile:
  *
- *   node scripts/rollback-ota.mjs              # republish the group before the current one
+ *   node scripts/rollback-ota.mjs              # per runtime, republish the group before the current one
  *   node scripts/rollback-ota.mjs <group-id>   # republish that group
  *   node scripts/rollback-ota.mjs --dry-run    # list the groups and the choice, publish nothing
  *
@@ -18,13 +18,15 @@ function fail(message) {
   process.exit(1);
 }
 
-const groups = JSON.parse(
-  execFileSync(
-    'bunx',
-    ['eas-cli', 'update:list', '--branch', 'beta', '--limit', '8', '--json', '--non-interactive'],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }
-  )
-).currentPage;
+const list = (...filters) =>
+  JSON.parse(
+    execFileSync(
+      'bunx',
+      ['eas-cli', 'update:list', '--branch', 'beta', ...filters, '--json', '--non-interactive'],
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] }
+    )
+  ).currentPage;
+const groups = list('--limit', '8');
 if (!groups.length) fail('no beta updates yet');
 
 console.log('Recent beta update groups, newest first:');
@@ -33,32 +35,57 @@ groups.forEach(({ group, runtimeVersion, message }, index) =>
 );
 console.log('');
 
-const [current, previous] = groups;
-let target = groups.find(({ group }) => group === groupArg);
-if (groupArg && !target) target = { group: groupArg, message: groupArg };
+// Listed as `"message" (2 hours ago by …)`.
+const quoted = (message) => message.replace(/^"([^"]*)".*$/, '$1');
+let targets = [
+  groups.find(({ group }) => group === groupArg) ?? { group: groupArg, message: groupArg },
+];
 if (!groupArg) {
   // Picking "the one before" again after a rollback would bring back the bad update.
-  if (current.message.startsWith(`"${ROLLBACK}`))
+  const current = quoted(groups[0].message);
+  if (current.startsWith(ROLLBACK))
     fail('beta is already rolled back; pass the group id to go further back');
-  if (!previous || previous.runtimeVersion !== current.runtimeVersion)
-    fail(`no earlier update for runtime ${current.runtimeVersion}; fix forward instead`);
-  target = previous;
+  // Each platform has its own runtime (the fingerprint), so one publish is a group per
+  // runtime. Each goes back to the group before it on the same runtime, or, the first
+  // update on a new build, to the JS that build shipped with.
+  const latest = groups.filter(({ message }) => quoted(message) === current);
+  targets = latest.map(
+    ({ runtimeVersion, platforms }) =>
+      list('--runtime-version', runtimeVersion, '--limit', '2').find(
+        ({ message }) => quoted(message) !== current
+      ) ?? { runtimeVersion, platforms, embedded: true }
+  );
 }
 
-const args = [
-  'eas-cli',
-  'update:republish',
-  '--group',
-  target.group,
-  '--destination-branch',
-  'beta',
-  '--message',
-  `${ROLLBACK} ${target.message.replace(/^"([^"]*)".*$/, '$1')}`,
-  '--non-interactive',
-];
-console.log(`→ bunx ${args.join(' ')}`);
-if (dryRun) {
-  console.log('✓ dry run — nothing republished');
-  process.exit(0);
+for (const target of targets) {
+  const args = target.embedded
+    ? [
+        'eas-cli',
+        'update:roll-back-to-embedded',
+        '--branch',
+        'beta',
+        '--runtime-version',
+        target.runtimeVersion,
+        '--platform',
+        target.platforms.includes(',') ? 'all' : target.platforms,
+        '--message',
+        `${ROLLBACK} the build's own JS`,
+        '--non-interactive',
+      ]
+    : [
+        'eas-cli',
+        'update:republish',
+        '--group',
+        target.group,
+        '--destination-branch',
+        'beta',
+        '--message',
+        `${ROLLBACK} ${quoted(target.message)}`,
+        '--non-interactive',
+      ];
+  console.log(`→ bunx ${args.join(' ')}`);
+  if (dryRun) continue;
+  const status = spawnSync('bunx', args, { stdio: 'inherit' }).status;
+  if (status !== 0) process.exit(status ?? 1);
 }
-process.exit(spawnSync('bunx', args, { stdio: 'inherit' }).status ?? 1);
+if (dryRun) console.log('✓ dry run — nothing republished');

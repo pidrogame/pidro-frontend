@@ -19,15 +19,19 @@ A commit pushed to `main` reaches beta testers' phones by itself:
    bunx eas-cli update --branch beta --environment production --message "..." --non-interactive
    ```
 
-   Its run summary shows the update group and the dashboard link.
+   It adds `--platform` for the platforms whose builds can run the commit. Its run summary
+   names each platform's runtime, the build it rides on and its update group (one per
+   runtime).
 
 It does not publish when:
 
-- **Something native changed** since the last beta build or update for this runtime
-  (`ios/`, `android/`, `app.config.*`, app.json's native fields and the files they point
-  at, or a package with native code). The summary lists what and says a new store
-  build is needed: bump `version` in `packages/mobile/app.json` and ship a beta build.
-  Check a range yourself from `packages/mobile`: `node scripts/ota-check.mjs <base> [head]`.
+- **Something native changed**: the commit's fingerprint (the update runtime, one per
+  platform) matches no beta build or update for that platform. The summary says a new
+  store build is needed, for which platform, and what changed (`ota-check.mjs`: `ios/`,
+  `android/`, `app.config.*`, app.json's native fields and the files they point at, or
+  a package with native code). Build it with the version unchanged:
+  [store-builds.md](store-builds.md). The other platform still gets the update. Check a
+  range yourself from `packages/mobile`: `node scripts/ota-check.mjs <base> [head]`.
 - `main` has already moved on (a newer commit publishes instead), beta already carries
   a newer commit, or this commit went to beta before (so re-running CI after a rollback
   can't bring a bad update back).
@@ -40,7 +44,7 @@ From `packages/mobile`, with a logged-in `eas` CLI or `EXPO_TOKEN`:
 
 ```bash
 node scripts/rollback-ota.mjs --dry-run    # the last beta groups and what it would pick
-node scripts/rollback-ota.mjs              # republish the group before the current one
+node scripts/rollback-ota.mjs              # per runtime, republish the group before the current one
 node scripts/rollback-ota.mjs <group-id>   # republish that group
 ```
 
@@ -53,6 +57,11 @@ rollback, so revert or fix the bad commit there.
 
 **Fix forward** for everything else: a wrong word, a misplaced control, a bug with a
 way around it. Push the fix; green `main` publishes it.
+
+Each platform has its own runtime, so a commit is one update group per runtime, and
+the script rolls back each runtime the last publish reached. A runtime with no earlier
+update (the first update on a new store build) goes back to the JS that build shipped
+with (`update:roll-back-to-embedded`).
 
 Once beta is rolled back, the script won't pick "the one before" again (that would be
 the bad update); pass a group id to go further back.

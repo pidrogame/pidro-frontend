@@ -75,6 +75,19 @@ in EAS, not in git.
 A production update now needs the production AdMob app IDs in the EAS environment,
 just as the production build does.
 
+## A native change is a new fingerprint
+
+The update runtime is the project's fingerprint (`docs/store-builds.md`). Adding or
+upgrading a package with native code, a config plugin or its options (the AdMob app
+IDs among them) makes a new fingerprint. The Beta update then says **New store build
+needed** for the platforms it touches, and builds already on phones stop getting updates
+until the new store build is installed. So the AdMob app IDs and the Facebook client
+token (`EXPO_PUBLIC_FACEBOOK_CLIENT_TOKEN`, an option of the Facebook plugin) must read
+the same in the build and in `eas update`: keep them in the EAS `production` environment
+as plain text or sensitive. A local `.env` doesn't count, `google-services.json` and
+`extra` are left out (`packages/mobile/fingerprint.config.js`): EAS Build never sees a
+`.env`, `eas update` cannot read a file variable, and `extra` ships in every update.
+
 ## Firebase (Android push)
 
 Expo push on Android goes through FCM. Download `google-services.json` for each
