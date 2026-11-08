@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import type { User } from './auth';
 
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 export const BIO_MAX_LENGTH = 280;
@@ -34,6 +35,9 @@ export interface ProfileIdentity {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
+  /** As on the current user (PID-395); absent from an older server. */
+  avatar_face?: 'a' | 'b' | null;
+  has_photo?: boolean;
   bio: string | null;
   games_played?: number;
   veteran?: {
@@ -168,8 +172,17 @@ export function createProfileApi(api: ApiClient) {
       return response.data.data;
     },
     removeAvatar: async () => {
-      const response = await api.delete<{ data: { avatar_url: null } }>('/api/v1/profile/avatar');
+      const response = await api.delete<{ data: { avatar_url: string | null } }>(
+        '/api/v1/profile/avatar'
+      );
       return response.data.data;
+    },
+    /** Picks the face shown without a photo; guests too. Answers with the current user. */
+    setFace: async (face: 'a' | 'b'): Promise<User> => {
+      const response = await api.put<{ data: { user: User } }>('/api/v1/profile/avatar/face', {
+        face,
+      });
+      return response.data.data.user;
     },
   };
 }

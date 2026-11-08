@@ -35,6 +35,9 @@ export type User = {
   display_name?: string | null;
   guest?: boolean;
   avatar_url?: string | null;
+  /** The face picked for when there is no photo (PID-395). Absent from an older server. */
+  avatar_face?: 'a' | 'b' | null;
+  has_photo?: boolean;
   share_slug?: string | null;
   bio?: string | null;
   age_band?: AgeBand;
