@@ -5,6 +5,7 @@ import {
   Platform,
   StyleSheet,
   View,
+  type ImageSourcePropType,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -61,6 +62,8 @@ export type DealerTrail = { current: { x: number; y: number } | null };
 export interface PlayerAvatarProps {
   size: number;
   uri?: string | null;
+  /** What shows without `uri`; Face 1 unless a face is named. */
+  fallbackSource?: ImageSourcePropType;
   ring?: AvatarRing;
   pin?: AvatarPin | null;
   level?: number | null;
@@ -133,6 +136,7 @@ const OFFLINE_SHADOW = '0px 2px 4px rgba(0,0,0,0.5)';
 export function PlayerAvatar({
   size,
   uri,
+  fallbackSource,
   ring = 'glass',
   pin = null,
   level = null,
@@ -259,7 +263,12 @@ export function PlayerAvatar({
             ) : kind === 'bot' ? (
               <Icon name="bot" size={Math.round(size * 0.5)} color={PidroColors.text} />
             ) : (
-              <Avatar uri={uri} style={styles.photo} resizeMode="cover" />
+              <Avatar
+                uri={uri}
+                fallbackSource={fallbackSource}
+                style={styles.photo}
+                resizeMode="cover"
+              />
             )}
           </View>
         </View>

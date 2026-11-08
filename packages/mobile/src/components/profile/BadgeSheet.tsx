@@ -1,10 +1,19 @@
 import { useState, type ReactNode } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
+import {
+  Image,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  useWindowDimensions,
+  View,
+} from 'react-native';
 import { Asset } from 'expo-asset';
 import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import type { PinChoice } from '@pidro/shared';
 import type { ClassicProfile } from '@/api/profile';
+import { Avatar, FACES } from '@/components/ui/Avatar';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
@@ -22,13 +31,14 @@ import {
   PidroRadii,
   PidroSpacing,
 } from '@/design/tokens';
-import { classicPinLine } from '@/features/profile';
+import { classicPinLine, faceTap, pictureChoice, type Face } from '@/features/profile';
 import { formatNumber, useTranslation } from '@/i18n';
 import { isStillCapture } from '@/utils/stillCapture';
 
 /**
- * The player's photo, ring and pin. Pin choice stays on this device until
- * the server keeps pins; photos change only after the server accepts them.
+ * The player's picture, ring and pin. Pin choice stays on this device until
+ * the server keeps pins; a face or photo changes only after the server
+ * accepts it, though a tapped face shows while it saves.
  */
 export function BadgeSheet({
   isOpen,
@@ -53,25 +63,61 @@ export function BadgeSheet({
 }) {
   const { t } = useTranslation();
   const reduceMotion = useReducedMotion();
-  const guest = useAuthStore((state) => !!state.user?.guest);
+  const user = useAuthStore((state) => state.user);
+  const guest = !!user?.guest;
   const photo = useProfilePhoto();
   const previewState = __DEV__ ? fixture : undefined;
-  const [confirmRemove, setConfirmRemove] = useState(previewState === 'photo-remove');
+  // A face over a photo waits for the player to say the photo may go.
+  const [confirmRemove, setConfirmRemove] = useState<Face | 'photo' | null>(
+    previewState === 'photo-remove' ? 'photo' : null
+  );
+  const faceFixture = previewState === 'photo-empty' || previewState?.startsWith('photo-face');
   const fixturePhoto =
-    __DEV__ && previewState && previewState !== 'photo-empty'
-      ? Asset.fromModule(require('../../../assets/images/avatar2.png')).uri
+    __DEV__ && previewState && !faceFixture
+      ? Asset.fromModule(require('../../../assets/images/marcel.jpg')).uri
       : null;
-  const currentUri = previewState === 'photo-empty' ? null : (fixturePhoto ?? uri);
+  const currentUri = faceFixture ? null : (fixturePhoto ?? uri);
+  const choice = previewState
+    ? fixturePhoto
+      ? 'photo'
+      : previewState === 'photo-face' || previewState === 'photo-face-saved'
+        ? 'b'
+        : 'a'
+    : pictureChoice(user);
+  const shown = photo.face ?? choice;
+  // Without a photo, avatar_url is the face's image: only a photo fills the Photo disc.
+  const photoUri = photo.preview ?? (choice === 'photo' ? currentUri : null);
+  // The sheet draws faces from the app's own images, the same pixels the server serves.
+  const picture = {
+    uri: shown === 'photo' ? currentUri : null,
+    fallbackSource: FACES[shown === 'photo' ? 'a' : shown],
+  };
   const progress = previewState === 'photo-uploading' ? 42 : photo.progress;
   const busy = photo.busy || progress != null;
-  const error = previewState === 'photo-error' ? t('profile.photo_open_error') : photo.error;
+  const error =
+    previewState === 'photo-error'
+      ? t('profile.photo_open_error')
+      : previewState === 'photo-face-error'
+        ? t('profile.face_error')
+        : photo.error;
   const saved = previewState === 'photo-saved' || photo.saved;
+  const faceSaved = previewState === 'photo-face-saved' || photo.faceSaved;
+  const feedback = progress != null || saved || faceSaved || !!error;
+  // The face that shows once the photo goes: the one tapped, or the one kept on the server.
+  const afterPhoto = confirmRemove === 'photo' ? (user?.avatar_face ?? 'a') : confirmRemove;
+  const tapFace = (face: Face) => {
+    if (previewState) return;
+    const action = faceTap(shown, face);
+    if (action === 'confirm-remove') setConfirmRemove(face);
+    else if (action === 'save-face') void photo.pickFace(face);
+  };
   const { height } = useWindowDimensions();
   const short = height < PidroLayout.compactHeight;
   const compact = height < 700;
+  const disc = compact ? 64 : 84;
   const close = () => {
     if (photo.isBusy() || busy) return;
-    setConfirmRemove(false);
+    setConfirmRemove(null);
     onClose();
   };
   return (
@@ -109,7 +155,8 @@ export function BadgeSheet({
                   style={[styles.avatar, compact && styles.compactAvatar]}>
                   <PlayerAvatar
                     size={compact ? 72 : 92}
-                    uri={photo.preview ?? currentUri}
+                    uri={photo.preview ?? picture.uri}
+                    fallbackSource={picture.fallbackSource}
                     level={level}
                     prestige={prestige}
                     pin={pin}
@@ -117,7 +164,7 @@ export function BadgeSheet({
                     accessibilityLabel={t(pin ? 'profile.wearing_classic' : 'profile.wearing_none')}
                   />
                 </View>
-                {progress != null || saved || error ? (
+                {feedback ? (
                   <View testID="photo-feedback" style={styles.feedback}>
                     {progress != null ? (
                       <PidroText
@@ -146,7 +193,7 @@ export function BadgeSheet({
                           label={t('game.try_again')}
                           disabled={busy}
                           onPress={() => {
-                            if (!previewState) void photo.choose();
+                            if (!previewState) void photo.retry();
                           }}
                         />
                       </>
@@ -156,68 +203,110 @@ export function BadgeSheet({
                         tone="cyan"
                         align="center"
                         accessibilityLiveRegion="polite">
-                        {t('profile.photo_saved')}
+                        {t(saved ? 'profile.photo_saved' : 'profile.face_saved')}
                       </PidroText>
                     )}
                   </View>
                 ) : null}
-                {!guest ? (
-                  <View testID="photo-actions" style={styles.actions}>
-                    {confirmRemove ? (
-                      <>
-                        <PidroText role="label" align="center">
-                          {t('profile.remove_title')}
+                <View testID="photo-actions" style={styles.actions}>
+                  {confirmRemove ? (
+                    <>
+                      <PidroText role="label" align="center">
+                        {t('profile.remove_title')}
+                      </PidroText>
+                      <PidroText role="metadata" tone="soft" align="center">
+                        {t('profile.remove_help', {
+                          face: t(afterPhoto === 'b' ? 'profile.face_2' : 'profile.face_1'),
+                        })}
+                      </PidroText>
+                      <BevelButton
+                        testID="photo-confirm"
+                        label={t('profile.remove_photo')}
+                        size="sm"
+                        fullWidth
+                        disabled={busy}
+                        onPress={() => {
+                          if (previewState) return;
+                          setConfirmRemove(null);
+                          void photo.remove(confirmRemove === 'photo' ? undefined : confirmRemove);
+                        }}
+                      />
+                      <TextLink
+                        testID="photo-cancel"
+                        label={t('common.cancel')}
+                        disabled={busy}
+                        onPress={() => setConfirmRemove(null)}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      {/* The row's words yield to the line under the avatar, so small screens fit. */}
+                      {!error ? (
+                        <PidroText role="metadata" tone="cyan" style={styles.eyebrow}>
+                          {t('profile.your_picture')}
                         </PidroText>
-                        <PidroText role="metadata" tone="soft" align="center">
-                          {t('profile.remove_help')}
-                        </PidroText>
-                        <BevelButton
-                          testID="photo-confirm"
-                          label={t('profile.remove_photo')}
-                          size="sm"
-                          fullWidth
-                          disabled={busy}
-                          onPress={() => {
-                            if (previewState) return;
-                            setConfirmRemove(false);
-                            void photo.remove();
-                          }}
-                        />
-                        <TextLink
-                          testID="photo-cancel"
-                          label={t('common.cancel')}
-                          disabled={busy}
-                          onPress={() => setConfirmRemove(false)}
-                        />
-                      </>
-                    ) : (
-                      <>
-                        <BevelButton
-                          testID="photo-change"
-                          label={t(currentUri ? 'profile.change_photo' : 'profile.add_photo')}
-                          size="sm"
-                          fullWidth
-                          disabled={busy}
-                          onPress={() => {
-                            if (!previewState) void photo.choose();
-                          }}
-                        />
-                        {currentUri ? (
-                          <TextLink
-                            testID="photo-remove"
-                            label={t('profile.remove_photo')}
-                            disabled={busy}
-                            onPress={() => setConfirmRemove(true)}
-                          />
+                      ) : null}
+                      <View
+                        testID="picture-choices"
+                        accessibilityRole="radiogroup"
+                        style={styles.discs}>
+                        <PictureDisc
+                          testID="picture-face-a"
+                          label={t('profile.face_1')}
+                          size={disc}
+                          checked={shown === 'a'}
+                          disabled={busy || photo.saving}
+                          onPress={() => tapFace('a')}>
+                          <Image source={FACES.a} style={styles.discImage} />
+                        </PictureDisc>
+                        <PictureDisc
+                          testID="picture-face-b"
+                          label={t('profile.face_2')}
+                          size={disc}
+                          checked={shown === 'b'}
+                          disabled={busy || photo.saving}
+                          onPress={() => tapFace('b')}>
+                          <Image source={FACES.b} style={styles.discImage} />
+                        </PictureDisc>
+                        {!guest ? (
+                          <PictureDisc
+                            testID="picture-photo"
+                            label={t('profile.photo')}
+                            size={disc}
+                            checked={shown === 'photo'}
+                            empty={!photoUri}
+                            disabled={busy || photo.saving}
+                            onPress={() => {
+                              if (!previewState) void photo.choose();
+                            }}>
+                            {photoUri ? (
+                              <Avatar uri={photoUri} style={styles.discImage} resizeMode="cover" />
+                            ) : (
+                              <Icon name="camera" size={disc * 0.36} color={PidroColors.textSoft} />
+                            )}
+                          </PictureDisc>
                         ) : null}
-                      </>
-                    )}
-                  </View>
-                ) : null}
+                      </View>
+                      {!feedback ? (
+                        <PidroText role="metadata" tone="soft" align="center">
+                          {t('profile.picture_help')}
+                        </PidroText>
+                      ) : null}
+                      {shown === 'photo' && !busy && !error ? (
+                        <TextLink
+                          testID="photo-remove"
+                          label={t('profile.remove_photo')}
+                          disabled={busy}
+                          onPress={() => setConfirmRemove('photo')}
+                        />
+                      ) : null}
+                    </>
+                  )}
+                </View>
               </View>
               <View testID="badge-options" style={[styles.options, short && styles.optionColumn]}>
                 <Surface variant="subtle" style={[styles.ring, compact && styles.compactRow]}>
-                  <PlayerAvatar size={40} uri={currentUri} />
+                  <PlayerAvatar size={40} {...picture} />
                   <View style={styles.copy}>
                     <PidroText role="label">{t('profile.glass_ring')}</PidroText>
                     <PidroText role="metadata" tone="soft">
@@ -275,6 +364,59 @@ export function BadgeSheet({
         </SafeAreaView>
       </SafeAreaProvider>
     </Modal>
+  );
+}
+
+function PictureDisc({
+  label,
+  size,
+  checked,
+  empty = false,
+  disabled,
+  onPress,
+  children,
+  testID,
+}: {
+  label: string;
+  size: number;
+  checked: boolean;
+  empty?: boolean;
+  disabled: boolean;
+  onPress: () => void;
+  children: ReactNode;
+  testID: string;
+}) {
+  return (
+    <PressableFX
+      testID={testID}
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ checked, disabled }}
+      aria-checked={checked}
+      aria-disabled={disabled}
+      disabled={disabled}
+      onPress={onPress}
+      style={styles.disc}>
+      <View style={{ width: size, height: size }}>
+        <View
+          style={[
+            styles.discFace,
+            { borderRadius: size / 2 },
+            empty && styles.discEmpty,
+            checked && styles.discOn,
+          ]}>
+          {children}
+        </View>
+        {checked ? (
+          <View style={styles.discCheck}>
+            <Icon name="check" size={14} color={PidroBevel.keyline} />
+          </View>
+        ) : null}
+      </View>
+      <PidroText role="label" align="center" style={checked && styles.captionOn}>
+        {label}
+      </PidroText>
+    </PressableFX>
   );
 }
 
@@ -434,5 +576,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioOn: { borderColor: PidroBevel.textGold },
+  discs: { width: '100%', flexDirection: 'row', justifyContent: 'space-evenly' },
+  disc: { flex: 1, alignItems: 'center', gap: PidroSpacing.xxs },
+  discFace: {
+    flex: 1,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: PidroColors.border,
+    backgroundColor: PidroColors.panelSoft,
+  },
+  discEmpty: { borderWidth: 2, borderStyle: 'dashed', borderColor: PidroColors.borderStrong },
+  discOn: { borderColor: PidroBevel.rim },
+  discImage: { width: '100%', height: '100%' },
+  discCheck: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: PidroBevel.keyline,
+    backgroundColor: PidroBevel.textGold,
+  },
+  captionOn: { color: PidroBevel.textGold },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: PidroBevel.textGold },
 });

@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { Image, type ImageProps, type ImageSourcePropType } from 'react-native';
 
-const fallback = require('~/assets/images/avatar1.png') as ImageSourcePropType;
+/** The faces a player without a photo can wear; the server's `a` and `b` (PID-395). */
+export const FACES = {
+  a: require('~/assets/images/avatar1.png') as ImageSourcePropType,
+  b: require('~/assets/images/avatar2.png') as ImageSourcePropType,
+};
+const fallback = FACES.a;
 
 type Props = Omit<ImageProps, 'source'> & {
   uri?: string | null;

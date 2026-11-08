@@ -8,6 +8,7 @@ import {
   formatDate,
   getLocale,
   type TranslationKey,
+  type User,
 } from '@pidro/shared';
 
 // Stable server title vocabulary, not player-authored text. Unknown future titles
@@ -236,4 +237,44 @@ export function classicRecordLine(classic: ClassicProfile): string {
 /** A Classic player wears the Classic pin until they choose No pin. */
 export function wornPin(choice: PinChoice | undefined, classic: boolean): 'classic' | null {
   return classic && choice !== 'none' ? 'classic' : null;
+}
+
+export type Face = 'a' | 'b';
+export type PictureChoice = Face | 'photo';
+
+/**
+ * Which "Your picture" choice is on (PID-395). An older server sends neither
+ * field: then a picture was always a photo, and no picture is Face 1.
+ */
+export function pictureChoice(
+  user: Pick<User, 'avatar_url' | 'avatar_face' | 'has_photo'> | null | undefined
+): PictureChoice {
+  if (user?.has_photo ?? !!user?.avatar_url) return 'photo';
+  return user?.avatar_face ?? 'a';
+}
+
+/** What a tap on a face does: over a photo it asks before the photo goes. */
+export function faceTap(current: PictureChoice, face: Face): 'confirm-remove' | 'save-face' | null {
+  if (current === 'photo') return 'confirm-remove';
+  return face === current ? null : 'save-face';
+}
+
+/**
+ * Shows the tapped face at once, then the server's answer: the user it sends
+ * back, or, when it fails, the choice from before. A failure rethrows.
+ */
+export async function saveFace(
+  face: Face,
+  io: {
+    show: (face: Face | null) => void;
+    put: (face: Face) => Promise<User>;
+    install: (user: User) => void;
+  }
+): Promise<void> {
+  io.show(face);
+  try {
+    io.install(await io.put(face));
+  } finally {
+    io.show(null);
+  }
 }

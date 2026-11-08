@@ -15,6 +15,8 @@ export function useProfileIdentity() {
     )
       return undefined;
     const currentUser = current.user;
+    // False when an upload, removal or face landed while this older read was in flight.
+    const fresh = currentUser.avatar_url === before.user.avatar_url;
     current.setSession({
       accessToken: current.accessToken,
       refreshToken: current.refreshToken ?? undefined,
@@ -22,11 +24,13 @@ export function useProfileIdentity() {
         ...currentUser,
         username: identity.username,
         display_name: identity.display_name,
-        // An upload/removal completed while this older profile read was in flight.
-        avatar_url:
-          currentUser.avatar_url === before.user.avatar_url
-            ? identity.avatar_url
-            : currentUser.avatar_url,
+        avatar_url: fresh ? identity.avatar_url : currentUser.avatar_url,
+        avatar_face:
+          fresh && identity.avatar_face !== undefined
+            ? identity.avatar_face
+            : currentUser.avatar_face,
+        has_photo:
+          fresh && identity.has_photo !== undefined ? identity.has_photo : currentUser.has_photo,
         bio: identity.bio,
       },
     });

@@ -5,21 +5,28 @@ import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { AVATAR_MAX_BYTES } from '@pidro/shared';
 import { profileApi } from '@/api/profile';
+import { saveFace, type Face } from '@/features/profile';
 import { authStore } from '@/stores/auth';
 import { localizedError, localizedFieldErrors } from '@/utils/apiErrors';
 import type { TranslationKey } from '@/i18n';
 
+/** The player's photo, and the face they wear without one; guests pick faces too. */
 export function useProfilePhoto() {
   const [preview, setPreview] = useState<string | null>(null);
+  const [face, setFace] = useState<Face | null>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<number | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<'photo' | 'face' | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<{
     cause?: unknown;
     fallback: TranslationKey;
     field?: string;
+    face?: Face;
   } | null>(null);
   const locked = useRef(false);
+  // A face saving holds off photo changes but, unlike them, never holds the sheet open.
+  const picking = useRef(false);
   const mounted = useRef(true);
   usePreventRemove(busy, () => {});
 
@@ -32,13 +39,15 @@ export function useProfilePhoto() {
 
   useEffect(() => {
     if (!saved) return;
-    const timer = setTimeout(() => setSaved(false), 2000);
+    const timer = setTimeout(() => setSaved(null), saved === 'face' ? 4000 : 2000);
     return () => clearTimeout(timer);
   }, [saved]);
 
-  const change = async (remove = false) => {
+  /** With `then`, the photo goes so that face can follow it. */
+  const change = async (remove = false, then?: Face) => {
     const session = authStore.getState();
-    if (locked.current || !session.user || session.user.guest || !session.accessToken) return;
+    if (locked.current || picking.current) return;
+    if (!session.user || session.user.guest || !session.accessToken) return;
     const { id } = session.user;
     const token = session.accessToken;
     const currentSession = () => {
@@ -46,13 +55,13 @@ export function useProfilePhoto() {
       return current.user?.id === id && current.accessToken === token;
     };
     const canUpdate = () => mounted.current && currentSession();
-    const updateAvatarForCurrentSession = (avatarUrl: string | null) => {
+    const updateAvatarForCurrentSession = (avatarUrl: string | null, hasPhoto: boolean) => {
       if (!currentSession()) return;
       const current = authStore.getState();
       current.setSession({
         accessToken: token,
         refreshToken: current.refreshToken ?? undefined,
-        user: { ...current.user!, avatar_url: avatarUrl },
+        user: { ...current.user!, avatar_url: avatarUrl, has_photo: hasPhoto },
       });
     };
     locked.current = true;
@@ -63,10 +72,10 @@ export function useProfilePhoto() {
     try {
       if (remove) {
         setError(null);
-        setSaved(false);
+        setSaved(null);
         const result = await profileApi.removeAvatar();
-        updateAvatarForCurrentSession(result.avatar_url);
-        return;
+        updateAvatarForCurrentSession(result.avatar_url, false);
+        return true;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
@@ -77,7 +86,7 @@ export function useProfilePhoto() {
       pickerUri = result.assets?.[0]?.uri;
       if (!canUpdate() || result.canceled) return;
       setError(null);
-      setSaved(false);
+      setSaved(null);
       const asset = result.assets[0];
       if (!asset) throw new Error('No photo was returned');
       const resize = asset.width > 1024 || asset.height > 1024;
@@ -113,14 +122,15 @@ export function useProfilePhoto() {
       const uploaded = await profileApi.uploadAvatar(file, (percent) => {
         if (canUpdate()) setProgress(percent);
       });
-      updateAvatarForCurrentSession(uploaded.avatar_url);
-      if (canUpdate()) setSaved(true);
+      updateAvatarForCurrentSession(uploaded.avatar_url, true);
+      if (canUpdate()) setSaved('photo');
     } catch (cause) {
       if (canUpdate())
         setError({
           cause,
           fallback,
           field: fallback === 'profile.upload_error' ? 'avatar' : undefined,
+          face: then,
         });
     } finally {
       if (mounted.current) {
@@ -136,17 +146,77 @@ export function useProfilePhoto() {
     }
   };
 
+  const pickFace = async (next: Face) => {
+    const session = authStore.getState();
+    if (locked.current || picking.current || !session.user || !session.accessToken) return;
+    const { id } = session.user;
+    const token = session.accessToken;
+    const currentSession = () => {
+      const current = authStore.getState();
+      return current.user?.id === id && current.accessToken === token;
+    };
+    picking.current = true;
+    setSaving(true);
+    setError(null);
+    setSaved(null);
+    try {
+      await saveFace(next, {
+        show: (shown) => {
+          if (mounted.current) setFace(shown);
+        },
+        put: profileApi.setFace,
+        install: (user) => {
+          if (!currentSession()) return;
+          const current = authStore.getState();
+          current.setSession({
+            accessToken: token,
+            refreshToken: current.refreshToken ?? undefined,
+            user: {
+              ...current.user!,
+              avatar_url: user.avatar_url,
+              avatar_face: user.avatar_face,
+              has_photo: user.has_photo,
+            },
+          });
+        },
+      });
+      if (mounted.current && currentSession()) setSaved('face');
+    } catch {
+      // One plain line for any refusal, an older server's 404 included.
+      if (mounted.current && currentSession())
+        setError({ fallback: 'profile.face_error', face: next });
+    } finally {
+      picking.current = false;
+      if (mounted.current) setSaving(false);
+    }
+  };
+
+  const remove = async (then?: Face) => {
+    if ((await change(true, then)) && then) await pickFace(then);
+  };
+
   return {
     preview,
+    face,
     busy,
+    saving,
     progress,
-    saved,
+    saved: saved === 'photo',
+    faceSaved: saved === 'face',
     error: error
       ? ((error.field ? localizedFieldErrors(error.cause)[error.field] : undefined) ??
         localizedError(error.cause, error.fallback))
       : null,
     choose: () => change(),
-    remove: () => change(true),
+    remove,
+    pickFace,
+    // Try again repeats what failed: the removal (and the face after it), the face, or the pick.
+    retry: () =>
+      error?.fallback === 'profile.remove_error'
+        ? remove(error.face)
+        : error?.face
+          ? pickFace(error.face)
+          : change(),
     isBusy: () => locked.current,
   };
 }
