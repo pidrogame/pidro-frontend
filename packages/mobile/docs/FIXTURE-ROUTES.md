@@ -176,6 +176,11 @@ It applies the server's seat lifecycle shape: bots have a persona but no account
 Cards stay closed until tapped. `table-bot-thinking[-antti|-jocke]-{en,sv}`
 checks each voice's visible nameplate line and that reloading keeps it.
 `botTurn=north|east|west&botHand=1|2|3|4` tries every line of the crew.
+PID-408 adds `talk=lines|sheet`: the band is open at a bot table, Gun (warm)
+sits East in Jocke's place, and `lines` lands Antti's teasing line at North,
+Gun's warm line at East and Marcel's 👍 at West; `sheet` opens the hand of
+words, with no typing box, since no other person reads it. Antti's face opens
+his card with **Quiet Antti’s words**, which hushes his `bot:antti` lines.
 PID-405 adds `character=saga`: North, your partner, is Saga, a catalogue
 character who plays `search` and thinks in her own five catalogue lines. The
 last is 40 characters, the most allowed: the nameplate cuts it short, and in

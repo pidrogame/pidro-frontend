@@ -563,6 +563,18 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
   'talk-typing': { sheet: 'typing', draft: 'Nice one with that five' },
   'talk-typing-turn': { sheet: 'typing', draft: 'Nice one with that five' },
   'talk-filtered': { sheet: 'typing', draft: 'Nice one with that five', filtered: true },
+  // PID-408, `fixture=bot-crew&talk=…`: a bot's line or coin lands like a person's word.
+  'bots-lines': {
+    landed: [
+      { seat: 'north', userId: 'bot:antti', item: 'line_teasing_five_caught_1' },
+      { seat: 'east', userId: 'bot:gun', item: 'line_warm_partner_points_1' },
+      { seat: 'west', userId: 'bot:marcel', item: 'coin_thumb' },
+    ],
+  },
+  'bots-sheet': {
+    sheet: 'words',
+    line: { seat: 'east', userId: 'bot:gun', item: 'line_warm_hello_2' },
+  },
   'talk-log': {
     sheet: 'log',
     line: said('north', 'word_thanks'),
@@ -573,6 +585,22 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
       said('south', 'word_nice'),
       said('north', 'word_thanks'),
     ],
+  },
+};
+
+/** `fixture=bot-crew&talk=…` (PID-408): Gun, the warm grandmother, sits East in Jocke's place. */
+const BOT_GUN = {
+  bot_persona: 'gun',
+  username: 'Gun',
+  display_name: 'Gun',
+  bot_profile: {
+    id: 'gun',
+    name: 'Gun',
+    description: 'Hosts the Thursday table, coffee on.',
+    avatar_url: fixtureAvatar('G', '#b0607a'),
+    strategy: 'rulebook',
+    tempo: 'steady',
+    home: 'finland' as const,
   },
 };
 
@@ -836,6 +864,8 @@ function TableDevHarness() {
     botTurn?: Position;
     botHand?: string;
     character?: string;
+    /** `fixture=bot-crew&talk=lines|sheet` (PID-408): the crew's talk, Gun sitting East. */
+    talk?: string;
     seats?: string;
     cut?: string;
     sheet?: string;
@@ -995,7 +1025,11 @@ function TableDevHarness() {
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
             loading={params.loading ? Number(params.loading) : undefined}
             dealerLate={fixture === 'dealer-late' ? Number(params.late) || 0 : undefined}
-            talk={TALK_FIXTURES[fixture ?? '']}
+            talk={
+              TALK_FIXTURES[
+                fixture === 'bot-crew' && params.talk ? `bots-${params.talk}` : (fixture ?? '')
+              ]
+            }
             talkTurn={
               // A tap that is not your turn (PID-364): West is on turn.
               !['flaky-early-tap', 'flaky-out-tap', 'flaky-away-out'].includes(fixture ?? '') &&
@@ -1312,7 +1346,7 @@ function RolePreview({
     ? STATUS_ROOMS[status]
     : teamsHand
       ? TEAMS_ROOM
-      : talk
+      : talk && !botCrew
         ? TALK_ROOM
         : longNames
           ? LONG_NAMES_ROOM
@@ -1371,7 +1405,20 @@ function RolePreview({
     store.setYouPosition('south');
     store.setChannelStatus(connected);
     // A guest or a 13 to 17 does not read typed talk.
-    if (talk) store.setReadiness(talkReadiness(!talkGuest && !talkTeen));
+    if (talk && !botCrew) store.setReadiness(talkReadiness(!talkGuest && !talkTeen));
+    // PID-408: you read typed talk, and only bots sit with you: no one reads what you type.
+    if (talk && botCrew) {
+      const readiness = talkReadiness(true);
+      store.setReadiness({
+        ...readiness,
+        seats: Object.fromEntries(
+          Object.entries(readiness.seats).map(([position, seat]) => [
+            position,
+            position === 'south' ? seat : { ...seat, occupant_type: 'bot', reads_typed: false },
+          ])
+        ) as ReadinessSnapshot['seats'],
+      });
+    }
     // `Status-Seats` b: Antti is a bot, and Jussi's connection dropped.
     if (status === 'b') {
       const seated = (position: Position) => {
@@ -1416,7 +1463,7 @@ function RolePreview({
           east: {
             status: 'permanent_bot',
             player_id: null,
-            ...BOT_CREW[2],
+            ...(talk ? BOT_GUN : BOT_CREW[2]),
             decision: null,
           },
         },

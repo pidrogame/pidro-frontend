@@ -6381,7 +6381,14 @@ async function assertBotVoice(page, testCase, viewport) {
         { exact: true }
       )
       .waitFor();
-    assert.equal(await card.getByRole('button').count(), 1, 'bots have Close, no social actions');
+    // At a bot table (PID-408) a bot can be quieted for the game: Close and Quiet, nothing to report.
+    assert.deepEqual(
+      await card
+        .getByRole('button')
+        .evaluateAll((nodes) => nodes.map((node) => node.dataset.testid ?? '')),
+      ['player-sheet-quiet', ''],
+      'bots have Quiet and Close, no social actions'
+    );
     for (const text of await copy.locator('[dir="auto"]').all()) {
       assertInsideViewport('bot card text', await getStableBox(text, page), viewport);
     }
@@ -6403,7 +6410,9 @@ async function assertBotVoice(page, testCase, viewport) {
     const entry = page.getByRole('button', { name: testCase.open });
     await entry.getByText(testCase.botCard, { exact: true }).click();
     await copy.waitFor();
-    await card.getByRole('button').click();
+    await card
+      .getByRole('button', { name: testCase.locale === 'sv' ? 'Stäng' : 'Close', exact: true })
+      .click();
     await card.waitFor({ state: 'detached' });
     await entry.locator('svg').first().click();
     await copy.waitFor();

@@ -92,7 +92,7 @@ import {
   type TalkPlace,
 } from '@/components/game/TableTalk';
 import { TalkSheet } from '@/components/game/TalkSheet';
-import { talkTable, typingFor, unreadBy, type Said } from '@/features/game/talk';
+import { talker, talkTable, typingFor, unreadBy, type Said } from '@/features/game/talk';
 import { useTableTalk, type TalkFixture } from '@/game/useTableTalk';
 
 type Props = {
@@ -691,14 +691,11 @@ export function GameCanvasTable({
           return false;
         }
       };
-  // Table talk (PID-114): only where two or more people sit, and never under game over.
+  // Table talk (PID-114): wherever someone else sits, a bot too (PID-408), never under game over.
   const players = viewModel?.players ?? [];
   const me = players.find((player) => player.isYou);
-  const talking =
-    !isSpectator &&
-    !!youPositionAbs &&
-    talkTable(readiness?.seats, lifecycleSeats) &&
-    !(isGameOver && roomFinished);
+  const company = talkTable(readiness?.seats, lifecycleSeats);
+  const talking = !isSpectator && !!youPositionAbs && !!company && !(isGameOver && roomFinished);
   const hand = serverState?.hand_number ?? serverState?.round_number ?? 0;
   const talk = useTableTalk(
     {
@@ -754,10 +751,11 @@ export function GameCanvasTable({
             : player.playerId === profile.playerId
         )
       : undefined;
-  // A person's sheet, not yours or a bot's, is where Quiet and Report wait.
+  // Someone else's sheet is where Quiet waits: a person's by account, a bot's by
+  // persona (PID-408). Report is for people; a bot's sheet has none.
   const sheeted =
-    !profile.persona && sheetSeat && !sheetSeat.isYou && !sheetSeat.bot_persona
-      ? profile.playerId
+    sheetSeat && !sheetSeat.isYou && (!!profile.persona || !sheetSeat.bot_persona)
+      ? talker(sheetSeat)
       : null;
   // Your turn while typing (PID-318): the keyboard goes, the cards come back, the words wait in the bubble.
   const [turnSeen, setTurnSeen] = useState(false);
@@ -766,13 +764,14 @@ export function GameCanvasTable({
     if (isYourTurn && talk.sheet === 'typing') talk.open(null);
   }
   const youSeat = youPositionAbs ? readiness?.seats?.[youPositionAbs] : undefined;
-  const typing = typingFor(youSeat?.reads_typed, !!guest);
+  // Typing needs another person who reads it: at a bot table, words and faces only.
+  const typing = company === 'people' ? typingFor(youSeat?.reads_typed, !!guest) : null;
   // Someone who left the table takes the report question with them.
   if (!faced && talk.sheet === 'report') talk.open(null);
   // The speaker as they sat when they said it, not whoever sits there now.
   const who = (said: Said) => {
     const player =
-      players.find((candidate) => candidate.playerId === said.userId) ??
+      players.find((candidate) => talker(candidate) === said.userId) ??
       players.find((candidate) => candidate.absolutePosition === said.seat);
     return {
       name: player?.isYou ? t('game.you') : (player?.username ?? t('social.player')),

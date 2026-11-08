@@ -17,15 +17,45 @@ export const TALK_WORDS = [
   'word_game',
   'word_hello',
 ] as const;
-const ITEMS: readonly string[] = [...TALK_WORDS, ...TALK_COINS, 'word_noworries'];
+
+/**
+ * A bot's lines (PID-408): `line_<voice>_<moment>_<n>`, numbered from 1, as many
+ * as the contract with the server lists for each moment. Coins in a voice's pool
+ * are plain coins.
+ */
+const VOICES = ['cheerful', 'warm', 'dry', 'teasing'] as const;
+const MOMENT_LINES = {
+  hello: 5,
+  bold_bid: 5,
+  partner_points: 5,
+  five_caught: 5,
+  five_lost: 5,
+  we_made: 5,
+  we_set: 5,
+  they_set: 5,
+  game_won: 5,
+  game_lost: 5,
+  reply_hello: 3,
+  reply_thanks: 3,
+  reply_sorry: 3,
+  reply_game: 3,
+};
+export type TalkLine = `line_${(typeof VOICES)[number]}_${keyof typeof MOMENT_LINES}_${number}`;
+export const TALK_LINES = VOICES.flatMap((voice) =>
+  Object.entries(MOMENT_LINES).flatMap(([moment, count]) =>
+    Array.from({ length: count }, (_, i) => `line_${voice}_${moment}_${i + 1}` as TalkLine)
+  )
+);
+const ITEMS: readonly string[] = [...TALK_WORDS, ...TALK_COINS, 'word_noworries', ...TALK_LINES];
 
 export type TalkCoin = (typeof TALK_COINS)[number];
-export type TalkItem = (typeof TALK_WORDS)[number] | TalkCoin | 'word_noworries';
+export type TalkItem = (typeof TALK_WORDS)[number] | TalkCoin | 'word_noworries' | TalkLine;
 export type Position = 'north' | 'east' | 'south' | 'west';
 
 /** One thing said at the table: a word or a face, or (PID-318) typed text. */
 export interface Said {
   seat: Position;
+  /** A person's account, or `bot:<persona>` for a bot (PID-408). */
   userId: string;
   item?: TalkItem;
   text?: string;
@@ -75,18 +105,28 @@ export function land(previous: Landed | undefined, said: Said, key: number): Lan
   return { ...said, count: again ? previous.count + 1 : 1, key };
 }
 
+/** Who a seat's words come from, so Quiet hushes them: a bot by persona, a person by account. */
+export const talker = (seat: { bot_persona?: string | null; playerId: string | null }) =>
+  seat.bot_persona ? `bot:${seat.bot_persona}` : seat.playerId;
+
 /**
- * Talk is for tables with people at them: two or more human seats, as the server counts.
+ * Talk is for a person with company (PID-408): `people` where two or more humans sit,
+ * as the server counts, `bots` where the rest of the company is bots. Typing needs people.
  * During a game only the lifecycle is live; readiness stops updating, and reading it would
  * show the band at a table the server has already closed to talk.
  */
 export function talkTable(
   seats: Record<string, { occupant_type: string }> | null | undefined,
   lifecycle?: Record<string, { status: string }> | null
-): boolean {
-  if (lifecycle)
-    return Object.values(lifecycle).filter(({ status }) => HUMAN_SEAT.includes(status)).length >= 2;
-  return Object.values(seats ?? {}).filter((seat) => seat.occupant_type === 'human').length >= 2;
+): 'people' | 'bots' | null {
+  const kinds = lifecycle
+    ? Object.values(lifecycle).map(({ status }) =>
+        HUMAN_SEAT.includes(status) ? 'human' : status === 'vacant' ? 'vacant' : 'bot'
+      )
+    : Object.values(seats ?? {}).map((seat) => seat.occupant_type);
+  const humans = kinds.filter((kind) => kind === 'human').length;
+  if (humans >= 2) return 'people';
+  return humans === 1 && kinds.includes('bot') ? 'bots' : null;
 }
 
 /** A dropped player's seat stays theirs until a bot takes it. */

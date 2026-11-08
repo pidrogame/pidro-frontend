@@ -93,7 +93,7 @@ export function PlayerSheet({
   team = null,
   talk,
 }: Props) {
-  if (persona) return <BotSheet persona={persona} team={team} onClose={onClose} />;
+  if (persona) return <BotSheet persona={persona} team={team} onClose={onClose} talk={talk} />;
   return playerId ? (
     <PersonSheet
       key={playerId}
@@ -113,10 +113,13 @@ function BotSheet({
   persona,
   team,
   onClose,
+  talk,
 }: {
   persona: BotPersona;
   team: string | null;
   onClose: () => void;
+  /** At a talk table a bot can be quieted for the game (PID-408); it has nothing to report. */
+  talk?: Props['talk'];
 }) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
@@ -126,6 +129,7 @@ function BotSheet({
   );
   const profile = useBotProfile(persona, snapshot);
   const bot = isBuiltinBot(persona) ? botPersonas[persona] : null;
+  const name = profile?.name || builtinBotName(persona) || t('game.bot');
   return (
     <PidroModal isOpen title={t('bots.title')} onClose={onClose} testID="bot-profile-modal">
       <View style={[styles.bot, width > height && styles.botLandscape]}>
@@ -138,7 +142,7 @@ function BotSheet({
         />
         <View style={styles.botCopy} testID="bot-profile-copy">
           <PidroText role="title" align="center">
-            {profile?.name || builtinBotName(persona) || t('game.bot')}
+            {name}
           </PidroText>
           {team ? (
             <PidroText testID="player-sheet-team" role="metadata" tone="soft" align="center">
@@ -160,6 +164,17 @@ function BotSheet({
           ) : null}
         </View>
       </View>
+      {talk ? (
+        <BevelButton
+          testID="player-sheet-quiet"
+          label={t(talk.quiet ? 'player_sheet.unquiet' : 'player_sheet.quiet', { name })}
+          material="glass"
+          onPress={() => {
+            talk.onQuiet();
+            onClose();
+          }}
+        />
+      ) : null}
       <BevelButton label={t('profile.close')} material="glass" onPress={onClose} />
     </PidroModal>
   );
