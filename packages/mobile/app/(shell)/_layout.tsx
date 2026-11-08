@@ -84,18 +84,21 @@ function Shell({ forceUpdateNotice, fixture }: { forceUpdateNotice: boolean; fix
   const [mounted, setMounted] = useState(false);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- runs after the slots' claims
   useEffect(() => setMounted(true), []);
-  const { visible, restarting, restart, dismiss } = useAppUpdate({
+  const { visible, store, restarting, restart, dismiss } = useAppUpdate({
     // The game pushes over the shell; never offer a restart from under the table.
     inGame: pathname.startsWith('/game'),
     forced: forceUpdateNotice,
+    forcedStore: fixture === 'store-update-notice',
   });
   const host = useMemo(
     () => ({
       notice:
-        visible && !friend.notice ? { restarting, onRestart: restart, onDismiss: dismiss } : null,
+        visible && !friend.notice
+          ? { store, restarting, onRestart: restart, onDismiss: dismiss }
+          : null,
       setPlaced: setNoticePlaced,
     }),
-    [visible, restarting, restart, dismiss, friend.notice]
+    [visible, store, restarting, restart, dismiss, friend.notice]
   );
   const floating = !friend.notice && visible && mounted && !noticePlaced;
   const noticeHeightShown = friend.notice ? friendHeight : floating ? noticeHeight : 0;
@@ -150,6 +153,7 @@ function Shell({ forceUpdateNotice, fixture }: { forceUpdateNotice: boolean; fix
       ) : null}
       {floating ? (
         <UpdateNotice
+          store={store}
           restarting={restarting}
           onRestart={restart}
           onDismiss={dismiss}

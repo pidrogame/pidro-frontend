@@ -495,6 +495,13 @@ shell layout, not in a screen; the gallery cannot show it in place. Restart only
 Add `safeArea=island` (or any `/table-dev` preset) to fake insets for the whole shell.
 testID `update-notice`.
 
+`/home?fixture=store-update-notice` and `/settings?fixture=store-update-notice` show
+the native-version notice in that same slot. Open store uses a non-live fixture URL;
+Dismiss hides it for the session. `store-update-notice-{home,settings}-{en,sv}` checks
+copy, clearances, 44pt controls, the destination and dismissal at all four main sizes.
+The real notice requires both the platform minimum and URL from the lobby join reply.
+These fixtures do not change server configuration or claim to upgrade an older native runtime.
+
 The notice floats over the screen just above the tab pill (above the bottom safe area
 beside the landscape rail or for guests) and never covers a control. Scrolling screens
 learn how far up it reaches through `usePillClearance` (or `useNoticeInset` when they
