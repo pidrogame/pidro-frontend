@@ -7,7 +7,7 @@ import { PidroSpacing } from '@/design/tokens';
 import { adsPrivacyOptionsRequired, showAdsPrivacyOptions } from '@/features/ads/ads';
 import { useTranslation } from '@/i18n';
 
-/** Google's way back into the ad consent choices, only where it is required (PID-119). */
+/** Settings → Privacy: Google's way back into the ad consent choices, only where it is required. */
 export function PrivacyChoicesRow({ fixture = false }: { fixture?: boolean }) {
   const { t } = useTranslation();
   const [required, setRequired] = useState(fixture);
@@ -24,7 +24,8 @@ export function PrivacyChoicesRow({ fixture = false }: { fixture?: boolean }) {
 
   if (!required) return null;
   return (
-    <Surface variant="subtle" style={styles.row} testID="settings-privacy-choices">
+    <Surface variant="window" padded style={styles.panel} testID="settings-privacy-choices">
+      <PidroText role="label">{t('settings.privacy')}</PidroText>
       <PidroText role="metadata" tone="muted">
         {t('update.privacyHint')}
       </PidroText>
@@ -39,4 +40,4 @@ export function PrivacyChoicesRow({ fixture = false }: { fixture?: boolean }) {
   );
 }
 
-const styles = StyleSheet.create({ row: { padding: PidroSpacing.sm, gap: PidroSpacing.xs } });
+const styles = StyleSheet.create({ panel: { gap: PidroSpacing.sm } });

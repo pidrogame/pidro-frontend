@@ -1450,10 +1450,11 @@ testIDs `ad-sheet`, `ad-watch`, `ad-premium`, `ad-close`. Grammar cases
 the sheet. The rewarded ad and Google's consent form need a development build on a
 device (`../../docs/native-sdks.md`); the browser has no ads.
 
-`/ui-dev?state=settings&fixture=privacy-choices` forces **Privacy choices** under About
-the app (PID-119), which a phone shows only when Google's consent status says a privacy
-options form is required. Grammar cases `settings-privacy-choices-{en,sv}` also check that
-the row is absent without the fixture.
+`/ui-dev?state=settings&fixture=privacy-choices` forces Settings → **Privacy**, its own
+section after the game settings and before About the app (PID-119), which a phone shows
+only when Google's consent status says a privacy options form is required. Grammar cases
+`settings-privacy-choices-{en,sv}` also check that the section, heading included, is
+absent without the fixture.
 
 ```sh
 UI_CASES=ad-sheet-offer-en,ad-sheet-loading-en,ad-sheet-dismissed-en,ad-sheet-unavailable-en,ad-sheet-offer-sv,ad-sheet-loading-sv,ad-sheet-dismissed-sv,ad-sheet-unavailable-sv,settings-privacy-choices-en,settings-privacy-choices-sv \

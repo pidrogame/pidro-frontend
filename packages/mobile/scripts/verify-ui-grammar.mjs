@@ -568,11 +568,11 @@ const allCases = [
       authFixture: premiumAuthFixture,
     },
   ]),
-  // PID-119: Google's privacy choices, shown only where its form is required (forced here).
+  // PID-119: Settings → Privacy, shown only where Google's form is required (forced here).
   ...['en', 'sv'].map((locale) => ({
     name: `settings-privacy-choices-${locale}`,
     path: `/ui-dev?state=settings&fixture=privacy-choices&locale=${locale}`,
-    testId: 'app-update-section',
+    testId: 'settings-privacy-choices',
     privacyChoices: true,
     locale,
   })),
@@ -3856,26 +3856,35 @@ async function assertAdSheet(page, testCase, viewport) {
   await waitForScreenshotReady(page);
 }
 
-// The row sits in About the app; without the fixture a browser never shows it.
+// Privacy is its own section after the game settings and before About the app; without
+// the fixture a browser never shows it, heading included.
 async function assertPrivacyChoices(page, testCase) {
   const sv = testCase.locale === 'sv';
-  const row = page.getByTestId('app-update-section').getByTestId('settings-privacy-choices');
-  await row.scrollIntoViewIfNeeded();
-  const button = row.getByRole('button', { name: sv ? 'Integritetsval' : 'Privacy choices' });
-  const box = await getStableBox(button, page);
-  assert.ok(box.height >= 44, `${testCase.name}: 44pt target`);
-  await row
+  const heading = sv ? 'Integritet' : 'Privacy';
+  const section = page.getByTestId('settings-privacy-choices');
+  await section.scrollIntoViewIfNeeded();
+  await section.getByText(heading, { exact: true }).waitFor();
+  assert.equal(
+    await page.getByTestId('app-update-section').getByTestId('settings-privacy-choices').count(),
+    0,
+    'not inside About the app'
+  );
+  const box = await getStableBox(section, page);
+  const pace = await page.getByTestId('settings-pace').boundingBox();
+  const about = await page.getByTestId('app-update-section').boundingBox();
+  assert.ok(box.y >= pace.y + pace.height, 'after the game settings');
+  assert.ok(box.y + box.height <= about.y, 'before About the app');
+  const button = section.getByRole('button', { name: sv ? 'Integritetsval' : 'Privacy choices' });
+  assert.ok((await getStableBox(button, page)).height >= 44, `${testCase.name}: 44pt target`);
+  await section
     .getByText(sv ? 'Ändra vad du har godkänt för reklam.' : 'Change what you agreed to for ads.')
     .waitFor();
   await page.goto(`${baseUrl}/ui-dev?state=settings&locale=${testCase.locale}`);
   await page.getByTestId('app-update-section').waitFor();
-  assert.equal(
-    await page.getByTestId('settings-privacy-choices').count(),
-    0,
-    'hidden unless required'
-  );
+  assert.equal(await section.count(), 0, 'hidden unless required');
+  assert.equal(await page.getByText(heading, { exact: true }).count(), 0, 'no empty heading');
   await page.goBack();
-  await row.scrollIntoViewIfNeeded();
+  await section.scrollIntoViewIfNeeded();
   await waitForScreenshotReady(page);
 }
 

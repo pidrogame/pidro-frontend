@@ -20,6 +20,7 @@ import { useLeague } from '@/components/league/LeagueHost';
 import { AccountSection } from '@/components/settings/AccountSection';
 import { AppUpdateSection } from '@/components/settings/AppUpdateSection';
 import { PremiumSection, RestorePurchasesLink } from '@/components/settings/PremiumSection';
+import { PrivacyChoicesRow } from '@/components/settings/PrivacyChoicesRow';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { TellRow } from '@/components/feedback/TellRow';
 import { PidroSpacing } from '@/design/tokens';
@@ -172,6 +173,7 @@ export function SettingsScreen({
         </Surface>
         {signedIn ? <AccountSection /> : null}
         <PremiumSection fixture={fixture} onToast={setToast} />
+        <PrivacyChoicesRow fixture={__DEV__ && fixture === 'privacy-choices'} />
         <AppUpdateSection />
         <RestorePurchasesLink fixture={fixture} onToast={setToast} />
         <Modal
