@@ -57,14 +57,11 @@ export const talkCases = [
   'offer-slide',
   'deal-bidding',
   'reply-narrow',
-  // PID-329: a face tapped at the table.
-  'person',
-  'person-guest',
+  // PID-329: a face tapped at the table; since PID-406 it opens the player sheet.
   'report',
   'reported',
   'quieted',
   'face-tap',
-  'sv-person',
   // PID-318: typing.
   'type',
   'guest',

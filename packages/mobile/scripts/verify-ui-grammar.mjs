@@ -469,6 +469,8 @@ const allCases = [
       path: `/table-dev?fixture=${fixture}&locale=${locale}`,
       testId: 'game-table',
       talk: state.replace('sv-', ''),
+      // Antti's sheet offers Block to an account (PID-406).
+      authenticated: state === 'face-tap',
       locale,
     };
   }),
@@ -4040,22 +4042,25 @@ async function assertFriendsPresentation(page, name) {
     }
     return;
   }
-  // PID-340: Kalle's sheet over the table, in the words of `Status-Player`.
+  // PID-406: Kalle's sheet over the table, as on `Tap a seat: the player sheet`.
   if (name === 'player-sheet-kalle') {
     const sheet = page.getByTestId('player-sheet');
     for (const words of [
       'Kalle',
-      'Legend · Level 100',
-      'At your table · Old Pidro since 2014',
+      'Legend · Plays against you',
+      'Old Pidro since 2014',
       '10,420',
       '53%',
-      '7',
-      'medals',
+      '7 of 10',
+      'Newest: Homerun. Bid 14 and made it.',
       'You two: 23 games together',
       '14 won as partners · 4 of 9 against each other',
       'Add friend',
     ])
       await sheet.getByText(words, { exact: true }).waitFor();
+    // At the table the seat says where they are; the medal count moved into its box.
+    assert.equal(await sheet.getByText('At your table', { exact: false }).count(), 0);
+    assert.equal(await sheet.getByText('medals', { exact: true }).count(), 0);
     assert.equal((await sheet.getByTestId('player-sheet-avatar-level').innerText()).trim(), '100');
     assert.equal(
       await sheet.getByTestId('player-sheet-avatar-pin').count(),
@@ -4079,9 +4084,13 @@ async function assertFriendsPresentation(page, name) {
   if (name.startsWith('block-profile-')) {
     const sheet = page.getByTestId('player-sheet');
     await sheet.getByText('mfios1', { exact: true }).waitFor();
-    await sheet.getByText('Apprentice · Level 12', { exact: true }).waitFor();
+    await sheet
+      .getByTestId('player-sheet-title')
+      .getByText(/^Apprentice/)
+      .waitFor();
     if (name === 'block-profile-guest') {
       assert.equal(await sheet.getByTestId('player-sheet-more').count(), 0);
+      // Game over: no game left to save after, so the plain line.
       await sheet.getByText('Needs a free account', { exact: true }).waitFor();
       return;
     }
@@ -4100,7 +4109,9 @@ async function assertFriendsPresentation(page, name) {
     });
     await profile.getByText('Nora', { exact: true }).waitFor();
     await add.click();
-    await profile.getByText(swedish ? 'Skickad' : 'Sent', { exact: true }).waitFor();
+    await profile
+      .getByText(swedish ? 'Vänförfrågan skickad' : 'Friend request sent', { exact: true })
+      .waitFor();
     assert.equal(await add.count(), 0);
     return;
   }
@@ -6018,7 +6029,7 @@ async function assertBubble(box, you, viewport) {
   );
 }
 
-const PERSON_SHEETS = { person: 'person', 'person-guest': 'person', report: 'report' };
+const PERSON_SHEETS = { report: 'report' };
 
 /** A sheet fits its screen without scrolling. */
 async function assertTalkSheetFits(sheet, page, viewport) {
@@ -6037,9 +6048,9 @@ async function assertTalkSheetFits(sheet, page, viewport) {
 }
 
 /**
- * A face at the table (PID-329): Quiet, Report and Block, Block only with an
- * account; Report asks one question with three choices, then thanks; Quiet
- * hides what that person said, and a tap on their face gets there.
+ * A face at the table (PID-329, PID-406): Report asks one question with three
+ * choices, then thanks; Quiet hides what that person said, and a tap on their
+ * face, then their sheet's •••, gets there.
  */
 async function assertTalkPerson(page, testCase, viewport) {
   const state = testCase.talk;
@@ -6047,25 +6058,8 @@ async function assertTalkPerson(page, testCase, viewport) {
     const sheet = page.getByTestId(`talk-sheet-${PERSON_SHEETS[state]}`);
     await sheet.waitFor();
     await assertTalkSheetFits(sheet, page, viewport);
-    if (state === 'report') {
-      for (const reason of ['rude', 'bothering', 'other'])
-        await sheet.getByTestId(`talk-report-${reason}`).waitFor();
-    } else {
-      const sv = testCase.locale === 'sv';
-      await sheet.getByRole('heading', { name: 'Antti' }).waitFor();
-      await sheet
-        .getByTestId('talk-quiet')
-        .getByText(sv ? 'Tysta resten av spelet' : 'Quiet for this game')
-        .waitFor();
-      await sheet.getByTestId('talk-report').waitFor();
-      assert.equal(
-        await sheet.getByTestId('talk-block').count(),
-        state === 'person-guest' ? 0 : 1,
-        'Block needs an account'
-      );
-      if (state !== 'person-guest')
-        await sheet.getByText(sv ? 'Blockera Antti' : 'Block Antti').waitFor();
-    }
+    for (const reason of ['rude', 'bothering', 'other'])
+      await sheet.getByTestId(`talk-report-${reason}`).waitFor();
   } else if (state === 'reported') {
     // One tap on a choice reports it and says thanks.
     await page.getByTestId('talk-report-rude').click();
@@ -6084,10 +6078,18 @@ async function assertTalkPerson(page, testCase, viewport) {
     await profile.getByRole('button', { name: 'Close', exact: true }).last().click();
     await profile.waitFor({ state: 'detached' });
     await page.getByTestId('talk-landed').getByText('Well played').waitFor();
+    // Antti's face opens his player sheet (PID-406); Quiet waits in its •••.
     await page.getByTestId('seat-west').click();
-    const sheet = page.getByTestId('talk-sheet-person');
-    await sheet.waitFor();
-    await sheet.getByTestId('talk-quiet').click();
+    const sheet = page.getByTestId('player-sheet');
+    await sheet.getByText('Antti', { exact: true }).waitFor();
+    await sheet.getByTestId('player-sheet-more').click();
+    const menu = sheet.getByTestId('player-sheet-menu');
+    assert.deepEqual(
+      (await menu.getByRole('button').allInnerTexts()).map((text) => text.trim()),
+      ['Quiet Antti’s words', 'Report Antti', 'Block Antti', 'Back'],
+      'the menu, in its order'
+    );
+    await sheet.getByTestId('player-sheet-quiet').click();
     await sheet.waitFor({ state: 'detached' });
     // Quiet hides what Antti already said, too.
     await page
@@ -6582,9 +6584,18 @@ async function assertTeamLines(page, testCase, viewport) {
       assert.equal(await line.count(), 0, `${where}: a spectator's sheet takes a side`);
       return;
     }
-    await line.waitFor();
-    assert.equal((await line.innerText()).trim(), testCase.teamLine, `${where}: the sheet's line`);
-    assertInsideViewport('team line', await getStableBox(line, page), viewport);
+    // A person's sheet at the table puts the seat after their title (PID-406).
+    const shown =
+      testCase.sheet === 'player-sheet' ? sheet.getByTestId('player-sheet-title') : line;
+    await shown.waitFor();
+    const text = (await shown.innerText()).trim();
+    assert.ok(
+      testCase.sheet === 'player-sheet'
+        ? text.endsWith(` · ${testCase.teamLine}`)
+        : text === testCase.teamLine,
+      `${where}: the sheet's line reads ${text}`
+    );
+    assertInsideViewport('team line', await getStableBox(shown, page), viewport);
     return;
   }
   const plaque = page.getByRole('button', { name: sv ? /^(VI|N\/S) / : /^(US|N\/S) / });
@@ -10166,14 +10177,16 @@ async function main() {
             })
           );
         }
-        if (testCase.playerProfile) {
+        if (testCase.playerProfile || testCase.talk === 'face-tap') {
+          // At the talk table West is Antti; elsewhere mfios1.
+          const name = testCase.talk ? 'Antti' : 'mfios1';
           await page.route('**/api/v1/profiles/p-west', (route) =>
             route.fulfill({
               json: {
                 data: {
                   user_id: 'p-west',
-                  username: 'mfios1',
-                  display_name: 'mfios1',
+                  username: name,
+                  display_name: name,
                   avatar_url: null,
                   bio: null,
                   level: 12,

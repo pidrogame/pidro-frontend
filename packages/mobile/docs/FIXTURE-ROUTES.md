@@ -215,11 +215,12 @@ the bubble, it stands above your hand's right end (640 wide), or lies bottom lef
 seat where East's seat comes down there (667 wide). A landscape iPad stands your pack above
 your hand's left end.
 
-A face at the table (PID-329) is `fixture=talk-person` (Antti's sheet: Quiet, Report, Block),
-`talk-person-guest` (a guest's, without Block), `talk-report` (the one question; a tap on a
-choice thanks you and sends nothing in a fixture) and `talk-quieted` (Antti is quiet: his
-Well played neither lands nor stays as the line). `table-talk-face-tap` starts from
-`talk-coin`, taps your own face for your profile, then Antti's, and quiets him.
+A face at the table opens that person's player sheet (PID-406); at a talk table its •••
+holds Quiet and Report before Remove from friends and Block. `talk-report` is the one
+question it opens (a tap on a choice thanks you and sends nothing in a fixture) and
+`talk-quieted` has Antti quiet: his Well played neither lands nor stays as the line.
+`table-talk-face-tap` starts from `talk-coin`, taps your own face for your profile, then
+Antti's, and quiets him from his sheet's •••.
 
 Typing (PID-318) is `fixture=talk-type` (an adult's empty composer, faces and words above the box),
 `talk-guest` (Want to type? Make a free account), `talk-teen` (nothing about typing),
@@ -1076,8 +1077,10 @@ of `Status-Seats` over the four seats: Bengt ★4 deals, Aino holds the bid at 9
 the level chips show. Grammar cases `table-status-a|b` and `-cut` measure them on
 every table layout.
 `/table-dev?fixture=status&role=player&seats=a&sheet=kalle` opens Kalle's player
-sheet from `Status-Player` over the `Status-Seats` table (`player-sheet-kalle`,
-every table layout). `lobby-player-sheet` taps a seated player in a lobby row.
+sheet over the `Status-Seats` table (`player-sheet-kalle`, every table layout): seven
+medals, a talk table's •••. `&relation=asked|sent|friends` says where you two stand
+(PID-406; none without it); Accept on `asked` shows You're friends now, and a guest
+sign-in shows the guest line. `lobby-player-sheet` taps a seated player in a lobby row.
 The old waiting profile-entry case is retired: occupied new-table rows open kick
 confirmation, not a profile.
 

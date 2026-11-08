@@ -14,7 +14,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { NewTableScreen } from '@/components/lobby/NewTableScreen';
 import { BOT_CHARACTER, BOT_CREW } from '@/features/lobby/fixtures';
-import { playerSheetFixture } from '@/features/profileFixtures';
+import { playerSheetFixture, playerSheetLists } from '@/features/profileFixtures';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { InviteLinkModal } from '@/components/invites/InviteLinkModal';
 import { TableInvitation } from '@/components/invites/TableInvitation';
@@ -36,7 +36,7 @@ import { TableFeedback, TableSeatDecision, useTableNotices } from '@/components/
 import { refusalNotice, type TableNotice } from '@/game/tableNotices';
 import { loadGameCanvasTable } from '@/game/canvas/loadGameCanvasTable';
 import { useGameStore } from '@/stores/game';
-import { useLocale } from '@/i18n';
+import { t, useLocale } from '@/i18n';
 import { useSettingsStore } from '@/stores/settings';
 import {
   HandResultTuner,
@@ -549,9 +549,7 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
     landed: [said('west', 'word_well')],
     offer: replyOffer({ item: 'word_well' }),
   },
-  // PID-329: a face tapped at the table.
-  'talk-person': { sheet: 'person', person: 'p-west' },
-  'talk-person-guest': { sheet: 'person', person: 'p-west' },
+  // PID-329: the report question, asked from Antti's sheet (PID-406).
   'talk-report': { sheet: 'report', person: 'p-west' },
   'talk-quieted': {
     quiet: ['p-west'],
@@ -841,6 +839,7 @@ function TableDevHarness() {
     seats?: string;
     cut?: string;
     sheet?: string;
+    relation?: string;
     by?: Position;
     cards?: string;
     led?: string;
@@ -1008,7 +1007,7 @@ function TableDevHarness() {
                   TALK_FIXTURES[fixture ?? '']?.sheet === 'typing'
                 ))
             }
-            talkGuest={fixture === 'talk-person-guest' || fixture === 'talk-guest'}
+            talkGuest={fixture === 'talk-guest'}
             talkTeen={fixture === 'talk-teen'}
             teamsHand={fixture === 'teams' ? 1 : fixture === 'teams-hand2' ? 2 : undefined}
           />
@@ -1017,6 +1016,10 @@ function TableDevHarness() {
               playerId={sheet.user_id}
               presence="table"
               fixture={sheet}
+              lists={playerSheetLists(params.relation)}
+              // Kalle sits East, against you; four people make it a talk table (PID-406).
+              team={t('game.plays_against_you')}
+              talk={{ quiet: false, onQuiet: () => undefined, onReport: () => undefined }}
               onClose={() => undefined}
             />
           ) : null}
@@ -1296,7 +1299,7 @@ function RolePreview({
   talk?: TalkFixture;
   /** `fixture=talk-*-turn`: your turn while the band offers (PID-328); otherwise West's. */
   talkTurn?: boolean;
-  /** `fixture=talk-person-guest`: a guest has no Block (PID-329). */
+  /** `fixture=talk-guest`: a guest is asked to make an account to type (PID-318). */
   talkGuest?: boolean;
   /** `fixture=talk-teen`: a 13 to 17 sees nothing about typing (PID-318). */
   talkTeen?: boolean;

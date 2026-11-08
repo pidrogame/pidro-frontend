@@ -1,5 +1,7 @@
 import type {
+  Achievement,
   AchievementCatalogEntry,
+  FriendLists,
   FriendPlayer,
   PlayerSheet,
   ProfileIdentity,
@@ -81,6 +83,23 @@ export function profileFixture(
   return { identity: legend, friends };
 }
 
+/** Kalle's seven medals, oldest first, the newest Homerun (`Tap a seat`, PID-406). */
+const kalleMedals: Achievement[] = [
+  ['ace', 'Ace', 'Took the ace of trumps in a trick.'],
+  ['the_loser', 'The Loser', 'Lost a game. It happens to everyone.'],
+  ['player', 'Player', 'Played a first game.'],
+  ['winstreak', 'Win Streak', 'Won three games in a row.'],
+  ['partnership', 'Partnership', 'Won ten games with the same partner.'],
+  ['full_house', 'Full House', 'Played a game with three friends.'],
+  ['homerun', 'Homerun', 'Bid 14 and made it.'],
+].map(([key, name, description], index) => ({
+  key,
+  name,
+  description,
+  tier: 1,
+  awarded_at: `2026-10-0${index + 1}T12:00:00Z`,
+}));
+
 /** Kalle at your table, as drawn on `Status-Player` (PID-340). */
 const kalle: PlayerSheet = {
   user_id: 'p-east',
@@ -95,12 +114,35 @@ const kalle: PlayerSheet = {
   classic: { username: 'Kalle', member_since: '2014-03-02T09:00:00Z', games_played: 9_800 },
   record: { games: 10_420, win_rate: 0.53 },
   medals: 7,
+  medal_list: kalleMedals,
+  medal_total: 10,
   together: { games: 23, won_as_partners: 14, against_games: 9, against_won: 4 },
 };
 
 /** `sheet=kalle`: Kalle's sheet from the board, with no server. */
 export function playerSheetFixture(value?: string): PlayerSheet | undefined {
   return __DEV__ && value === 'kalle' ? kalle : undefined;
+}
+
+/**
+ * `sheet=kalle&relation=…` (PID-406): the friends lists for where you and
+ * Kalle stand. A guest viewer is the guest sign-in, not a list.
+ */
+export function playerSheetLists(
+  relation?: string
+): Pick<FriendLists, 'friends' | 'added_you' | 'requested'> | undefined {
+  if (!__DEV__ || !relation) return;
+  const him: FriendPlayer = {
+    user_id: kalle.user_id,
+    display_name: kalle.username,
+    avatar_url: null,
+    presence: 'at_table',
+  };
+  return {
+    friends: relation === 'friends' ? [him] : [],
+    added_you: relation === 'asked' ? [him] : [],
+    requested: relation === 'sent' ? [{ ...him, requested_at: '2026-11-08T09:00:00Z' }] : [],
+  };
 }
 
 /** A fixture friend's sheet: what the friends list knows, and nothing more. */
