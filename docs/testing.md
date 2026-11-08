@@ -12,6 +12,13 @@ full-suite/pre-push matrix instructions. The backend has the same contract in it
 
 ## Feature work in orbs: the budget and the obligation
 
+- One ticket per thread; never reuse an old thread for a new task. Implement and
+  prove the ticket, get one independent review, address its findings and rerun affected
+  proof, not repeated review-and-fix rounds. After about 90 minutes, stop and report
+  oversized scope, flaky checks or dependencies, with evidence and a proposed next step.
+- Start the local backend/DB only when the change touches the app–backend contract.
+  Client-only work uses focused fixtures/logic checks with their limitations disclosed;
+  docs/CI work exercises the changed tooling without booting the product stack.
 - Run the changed behavior itself, plus a nearby unchanged control and the relevant
   error/recovery case. Use the strongest reachable boundary, not a mock of the bug.
 - Run **only affected tests**, not root `bun run test:unit`, a complete screenshot
@@ -24,10 +31,11 @@ full-suite/pre-push matrix instructions. The backend has the same contract in it
   default/open/loading/error states and a control; do not multiply the whole app.
 - Full visual matrices, complete gameplay/account regression and native checks are
   **release work**, run on Marcel's machine or deliberately before a release. List
-  them in the handoff; do not run them routinely in feature orbs.
+  them in the handoff; do not run them routinely in feature orbs. An optional nightly
+  on GitHub runners needs a cheap, justified scope; none is configured or added here.
 - Do not foreground-wait on long CI: no `gh run watch`, polling loops or sleeping
   until green. Report the commit, run URL and current state. A pending run is pending,
-  not green or deployed. Do useful independent work or hand back the pending result.
+  not green or deployed. **Once pushed, finish the turn** with that pending/result handoff.
   Do not create schedules/subscriptions without authorization. Fix a reported failure
   caused by the change; don't silently waive it.
 
@@ -149,8 +157,10 @@ publisher does not wait for device QA. Store/native compatibility checks still a
 
 Full account regression has manual dispatch, not a weekly schedule. Do not add
 schedules/subscriptions or launch remote release/full runs without authorization.
-On the backend, push CI likewise uses affected tests + smoke; production becomes a
-deliberate release so full Game/Account deployment guards no longer run per push.
+On the backend, push CI likewise uses affected tests + smoke; a successful main push
+auto-deploys the green SHA. Full Game/Account guards
+remain callable release checks, not per-push deployment prerequisites. Manual/full
+Backend CI does not deploy. Backup/migration/health/smoke/version checks remain.
 
 ## Release and handoff
 

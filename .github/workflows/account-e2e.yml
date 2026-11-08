@@ -1,7 +1,7 @@
 name: Account journeys
 
-# Called by Frontend CI, the weekly run, and pidro-backend's Deploy workflow,
-# which gates a production deploy on these journeys.
+# Called by full/manual Frontend CI and the separate manual account run.
+# Backend push deployments do not run these full journeys; there is no weekly cron.
 on:
   workflow_call:
     inputs:

@@ -1,7 +1,7 @@
 name: Game journeys
 
-# Called by Frontend CI and by pidro-backend's Deploy workflow, which gates a
-# production deploy on these games against the backend commit it is shipping.
+# Called by full/manual Frontend CI for release regression against its resolved
+# backend SHA. Backend push deployments do not run these full journeys.
 on:
   workflow_call:
     inputs:

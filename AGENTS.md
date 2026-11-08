@@ -3,6 +3,25 @@
 The React Native app is `packages/mobile` (start with its `AGENTS.md`); shared types and
 API clients are `packages/shared`; `packages/web` is the old web client.
 
+## Orb working rules (all tickets)
+
+- **One ticket per thread.** Do not reuse an old thread for a new task.
+- **Implement and prove it:** affected tests plus direct evidence of the changed
+  behavior and a nearby control. Green tests alone are not proof.
+- **One independent review**, not repeated review-and-fix rounds. Address findings,
+  rerun affected proof, then ship; do not request another routine review cycle.
+- **Start the local backend/DB only for app–backend contract changes**, not for
+  copy/layout, client-only logic, docs or CI work. Use fixtures for those boundaries
+  and disclose their limits; don't present fixture proof as integration proof.
+- **About 90 minutes per ticket in the orb:** if exceeded, stop and report whether
+  scope is too large, a test is flaky, or an external dependency is blocking progress.
+  Include evidence, remaining work and a proposed split/unblock; do not grind on.
+- **After pushing, finish the turn.** Report commits, CI URLs and known status;
+  don't watch CI in the foreground. A later reported failure is a follow-up.
+- Full matrices, full journeys and native checks belong at release, or an optional
+  justified nightly on GitHub runners, never routine feature-orb work. No nightly
+  is configured; don't add one without a cheap, justified scope and authorization.
+
 ## Shipping
 
 Trunk-based: no pull requests.
@@ -36,7 +55,7 @@ Trunk-based: no pull requests.
 
 ## Load-bearing paths
 
-A diff touching any of these gets an independent review before the push
+A diff touching any of these gets one independent review before the push
 (`coderabbit review --plain`, `codex review`, or a separate skeptical pass):
 
 - Design tokens and UI primitives: `packages/mobile/src/design/`,

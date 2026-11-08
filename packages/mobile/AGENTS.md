@@ -12,6 +12,13 @@ Prove it, push to `main`; a green `main` publishes the beta update over the air.
 steps, the rollback command and the load-bearing paths that need an independent review
 before a push are in the root [`AGENTS.md`](../../AGENTS.md).
 
+Root orb working rules apply here: one ticket per thread; implement and prove with
+affected tests/direct evidence; one independent review, not review loops; local
+backend/DB only for app–backend contract changes; stop/report after about 90 minutes;
+finish the turn after pushing, without watching CI. Full matrices/journeys/native
+checks are release work (or a justified optional GitHub-runner nightly), not feature
+orb work. No nightly is configured.
+
 ## Testing and proof (required)
 
 Read [`../../docs/testing.md`](../../docs/testing.md) before choosing checks. It is
