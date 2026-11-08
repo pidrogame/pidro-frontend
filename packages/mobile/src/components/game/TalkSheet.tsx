@@ -14,12 +14,10 @@ import {
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useReducedMotion } from 'react-native-reanimated';
-import { localizedError } from '@pidro/shared';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
 import { PidroText } from '@/components/ui/PidroText';
-import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { TextLink } from '@/components/ui/TextLink';
 import { PidroBevel, PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
@@ -39,10 +37,7 @@ export function TalkSheet({
   who,
   onSend,
   onOpen,
-  person,
-  onHush,
   onReport,
-  onBlock,
   typing,
   draft = '',
   onDraft,
@@ -56,11 +51,8 @@ export function TalkSheet({
   who: (said: Said) => { name: string; color: string };
   onSend: (item: TalkItem) => void;
   onOpen: (sheet: Sheet | null) => void;
-  /** The face tapped (PID-329), and what you may do about them. */
-  person?: { name: string; avatar?: string | null; quiet: boolean; canBlock: boolean };
-  onHush?: () => void;
+  /** Report what someone at the table said (PID-329), asked from their sheet. */
   onReport?: (reason: ReportReason) => Promise<void>;
-  onBlock?: () => Promise<void>;
   /** PID-318: a guest is asked to make an account; an adult's band opens the composer. */
   typing?: 'type' | 'guest' | null;
   draft?: string;
@@ -87,14 +79,12 @@ export function TalkSheet({
   const close = () => {
     if (!locked.current) onOpen(null);
   };
-  const [blocking, setBlocking] = useState(false);
   const [error, setError] = useState<unknown>(null);
   const [filtered, setFiltered] = useState(false);
   // Each opening starts clean.
   const [opened, setOpened] = useState(sheet);
   if (sheet !== opened) {
     setOpened(sheet);
-    setBlocking(false);
     setError(null);
     setFiltered(false);
   }
@@ -124,10 +114,6 @@ export function TalkSheet({
       setBusy(false);
     }
   };
-  const cancelBlock = () => {
-    setBlocking(false);
-    setError(null);
-  };
   // Typing docks to the keyboard, a bar and no card, as a chat app's composer does.
   const docked = sheet === 'typing';
   const side = wide && !docked;
@@ -152,9 +138,7 @@ export function TalkSheet({
           ? t('talk.type')
           : sheet === 'report'
             ? t('talk.report_title')
-            : sheet === 'reported'
-              ? t('talk.reported')
-              : person?.name;
+            : t('talk.reported');
   return (
     <Modal
       transparent
@@ -194,73 +178,11 @@ export function TalkSheet({
               }
               testID={`talk-sheet-${sheet}`}
               accessibilityViewIsModal
-              onAccessibilityEscape={blocking ? cancelBlock : close}
+              onAccessibilityEscape={close}
               accessibilityLabel={label}
               style={[styles.sheet, side && styles.sheetWide, docked && styles.composer]}>
               {wide || docked ? null : <View style={styles.grabber} />}
-              {sheet === 'person' && person ? (
-                <>
-                  <View style={styles.who}>
-                    <PlayerAvatar uri={person.avatar ?? undefined} size={56} />
-                    <PidroText role="title" accessibilityRole="header" style={styles.whoName}>
-                      {person.name}
-                    </PidroText>
-                  </View>
-                  {blocking ? (
-                    <>
-                      <PidroText role="label" accessibilityRole="header">
-                        {t('friend_sheet.block_title', { name: person.name })}
-                      </PidroText>
-                      <PidroText role="body">
-                        {t('friend_sheet.block_body', { name: person.name })}
-                      </PidroText>
-                      {error ? (
-                        <PidroText role="body" tone="danger" accessibilityRole="alert">
-                          {localizedError(error, 'blocks.block_failed')}
-                        </PidroText>
-                      ) : null}
-                      <BevelButton
-                        testID="talk-block-confirm"
-                        label={t('blocks.block')}
-                        fullWidth
-                        loading={busy}
-                        onPress={() => onBlock && void run(onBlock, null)}
-                      />
-                      <BevelButton
-                        label={t('common.cancel')}
-                        material="glass"
-                        fullWidth
-                        disabled={busy}
-                        onPress={cancelBlock}
-                      />
-                    </>
-                  ) : (
-                    <>
-                      <PersonAction
-                        testID="talk-quiet"
-                        label={t(person.quiet ? 'talk.unquiet' : 'talk.quiet')}
-                        onPress={() => {
-                          onHush?.();
-                          close();
-                        }}
-                      />
-                      <PersonAction
-                        testID="talk-report"
-                        label={t('talk.report')}
-                        onPress={() => onOpen('report')}
-                      />
-                      {person.canBlock ? (
-                        <PersonAction
-                          testID="talk-block"
-                          label={t('friend_sheet.block', { name: person.name })}
-                          warn
-                          onPress={() => setBlocking(true)}
-                        />
-                      ) : null}
-                    </>
-                  )}
-                </>
-              ) : sheet === 'report' ? (
+              {sheet === 'report' ? (
                 <>
                   <PidroText role="title" accessibilityRole="header">
                     {t('talk.report_title')}
@@ -445,33 +367,6 @@ export function TalkSheet({
   );
 }
 
-/** One plain line on the person sheet: a big target, no icon. */
-function PersonAction({
-  label,
-  warn,
-  testID,
-  onPress,
-}: {
-  label: string;
-  warn?: boolean;
-  testID: string;
-  onPress: () => void;
-}) {
-  return (
-    <PressableFX
-      testID={testID}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={styles.act}
-      pressedStyle={styles.actPressed}
-      onPress={onPress}>
-      <PidroText role="label" style={warn && styles.warn}>
-        {label}
-      </PidroText>
-    </PressableFX>
-  );
-}
-
 const styles = StyleSheet.create({
   safe: { flex: 1, justifyContent: 'flex-end', backgroundColor: PidroColors.screenScrim },
   // The table stays bright above the composer: it is still the thing to watch.
@@ -552,19 +447,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     columnGap: PidroSpacing.xs,
   },
-  who: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.sm },
-  whoName: { flex: 1 },
-  act: {
-    minHeight: 56,
-    justifyContent: 'center',
-    paddingHorizontal: 14,
-    borderRadius: PidroRadii.panel,
-    borderWidth: 1,
-    borderColor: PidroColors.border,
-    backgroundColor: PidroColors.actionPill,
-  },
-  actPressed: { backgroundColor: PidroColors.actionPillPressed },
-  warn: { color: PidroColors.danger },
   logLines: { gap: 10 },
   line: { fontWeight: '700' },
   lineWho: { fontWeight: '900' },

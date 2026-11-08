@@ -56,7 +56,6 @@ import { bidSeatLine, bidsShown } from '@/features/game/bidding';
 import { isSoloTable, loneTrumpHolder } from '@/features/game/tableHelp';
 import { handResultTiming, waitsForContinue } from '@/features/game/handResult';
 import { useSettingsStore } from '@/stores/settings';
-import { blockPlayer } from '@/stores/friends';
 import { LastTrick, type LastTrickView } from './LastTrick';
 
 import { TABLE_HEADER, headerTop, useTableReserves, useTableSize } from './TableChrome';
@@ -745,13 +744,6 @@ export function GameCanvasTable({
     layout.profile === 'phone-landscape' && model.dealerRelative === 'south' && model.pack
       ? liftOverPack(layout, model.pack, height - insets.bottom - PidroSpacing.xs)
       : 0;
-  // At a talk table a person's face offers Quiet, Report and Block (PID-329).
-  const onFace = (playerId: string | null, persona?: BotPersona | null) => {
-    const player = players.find((candidate) => candidate.playerId === playerId);
-    if (talking && playerId && !persona && player && !player.isYou && !player.bot_persona)
-      return talk.open('person', playerId);
-    openProfile(playerId, persona);
-  };
   const faced = players.find((player) => player.playerId === talk.person);
   // Whose sheet is open: a bot by its persona, one per table; anyone else by account.
   const sheetSeat =
@@ -762,6 +754,11 @@ export function GameCanvasTable({
             : player.playerId === profile.playerId
         )
       : undefined;
+  // A person's sheet, not yours or a bot's, is where Quiet and Report wait.
+  const sheeted =
+    !profile.persona && sheetSeat && !sheetSeat.isYou && !sheetSeat.bot_persona
+      ? profile.playerId
+      : null;
   // Your turn while typing (PID-318): the keyboard goes, the cards come back, the words wait in the bubble.
   const [turnSeen, setTurnSeen] = useState(false);
   if (isYourTurn !== turnSeen) {
@@ -770,8 +767,8 @@ export function GameCanvasTable({
   }
   const youSeat = youPositionAbs ? readiness?.seats?.[youPositionAbs] : undefined;
   const typing = typingFor(youSeat?.reads_typed, !!guest);
-  // Someone who left the table takes their sheet with them.
-  if (!faced && (talk.sheet === 'person' || talk.sheet === 'report')) talk.open(null);
+  // Someone who left the table takes the report question with them.
+  if (!faced && talk.sheet === 'report') talk.open(null);
   // The speaker as they sat when they said it, not whoever sits there now.
   const who = (said: Said) => {
     const player =
@@ -868,7 +865,7 @@ export function GameCanvasTable({
             firstHand={(tableState?.hand_number ?? tableState?.round_number) === 1}
             nudge={nudge}
             players={viewModel?.players ?? []}
-            onProfile={onFace}
+            onProfile={openProfile}
             quiet={handResult.result != null && !classicEnd}
             levels={controller.phase === 'dealer_selection' || isGameOver}
             pack={model.pack}
@@ -970,18 +967,6 @@ export function GameCanvasTable({
               who={who}
               onSend={talk.send}
               onOpen={talk.open}
-              person={
-                faced?.playerId
-                  ? {
-                      name: faced.username ?? t('social.player'),
-                      avatar: faced.avatar_url,
-                      quiet: talk.quiet.includes(faced.playerId),
-                      // Block needs an account.
-                      canBlock: !guest,
-                    }
-                  : undefined
-              }
-              onHush={() => talk.person && talk.hush(talk.person)}
               onReport={(reason) =>
                 talk.person ? talk.report(talk.person, reason) : Promise.resolve()
               }
@@ -1000,13 +985,6 @@ export function GameCanvasTable({
               }
               onAccount={onSaveGuest}
               onDock={setDock}
-              onBlock={async () => {
-                const blocked = talk.person;
-                if (!blocked) return;
-                if (!(__DEV__ && talkFixture)) await blockPlayer(blocked);
-                // Blocked is quiet too, for the rest of this game.
-                if (!talk.quiet.includes(blocked)) talk.hush(blocked);
-              }}
             />
           ) : null}
           {!isGameOver && handResult.result ? (
@@ -1216,6 +1194,20 @@ export function GameCanvasTable({
             team={sheetSeat ? teamLine(sheetSeat) : null}
             presence={isSpectator ? 'online' : 'table'}
             onClose={() => setProfile({ playerId: null })}
+            // Every face at the table opens this one sheet (PID-406); at a talk
+            // table its ••• also quiets them or reports what they said.
+            talk={
+              talking && sheeted
+                ? {
+                    quiet: talk.quiet.includes(sheeted),
+                    onQuiet: () => talk.hush(sheeted),
+                    onReport: () => {
+                      setProfile({ playerId: null });
+                      talk.open('report', sheeted);
+                    },
+                  }
+                : null
+            }
           />
         </GestureHandlerRootView>
       </Animated.View>

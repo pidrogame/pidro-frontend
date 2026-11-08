@@ -140,14 +140,23 @@ export function friendLinkRequest(link: PendingFriendLink | null): FriendLinkReq
   return link ? { friend_slug: link.slug } : {};
 }
 
-/** What a profile opened from someone's link offers: Add, Sent, or nothing for a friend or yourself. */
-export function linkProfileAction(
-  lists: Pick<FriendLists, 'friends' | 'requested'>,
+export type SheetRelation = 'none' | 'asked' | 'sent' | 'friends';
+
+/**
+ * Where you two stand, for the friend action under someone's name (PID-406):
+ * friends, they asked you, you asked them, or nothing yet. Null for yourself.
+ */
+export function sheetRelation(
+  lists: Pick<FriendLists, 'friends' | 'requested'> & Partial<Pick<FriendLists, 'added_you'>>,
   playerId: string,
   userId: string | undefined
-): 'add' | 'sent' | null {
-  if (playerId === userId || lists.friends.some((p) => p.user_id === playerId)) return null;
-  return lists.requested?.some((p) => p.user_id === playerId) ? 'sent' : 'add';
+): SheetRelation | null {
+  const has = (list: { user_id: string }[] | undefined) =>
+    !!list?.some((p) => p.user_id === playerId);
+  if (playerId === userId) return null;
+  if (has(lists.friends)) return 'friends';
+  if (has(lists.added_you)) return 'asked';
+  return has(lists.requested) ? 'sent' : 'none';
 }
 
 /**

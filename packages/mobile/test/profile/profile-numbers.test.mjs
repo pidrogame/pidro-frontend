@@ -5,9 +5,12 @@ import {
   classicRecordLine,
   legendProgress,
   levelProgress,
+  MORE,
+  medalBox,
   medalShelf,
   monthName,
   presenceLine,
+  seatTitle,
   sheetTitle,
   sinceYear,
   titleLine,
@@ -217,6 +220,61 @@ describe('the player sheet', () => {
     expect(presenceLine('offline', null)).toBe('Not online');
     expect(presenceLine(undefined, since2014)).toBe('Old Pidro since 2014');
     expect(presenceLine(undefined, { username: 'Kalle', member_since: null })).toBeNull();
+  });
+
+  it('at the table, says the title and the seat, and leaves the level to the avatar', () => {
+    const kalle = { level: 100, title: 'Legend' };
+    expect(seatTitle(kalle, 'Plays against you')).toEqual({
+      text: 'Legend · Plays against you',
+      legend: true,
+    });
+    expect(seatTitle({ level: 12, title: 'Apprentice' }, 'Your partner').text).toBe(
+      'Apprentice · Your partner'
+    );
+    expect(seatTitle({ level: 7, title: null }, null)).toEqual({ text: 'Level 7', legend: false });
+  });
+
+  it('shows the four newest medals first, says the newest, and names the rest', () => {
+    // Earned oldest first, as the server sends them.
+    const list = [
+      'Ace',
+      'Forcer',
+      'The Loser',
+      'Win Streak',
+      'Partnership',
+      'Full House',
+      'Homerun',
+    ].map((name, index) => ({
+      key: name.toLowerCase().replace(/\W+/g, '_'),
+      name,
+      description: `${name} done.`,
+      tier: 1,
+      awarded_at: `2026-10-0${index + 1}T12:00:00Z`,
+    }));
+    const box = medalBox(list);
+    expect(box.coins.map((medal) => medal.name)).toEqual([
+      'Homerun',
+      'Full House',
+      'Partnership',
+      'Win Streak',
+    ]);
+    expect(box.more.map((medal) => medal.name)).toEqual(['The Loser', 'Forcer', 'Ace']);
+    expect(box.line).toBe('Newest: Homerun. Homerun done.');
+    expect(medalBox(list, 'partnership').line).toBe('Partnership: Partnership done.');
+    expect(medalBox(list, MORE).line).toBe('Also earned: The Loser, Forcer and Ace.');
+    // A key that is not on a coin, such as one in the rest, says the newest.
+    expect(medalBox(list, 'ace').line).toBe('Newest: Homerun. Homerun done.');
+    // Four or fewer: no "+N", and one is the newest.
+    expect(medalBox(list.slice(0, 4)).more).toEqual([]);
+    expect(medalBox(list.slice(0, 1), MORE).line).toBe('Newest: Ace. Ace done.');
+    expect(medalBox([])).toBeNull();
+    expect(medalBox(undefined)).toBeNull();
+    setLocale('sv');
+    try {
+      expect(medalBox(list.slice(0, 6), MORE).line).toBe('Har också fått: Forcer och Ace.');
+    } finally {
+      setLocale('en');
+    }
   });
 
   it('counts the two of you, wins before games against each other', () => {

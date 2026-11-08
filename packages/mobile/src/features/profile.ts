@@ -1,4 +1,5 @@
 import {
+  type Achievement,
   type ClassicProfile,
   type PinChoice,
   type PlayerSheet,
@@ -154,6 +155,56 @@ export function presenceLine(
   const year = /^(\d{4})/.exec(classic?.member_since ?? '')?.[1];
   const since = year ? t('player_sheet.since', { year }) : null;
   return [where, since].filter(Boolean).join(' · ') || null;
+}
+
+/**
+ * At the table the title shares its line with the seat: "Legend · Your partner".
+ * The level is on the avatar there, so the title goes without it.
+ */
+export function seatTitle(
+  sheet: Pick<PlayerSheet, 'level' | 'title'>,
+  team: string | null
+): { text: string; legend: boolean } {
+  const legend = sheet.level >= 100;
+  const title = legend
+    ? t('profile.legend')
+    : (veteranTitle(sheet.title) ?? t('player_sheet.level', { level: formatNumber(sheet.level) }));
+  return { text: [title, team].filter(Boolean).join(' · '), legend };
+}
+
+/**
+ * Someone's medals box (PID-406): the four newest coins, newest first, a
+ * "+N" for the rest, and the line under them. Nothing tapped says the newest;
+ * a coin says its own; "+N" names the rest. Empty when they earned none.
+ */
+export function medalBox(
+  list: PlayerSheet['medal_list'] = [],
+  picked: string | null = null
+): { coins: Achievement[]; more: Achievement[]; line: string } | null {
+  if (!list.length) return null;
+  const newest = [...list].reverse();
+  const coins = newest.slice(0, 4);
+  const more = newest.slice(4);
+  const coin = coins.find((medal) => medal.key === picked);
+  const line =
+    picked === MORE && more.length
+      ? t('player_sheet.medals_rest', { names: namesList(more.map((medal) => medal.name)) })
+      : coin
+        ? t('player_sheet.medal_line', { name: coin.name, description: coin.description })
+        : t('player_sheet.medal_newest', {
+            name: newest[0].name,
+            description: newest[0].description,
+          });
+  return { coins, more, line };
+}
+
+/** The "+N" coin's key in `medalBox`'s `picked`. */
+export const MORE = '+more';
+
+function namesList(names: string[]): string {
+  return names.length < 2
+    ? names.join('')
+    : `${names.slice(0, -1).join(', ')} ${t('talk.and')} ${names.at(-1)}`;
 }
 
 /** "You two: 23 games together" and what came of them; null when they never played. */

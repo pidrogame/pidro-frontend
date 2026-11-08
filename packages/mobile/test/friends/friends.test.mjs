@@ -19,7 +19,7 @@ import {
   followFriendLists,
   friendLinkMessage,
   friendLinkRequest,
-  linkProfileAction,
+  sheetRelation,
 } from '../../src/features/friends/index.ts';
 
 afterEach(() => {
@@ -430,15 +430,19 @@ describe("Someone's own link", () => {
     );
   });
 
-  test('the profile a link opens offers Add, Sent, or nothing for a friend or yourself', () => {
+  test('a sheet knows where you two stand: friends before their ask before yours', () => {
     const lists = {
       friends: [{ user_id: 'nora' }],
-      requested: [{ user_id: 'kalle' }],
+      added_you: [{ user_id: 'kalle' }, { user_id: 'nora' }],
+      requested: [{ user_id: 'aino' }, { user_id: 'kalle' }],
     };
-    expect(linkProfileAction(lists, 'bertil', 'me')).toBe('add');
-    expect(linkProfileAction(lists, 'kalle', 'me')).toBe('sent');
-    expect(linkProfileAction(lists, 'nora', 'me')).toBeNull();
-    expect(linkProfileAction(lists, 'me', 'me')).toBeNull();
-    expect(linkProfileAction({ friends: [] }, 'bertil', 'me')).toBe('add');
+    expect(sheetRelation(lists, 'bertil', 'me')).toBe('none');
+    // Kalle asked you and you asked him: his ask is the one to answer.
+    expect(sheetRelation(lists, 'kalle', 'me')).toBe('asked');
+    expect(sheetRelation(lists, 'aino', 'me')).toBe('sent');
+    expect(sheetRelation(lists, 'nora', 'me')).toBe('friends');
+    expect(sheetRelation(lists, 'me', 'me')).toBeNull();
+    // Lists without asks, such as a link profile's, read as none.
+    expect(sheetRelation({ friends: [] }, 'kalle', 'me')).toBe('none');
   });
 });

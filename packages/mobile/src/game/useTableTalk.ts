@@ -22,8 +22,8 @@ import {
 } from '@/features/game/offers';
 import { playActionHaptic } from './useGameHaptics';
 
-/** The hand of words, the game's log, or a face tapped at the table (PID-329). */
-export type TalkSheet = 'words' | 'typing' | 'log' | 'person' | 'report' | 'reported';
+/** The hand of words, the game's log, or the report question from someone's sheet (PID-329). */
+export type TalkSheet = 'words' | 'typing' | 'log' | 'report' | 'reported';
 
 /** The sheets that show what was said, or answer it: opening one reads the log. */
 const READS: readonly TalkSheet[] = ['words', 'typing', 'log'];
@@ -38,7 +38,7 @@ export interface TableTalk {
   /** Someone else said something while no sheet of words was open (PID-393). */
   unread: boolean;
   sheet: TalkSheet | null;
-  /** Whose face was tapped, for the person and report sheets. */
+  /** Whose words are reported, for the report sheet. */
   person: string | null;
   /** What the band offers to say now (PID-328), for six seconds. */
   offer: Offer | null;

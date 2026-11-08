@@ -8,6 +8,7 @@ import { localizedError, localizedFieldErrors } from '@/utils/apiErrors';
 import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
 import { AuthSheet } from '@/components/auth/AuthSheet';
 import { BadgeSheet } from '@/components/profile/BadgeSheet';
+import { MedalCoin } from '@/components/profile/MedalCoin';
 import { useLeague } from '@/components/league/LeagueHost';
 import { LeagueCard } from '@/components/league/LeagueCard';
 import { LeagueRibbonShelf } from '@/components/league/LeagueRibbon';
@@ -744,25 +745,6 @@ function ProfileContent() {
   );
 }
 
-/** A medal: a gold-rimmed wood coin with its initial once earned, dim glass until then. */
-function MedalCoin({ name, earned, size }: { name: string; earned: boolean; size: number }) {
-  return (
-    <View style={!earned && styles.locked}>
-      <Coin material={earned ? 'wood' : 'glass'} size={size} rim={3} style={styles.inlineCoin}>
-        <PidroText
-          maxFontSizeMultiplier={1}
-          style={[
-            styles.medalInitial,
-            { fontSize: Math.round(size * 0.36), lineHeight: Math.round(size * 0.48) },
-            !earned && styles.lockedInitial,
-          ]}>
-          {name.charAt(0)}
-        </PidroText>
-      </Coin>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   identity: {
     alignItems: 'center',
@@ -854,14 +836,6 @@ const styles = StyleSheet.create({
   shelf: { flexDirection: 'row', gap: 6 },
   medal: { flex: 1, minWidth: 0, alignItems: 'center', gap: 6 },
   medalName: { fontSize: 11, lineHeight: 13 },
-  medalInitial: {
-    fontFamily: PidroFonts.display,
-    fontWeight: '400',
-    color: PidroBevel.textGold,
-    textAlign: 'center',
-  },
-  locked: { opacity: 0.4 },
-  lockedInitial: { color: PidroColors.text },
   medalList: { gap: PidroSpacing.sm },
   medalRow: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.sm },
   classicRow: { gap: 14, paddingVertical: 14, paddingHorizontal: PidroSpacing.md },
