@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { Buffer } from 'node:buffer';
-import { mkdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { assertInsideViewport, assertMinimumTouchTargets } from './ui-test-utils.mjs';
 
@@ -88,6 +89,9 @@ try {
   let releaseAvatar;
   let failAvatar = false;
   let avatarVersion = 0;
+  // PID-395: the server keeps a face; without a photo, avatar_url is that face's image.
+  let face = null;
+  const faceUrl = (key) => `${baseURL}/images/faces/${key}.png`;
   await page.route('**/api/v1/profile/avatar', async (route) => {
     avatarRequests.push(route.request());
     if (holdAvatar)
@@ -98,10 +102,61 @@ try {
       return route.fulfill({ status: 503, json: { error: { message: 'Please try again.' } } });
     identity.avatar_url =
       route.request().method() === 'DELETE'
-        ? null
+        ? face && faceUrl(face)
         : `${baseURL}/profile-test-avatar-${++avatarVersion}.png`;
     await route.fulfill({ json: { data: { avatar_url: identity.avatar_url } } });
   });
+  let failFace = null;
+  let holdFace = false;
+  let releaseFace;
+  await page.route('**/api/v1/profile/avatar/face', async (route) => {
+    avatarRequests.push(route.request());
+    if (holdFace)
+      await new Promise((resolve) => {
+        releaseFace = resolve;
+      });
+    // An older server has no such route: Phoenix's 404 with the error contract.
+    if (failFace === 404)
+      return route.fulfill({
+        status: 404,
+        json: { errors: { detail: 'Not Found' }, error_code: 'not_found' },
+      });
+    if (failFace)
+      return route.fulfill({ status: failFace, json: { error: { message: 'Please try again.' } } });
+    face = route.request().postDataJSON().face;
+    const hasPhoto = !!identity.avatar_url?.includes('/profile-test-avatar-');
+    if (!hasPhoto) identity.avatar_url = faceUrl(face);
+    await route.fulfill({
+      json: {
+        data: {
+          user: {
+            id: identity.user_id,
+            username: identity.username,
+            email: 'sofia@example.com',
+            avatar_url: identity.avatar_url,
+            avatar_face: face,
+            has_photo: hasPhoto,
+          },
+        },
+      },
+    });
+  });
+  const assets = resolve(dirname(fileURLToPath(import.meta.url)), '../assets/images');
+  const faceImages = {
+    a: await readFile(resolve(assets, 'avatar1.png')),
+    b: await readFile(resolve(assets, 'avatar2.png')),
+  };
+  await page.route('**/images/faces/*.png', (route) =>
+    route.fulfill({
+      contentType: 'image/png',
+      body: faceImages[
+        route
+          .request()
+          .url()
+          .match(/faces\/(\w)\.png/)[1]
+      ],
+    })
+  );
   const button = (name) => page.getByRole('button', { name, exact: true });
   const visible = async (locator) => locator.waitFor({ state: 'visible' });
   const capture = async (name, focus) => {
@@ -298,7 +353,7 @@ try {
     await image.evaluate((image) => image.decode());
     assert.equal(await persistedAvatar(), url, 'auth persistence agrees with the rendered avatar');
   };
-  const openPicker = async (testId = 'photo-change') => {
+  const openPicker = async (testId = 'picture-photo') => {
     const chooser = page.waitForEvent('filechooser');
     await sheet.getByTestId(testId).click();
     const picker = await chooser;
@@ -344,8 +399,21 @@ try {
     await assertAvatar(avatarButton, url);
   };
 
+  const choice = (name) => sheet.getByRole('radio', { name, exact: true });
+  const chosen = () =>
+    sheet
+      .getByTestId('picture-choices')
+      .getByRole('radio')
+      .evaluateAll((radios) =>
+        radios
+          .filter((radio) => radio.getAttribute('aria-checked') === 'true')
+          .map((radio) => radio.getAttribute('aria-label'))
+      );
   await avatarButton.click();
-  await visible(sheet.getByRole('button', { name: 'Add photo', exact: true }));
+  await visible(choice('Photo'));
+  assert.deepEqual(await chosen(), ['Face 1'], 'no photo and no face is Face 1');
+  assert.equal(await choice('Photo').locator('img').count(), 0, 'an empty Photo has no image');
+  assert.equal(await sheet.getByTestId('photo-change').count(), 0, 'the photo button is gone');
   assert.equal(await sheet.getByTestId('badge-done').getAttribute('role'), 'link');
   assert.equal(await sheet.getByTestId('photo-remove').count(), 0);
   assert.equal(await button('Save photo').count(), 0, 'photos no longer need a Save button');
@@ -355,7 +423,7 @@ try {
   await (await openPicker()).setFiles([]);
   await page.waitForFunction(
     () =>
-      document.querySelector('[data-testid="photo-change"]')?.getAttribute('aria-disabled') !==
+      document.querySelector('[data-testid="picture-photo"]')?.getAttribute('aria-disabled') !==
       'true'
   );
   await closeSheet();
@@ -410,7 +478,7 @@ try {
   await preview.evaluate((image) => image.decode());
   await assertAvatar(avatarButton, null);
   assert.equal(identity.avatar_url, null, 'the server has not accepted the photo yet');
-  assert.equal(await sheet.getByTestId('photo-change').isDisabled(), true);
+  assert.equal(await sheet.getByTestId('picture-photo').getAttribute('aria-disabled'), 'true');
   assert.equal(await sheet.getByTestId('badge-done').isDisabled(), true);
   for (const viewport of [viewports[0], viewports[2], viewports[3], viewports[5]]) {
     await page.setViewportSize(viewport);
@@ -456,7 +524,9 @@ try {
 
   // A failed change leaves the previous server photo everywhere; retry opens a new picker.
   await avatarButton.click();
-  await visible(sheet.getByRole('button', { name: 'Change photo', exact: true }));
+  await visible(choice('Photo'));
+  assert.deepEqual(await chosen(), ['Photo'], 'an uploaded photo is the choice');
+  assert.equal(await choice('Photo').locator('img').first().getAttribute('src'), firstAvatar);
   failAvatar = true;
   await (await openPicker()).setFiles(smallPhoto);
   await visible(sheet.getByRole('alert'));
@@ -500,7 +570,7 @@ try {
   assert.equal(await sheet.getByTestId('photo-cancel').getAttribute('role'), 'link');
   await capture('profile-photo-remove-confirm');
   await sheet.getByTestId('photo-cancel').click();
-  await visible(sheet.getByTestId('photo-change'));
+  await visible(sheet.getByTestId('picture-choices'));
   assert.equal(avatarRequests.length, requestsBeforeRemove, 'canceling removal sent no request');
   await assertAvatar(avatarButton, resizedAvatar);
   failAvatar = true;
@@ -527,7 +597,11 @@ try {
   assert.equal(typeof releaseAvatar, 'function');
   holdAvatar = false;
   releaseAvatar();
-  await visible(sheet.getByRole('button', { name: 'Add photo', exact: true }));
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="picture-face-a"]')?.getAttribute('aria-checked') ===
+      'true'
+  );
   await assertAvatar(avatarButton, null);
   assert.equal(await preview.getAttribute('src'), fallbackSrc);
   assert.equal(await sheet.getByTestId('photo-remove').count(), 0);
@@ -574,6 +648,119 @@ try {
   }
   console.log(
     'Photo navigation passed: upload and removal reconcile Home after browser Back unmounts the sheet.'
+  );
+
+  // PID-395: one tap on a face picks it. It shows at once; the server's answer stays.
+  const persistedUser = () =>
+    page.evaluate(() => JSON.parse(localStorage.getItem('auth-storage')).state.user);
+  const bigAvatar = () => sheet.getByTestId('photo-preview').locator('img').first();
+  const faceSaved = sheet.getByText('Saved. Everyone at the table sees it now.', { exact: true });
+  await avatarButton.click();
+  assert.deepEqual(await chosen(), ['Face 1']);
+  // An older server has no face route: the tap fails, and the choice snaps back.
+  failFace = 404;
+  await choice('Face 2').click();
+  await visible(sheet.getByText('Could not change your picture. Try again.', { exact: true }));
+  assert.deepEqual(await chosen(), ['Face 1'], 'a refused face snaps back');
+  assert.match(await bigAvatar().getAttribute('src'), /avatar1/);
+  assert.equal((await persistedUser()).avatar_face, undefined, 'a refusal stores nothing');
+  await capture('profile-face-older-server');
+  // Try again sends the same face; held, it already shows before the answer.
+  failFace = null;
+  holdFace = true;
+  releaseFace = undefined;
+  const facePut = page.waitForRequest('**/api/v1/profile/avatar/face');
+  await sheet.getByTestId('photo-retry').click();
+  const faceRequest = await facePut;
+  assert.equal(faceRequest.method(), 'PUT');
+  assert.deepEqual(faceRequest.postDataJSON(), { face: 'b' });
+  assert.deepEqual(await chosen(), ['Face 2'], 'the tapped face shows before the server answers');
+  assert.match(await bigAvatar().getAttribute('src'), /avatar2/);
+  assert.equal(await sheet.getByRole('alert').count(), 0);
+  assert.equal((await persistedUser()).avatar_face, undefined, 'nothing stored before the answer');
+  assert.equal(
+    await choice('Face 1').getAttribute('aria-disabled'),
+    'true',
+    'the row waits while a face saves'
+  );
+  await capture('profile-face-saving');
+  assert.equal(typeof releaseFace, 'function');
+  holdFace = false;
+  releaseFace();
+  await visible(faceSaved);
+  const savedFace = await persistedUser();
+  assert.deepEqual(
+    [savedFace.avatar_face, savedFace.has_photo, savedFace.avatar_url, savedFace.email],
+    ['b', false, faceUrl('b'), 'sofia@example.com'],
+    'the server answer is stored, the rest of the user kept'
+  );
+  assert.deepEqual(await chosen(), ['Face 2']);
+  await capture('profile-face-saved');
+  await closeSheet();
+  await checkHomeAvatar(faceUrl('b'));
+
+  // A server failure snaps back to the face it had; tapping that face sends nothing.
+  await avatarButton.click();
+  failFace = 503;
+  await choice('Face 1').click();
+  await visible(sheet.getByText('Could not change your picture. Try again.', { exact: true }));
+  assert.deepEqual(await chosen(), ['Face 2'], 'a failed face snaps back');
+  assert.match(await bigAvatar().getAttribute('src'), /avatar2/);
+  await capture('profile-face-error');
+  failFace = null;
+  const requestsBeforeSame = avatarRequests.length;
+  await choice('Face 2').click();
+  await page.waitForTimeout(300);
+  assert.equal(avatarRequests.length, requestsBeforeSame, 'the chosen face sends nothing');
+
+  // Photo with no photo opens the picker; the photo then wins over the face.
+  await (await openPicker()).setFiles(smallPhoto);
+  await visible(saved);
+  const facePhoto = identity.avatar_url;
+  assert.deepEqual(await chosen(), ['Photo']);
+  assert.equal((await persistedUser()).has_photo, true);
+  assert.equal(await choice('Photo').locator('img').first().getAttribute('src'), facePhoto);
+  await visible(sheet.getByTestId('photo-remove'));
+  // A face over a photo asks first; Cancel sends nothing.
+  const requestsBeforeAsk = avatarRequests.length;
+  await choice('Face 1').click();
+  await visible(sheet.getByText('Remove photo?', { exact: true }));
+  await visible(sheet.getByText('You’ll use Face 1 instead.', { exact: true }));
+  await capture('profile-face-over-photo');
+  await sheet.getByTestId('photo-cancel').click();
+  assert.equal(avatarRequests.length, requestsBeforeAsk, 'canceling sent nothing');
+  assert.deepEqual(await chosen(), ['Photo']);
+  // A failed removal keeps the photo and sends no face; Try again removes, then sets it.
+  await choice('Face 1').click();
+  failAvatar = true;
+  await sheet.getByTestId('photo-confirm').click();
+  await visible(sheet.getByText('Could not remove your photo. Try again.', { exact: true }));
+  assert.deepEqual(await chosen(), ['Photo'], 'a failed removal keeps the photo');
+  assert.deepEqual(
+    avatarRequests.slice(requestsBeforeAsk).map((request) => request.method()),
+    ['DELETE'],
+    'no face after a failed removal'
+  );
+  failAvatar = false;
+  await sheet.getByTestId('photo-retry').click();
+  await visible(faceSaved);
+  assert.deepEqual(
+    avatarRequests.slice(requestsBeforeAsk).map((request) => request.method()),
+    ['DELETE', 'DELETE', 'PUT']
+  );
+  assert.deepEqual(avatarRequests.at(-1).postDataJSON(), { face: 'a' });
+  const afterPhoto = await persistedUser();
+  assert.deepEqual(
+    [afterPhoto.avatar_face, afterPhoto.has_photo, afterPhoto.avatar_url],
+    ['a', false, faceUrl('a')]
+  );
+  assert.deepEqual(await chosen(), ['Face 1']);
+  assert.equal(await sheet.getByTestId('photo-remove').count(), 0);
+  assert.equal(await choice('Photo').locator('img').count(), 0, 'Photo is empty again');
+  await closeSheet();
+  await checkHomeAvatar(faceUrl('a'));
+  console.log(
+    'Faces passed: older-server 404 snaps back, Try again resends, held PUT shows the face first, answer stored and on Home, 503 snaps back, chosen face sends nothing, Photo opens the picker, face over photo asks (cancel inert), failed removal sends no face and Try again sends DELETE then PUT.'
   );
 
   // Sign out lives in Settings. Leaving with a draft asks first, as Back does.

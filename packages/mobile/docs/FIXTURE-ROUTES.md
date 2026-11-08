@@ -589,47 +589,61 @@ including the modal-only safe-area structure test. Captures go to
 `/tmp/pidro-create` (or `UI_SHOT_DIR`). Browser checks do not certify native safe
 areas or keyboard avoidance.
 
-## `/profile?fixture=photo-<state>` — your photo and ring (PID-297)
+## `/profile?fixture=photo-<state>` — your photo and ring (PID-297, PID-395)
 
 Use a signed-in account fixture. These development-only presentation states use
 the real Profile and `BadgeSheet`; they do not open a native photo picker or upload
-an image. The component supplies the fixture photo URI, not the profile API.
+an image. The component supplies the fixture photo URI (`marcel.jpg`, so a photo is
+never mistaken for a face), not the profile API.
 The grammar mocks the same full profile as `profile-badges` (level 7, 28 new games,
 and a Classic account with 1,862 games and level 14), so the ring and pin choices
 are exercised beside the photo controls.
 
-| URL                                | Shows                                                                                                           |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `/profile?fixture=photo-profile`   | Profile, sheet closed; camera badge at the bottom-left inside the avatar                                        |
-| `/profile?fixture=photo-empty`     | Sheet open, no photo; **Add photo**                                                                             |
-| `/profile?fixture=photo-present`   | Sheet open with a photo; **Change photo**, **Remove photo**                                                     |
-| `/profile?fixture=photo-uploading` | Sheet open with labelled progress; photo action disabled                                                        |
-| `/profile?fixture=photo-saved`     | Sheet open with **Photo saved** feedback                                                                        |
-| `/profile?fixture=photo-error`     | Sheet open with the longest photo error (cannot open), and **Try again**                                        |
-| `/profile?fixture=photo-remove`    | Sheet open with inline removal confirmation; **Remove photo** replaces the primary action, **Cancel** is a link |
+| URL                                 | Shows                                                                                                       |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `/profile?fixture=photo-profile`    | Profile, sheet closed; camera badge at the bottom-left inside the avatar                                    |
+| `/profile?fixture=photo-empty`      | Sheet open, no photo; **Face 1** chosen, Photo a dashed camera circle                                       |
+| `/profile?fixture=photo-face`       | No photo; **Face 2** chosen, and the big avatar wears it                                                    |
+| `/profile?fixture=photo-face-saved` | Face 2 with **Saved. Everyone at the table sees it now.**                                                   |
+| `/profile?fixture=photo-face-error` | Face 1 (snapped back) with **Could not change your picture. Try again.** and **Try again**                  |
+| `/profile?fixture=photo-present`    | A photo on; **Photo** chosen and showing it, **Remove photo** under the row                                 |
+| `/profile?fixture=photo-uploading`  | Photo chosen, labelled progress; the row is disabled and Remove photo waits                                 |
+| `/profile?fixture=photo-saved`      | Photo chosen with **Photo saved** feedback                                                                  |
+| `/profile?fixture=photo-error`      | The longest photo error (cannot open), and **Try again**                                                    |
+| `/profile?fixture=photo-remove`     | Inline removal confirmation in place of the row; **Remove photo** is the one wood action, **Cancel** a link |
 
 Signed-in avatar entry and sheet title: **Your photo and ring** / **Din bild och ring**.
-Other owned copy: **Add photo** / **Lägg till bild**, **Change photo** / **Byt bild**,
-**Photo saved** / **Bilden är sparad**, **Remove photo** / **Ta bort bilden**, and
-**Try again** / **Försök igen**. Profile is a normal route and ignores `locale=`:
+Under the big avatar one radio row, **Your picture** / **Din bild**: **Face 1**,
+**Face 2**, **Photo** / **Ansikte 1**, **Ansikte 2**, **Foto** (84pt discs, 64pt when
+the window is under 700pt tall). The chosen disc has the gold rim, a gold check and a
+gold caption. Under the row: **One tap and it is yours. Change it any time.** / **Ett
+tryck så är den din. Byt när du vill.** That line yields to any line under the avatar,
+and an error also hides the eyebrow and **Remove photo**, so every state fits a small
+phone. Other owned copy: **Photo saved** / **Bilden är sparad**, **Saved. Everyone at
+the table sees it now.** / **Sparat. Alla vid bordet ser det nu.**, **Could not change
+your picture. Try again.** / **Kunde inte byta bilden. Försök igen.**, **Remove photo**
+/ **Ta bort bilden**, and **Try again** / **Försök igen**. Profile is a normal route and ignores `locale=`:
 select Swedish in Settings for manual previews. The grammar seeds the persisted
 language preference for each photo case instead of changing the route's locale contract.
 
 Grammar cases: `photo-profile-en`, `photo-empty-en`, `photo-present-en`,
 `photo-uploading-en`, `photo-saved-en`, `photo-error-en`, `photo-remove-en`,
-`photo-present-sv`, and `photo-error-sv`. Controls `photo-profile-guest` and
-`photo-sheet-guest` use the existing guest auth fixture on `/profile`: no camera
-badge, and opening **Your badges** exposes no photo actions. All eleven cases
-run at 390×844, 375×667, 844×390 and 768×1024 via the explicit `photo` matrix flag.
-The existing `profile-badges` case opens the renamed signed-in avatar entry.
+`photo-face-en`, `photo-face-saved-en`, `photo-face-error-en`, and `-sv` for
+`profile`, `empty`, `present`, `error`, `face`, `face-saved` and `face-error`.
+Controls `photo-profile-guest`, `photo-sheet-guest` and `photo-sheet-sv-guest` use
+the existing guest auth fixture on `/profile`: no camera badge, and opening **Your
+badges** / **Dina märken** shows the row with only the two faces (Face 1 chosen) and
+no photo actions. All twenty-one cases run at 390×844, 375×667, 844×390 and 768×1024
+via the explicit `photo` matrix flag. The existing `profile-badges` case opens the
+renamed signed-in avatar entry.
 
 Selectors: `profile-avatar-button`, `profile-camera-badge`, `badge-sheet`,
-`photo-preview`, `photo-feedback`, `photo-actions`, `badge-options`,
-`photo-change`, `photo-remove`, `photo-retry`, `photo-confirm`, `photo-cancel`,
-`photo-progress` (a labelled accessible progressbar), and `badge-done`.
-Signed-in sheets have exactly one wood action: `photo-change`, or `photo-confirm`
-while confirming removal. Remove and Retry are cyan links; Cancel and Done are
-links. Checks enforce 44pt controls, viewport/sheet containment, no sheet scrolling
+`photo-preview`, `photo-feedback`, `photo-actions`, `picture-choices` (a
+radiogroup), `picture-face-a`, `picture-face-b`, `picture-photo`, `badge-options`,
+`photo-remove`, `photo-retry`, `photo-confirm`, `photo-cancel`, `photo-progress` (a
+labelled accessible progressbar), and `badge-done`. The only wood action is
+`photo-confirm` while confirming removal. Remove and Retry are cyan links; Cancel
+and Done are links. Checks enforce 44pt controls, viewport/sheet containment, no sheet scrolling
 or clipped text, and no overlap between top-level sections. The camera stays
 bounded in the avatar's bottom-left quadrant and is measured against both
 `profile-avatar-pin` and `profile-avatar-level`. Profile itself retains its existing scrolling.
@@ -637,7 +651,9 @@ bounded in the avatar's bottom-left quadrant and is measured against both
 These browser fixtures do not certify native picker permissions/cancellation,
 image cropping, actual upload/retry/removal, or native safe-area clearance.
 `node scripts/verify-profile.mjs` exercises the real web file chooser and multipart
-client against mocked HTTP: cancellation, unreadable/oversized images, automatic
+client against mocked HTTP, and the face tap through the real hook and API client
+(older-server 404 and 503 snap back, Try again resends, a held PUT shows the face
+first, the answer reaches Home, a face over a photo asks first, then DELETE and PUT): cancellation, unreadable/oversized images, automatic
 upload and resizing, progress, two-second saved feedback, profile/Home session
 updates, stale identity reads, failure/retry, and confirmed removal. It also checks
 upload/removal completion after browser Back unmounts the sheet, plus the existing

@@ -490,18 +490,21 @@ const allCases = [
     open: 'Your photo and ring',
   },
   // PID-297: the profile camera and every held photo-sheet state, with Classic pins.
+  // PID-395: Your picture, Face 1, Face 2 or Photo; face saved and face error.
   ...['en', 'sv'].flatMap((locale) =>
     (locale === 'en'
       ? ['profile', 'empty', 'present', 'uploading', 'saved', 'error', 'remove']
-      : ['profile', 'present', 'error']
-    ).map((state) => ({
-      name: `photo-${state}-${locale}`,
-      path: `/profile?fixture=photo-${state}`,
-      testId: state === 'profile' ? 'profile-screen' : 'badge-sheet',
-      authenticated: true,
-      locale,
-      photo: state,
-    }))
+      : ['profile', 'empty', 'present', 'error']
+    )
+      .concat(['face', 'face-saved', 'face-error'])
+      .map((state) => ({
+        name: `photo-${state}-${locale}`,
+        path: `/profile?fixture=photo-${state}`,
+        testId: state === 'profile' ? 'profile-screen' : 'badge-sheet',
+        authenticated: true,
+        locale,
+        photo: state,
+      }))
   ),
   {
     name: 'photo-profile-guest',
@@ -511,15 +514,16 @@ const allCases = [
     authFixture: guestAuthFixture,
     photo: 'profile',
   },
-  {
-    name: 'photo-sheet-guest',
+  ...['en', 'sv'].map((locale) => ({
+    name: locale === 'en' ? 'photo-sheet-guest' : 'photo-sheet-sv-guest',
     path: '/profile',
     testId: 'badge-sheet',
     authenticated: true,
     authFixture: guestAuthFixture,
-    open: 'Your badges',
+    open: locale === 'en' ? 'Your badges' : 'Dina märken',
+    locale,
     photo: 'guest',
-  },
+  })),
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
   // Development builds' test-ad row under About the app; the browser has no ads (PID-390).
   {
@@ -2618,15 +2622,27 @@ async function assertPhotoSheet(page, testCase, viewport) {
     await assertAccountSurfaceFits(sheet, name, viewport);
   }
   await sheet
-    .getByText(guest ? 'Your badges' : sv ? 'Din bild och ring' : 'Your photo and ring', {
-      exact: true,
-    })
+    .getByText(
+      guest
+        ? sv
+          ? 'Dina märken'
+          : 'Your badges'
+        : sv
+          ? 'Din bild och ring'
+          : 'Your photo and ring',
+      {
+        exact: true,
+      }
+    )
     .waitFor();
   await sheet.getByTestId('badge-options').waitFor();
   await sheet.getByTestId('badge-done').waitFor();
+  // PID-395: Your picture, one row of round radios; the chosen one wears gold.
+  const confirming = photo === 'remove';
+  const hasPhoto = ['present', 'uploading', 'saved', 'error', 'remove'].includes(photo);
   if (guest) {
     for (const id of [
-      'photo-actions',
+      'picture-photo',
       'photo-change',
       'photo-remove',
       'photo-retry',
@@ -2637,87 +2653,194 @@ async function assertPhotoSheet(page, testCase, viewport) {
       assert.equal(await sheet.getByTestId(id).count(), 0, `${name}: no ${id} for guests`);
   } else {
     await sheet.getByTestId('photo-preview').waitFor();
-    await sheet.getByTestId('photo-actions').waitFor();
-    const primaryId = photo === 'remove' ? 'photo-confirm' : 'photo-change';
-    await sheet.getByTestId(primaryId).waitFor();
+  }
+  await sheet.getByTestId('photo-actions').waitFor();
+  assert.equal(await sheet.getByTestId('photo-change').count(), 0, `${name}: no photo button`);
+  if (confirming) {
     assert.equal(
-      await sheet.getByTestId(photo === 'remove' ? 'photo-change' : 'photo-confirm').count(),
+      await sheet.getByTestId('picture-choices').count(),
       0,
-      `${name}: removal confirmation replaces, not adds to, the primary action`
+      `${name}: confirm replaces`
     );
-    if (['empty', 'present', 'saved'].includes(photo)) {
-      const label =
-        photo === 'empty'
-          ? sv
-            ? 'Lägg till bild'
-            : 'Add photo'
-          : sv
-            ? 'Byt bild'
-            : 'Change photo';
-      await sheet.getByTestId(primaryId).getByText(label, { exact: true }).waitFor();
+    await sheet
+      .getByTestId('photo-confirm')
+      .getByText(sv ? 'Ta bort bilden' : 'Remove photo', { exact: true })
+      .waitFor();
+    await sheet.getByTestId('photo-cancel').waitFor();
+  } else {
+    const row = sheet.getByTestId('picture-choices');
+    await row.waitFor();
+    assert.equal(await row.getAttribute('role'), 'radiogroup', `${name}: picture radiogroup`);
+    // The row's words yield to a line under the avatar: an error takes all of them.
+    const errored = ['error', 'face-error'].includes(photo);
+    const quiet = errored || ['uploading', 'saved', 'face-saved'].includes(photo);
+    assert.equal(
+      await sheet.getByText(sv ? 'Din bild' : 'Your picture', { exact: true }).count(),
+      errored ? 0 : 1,
+      `${name}: Your picture eyebrow`
+    );
+    assert.equal(
+      await sheet
+        .getByText(
+          sv
+            ? 'Ett tryck så är den din. Byt när du vill.'
+            : 'One tap and it is yours. Change it any time.',
+          { exact: true }
+        )
+        .count(),
+      quiet ? 0 : 1,
+      `${name}: help line`
+    );
+    const captions = guest
+      ? sv
+        ? ['Ansikte 1', 'Ansikte 2']
+        : ['Face 1', 'Face 2']
+      : sv
+        ? ['Ansikte 1', 'Ansikte 2', 'Foto']
+        : ['Face 1', 'Face 2', 'Photo'];
+    const chosen = hasPhoto ? 2 : ['face', 'face-saved'].includes(photo) ? 1 : 0;
+    const disc = viewport.height < 700 ? 64 : 84;
+    const radios = await row.evaluate((root) =>
+      [...root.querySelectorAll('[role="radio"]')].map((radio) => {
+        const face = radio.firstElementChild.firstElementChild;
+        const caption = radio.querySelector('[dir="auto"]');
+        const box = face.getBoundingClientRect();
+        return {
+          label: radio.getAttribute('aria-label'),
+          checked: radio.getAttribute('aria-checked'),
+          caption: caption.textContent,
+          gold: getComputedStyle(caption).color === 'rgb(255, 212, 71)',
+          ring: getComputedStyle(face).borderTopColor,
+          dashed: getComputedStyle(face).borderTopStyle === 'dashed',
+          image: face.querySelector('img')?.getAttribute('src') ?? null,
+          check: radio.firstElementChild.children.length > 1,
+          top: box.top,
+          width: box.width,
+          height: box.height,
+        };
+      })
+    );
+    assert.deepEqual(
+      radios.map(({ label, caption }) => [label, caption]),
+      captions.map((caption) => [caption, caption]),
+      `${name}: Face 1, Face 2${guest ? '' : ', Photo'}`
+    );
+    for (const [index, radio] of radios.entries()) {
+      const on = index === chosen;
+      assert.equal(radio.checked, String(on), `${name}: ${radio.label} checked`);
+      assert.equal(radio.gold, on, `${name}: ${radio.label} caption gold only when chosen`);
+      assert.equal(radio.check, on, `${name}: ${radio.label} check badge only when chosen`);
+      assert.equal(
+        radio.ring === 'rgb(226, 175, 69)',
+        on,
+        `${name}: ${radio.label} gold ring only when chosen`
+      );
+      assert.ok(
+        Math.abs(radio.width - disc) <= 1 && Math.abs(radio.height - disc) <= 1,
+        `${name}: ${radio.label} is a ${disc}px disc, got ${radio.width}×${radio.height}`
+      );
+      assert.ok(Math.abs(radio.top - radios[0].top) <= 1, `${name}: the row stays one line`);
     }
-    if (['present', 'saved'].includes(photo)) {
+    assert.match(radios[0].image ?? '', /avatar1/, `${name}: Face 1 is avatar1.png`);
+    assert.match(radios[1].image ?? '', /avatar2/, `${name}: Face 2 is avatar2.png`);
+    if (!guest) {
+      assert.equal(radios[2].dashed, !hasPhoto, `${name}: an empty Photo is a dashed circle`);
+      if (hasPhoto) assert.match(radios[2].image ?? '', /marcel/, `${name}: Photo shows it`);
+      else assert.equal(radios[2].image, null, `${name}: an empty Photo shows the camera`);
+    }
+    // The big avatar wears the chosen picture.
+    if (!guest)
+      assert.match(
+        (await sheet.getByTestId('photo-preview').locator('img').first().getAttribute('src')) ?? '',
+        [/avatar1/, /avatar2/, /marcel/][chosen],
+        `${name}: the big avatar shows the chosen picture`
+      );
+    const removable = ['present', 'saved'].includes(photo);
+    assert.equal(
+      await sheet.getByTestId('photo-remove').count(),
+      removable ? 1 : 0,
+      `${name}: Remove photo while a photo is on and nothing else is happening`
+    );
+    if (removable)
       await sheet
         .getByTestId('photo-remove')
         .getByText(sv ? 'Ta bort bilden' : 'Remove photo', { exact: true })
         .waitFor();
-    }
-    if (photo === 'empty')
-      assert.equal(await sheet.getByTestId('photo-remove').count(), 0, `${name}: no empty removal`);
-    if (photo === 'saved') {
+  }
+  if (photo === 'saved') {
+    await sheet
+      .getByTestId('photo-feedback')
+      .getByText(sv ? 'Bilden är sparad' : 'Photo saved', { exact: true })
+      .waitFor();
+  }
+  if (photo === 'face-saved') {
+    const saved = sheet
+      .getByTestId('photo-feedback')
+      .getByText(
+        sv ? 'Sparat. Alla vid bordet ser det nu.' : 'Saved. Everyone at the table sees it now.',
+        { exact: true }
+      );
+    await saved.waitFor();
+    assert.equal(
+      await saved.evaluate((el) => getComputedStyle(el).color),
+      'rgb(139, 234, 255)',
+      `${name}: the saved line is quiet cyan`
+    );
+  }
+  if (photo === 'error' || photo === 'face-error') {
+    await sheet.getByTestId('photo-feedback').waitFor();
+    if (photo === 'face-error')
       await sheet
         .getByTestId('photo-feedback')
-        .getByText(sv ? 'Bilden är sparad' : 'Photo saved', { exact: true })
+        .getByText(
+          sv ? 'Kunde inte byta bilden. Försök igen.' : 'Could not change your picture. Try again.',
+          { exact: true }
+        )
         .waitFor();
-    }
-    if (photo === 'error') {
-      await sheet.getByTestId('photo-feedback').waitFor();
+    else
       assert.ok(
         (await sheet.getByTestId('photo-feedback').innerText()).trim(),
         `${name}: error copy`
       );
-      await sheet
-        .getByTestId('photo-retry')
-        .getByText(sv ? 'Försök igen' : 'Try again', { exact: true })
-        .waitFor();
-    }
-    if (photo === 'remove') {
-      await sheet
-        .getByTestId('photo-confirm')
-        .getByText(sv ? 'Ta bort bilden' : 'Remove photo', { exact: true })
-        .waitFor();
-      await sheet.getByTestId('photo-cancel').waitFor();
-    }
-    if (photo === 'uploading') {
-      const progress = sheet.getByTestId('photo-progress');
-      await progress.waitFor();
-      assert.equal(await progress.getAttribute('role'), 'progressbar');
-      assert.ok(await progress.getAttribute('aria-label'), `${name}: progress is labelled`);
-      assert.equal(await sheet.getByTestId('photo-change').getAttribute('aria-disabled'), 'true');
-    }
-    const wood = await sheet.evaluate((root) =>
-      [...root.querySelectorAll('[role="button"], [role="link"]')]
-        .filter(
-          (el) =>
-            el.getAttribute('data-material') === 'wood' ||
-            (el.firstElementChild &&
-              getComputedStyle(el.firstElementChild).backgroundColor === 'rgb(42, 21, 5)')
+    await sheet
+      .getByTestId('photo-retry')
+      .getByText(sv ? 'Försök igen' : 'Try again', { exact: true })
+      .waitFor();
+  }
+  if (photo === 'uploading') {
+    const progress = sheet.getByTestId('photo-progress');
+    await progress.waitFor();
+    assert.equal(await progress.getAttribute('role'), 'progressbar');
+    assert.ok(await progress.getAttribute('aria-label'), `${name}: progress is labelled`);
+    for (const radio of await sheet.getByTestId('picture-choices').getByRole('radio').all())
+      assert.equal(await radio.getAttribute('aria-disabled'), 'true', `${name}: row waits`);
+  }
+  const wood = await sheet.evaluate((root) =>
+    [...root.querySelectorAll('[role="button"], [role="link"]')]
+      .filter(
+        (el) =>
+          el.getAttribute('data-material') === 'wood' ||
+          (el.firstElementChild &&
+            getComputedStyle(el.firstElementChild).backgroundColor === 'rgb(42, 21, 5)')
+      )
+      .map((el) => el.getAttribute('data-testid'))
+  );
+  assert.deepEqual(
+    wood,
+    confirming ? ['photo-confirm'] : [],
+    `${name}: wood only to confirm removal`
+  );
+  for (const id of ['photo-remove', 'photo-retry', 'photo-cancel', 'badge-done']) {
+    const link = sheet.getByTestId(id);
+    if (!(await link.count())) continue;
+    assert.equal(await link.getAttribute('role'), 'link', `${name}: ${id} is a link`);
+    if (id === 'photo-remove' || id === 'photo-retry') {
+      const cyan = await link.evaluate((el) =>
+        [el, ...el.querySelectorAll('[dir="auto"]')].some(
+          (text) => getComputedStyle(text).color === 'rgb(139, 234, 255)'
         )
-        .map((el) => el.getAttribute('data-testid'))
-    );
-    assert.deepEqual(wood, [primaryId], `${name}: exactly one wood action`);
-    for (const id of ['photo-remove', 'photo-retry', 'photo-cancel', 'badge-done']) {
-      const link = sheet.getByTestId(id);
-      if (!(await link.count())) continue;
-      assert.equal(await link.getAttribute('role'), 'link', `${name}: ${id} is a link`);
-      if (id === 'photo-remove' || id === 'photo-retry') {
-        const cyan = await link.evaluate((el) =>
-          [el, ...el.querySelectorAll('[dir="auto"]')].some(
-            (text) => getComputedStyle(text).color === 'rgb(139, 234, 255)'
-          )
-        );
-        assert.ok(cyan, `${name}: ${id} uses cyan link copy`);
-      }
+      );
+      assert.ok(cyan, `${name}: ${id} uses cyan link copy`);
     }
   }
 
