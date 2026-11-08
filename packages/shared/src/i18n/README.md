@@ -8,11 +8,12 @@ collide with each other. Use `TranslationEntry` for plural entries (`one`,
 `other`, optionally `zero`) and pass `{ count }` to `t`.
 
 Persist **preferences** through the existing settings store's
-`setLanguage('system' | 'en' | 'sv')`. `setLocale('en' | 'sv')` only changes the
-resolved runtime locale; it does not save a preference. The mobile root waits for
-settings hydration, synchronizes the runtime locale, subscribes to settings,
-and rechecks ordered `expo-localization` language tags on foreground. Shared
-`syncLocale` accepts an injected detector, so shared never imports a platform API.
+`setLanguage('en' | 'sv')`. `setLocale('en' | 'sv')` only changes the runtime
+locale; it does not save a preference. A new install, or a `'system'` saved by an
+older build, takes the device's language once (`resolveLocale` over the ordered
+tags the platform passes as `detectLanguageTags`, so shared never imports a
+platform API) and saves it. The mobile root waits for settings hydration, sets
+the runtime locale and subscribes to settings.
 Normal routes ignore locale parameters. Only the guarded development fixture
 boundaries install temporary, nonpersisted overrides; see mobile's fixture guide.
 

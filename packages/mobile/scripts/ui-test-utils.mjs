@@ -179,7 +179,7 @@ export const UI_VIEWPORTS = [
     width: 874,
     height: 402,
     safeArea: 'iphone-17-landscape',
-    cases: ['locale-en-settings-system', 'locale-sv-settings-system', 'locale-sv-settings-sv'],
+    cases: ['locale-en-settings-en', 'locale-sv-settings-sv'],
   },
   { name: 'portrait', width: 390, height: 844 },
   // The smallest phone testers hold upright (iPhone SE).

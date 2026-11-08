@@ -2,9 +2,11 @@
 
 The current Expo app uses one shared, typed catalog composition in
 `packages/shared/src/i18n`. Language is a device preference, independent of rules,
-account and table. Existing installations default to System. Ordered preferred
-languages resolve to English or Swedish (`sv-SE` and `sv-FI` both resolve to `sv`),
-otherwise English. Persisted settings resolve before the first player-facing copy.
+account and table. Settings offers English and Svenska only (2026-11-08). A new
+install, or one that saved System before, takes the device's language once and
+saves it: ordered preferred languages resolve to English or Swedish (`sv-SE` and
+`sv-FI` both resolve to `sv`), otherwise English. Persisted settings resolve before
+the first player-facing copy.
 
 Mounted consumers subscribe without replacing navigation, socket or game state.
 Memoized presentation includes locale; queued notices and ticker entries retain
@@ -116,7 +118,7 @@ localization, not a JavaScript-only override.
 This Linux orb cannot certify native safe-area measurement, screen-reader
 pronunciation, large native font scaling or OS locale change behavior on a device.
 Before a native release, check both languages in iOS/Android system settings,
-foreground after OS language changes, explicit preference precedence, photo
+the first launch taking the device's language, photo
 permission prompts, VoiceOver/TalkBack, notch/system bars and both rotations.
 Synthetic browser inset checks do not replace those checks.
 

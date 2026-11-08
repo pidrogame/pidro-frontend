@@ -39,7 +39,8 @@ Error transport:
 - Frontend must work safely with the currently deployed old backend. Add
   contract tests for old/new payloads and unknown codes in both languages.
 
-Locale behavior:
+Locale behavior (System language and following the OS were removed on 2026-11-08:
+the language is `'en' | 'sv'`, taken from the device once; see `localization.md`):
 - Persist `language: 'system' | 'en' | 'sv'` in the existing settings store.
   Existing installs default to system. Resolve device/browser preferred languages
   in order to supported en/sv, fallback en; both sv-FI and sv-SE use sv.

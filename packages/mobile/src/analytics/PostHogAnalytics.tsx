@@ -5,7 +5,7 @@ import * as Device from 'expo-device';
 import * as Updates from 'expo-updates';
 import { PostHogProvider, usePostHog } from 'posthog-react-native';
 import { orientationOf, type AnalyticsEvent } from '@/features/analytics';
-import { useLanguagePreference, useLocale } from '@/i18n';
+import { useLanguagePreference } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
 
 const apiKey = process.env.EXPO_PUBLIC_POSTHOG_KEY;
@@ -41,7 +41,6 @@ function EnabledAnalyticsTracker() {
   const segments = useSegments();
   const user = useAuthStore((state) => state.user);
   const { language } = useLanguagePreference();
-  const locale = useLocale();
   const { width, height } = useWindowDimensions();
   const orientation = orientationOf(width, height);
   const previousScreen = useRef<string | null>(null);
@@ -81,11 +80,11 @@ function EnabledAnalyticsTracker() {
   // After the identity effect: reset() on sign-out clears every super property.
   useEffect(() => {
     posthog.register({
-      app_language: language === 'system' ? locale : language,
+      app_language: language,
       orientation,
       device_type: Device.deviceType === Device.DeviceType.TABLET ? 'tablet' : 'phone',
     });
-  }, [language, locale, orientation, posthog, user]);
+  }, [language, orientation, posthog, user]);
 
   useEffect(() => {
     if (screen !== previousScreen.current) {

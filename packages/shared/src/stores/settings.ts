@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type { PersistStorage } from '../platform/types';
 import type { RuleSet } from '../types/lobby';
-import type { LanguagePreference } from '../i18n';
+import { resolveLocale, type LanguagePreference } from '../i18n';
 
 interface SettingsState {
   language: LanguagePreference;
@@ -41,16 +41,25 @@ export type TablePace = 'quick' | 'own';
 interface CreateSettingsStoreOptions {
   storage: PersistStorage;
   storageKey?: string;
+  /** The device's ordered language tags; shared imports no platform API. */
+  detectLanguageTags?: () => readonly string[];
 }
 
 export function createSettingsStore({
   storage,
   storageKey = 'settings-storage',
+  detectLanguageTags = () => [],
 }: CreateSettingsStoreOptions) {
+  let deviceLanguage: LanguagePreference = 'en';
+  try {
+    deviceLanguage = resolveLocale(detectLanguageTags());
+  } catch {
+    /* English when the device cannot say. */
+  }
   return create<SettingsState>()(
     persist(
       (set) => ({
-        language: 'system',
+        language: deviceLanguage,
         hydrated: false,
         setLanguage: (language) => set({ language }),
         setHydrated: (hydrated) => set({ hydrated }),
@@ -81,6 +90,8 @@ export function createSettingsStore({
         storage: createJSONStorage(() => storage),
         partialize: ({ hydrated, ...state }) => state,
         // Default merge migrates old version-0 stores without losing their preferences.
+        // A new install, or a saved 'system' from an older build, takes the device's language
+        // once; hydration then saves it, so the choice stays put if the device changes.
         merge: (persisted, current) => {
           const saved = persisted as
             (Omit<Partial<SettingsState>, 'pace'> & { pace?: string }) | undefined;
@@ -90,7 +101,7 @@ export function createSettingsStore({
             ...saved,
             pace: saved?.pace === 'slow' || saved?.pace === 'own' ? 'own' : 'quick',
             hydrated: false,
-            language: language === 'en' || language === 'sv' ? language : 'system',
+            language: language === 'en' || language === 'sv' ? language : deviceLanguage,
           };
         },
         onRehydrateStorage: (initial) => (_state, error) => {

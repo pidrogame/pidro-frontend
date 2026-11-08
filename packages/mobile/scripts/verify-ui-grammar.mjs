@@ -2068,9 +2068,9 @@ const localizationCases = ['en', 'sv'].flatMap((locale) => [
     locale,
     appUpdate: fixture,
   })),
-  ...['system', 'en', 'sv'].map((language) => ({
+  ...['en', 'sv'].map((language) => ({
     name: `locale-${locale}-settings-${language}`,
-    path: `/ui-dev?state=settings&locale=${locale}&language=${language}&deviceLocale=${locale}-FI`,
+    path: `/ui-dev?state=settings&locale=${locale}&language=${language}`,
     testId: 'settings-screen',
     locale,
     language,
@@ -2215,13 +2215,12 @@ async function assertLocalization(page, testCase, viewport) {
   }
   if (testCase.language) {
     const group = page.getByTestId('settings-language');
-    const labels = [
-      testCase.locale === 'sv' ? 'Enhetens språk' : 'System language',
-      'English',
-      'Svenska',
-    ];
-    const selected = ['system', 'en', 'sv'].indexOf(testCase.language);
+    const labels = ['English', 'Svenska'];
+    const selected = ['en', 'sv'].indexOf(testCase.language);
     const groupBox = await group.boundingBox();
+    // Two choices, no device language, one of them always chosen, side by side.
+    assert.equal(await group.getByRole('radio').count(), 2);
+    const boxes = [];
     for (const [index, label] of labels.entries()) {
       const radio = group.getByRole('radio', { name: label, exact: true });
       const box = await radio.boundingBox();
@@ -2231,15 +2230,10 @@ async function assertLocalization(page, testCase, viewport) {
         `${label}: radio must stay within the language Surface`
       );
       assert.equal(await radio.getAttribute('aria-checked'), String(index === selected));
+      boxes.push(box);
     }
-    if (testCase.language === 'system') {
-      await group
-        .getByText(
-          `${testCase.locale === 'sv' ? 'Just nu' : 'Currently'}: ${testCase.locale === 'sv' ? 'Svenska' : 'English'}`,
-          { exact: true }
-        )
-        .waitFor();
-    }
+    assert.ok(Math.abs(boxes[0].y - boxes[1].y) < 1, 'English and Svenska side by side');
+    assert.equal(await page.getByText(/System language|Enhetens språk/).count(), 0);
     const before = await page.evaluate(() => localStorage.getItem('settings-storage'));
     await group.getByRole('radio', { name: 'Svenska', exact: true }).click();
     await group.getByText('Språk', { exact: true }).waitFor();
@@ -2253,7 +2247,7 @@ async function assertLocalization(page, testCase, viewport) {
     );
     assert.equal(await page.evaluate(() => localStorage.getItem('settings-storage')), before);
     // Normal screens must ignore even a complete fixture override query.
-    await page.goto(`${baseUrl}/device-settings?locale=sv&language=sv&deviceLocale=sv-FI`);
+    await page.goto(`${baseUrl}/device-settings?locale=sv&language=sv`);
     await page.getByTestId('settings-language').getByText('Language', { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem('settings-storage')), before);
   }
@@ -3679,7 +3673,8 @@ async function assertAppUpdate(page, { appUpdate, locale }) {
 // The dev-only ad row sits inside About the app and, on the web, only says why it can't run.
 async function assertTestAd(page) {
   const row = page.getByTestId('app-update-section').getByTestId('settings-test-ad');
-  await row.scrollIntoViewIfNeeded();
+  // The whole section, not just the row: a row half on screen scrolls only that far.
+  await page.getByTestId('app-update-section').scrollIntoViewIfNeeded();
   await row.getByText('Show a test ad', { exact: true }).waitFor();
   await row.getByText('Ads need a phone', { exact: true }).waitFor();
   assert.equal(await row.getByRole('button').count(), 0, 'no ad button on the web');

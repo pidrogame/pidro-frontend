@@ -11,9 +11,10 @@ test('a new player chooses language on Age and Marcel’s note, and Settings rem
     'aria-checked',
     'true'
   );
+  // A new install saves the device's language once: Chromium here is en-US.
   expect(
     await page.evaluate(() => JSON.parse(localStorage.getItem('settings-storage')!).state.language)
-  ).toBe('system');
+  ).toBe('en');
   await age.getByRole('radio', { name: '18 or older', exact: true }).click();
   await switcher.getByRole('radio', { name: 'Svenska' }).click();
   await expect(age.getByRole('radio', { name: '18 eller äldre', exact: true })).toHaveAttribute(
@@ -46,7 +47,7 @@ test('a new player chooses language on Age and Marcel’s note, and Settings rem
     'aria-checked',
     'true'
   );
-  await expect(language.getByRole('radio')).toHaveCount(3);
+  await expect(language.getByRole('radio')).toHaveCount(2);
 });
 
 test('language choices apply immediately, persist and keep keyboard focus @responsive', async ({
@@ -94,13 +95,13 @@ test('language choices apply immediately, persist and keep keyboard focus @respo
   await expect(english).toBeFocused();
   await expect(page.getByRole('switch', { name: 'Sound', exact: true })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  // Two choices: ArrowLeft from English wraps to Svenska, and there is no System language.
   await page.keyboard.press('ArrowLeft');
-  const system = page.getByRole('radio', { name: 'System language', exact: true });
-  await expect(system).toHaveAttribute('aria-checked', 'true');
-  await expect(page.getByText('Currently: English', { exact: true })).toBeVisible();
-  await expect(system).toBeFocused();
+  await expect(swedish).toHaveAttribute('aria-checked', 'true');
+  await expect(swedish).toBeFocused();
+  await expect(page.getByText(/System language|Enhetens språk/)).toHaveCount(0);
   await page.keyboard.press('Space');
-  await expect(system).toHaveAttribute('aria-checked', 'true');
+  await expect(swedish).toHaveAttribute('aria-checked', 'true');
   expect(
     await languageChoices.evaluateAll(
       (nodes) => nodes.filter((node) => node.getAttribute('tabindex') === '0').length

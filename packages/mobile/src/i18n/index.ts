@@ -1,7 +1,5 @@
-import { getLocales } from 'expo-localization';
 import { createContext, useContext, useEffect, useState } from 'react';
-import { AppState } from 'react-native';
-import { getLocale, subscribeLocale, syncLocale, t, useLocale } from '@pidro/shared';
+import { getLocale, setLocale, subscribeLocale, t, useLocale } from '@pidro/shared';
 import { useSettingsStore } from '../stores/settings';
 import type { LanguagePreference } from '@pidro/shared';
 
@@ -20,7 +18,7 @@ export function useLanguagePreference() {
 let fixtureLocale: (() => void) | null = null;
 const restoreLocale = () => {
   const { hydrated, language } = useSettingsStore.getState();
-  if (hydrated) syncLocale(language, detectLanguageTags);
+  if (hydrated) setLocale(language);
 };
 
 /** Only the guarded, focused fixture boundary installs this non-persisted override. */
@@ -52,8 +50,6 @@ export function useTranslation() {
   return { t, locale };
 }
 
-const detectLanguageTags = () => getLocales().map((locale) => locale.languageTag);
-
 /** Mount once in the root; no navigation or app-state reset on language changes. */
 export function useLocaleBootstrap(): boolean {
   const [ready, setReady] = useState(false);
@@ -67,18 +63,14 @@ export function useLocaleBootstrap(): boolean {
       const { hydrated, language } = useSettingsStore.getState();
       if (!hydrated) return;
       if (__DEV__ && fixtureLocale) fixtureLocale();
-      else syncLocale(language, detectLanguageTags);
+      else setLocale(language);
       setReady(true);
     };
     const unsubscribe = useSettingsStore.subscribe(update);
-    const foreground = AppState.addEventListener('change', (state) => {
-      if (state === 'active') update();
-    });
     update();
     return () => {
       unsubscribe();
       unsubscribeDocument();
-      foreground.remove();
     };
   }, []);
   return ready;

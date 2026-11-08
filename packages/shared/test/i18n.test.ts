@@ -7,7 +7,6 @@ import {
   resolveLocale,
   setLocale,
   subscribeLocale,
-  syncLocale,
   t,
   validateCatalogs,
 } from "../src/i18n";
@@ -16,15 +15,13 @@ import { createSettingsStore } from "../src/stores/settings";
 afterEach(() => setLocale("en"));
 
 describe("locale foundation", () => {
-  it("uses ordered supported device languages and explicit preferences", () => {
-    expect(resolveLocale("system", ["fi-FI", "sv-FI", "en-US"])).toBe("sv");
-    expect(resolveLocale("system", ["sv-SE"])).toBe("sv");
-    expect(resolveLocale("system", ["en-GB", "sv-SE"])).toBe("en");
-    expect(resolveLocale("system", ["SV-fi"])).toBe("sv");
-    expect(resolveLocale("system", ["fi-FI"])).toBe("en");
-    expect(resolveLocale("system", [])).toBe("en");
-    expect(resolveLocale("en", ["sv-SE"])).toBe("en");
-    expect(resolveLocale("sv", ["en-US"])).toBe("sv");
+  it("resolves the device's first supported language, else English", () => {
+    expect(resolveLocale(["fi-FI", "sv-FI", "en-US"])).toBe("sv");
+    expect(resolveLocale(["sv-SE"])).toBe("sv");
+    expect(resolveLocale(["en-GB", "sv-SE"])).toBe("en");
+    expect(resolveLocale(["SV-fi"])).toBe("sv");
+    expect(resolveLocale(["fi-FI"])).toBe("en");
+    expect(resolveLocale([])).toBe("en");
   });
 
   it("updates existing subscribers and imperative translations without remount", () => {
@@ -39,24 +36,6 @@ describe("locale foundation", () => {
     stop();
     setLocale("sv");
     expect(seen).toHaveLength(2);
-  });
-
-  it("refreshes system resolution while explicit choice wins and detection failures fall back", () => {
-    let tags = ["sv-FI"];
-    const detector = () => tags;
-    expect(syncLocale("system", detector)).toBe("sv");
-    tags = ["en-US"];
-    expect(syncLocale("system", detector)).toBe("en");
-    expect(
-      syncLocale("sv", () => {
-        throw new Error("must not detect");
-      }),
-    ).toBe("sv");
-    expect(
-      syncLocale("system", () => {
-        throw new Error("unavailable");
-      }),
-    ).toBe("en");
   });
 
   it("formats numbers and dates in the current locale", () => {
@@ -124,6 +103,7 @@ describe("settings language migration and hydration", () => {
 
   it("migrates existing version-0 settings with no language without losing choices", () => {
     const store = createSettingsStore({
+      detectLanguageTags: () => ["sv-FI"],
       storage: memory(
         JSON.stringify({
           version: 0,
@@ -138,7 +118,7 @@ describe("settings language migration and hydration", () => {
     });
     expect(store.getState()).toMatchObject({
       hydrated: true,
-      language: "system",
+      language: "sv",
       theme: "dark",
       soundEnabled: false,
       pins: { player: "none" },
@@ -177,7 +157,7 @@ describe("settings language migration and hydration", () => {
   it("persists language choices and never persists hydration state", () => {
     const storage = memory();
     const store = createSettingsStore({ storage });
-    for (const language of ["sv", "en", "system"] as const) {
+    for (const language of ["sv", "en"] as const) {
       store.getState().setLanguage(language);
       expect(createSettingsStore({ storage }).getState().language).toBe(
         language,
@@ -188,13 +168,17 @@ describe("settings language migration and hydration", () => {
 
   it("waits for async persisted preferences and safely completes on storage failure", async () => {
     let complete!: (value: string) => void;
+    let saved = "";
     const store = createSettingsStore({
+      detectLanguageTags: () => ["sv-SE"],
       storage: {
         getItem: () =>
           new Promise<string>((resolve) => {
             complete = resolve;
           }),
-        setItem: () => {},
+        setItem: (_key: string, value: string) => {
+          saved = value;
+        },
         removeItem: () => {},
       },
     });
@@ -202,9 +186,11 @@ describe("settings language migration and hydration", () => {
     const done = new Promise<void>((resolve) =>
       store.persist.onFinishHydration(() => resolve()),
     );
-    complete(JSON.stringify({ version: 0, state: { language: "sv" } }));
+    // A saved System from an older build, read asynchronously like SecureStore.
+    complete(JSON.stringify({ version: 0, state: { language: "system" } }));
     await done;
     expect(store.getState()).toMatchObject({ hydrated: true, language: "sv" });
+    expect(JSON.parse(saved).state.language).toBe("sv");
     const failed = createSettingsStore({
       storage: {
         getItem: () => {
@@ -217,19 +203,47 @@ describe("settings language migration and hydration", () => {
     await Promise.resolve();
     expect(failed.getState()).toMatchObject({
       hydrated: true,
-      language: "system",
+      language: "en",
     });
   });
 
-  it("normalizes unsupported saved language values to system", () => {
+  it("resolves a new install or a saved system to the device's language once, and saves it", () => {
+    const swedish = () => ["sv-FI", "en-US"];
+    const english = () => ["en-GB", "sv-SE"];
+    const cases: [string | null, () => string[], string][] = [
+      ["system", swedish, "sv"],
+      ["system", english, "en"],
+      ["sv", english, "sv"],
+      ["en", swedish, "en"],
+      ["fi", swedish, "sv"],
+      [null, swedish, "sv"],
+      [null, english, "en"],
+    ];
+    for (const [saved, device, expected] of cases) {
+      const storage = memory(
+        saved === null
+          ? null
+          : JSON.stringify({ version: 0, state: { language: saved, countHelp: true } }),
+      );
+      const store = createSettingsStore({ storage, detectLanguageTags: device });
+      expect(store.getState().language).toBe(expected);
+      // Saved as the concrete language, so it stays when the device's language changes.
+      expect(JSON.parse(storage.getItem()!).state.language).toBe(expected);
+      const other = device === swedish ? english : swedish;
+      expect(
+        createSettingsStore({ storage, detectLanguageTags: other }).getState().language,
+      ).toBe(expected);
+      if (saved !== null) expect(store.getState().countHelp).toBe(true);
+    }
+  });
+
+  it("takes English when the device cannot say", () => {
     const store = createSettingsStore({
-      storage: memory(
-        JSON.stringify({
-          version: 0,
-          state: { language: "fi", hydrated: true },
-        }),
-      ),
+      storage: memory(),
+      detectLanguageTags: () => {
+        throw new Error("unavailable");
+      },
     });
-    expect(store.getState().language).toBe("system");
+    expect(store.getState().language).toBe("en");
   });
 });

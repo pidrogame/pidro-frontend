@@ -5,14 +5,11 @@ import { catalogs, type TranslationKey } from './catalogs';
 export * from './catalogs';
 export * from './errors';
 export type Locale = 'en' | 'sv';
-export type LanguagePreference = 'system' | Locale;
+export type LanguagePreference = Locale;
 export type TranslationValues = Record<string, string | number>;
 
-export function resolveLocale(
-  preference: LanguagePreference,
-  deviceLanguageTags: readonly string[] = [],
-): Locale {
-  if (preference === 'en' || preference === 'sv') return preference;
+/** The device's language: the first English or Swedish in its order, else English. */
+export function resolveLocale(deviceLanguageTags: readonly string[] = []): Locale {
   for (const tag of deviceLanguageTags) {
     const language = tag.toLowerCase().split(/[-_]/)[0];
     if (language === 'en' || language === 'sv') return language;
@@ -63,22 +60,4 @@ export function formatDate(
   options?: Intl.DateTimeFormatOptions,
 ): string {
   return new Intl.DateTimeFormat(getLocale(), options).format(value);
-}
-
-/** Platform adapters supply ordered tags; no native/browser imports live here. */
-export function syncLocale(
-  preference: LanguagePreference,
-  detectLanguageTags: () => readonly string[],
-): Locale {
-  let tags: readonly string[] = [];
-  if (preference === 'system') {
-    try {
-      tags = detectLanguageTags();
-    } catch {
-      /* English fallback on detection failure. */
-    }
-  }
-  const locale = resolveLocale(preference, tags);
-  setLocale(locale);
-  return locale;
 }

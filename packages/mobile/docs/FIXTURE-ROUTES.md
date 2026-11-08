@@ -26,23 +26,23 @@ Only `/ui-dev`, `/table-dev`, and `/auth-flow-dev` accept these development-only
 overrides. Production builds redirect these routes; normal routes ignore locale
 query parameters, including Settings.
 
-| Parameter                 | Meaning                                                                                                            |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `locale=en\|sv`           | Initial displayed copy, independent of the selected radio                                                          |
-| `language=system\|en\|sv` | Initial selected language preference (ephemeral)                                                                   |
-| `deviceLocale=sv-FI`      | Device-language input for System (also accepts `sv-SE`, `en-US`, etc.; unsupported languages fall back to English) |
+| Parameter         | Meaning                                                   |
+| ----------------- | --------------------------------------------------------- |
+| `locale=en\|sv`   | Initial displayed copy, independent of the selected radio |
+| `language=en\|sv` | Initial selected language preference (ephemeral)          |
 
-For consistent System metadata, pair `locale=sv&language=system&deviceLocale=sv-FI`.
-Explicit `locale` wins initially, allowing every selected option to be inspected
-in either language. Selecting a radio immediately resumes normal resolution from
-the ephemeral choice and simulated device locale. Neither mount nor selection
-writes the real language preference. Foreground/settings notifications preserve
-the focused fixture override; blur/unmount restores the persisted real preference
-and actual device locale. The boundary has no locale key and never remounts a game.
+Settings offers English and Svenska only. A new install, or a `system` saved by an
+older build, takes the device's language once in the settings store and saves it
+(`packages/shared/test/i18n.test.ts`); there is no device-language fixture.
+Explicit `locale` wins initially, allowing either selected option to be inspected
+in either language. Selecting a radio immediately shows the ephemeral choice.
+Neither mount nor selection writes the real language preference. Settings
+notifications preserve the focused fixture override; blur/unmount restores the
+persisted real preference. The boundary has no locale key and never remounts a game.
 Without params, copy starts from the real preference; fixture language selection
 is still ephemeral.
 
-Examples: `/ui-dev?state=settings&locale=sv&language=en&deviceLocale=sv-FI`,
+Examples: `/ui-dev?state=settings&locale=sv&language=en`,
 `/table-dev?phase=declaring&locale=sv`, `/auth-flow-dev?locale=sv`.
 
 The second deal loops at `/table-dev?deal=draw`, fed the snapshots the server
@@ -230,12 +230,12 @@ stack at `/home?fixture=invitations` (including the Friends count badge) and
 `/lobby?fixture=invitations`. The old `table-invite` fixture now shows only the
 table share link (Copy/Share), without a position or seat-preference form.
 
-Grammar cases `locale-{en,sv}-settings-{system,en,sv}` and
+Grammar cases `locale-{en,sv}-settings-{en,sv}` and
 `locale-{en,sv}-{waiting,bidding,trump,hand-selection,game-over,dealer,playing}`
 run at 390×844, 844×390, 667×375, plus localization-only additions to the
 360×640 and 768×1024 shards. They reuse containment and 44px target checks
-(including radios), assert selection/System metadata and non-persisted interactive
-switching, and reject clipped natural text without shrinking fonts. Long public
+(including radios), assert the selection, English and Svenska side by side with no
+System language, and non-persisted interactive switching, and reject clipped natural text without shrinking fonts. Long public
 player names retain intentional ellipsis. Captures precede interactive switching.
 No baseline refresh is implicit.
 
@@ -248,7 +248,7 @@ These are browser approximations only. Native review must omit `safeArea`.
 
 ```bash
 NODE_OPTIONS=--max-old-space-size=4096 MOBILE_BASE_URL=http://localhost:8089 \
-UI_CASES=locale-en-settings-system,locale-sv-settings-system,locale-sv-bidding \
+UI_CASES=locale-en-settings-en,locale-sv-settings-sv,locale-sv-bidding \
 UI_SHOT_DIR=/tmp/pidro-locales node scripts/verify-ui-grammar.mjs
 ```
 

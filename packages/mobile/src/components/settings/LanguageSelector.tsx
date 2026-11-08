@@ -7,12 +7,12 @@ import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { Surface } from '@/components/ui/Surface';
 
-const choices = ['system', 'en', 'sv'] as const;
+const choices = ['en', 'sv'] as const;
 const autonyms = { en: 'English', sv: 'Svenska' } as const;
 
 /** Immediate device preference, independent of the table's rules. */
 export function LanguageSelector() {
-  const { t, locale } = useTranslation();
+  const { t } = useTranslation();
   const { language, setLanguage } = useLanguagePreference();
   const [focused, setFocused] = useState<LanguagePreference | null>(null);
   const refs = useRef<Partial<Record<LanguagePreference, View | null>>>({});
@@ -33,8 +33,8 @@ export function LanguageSelector() {
                 refs.current[choice] = ref;
               }}
               accessibilityRole="radio"
-              accessibilityLabel={choice === 'system' ? t('settings.system') : autonyms[choice]}
-              accessibilityLanguage={choice === 'system' ? locale : choice}
+              accessibilityLabel={autonyms[choice]}
+              accessibilityLanguage={choice}
               accessibilityState={{ checked: selected, selected }}
               aria-checked={selected}
               tabIndex={selected ? 0 : -1}
@@ -43,7 +43,7 @@ export function LanguageSelector() {
               onPress={() => setLanguage(choice)}
               {...(Platform.OS === 'web'
                 ? {
-                    lang: choice === 'system' ? locale : choice,
+                    lang: choice,
                     onKeyDown: (event: KeyboardEvent) => {
                       const delta =
                         event.key === 'ArrowRight' || event.key === 'ArrowDown'
@@ -62,7 +62,6 @@ export function LanguageSelector() {
                 : {})}
               style={[
                 styles.choice,
-                choice === 'system' && styles.system,
                 selected && styles.selected,
                 focused === choice && styles.focused,
               ]}>
@@ -70,17 +69,12 @@ export function LanguageSelector() {
                 {selected ? <View style={styles.dot} /> : null}
               </View>
               <PidroText role="label" style={styles.label}>
-                {choice === 'system' ? t('settings.system') : autonyms[choice]}
+                {autonyms[choice]}
               </PidroText>
             </PressableFX>
           );
         })}
       </View>
-      {language === 'system' ? (
-        <PidroText role="metadata" tone="muted" accessibilityLiveRegion="polite">
-          {t('settings.resolved', { language: autonyms[locale] })}
-        </PidroText>
-      ) : null}
     </Surface>
   );
 }
@@ -88,8 +82,6 @@ export function LanguageSelector() {
 const styles = StyleSheet.create({
   group: { gap: PidroSpacing.xs, padding: PidroSpacing.sm },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xs },
-  // Width includes padding/border in Yoga; percentage flexBasis does not.
-  system: { width: '100%', flexBasis: 'auto', flexGrow: 0, flexShrink: 1 },
   choice: {
     minHeight: 48,
     flexGrow: 1,
