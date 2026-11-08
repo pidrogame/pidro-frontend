@@ -1,4 +1,5 @@
-import type { TranslationKey } from '@pidro/shared';
+import { botLines, isBuiltinBot, t, type BotProfile, type TranslationKey } from '@pidro/shared';
+import { botPersonas } from '@/components/ui/botPersonas';
 
 /** Shared by everyone watching this room and hand; never uses local time or randomness. */
 export function tableLine<T>(room: string, hand: number, lines: readonly T[], voice = ''): T {
@@ -7,6 +8,24 @@ export function tableLine<T>(room: string, hand: number, lines: readonly T[], vo
     hash = Math.imul(hash ^ char.charCodeAt(0), 16777619);
   }
   return lines[(hash >>> 0) % lines.length];
+}
+
+/**
+ * What a bot on turn thinks aloud (PID-405): its own lines from the catalogue, else a
+ * built-in's translated ones, else nothing and the seat says the plain turn text.
+ */
+export function thinkingLine(
+  room: string,
+  hand: number,
+  persona: string | null | undefined,
+  profile?: BotProfile | null
+): string | null {
+  if (!persona) return null;
+  const lines = botLines(profile);
+  if (lines) return tableLine(room, hand, lines, persona);
+  return isBuiltinBot(persona)
+    ? t(tableLine(room, hand, botPersonas[persona].thinking, persona))
+    : null;
 }
 
 // The familiar headline gets three slots; each alternative gets one.

@@ -432,7 +432,9 @@ export function PlayerAvatar({
                 {name || (kind === 'open' ? t('ui.openSeat') : '')}
               </PidroText>
             ) : null}
-            <RNAnimated.View style={[{ transformOrigin: SWELL_ORIGIN[label] }, acted.swell]}>
+            {/* Capped like the name: a catalogue line runs up to 40 characters (PID-405). */}
+            <RNAnimated.View
+              style={[{ transformOrigin: SWELL_ORIGIN[label], maxWidth: '100%' }, acted.swell]}>
               {/* A status alone (your tight seat) has a fixed slot above the chat band. */}
               <PidroText
                 numberOfLines={1}

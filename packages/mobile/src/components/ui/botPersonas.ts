@@ -4,7 +4,6 @@ import type { BuiltinBotPortrait, TranslationKey } from '@pidro/shared';
 export const botPersonas = {
   marcel: {
     name: 'Marcel',
-    play: 'bots.marcel.play',
     saying: 'bots.marcel.saying',
     thinking: [
       'bots.marcel.thinking_1',
@@ -15,7 +14,6 @@ export const botPersonas = {
   },
   antti: {
     name: 'Antti',
-    play: 'bots.antti.play',
     saying: 'bots.antti.saying',
     thinking: [
       'bots.antti.thinking_1',
@@ -26,7 +24,6 @@ export const botPersonas = {
   },
   jocke: {
     name: 'Jocke',
-    play: 'bots.jocke.play',
     saying: 'bots.jocke.saying',
     thinking: [
       'bots.jocke.thinking_1',
@@ -39,7 +36,6 @@ export const botPersonas = {
   BuiltinBotPortrait,
   {
     name: string;
-    play: TranslationKey;
     saying: TranslationKey;
     thinking: readonly TranslationKey[];
   }

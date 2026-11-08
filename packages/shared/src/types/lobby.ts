@@ -12,6 +12,12 @@ export interface BotProfile {
   name: string;
   description: string;
   avatar_url: string;
+  /** How it plays (PID-403): `rulebook`, `random` or `search`; old servers send none. */
+  strategy?: string;
+  tempo?: string;
+  home?: 'anywhere' | 'finland' | 'louisiana';
+  /** Its own thinking lines at the table (PID-404), at most eight. */
+  lines?: string[];
 }
 export type PositionPreference = Position | 'north_south' | 'east_west';
 

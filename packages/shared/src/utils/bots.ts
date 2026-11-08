@@ -1,6 +1,8 @@
+import type { TranslationKey } from '../i18n/catalogs';
 import type { BotProfile } from '../types/lobby';
 
 export type BuiltinBotPortrait = 'marcel' | 'antti' | 'jocke';
+/** Old servers send only the first four fields; a later one in the wrong shape is left out. */
 export function normalizeBotProfiles(value: unknown): BotProfile[] {
   if (!Array.isArray(value)) return [];
   return value
@@ -13,7 +15,34 @@ export function normalizeBotProfiles(value: unknown): BotProfile[] {
         typeof profile.description === 'string' &&
         typeof profile.avatar_url === 'string',
     )
-    .map(({ id, name, description, avatar_url }) => ({ id, name, description, avatar_url }));
+    .map(({ id, name, description, avatar_url, strategy, tempo, home, lines }) => {
+      const own = botLines({ lines });
+      return {
+        id,
+        name,
+        description,
+        avatar_url,
+        ...(typeof strategy === 'string' && { strategy }),
+        ...(typeof tempo === 'string' && { tempo }),
+        ...((home === 'anywhere' || home === 'finland' || home === 'louisiana') && { home }),
+        ...(own && { lines: own }),
+      };
+    });
+}
+
+/** A character's own thinking lines, also from a seat's snapshot, which nothing normalizes. */
+export function botLines(profile?: { lines?: unknown } | null): string[] | undefined {
+  const lines = Array.isArray(profile?.lines)
+    ? profile.lines
+        .filter((line): line is string => typeof line === 'string' && line.trim() !== '')
+        .slice(0, 8)
+    : [];
+  return lines.length ? lines : undefined;
+}
+
+/** The sheet's sentence on how a bot plays: the odds, or the honest game for anything else. */
+export function botPlay(strategy: unknown): TranslationKey {
+  return strategy === 'search' ? 'bots.play_search' : 'bots.play_rulebook';
 }
 
 export function isBuiltinBot(id: unknown): id is BuiltinBotPortrait {

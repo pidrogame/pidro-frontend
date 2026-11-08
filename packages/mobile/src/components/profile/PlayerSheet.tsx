@@ -3,6 +3,7 @@ import { Modal, Pressable, StyleSheet, View, useWindowDimensions } from 'react-n
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useReducedMotion } from 'react-native-reanimated';
 import {
+  botPlay,
   builtinBotName,
   isBuiltinBot,
   localizedError,
@@ -115,12 +116,19 @@ function BotSheet({
               {team}
             </PidroText>
           ) : null}
+          {typeof profile?.description === 'string' && profile.description ? (
+            <PidroText role="body" align="center">
+              {profile.description}
+            </PidroText>
+          ) : null}
           <PidroText role="body" align="center">
-            {bot ? t(bot.play) : profile?.description}
+            {t(botPlay(profile?.strategy))}
           </PidroText>
-          <PidroText role="body" tone="soft" align="center">
-            {bot ? t(bot.saying) : null}
-          </PidroText>
+          {bot ? (
+            <PidroText role="body" tone="soft" align="center">
+              {t(bot.saying)}
+            </PidroText>
+          ) : null}
         </View>
       </View>
       <BevelButton label={t('profile.close')} material="glass" onPress={onClose} />

@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from 'bun:test';
-import { botPortrait, normalizeBotProfiles, resolveBotProfile } from '../src/utils/bots';
+import { botPlay, botPortrait, normalizeBotProfiles, resolveBotProfile } from '../src/utils/bots';
+import { catalogs } from '../src/i18n/catalogs';
 import { seatPlayerName } from '../src/utils/playerName';
 import { normalizeRoom } from '../src/utils/rooms';
 import { useBotCatalogueStore } from '../src/stores/bots';
@@ -59,6 +60,38 @@ test('snapshot metadata wins over catalogue, then legacy and neutral fallbacks',
   expect(seatPlayerName({ bot_persona: 'unknown', username: 'bot_internal' }, 'Bot')).toBe('Bot');
   expect(seatPlayerName({ bot_persona: null, bot_profile: saga, username: 'Ritva' })).toBe('Ritva');
   expect(normalizeBotProfiles([saga, { id: 42 }, null])).toEqual([saga]);
+});
+
+test('the catalogue keeps how a character plays, sounds and thinks, and drops junk', () => {
+  const lines = ['Nå…', 'Hmm…', 'Jaha…', 'Tja…', 'Well…', 'Ok…', 'Joo…', 'Aha…', 'Ninth…'];
+  const [full, junk, old] = normalizeBotProfiles([
+    { ...saga, strategy: 'search', tempo: 'slow', home: 'finland', lines, extra: 'kept out' },
+    { ...saga, strategy: 7, tempo: null, home: 'sweden', lines: [' ', 3, 'Nå…', null] },
+    saga,
+  ]);
+  expect(full).toStrictEqual({
+    ...saga,
+    strategy: 'search',
+    tempo: 'slow',
+    home: 'finland',
+    lines: lines.slice(0, 8),
+  });
+  expect(junk).toStrictEqual({ ...saga, lines: ['Nå…'] });
+  expect(old).toStrictEqual(saga);
+  for (const bad of ['Nå…', [], [' ', ''], { 0: 'Nå…' }]) {
+    expect(normalizeBotProfiles([{ ...saga, lines: bad }])[0].lines).toBeUndefined();
+  }
+});
+
+test('the sheet says a search character plays the odds, anything else the honest game', () => {
+  expect(botPlay('search')).toBe('bots.play_search');
+  for (const strategy of ['rulebook', 'random', 'Search', undefined, null, 3]) {
+    expect(botPlay(strategy)).toBe('bots.play_rulebook');
+  }
+  for (const locale of ['en', 'sv'] as const) {
+    expect(catalogs[locale]['bots.play_search']).not.toBe(catalogs[locale]['bots.play_rulebook']);
+    expect(catalogs[locale]['bots.play_rulebook']).not.toMatch(/three|tre/);
+  }
 });
 
 test('room hydration preserves profile; human replacement clears it', () => {

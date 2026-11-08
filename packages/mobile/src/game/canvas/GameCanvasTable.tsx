@@ -32,9 +32,8 @@ import { DealerSecondDeal } from '@/components/game/DealerSecondDeal';
 import { GameOverOverlay } from '@/components/game/GameOverOverlay';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { canViewPlayer } from '@/features/friends';
-import { botPersonas } from '@/components/ui/botPersonas';
-import { isBuiltinBot } from '@pidro/shared';
-import { tableLine } from '@/features/game/tableVoice';
+import { botLines } from '@pidro/shared';
+import { thinkingLine } from '@/features/game/tableVoice';
 import { pushGameAction, type ProgressionSummary } from '@/channels/hooks/useGameChannel';
 import { getRankLabel, SUIT_SYMBOLS } from '@/utils/cards';
 import { useCardTextures } from './cardTextures';
@@ -163,18 +162,22 @@ function statusText(
   const playedCard = trickCardForPlayer(state, absolutePosition);
   const lastTrick =
     state?.tricks && state.tricks.length > 0 ? state.tricks[state.tricks.length - 1] : null;
-  const thinking = isBuiltinBot(player.bot_persona)
-    ? t(
-        tableLine(
-          room,
-          state?.hand_number ?? state?.round_number ?? 0,
-          botPersonas[player.bot_persona].thinking,
-          player.bot_persona
-        )
-      )
-    : null;
+  const thinking = thinkingLine(
+    room,
+    state?.hand_number ?? state?.round_number ?? 0,
+    player.bot_persona,
+    player.bot_profile
+  );
+  // A catalogue line runs to 40 characters; where the seat swaps in its short line, it says
+  // the plain turn text instead (PID-405). The built-in lines always fit.
   const now = (text: string): SeatLine | null =>
-    player.isCurrentTurn ? { text: thinking ?? text, tone: 'now' } : null;
+    player.isCurrentTurn
+      ? {
+          text: thinking ?? text,
+          ...(botLines(player.bot_profile) && { short: text }),
+          tone: 'now',
+        }
+      : null;
 
   switch (phase) {
     case 'dealer_selection':
@@ -182,7 +185,7 @@ function statusText(
       if (playedCard) return { text: t('game.draws', { card: cardLabel(playedCard) }) };
       return now(t('game.drawing'));
     case 'bidding':
-      if (thinking && player.isCurrentTurn) return now(thinking);
+      if (thinking && player.isCurrentTurn) return now(t('game.bidding'));
       return bidSeatLine({
         bid,
         holdsHigh: state?.highest_bid?.position === absolutePosition,
