@@ -533,6 +533,16 @@ const allCases = [
     testId: 'update-notice',
     authenticated: true,
   },
+  ...['en', 'sv'].flatMap((locale) =>
+    ['home', 'settings'].map((screen) => ({
+      name: `store-update-notice-${screen}-${locale}`,
+      path: `/${screen}?fixture=store-update-notice&safeArea=island`,
+      testId: 'update-notice',
+      authenticated: true,
+      storeNotice: true,
+      locale,
+    }))
+  ),
   {
     name: 'update-notice-home-guest',
     path: '/home?fixture=update-notice&safeArea=island',
@@ -2872,6 +2882,32 @@ async function assertAppUpdate(page, { appUpdate, locale }) {
 // above the bottom inset and every scrolling screen scrolls its last row clear of it.
 async function assertUpdateNotice(page, name, viewport) {
   const notice = page.getByTestId('update-notice');
+  if (name.startsWith('store-update-notice-')) {
+    const sv = name.endsWith('-sv');
+    await notice
+      .getByText(sv ? 'En ny version finns i butiken' : 'A new version is in the store')
+      .waitFor();
+    await assertNothingUnderNotice(page, 'Store update', viewport);
+    const open = page.getByTestId('update-notice-store');
+    const dismiss = notice.getByRole('button', { name: sv ? 'Stäng' : 'Dismiss', exact: true });
+    for (const control of [open, dismiss]) {
+      const box = await getStableBox(control, page);
+      assert.ok(box.width >= 44 && box.height >= 44, 'store notice controls are 44pt targets');
+    }
+    await page.evaluate(() => {
+      window.open = (url) => {
+        window.__openedStoreURL = String(url);
+        return null;
+      };
+    });
+    await open.click();
+    await page.waitForFunction(
+      () => window.__openedStoreURL === 'https://example.invalid/pidro-store'
+    );
+    await dismiss.click();
+    await notice.waitFor({ state: 'detached' });
+    return;
+  }
   const guestScreen = {
     'update-notice-friends-guest': 'Friends',
     'update-notice-home-guest': 'Home',
@@ -7066,6 +7102,7 @@ async function main() {
           testCase.details ||
           testCase.scores ||
           testCase.botVoice ||
+          testCase.storeNotice ||
           testCase.photo
         )
           return ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(
@@ -7206,7 +7243,10 @@ async function main() {
             pendingInvite: testCase.pendingInvite === true,
             welcomeSeen: !testCase.welcomeUnseen,
             photoLocale:
-              testCase.photo || testCase.path === '/welcome' || testCase.path.startsWith('/(auth)/')
+              testCase.photo ||
+              testCase.storeNotice ||
+              testCase.path === '/welcome' ||
+              testCase.path.startsWith('/(auth)/')
                 ? (testCase.locale ?? 'en')
                 : testCase.tell
                   ? (testCase.tellLocale ?? 'en')
@@ -7263,7 +7303,11 @@ async function main() {
             })
           );
         }
-        if (testCase.name === 'game-away' || testCase.name.startsWith('friend-notice-')) {
+        if (
+          testCase.storeNotice ||
+          testCase.name === 'game-away' ||
+          testCase.name.startsWith('friend-notice-')
+        ) {
           // These deterministic fixtures need no server, even beside a live e2e backend.
           await page.route('**/api/v1/**', (route) => route.abort());
         }
@@ -7301,6 +7345,7 @@ async function main() {
             'league',
           ].includes(testCase.name) ||
           testCase.homeProfile ||
+          testCase.storeNotice ||
           testCase.photo ||
           testCase.tell ||
           testCase.name.startsWith('edge-home-') ||
