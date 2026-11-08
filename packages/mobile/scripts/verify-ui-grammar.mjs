@@ -2885,7 +2885,11 @@ async function assertUpdateNotice(page, name, viewport) {
   if (name.startsWith('store-update-notice-')) {
     const sv = name.endsWith('-sv');
     await notice
-      .getByText(sv ? 'En ny version finns i butiken' : 'A new version is in the store')
+      .getByText(
+        sv
+          ? 'En ny version av Pidro finns. Vi rekommenderar att du uppdaterar.'
+          : 'A new version of Pidro is available. We recommend updating.'
+      )
       .waitFor();
     await assertNothingUnderNotice(page, 'Store update', viewport);
     const open = page.getByTestId('update-notice-store');
