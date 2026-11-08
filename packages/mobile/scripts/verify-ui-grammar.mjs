@@ -424,6 +424,17 @@ const allCases = [
       botVoice: true,
       locale,
     })),
+    // PID-405: a catalogue character who plays the odds says so on her sheet.
+    {
+      name: `table-bot-card-saga-${locale}`,
+      path: `/table-dev?fixture=bot-crew&character=saga&locale=${locale}`,
+      testId: 'bot-profile-modal',
+      open: locale === 'sv' ? /^Visa profilen för Saga,/ : /^View Saga’s profile,/,
+      botCard: 'Saga',
+      botPlay: 'search',
+      botVoice: true,
+      locale,
+    },
     ...[
       { name: '', seat: 'west', en: 'Let’s see…', sv: 'Ska vi se…' },
       { name: '-antti', seat: 'north', en: 'One moment…', sv: 'Ett ögonblick…' },
@@ -437,6 +448,18 @@ const allCases = [
       locale,
     })),
   ]),
+  // PID-405: her longest catalogue line, 40 characters, is cut short inside her seat.
+  {
+    name: 'table-bot-thinking-saga-cut',
+    path: '/table-dev?fixture=bot-crew&character=saga&botTurn=north',
+    testId: 'seat-north',
+    thinkingText: 'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…',
+    thinkingCut: true,
+    // Beside the avatar in landscape, North says the plain turn text instead.
+    landscapeText: 'Playing…',
+    botVoice: true,
+    locale: 'en',
+  },
   ...talkCases.map((name) => {
     const state = name.replace('table-talk-', '');
     const locale = state.startsWith('sv-') ? 'sv' : 'en';
@@ -2207,10 +2230,15 @@ async function assertLocalization(page, testCase, viewport) {
   const clipped = await page.locator('[dir="auto"]').evaluateAll((nodes) =>
     nodes
       .filter((node) => node.getBoundingClientRect().width && node.getClientRects().length)
-      // Public player names deliberately ellipsize; localized sentences may not.
+      // Public player names and catalogue lines (PID-405) deliberately ellipsize; localized
+      // sentences may not.
       .filter(
         (node) =>
-          !['Alexandria the Long-Named Player', 'AlexandriaLongName'].includes(node.textContent)
+          ![
+            'Alexandria the Long-Named Player',
+            'AlexandriaLongName',
+            'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…',
+          ].includes(node.textContent)
       )
       .filter(
         (node) =>
@@ -6334,9 +6362,20 @@ async function assertBotVoice(page, testCase, viewport) {
     await copy.getByText(testCase.botCard, { exact: true }).waitFor();
     await copy
       .getByText(
-        testCase.locale === 'sv'
-          ? 'Alla tre botarna spelar samma ärliga spel: de bjuder bara så högt som behövs, räknar trumf och stöttar sin partner.'
-          : 'All three bots play the same honest game: they bid only as high as they need to, count trumps and back up their partner.',
+        {
+          sv: {
+            rulebook:
+              'Spelar ett ärligt spel: bjuder bara så högt som behövs, räknar trumf och stöttar sin partner.',
+            search:
+              'Spelar på oddsen: delar ut korten den inte ser och väljer det spel som vinner oftast, men bjuder ändå bara vad kontraktet kräver.',
+          },
+          en: {
+            rulebook:
+              'Plays the honest game: bids only as high as it needs to, counts trumps and backs up its partner.',
+            search:
+              'Plays the odds: deals out the cards it can’t see and takes the line that wins most often, yet still bids only what the contract needs.',
+          },
+        }[testCase.locale][testCase.botPlay ?? 'rulebook'],
         { exact: true }
       )
       .waitFor();
@@ -6368,16 +6407,27 @@ async function assertBotVoice(page, testCase, viewport) {
     await copy.waitFor();
     await waitForScreenshotReady(page);
   } else {
+    const beside = !!testCase.landscapeText && viewport.width > viewport.height;
     const line = page
       .getByTestId(testCase.testId)
-      .getByText(testCase.thinkingText, { exact: true });
+      .getByText(beside ? testCase.landscapeText : testCase.thinkingText, { exact: true });
     await line.waitFor();
     assertInsideViewport('thinking line', await getStableBox(line, page), viewport);
     assert.equal(
       await line.evaluate((node) => node.scrollWidth > node.clientWidth + 1),
-      false,
-      'thinking line fits the nameplate'
+      !!testCase.thinkingCut && !beside,
+      testCase.thinkingCut && !beside
+        ? 'a 40-character line is cut short'
+        : 'thinking line fits the nameplate'
     );
+    if (testCase.thinkingCut && !beside) {
+      const seat = await getStableBox(page.getByTestId(testCase.testId), page);
+      const box = await getStableBox(line, page);
+      assert.ok(
+        box.x >= seat.x - 1 && box.x + box.width <= seat.x + seat.width + 1,
+        'the cut line stays inside its seat'
+      );
+    }
     await page.reload();
     await line.waitFor();
   }

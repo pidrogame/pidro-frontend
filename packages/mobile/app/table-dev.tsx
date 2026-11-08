@@ -13,7 +13,7 @@ import { LocaleFixture } from '@/components/dev/LocaleFixture';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import { NewTableScreen } from '@/components/lobby/NewTableScreen';
-import { BOT_CREW } from '@/features/lobby/fixtures';
+import { BOT_CHARACTER, BOT_CREW } from '@/features/lobby/fixtures';
 import { playerSheetFixture } from '@/features/profileFixtures';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { InviteLinkModal } from '@/components/invites/InviteLinkModal';
@@ -837,6 +837,7 @@ function TableDevHarness() {
     invitation?: string;
     botTurn?: Position;
     botHand?: string;
+    character?: string;
     seats?: string;
     cut?: string;
     sheet?: string;
@@ -972,6 +973,7 @@ function TableDevHarness() {
             botTrick={params.trick === 'bots' || !!TRICKS[params.trick ?? ''] || !!piles}
             trick={piles ?? TRICKS[params.trick ?? '']}
             botCrew={fixture === 'bot-crew'}
+            botCharacter={params.character === 'saga'}
             botTurn={params.botTurn}
             botHand={Number(params.botHand) || 4}
             fold={
@@ -1242,6 +1244,7 @@ function RolePreview({
   botTrick = false,
   trick,
   botCrew = false,
+  botCharacter = false,
   botTurn = 'west',
   botHand = 4,
   invitation = null,
@@ -1278,6 +1281,8 @@ function RolePreview({
   /** `trick=full` (PID-305): you have played A♥ to the bots' trick, all four cards down; `third`, `seven` (PID-307). */
   trick?: (typeof TRICKS)[string];
   botCrew?: boolean;
+  /** `character=saga` (PID-405): North is a catalogue character with its own lines. */
+  botCharacter?: boolean;
   botTurn?: Position;
   botHand?: number;
   invitation?: SeatInvitation | null;
@@ -1402,7 +1407,7 @@ function RolePreview({
           north: {
             status: 'permanent_bot',
             player_id: null,
-            ...BOT_CREW[1],
+            ...(botCharacter ? BOT_CHARACTER : BOT_CREW[1]),
             decision: null,
           },
           east: {
@@ -1640,6 +1645,7 @@ function RolePreview({
     botTrick,
     trick,
     botCrew,
+    botCharacter,
     botTurn,
     botHand,
     tableRoom,

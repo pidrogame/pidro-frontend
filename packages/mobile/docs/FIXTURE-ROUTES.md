@@ -176,6 +176,11 @@ It applies the server's seat lifecycle shape: bots have a persona but no account
 Cards stay closed until tapped. `table-bot-thinking[-antti|-jocke]-{en,sv}`
 checks each voice's visible nameplate line and that reloading keeps it.
 `botTurn=north|east|west&botHand=1|2|3|4` tries every line of the crew.
+PID-405 adds `character=saga`: North, your partner, is Saga, a catalogue
+character who plays `search` and thinks in her own five catalogue lines. The
+last is 40 characters, the most allowed: the nameplate cuts it short, and in
+landscape North says the plain turn text instead. Her sheet says she plays the
+odds, while the three devs, without a strategy, play the honest game.
 All run at 390×844, 375×667,
 844×390 and 768×1024. Persona keys live beside `BotPersonaFace.tsx` in
 `botPersonas.ts`; all editable English/Swedish persona copy is together in

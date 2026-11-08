@@ -35,6 +35,24 @@ export const BOT_CREW = [
   { bot_persona: 'jocke', username: 'Jocke', display_name: 'Jocke' },
 ] as const;
 
+/** `character=saga` (PID-405): a catalogue character at North who plays the odds, in its own words. */
+export const BOT_CHARACTER = {
+  bot_persona: '1c477a6a-fb56-4b4f-a6b5-3b1390c60102',
+  username: 'Saga',
+  display_name: 'Saga',
+  bot_profile: {
+    id: '1c477a6a-fb56-4b4f-a6b5-3b1390c60102',
+    name: 'Saga',
+    description: 'New at the table, quick with a count.',
+    avatar_url: 'https://fixture.invalid/images/bots/antti.svg',
+    strategy: 'search',
+    tempo: 'steady',
+    home: 'finland' as const,
+    // The last is as long as the catalogue allows: the nameplate cuts it short.
+    lines: ['Nå, nå…', 'Tja…', 'Hmm, hmm…', 'Jaha…', 'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…'],
+  },
+};
+
 /** The chips the rows show: two Legends, the rest by the length of the name. */
 const fixtureLevel = (name: string) =>
   name === 'Claas'
