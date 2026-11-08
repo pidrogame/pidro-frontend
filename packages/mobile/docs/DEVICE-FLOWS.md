@@ -1,5 +1,10 @@
 # Device flows — driving the simulator
 
+**Release tooling, not a feature-orb requirement.** Per
+[`docs/testing.md`](../../../docs/testing.md), native checks run on Marcel's machine
+or deliberately before release. Feature orbs prove changed behavior narrowly and
+list native verification as pending; browser success never certifies native input.
+
 Everything in `FIXTURE-ROUTES.md` gets you to a _state_. This gets you to an
 _interaction_: tapping, typing and asserting on a real simulator, where safe
 areas, touch targets and gestures are real. `WEB-PARITY.md` explains why the

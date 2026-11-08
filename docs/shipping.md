@@ -2,9 +2,13 @@
 
 Before pushing, satisfy the risk-based [testing and proof contract](testing.md).
 `Frontend ready` is the authoritative selected CI gate, not native iOS evidence.
-Native-risk changes must have their required simulator/device/build evidence before
-the push: the automatic beta workflow does not collect it or wait for manual QA.
-Missing required evidence means verification incomplete, even when checks are green.
+Feature orbs prove changed behavior and run affected checks at one phone size (a
+second only for a named layout risk), not full suites. Full visual/game/account and
+native verification belong to deliberate release work on Marcel's machine or an
+explicit release runner. List them as pending; never call beta CI native proof.
+Missing required focused evidence means verification incomplete even with green CI.
+The automatic beta workflow does not collect native QA or wait for it. Report CI's
+current state/run URL without foreground watch/poll loops; pending is not deployed.
 
 A commit pushed to `main` reaches beta testers' phones by itself:
 

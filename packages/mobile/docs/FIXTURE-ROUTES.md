@@ -3,6 +3,12 @@
 Dev-only routes (`__DEV__` guarded; they redirect to `/home` in release). No login,
 no backend, no playing a game to reach a state. Print and tape.
 
+**Feature-orb policy:** prove the changed states and a control at one standard phone
+size, adding one other size only for a named layout risk. Full matrices/multi-journey
+and native runs below are **release/manual recipes**, not a checklist for every
+feature. Native verification belongs to Marcel's machine or deliberate release work.
+See [`docs/testing.md`](../../../docs/testing.md); freeze Metro inputs during captures.
+
 ## Open one
 
 ```bash
@@ -1126,9 +1132,10 @@ Needs Expo web running (`bun run web`) and, once per machine,
 `bunx playwright install chromium`.
 
 ```bash
-bun run test:ui            # full viewport matrix, touch targets, containment
-UI_CASES=table-bidding,home bun run test:ui      # just these
-UI_SHOT_DIR=/tmp/shots bun run test:ui           # where screenshots land
+UI_CASES=table-bidding,home UI_VIEWPORTS=portrait bun run test:ui  # focused feature proof
+UI_CASES=table-bidding UI_VIEWPORTS=portrait,landscape bun run test:ui  # clearance risk
+# Release/manual only: bun run test:ui (full viewport matrix, targets, containment)
+UI_CASES=home UI_VIEWPORTS=portrait UI_SHOT_DIR=/tmp/shots bun run test:ui
 UI_PARTITION=1/15 UI_REPORT_PATH=/tmp/ui-report.json bun run test:ui  # one CI-sized batch
 node scripts/verify-ui-grammar.mjs --list        # selected viewport/case IDs, no browser
 node scripts/verify-ui-grammar.mjs --list-cases  # every case's name and route, no browser
@@ -1144,15 +1151,19 @@ renders, so Mac captures flag font/antialiasing noise. On a push to `main`, CI a
 the drift on the screens the changes since the last green `main` draw (the areas of
 `scripts/ci-affected.mjs`): it commits their new captures, and the first capture of a
 new case, on top of the pushed commit, links them in the "UI grammar" summary and goes
-green. Drift on any other screen fails, and so does drift from a change that runs
-everything (tokens, primitives, CI); adopt that with `bun run ui:baselines <runId>`.
+green. Drift on other captured screens fails; shared/unknown changes (tokens,
+primitives, CI) and full release runs auto-adopt nothing. Inspect intended drift
+before accepting the corresponding captures with `bun run ui:baselines <runId>`.
 
-A push runs only the cases its change touches (`scripts/ci-affected.mjs`, with
-the reasons in the "Select checks" job summary); the release test (Actions →
-Frontend CI → Run workflow) runs all of them. A push runs its cases on every
-viewport they are drawn on, so an adopted screen leaves no stale baseline behind;
-a table-only push runs only the account journeys that play through the table.
-CI balances the selected matrix across up to fifteen jobs, about forty screens each,
+A push runs representative affected cases + table/lobby/home/login smoke
+(`scripts/ci-affected.mjs`, reasons in "Select checks"): at most 16 cases, portrait
+only, plus landscape for layout risk. It runs affected unit tests, **not full
+game/account journeys or multi-size behavioral suites**. The manual release test
+(Actions → Frontend CI → Run workflow, `full=true`) retains all cases/viewports,
+behavioral suites, unit tests and game/account journeys. Uncaptured viewport baselines
+remain unchanged; release owners must inspect/reconcile intended drift there. Do not
+bulk-adopt unexplained drift or treat auto-adoption as visual review.
+CI balances the release matrix across up to fifteen jobs, about forty screens each,
 using Linux case durations in `scripts/ui-case-costs.json` (last calibration: the mean
 of Actions runs `41814859939`, `41812350012`, `41826874604` and `41830244863`).
 New cases use the median recorded duration and are still included.

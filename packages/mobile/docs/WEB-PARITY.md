@@ -2,7 +2,10 @@
 
 The current risk-based gate and proof requirements are in
 [`docs/testing.md`](../../../docs/testing.md). This page records the parity findings
-and available tooling, not a requirement to repeat a full device/browser sweep.
+and available release tooling, not a requirement to repeat a device/browser sweep.
+Feature orbs run only affected checks at one phone size (one extra size for a named
+layout risk). Native checks and full visual/game/account regression are deliberate
+release work on Marcel's machine or a release runner, never a feature-orb gate.
 
 Measured 2026-09-20 on iPhone 17 Pro (iOS 26.2, Expo Go 56.0.4) against Expo web
 at the committed baselines. Read with `FIXTURE-ROUTES.md`.

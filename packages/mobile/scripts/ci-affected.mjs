@@ -1,328 +1,97 @@
-/**
- * What a push runs (PID-310). Maps the files changed since the last green main to the
- * UI grammar cases, the UI suites, Game e2e and the account journeys. It fails safe:
- * a file no row of MAP claims, or no usable base commit, runs everything.
- *
- *   node scripts/ci-affected.mjs <base-sha> [head-sha]   # print the selection
- *   node scripts/ci-affected.mjs --full                  # the release test
- *
- * In CI it also writes the selection to $GITHUB_OUTPUT and why to $GITHUB_STEP_SUMMARY.
- */
+/** Feature pushes are bounded checks, never an implicit release test. */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, readdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// What each part of the app draws (UI grammar case routes; /ui-dev cases by their state)
-// and the UI suites that drive it. A push runs its cases on every viewport they are drawn
-// on: CI adopts their drift (PID-343), and a viewport it skipped would keep a stale
-// baseline for the next push to trip over.
-const AREAS = {
-  table: {
-    screens: ['/table-dev', '/game/*'],
-    suites: ['table-behavior', 'seats-and-game-over'],
-  },
-  lobby: {
-    screens: [
-      '/lobby',
-      '/join/*',
-      '/join-code',
-      '/ui-dev?state={new-table,seat-rows,seat-picker,lobby-seats}',
-    ],
-    suites: ['lobby-and-creation'],
-  },
-  auth: {
-    screens: ['/(auth)/*', '/auth-flow-dev', '/welcome', '/age', '/ui-dev?state=claim-classic'],
-  },
-  home: {
-    screens: [
-      '/{home,profile,friends,friends-add,blocked-players,league}',
-      '/ui-dev?state={friends,friends-add,blocked-players,avatars,progression}',
-    ],
-  },
-  settings: { screens: ['/settings', '/device-settings', '/ui-dev?state=settings'] },
-};
-
-// Changed file → what it runs. Paths inside packages/mobile drop that prefix. The first
-// row a file matches wins; a file no row claims runs everything. Rows follow what the
-// routes really import: most of src/game is also imported by app/lobby.tsx and
-// app/new-table.tsx, which the smoke set's lobby screen covers on a table push, and
-// `accounts: 'table'` runs the journeys that play through the table (tableJourneys).
-const MAP = [
-  {
-    rule: 'readiness and event ordering',
-    areas: ['table'],
-    game: true,
-    accounts: 'table',
-    files: ['scripts/readiness-e2e{,.test}.mjs'],
-  },
-  {
-    rule: 'docs and unit tests',
-    files: [
-      '**/*.md',
-      'docs/**',
-      'spec/**',
-      'test/**',
-      'scripts/*.test.mjs',
-      'scripts/{ship,ota-check,publish-beta,rollback-ota}.mjs',
-    ],
-  },
-  {
-    rule: 'everything',
-    all: true,
-    files: [
-      'package.json',
-      'bun.lock',
-      'bunfig.toml',
-      'app.json',
-      'app.config.*',
-      '{babel,metro,tailwind}.config.js',
-      'postcss.config.mjs',
-      'global.css',
-      'tsconfig.json',
-      '.github/**',
-      'packages/shared/**',
-      'src/design/**',
-      'src/components/ui/**',
-      'app/{_layout,index,+native-intent}.tsx',
-      'app/{(auth),(shell)}/_layout.tsx',
-      'src/channels/**',
-      'src/bootstrap/realtime.ts',
-      'scripts/{verify-ui-grammar,verify-ui-readiness,ui-test-utils,ui-shards,compare-ui-baselines,ci-affected,ci-ready}.mjs',
-      'scripts/ui-case-costs.json',
-      'scripts/tailwind-v3-resolve.cjs',
-      // Drawn on the shell screens too, or shared with home and welcome.
-      'src/game/canvas/bakedBlur.tsx',
-      'src/components/game/DealerChip.tsx',
-      'public/cards/dealer-chip.png',
-      'src/features/game/solo.ts',
-    ],
-  },
-  {
-    rule: 'table',
-    areas: ['table'],
-    game: true,
-    accounts: 'table',
-    files: [
-      'app/game/**',
-      'app/{table-dev,report-dev}.tsx',
-      'src/game/**',
-      'src/components/game/**',
-      'src/features/game/**',
-      'src/{stores,types}/game.ts',
-      'src/utils/{cards,cardImages,positions}.ts',
-      'public/cards/**',
-      'scripts/verify-{table-chrome,seat-decisions,dealing,waiting-seats,game-over}.mjs',
-    ],
-  },
-  {
-    rule: 'lobby and creation',
-    areas: ['lobby'],
-    game: true,
-    accounts: true,
-    files: [
-      'app/{lobby,new-table,join-code}.tsx',
-      'app/join/**',
-      'src/components/lobby/{PasswordKeypadSheet,RoomCard,SeatRequirementBadge}.tsx',
-      'scripts/verify-{lobby,create-room}.mjs',
-    ],
-  },
-  {
-    // NewTableScreen, OpenChair and SeatRow are the waiting table at /game/:code too.
-    rule: 'waiting table',
-    areas: ['table', 'lobby'],
-    game: true,
-    accounts: true,
-    files: ['src/components/lobby/**'],
-  },
-  {
-    rule: 'auth and Classic claims',
-    areas: ['auth'],
-    accounts: true,
-    files: [
-      'app/{(auth),(onboarding)}/**',
-      'app/{welcome,auth-flow-dev}.tsx',
-      'src/api/classic.ts',
-      'src/features/auth/{accountEmail,classicClaimForm,classicFound,loginSocial,pendingClassicVerification,resetLink}.ts',
-      'src/components/auth/{AuthProviderButtons,KeepProgressPrompt,SwitchPlayersGuard}.tsx',
-      'src/components/auth/useProviderSignIn.ts',
-      'src/features/onboarding/reconcileAge.ts',
-    ],
-  },
-  {
-    rule: 'home, profile and friends',
-    areas: ['home'],
-    accounts: true,
-    files: [
-      'app/(shell)/{home,profile,friends,friends-add,blocked-players,league}.tsx',
-      'src/components/friends/{FriendDiscovery,FriendSheet,InfoCard}.tsx',
-      'src/components/profile/{BadgeSheet.tsx,useProfilePhoto.ts}',
-      'src/features/profile.ts',
-    ],
-  },
-  {
-    rule: 'settings',
-    areas: ['settings'],
-    accounts: true,
-    files: [
-      'app/(shell)/settings.tsx',
-      'app/device-settings.tsx',
-      'src/components/settings/**',
-      'src/features/rules/fixtures.ts',
-    ],
-  },
-  { rule: 'Game e2e', game: true, files: ['scripts/{ci-game-e2e,autoplay-full-game}.mjs'] },
-  // The account journeys follow the reset email into the old web client.
-  { rule: 'account journeys', accounts: true, files: ['e2e/**', 'packages/web/**'] },
-];
-
-// One table, one lobby, one home and one auth screen, each on its usual viewports
-// (portrait and landscape among them), whenever anything visual runs.
 export const SMOKE = ['table-playing', 'lobby-list', 'home', 'login'];
 const SUITES = ['table-behavior', 'lobby-and-creation', 'seats-and-game-over'];
-const SCREENS_PER_SHARD = 40;
-const MAX_SHARDS = 15;
-
-const glob = (pattern) =>
-  new RegExp(
-    `^${pattern
-      .replace(/[.+?^$()|[\]\\]/g, '\\$&')
-      .replace(/\{([^}]*)\}/g, (_, options) => `(?:${options.split(',').join('|')})`)
-      .replace(/\*\*\/|\*\*|\*/g, (star) =>
-        star === '*' ? '[^/]*' : star === '**/' ? '(?:.*/)?' : '.*'
-      )}$`
-  );
-const matches = (patterns, path) => patterns.some((pattern) => glob(pattern).test(path));
-const screenOf = ({ path }) => {
-  const [route, query] = path.split('?');
-  if (route !== '/ui-dev') return route;
-  return `/ui-dev?state=${new URLSearchParams(query).get('state') ?? 'components'}`;
-};
-
-// The account journeys that reach /game/:code or /table-dev, read from the specs so a
-// new one joins by itself.
-export const tableJourneys = (dir = resolve(mobileRoot, 'e2e/specs')) =>
-  readdirSync(dir)
-    .filter((name) => name.endsWith('.spec.ts'))
-    .filter((name) =>
-      /game\\?\/|game-table|waiting-table|support\/game|table-dev/.test(
-        readFileSync(resolve(dir, name), 'utf8')
-      )
-    )
-    .map((name) => `specs/${name}`);
-
-/**
- * base: the commit the change is measured from; files: paths changed since then
- * (repo-relative); cases: [{ name, path }] from verify-ui-grammar --list-cases;
- * ids: every viewport/case id from verify-ui-grammar --list; journeys: tableJourneys().
- */
-export function selectChecks({ base, files, cases, ids, journeys = [], full = false }) {
-  const reasons = [];
-  let all = full;
-  if (full) reasons.push({ file: '(release test)', rule: 'everything' });
-  else if (!base || /^0+$/.test(base) || !files) {
-    all = true;
-    reasons.push({ file: '(no base commit to compare)', rule: 'everything' });
-  }
-  const areas = new Set();
-  let game = false;
-  let accounts = false;
-  let journeysOnly = true;
-  for (const file of all ? [] : files) {
-    const path = file.replace(/^packages\/mobile\//, '');
-    const row = MAP.find(({ files: patterns }) => matches(patterns, path));
-    reasons.push({ file, rule: row?.rule ?? 'everything (no rule claims it)' });
-    if (!row || row.all) all = true;
-    else {
-      row.areas?.forEach((area) => areas.add(area));
-      game ||= Boolean(row.game);
-      accounts ||= Boolean(row.accounts);
-      if (row.accounts === true) journeysOnly = false;
-    }
-  }
-  if (all) {
-    return {
-      full: true,
-      reasons,
-      adopt: [],
-      cases: null,
-      screens: ids.length,
-      shards: shardsFor(ids.length, SUITES),
-      game: true,
-      accounts: true,
-      journeys: null,
-    };
-  }
-
-  const selected = new Set(casesOf(areas, cases));
-  if (areas.size) SMOKE.forEach((name) => selected.add(name));
-  const count = ids.filter((id) => selected.has(id.slice(id.indexOf('/') + 1))).length;
-  const suites = SUITES.filter((suite) =>
-    [...areas].some((area) => AREAS[area].suites?.includes(suite))
-  );
-  return {
-    full: false,
-    reasons,
-    areas: [...areas],
-    adopt: casesOf(areas, cases),
-    cases: [...selected],
-    screens: count,
-    shards: shardsFor(count, suites),
-    game,
-    accounts,
-    // No list to narrow to runs every journey.
-    journeys: accounts && journeysOnly && journeys.length ? journeys : null,
-  };
-}
-
-// The cases a change means to redraw: every screen of the areas its files draw. Their
-// drift is the change itself, and CI adopts it as their new baselines. A run that checks
-// everything (tokens, primitives, CI, the release test) adopts nothing: its drift stays red.
-const casesOf = (areas, cases) => {
-  const screens = [...areas].flatMap((area) => AREAS[area].screens);
-  return cases.filter((testCase) => matches(screens, screenOf(testCase))).map(({ name }) => name);
-};
-
-function shardsFor(screens, suites) {
-  const total = Math.min(MAX_SHARDS, Math.ceil(screens / SCREENS_PER_SHARD));
-  return [
-    ...Array.from({ length: total }, (_, index) => ({
-      shard: `matrix-${index + 1}`,
-      partition: `${index + 1}/${total}`,
-    })),
-    ...suites.map((shard) => ({ shard, partition: '' })),
-  ];
-}
-
-function summarize(selection, base) {
-  const yes = (value) => (value ? 'runs' : 'skipped');
-  const visual = selection.full
-    ? `all ${selection.screens} screens`
-    : selection.cases.length
-      ? `${selection.cases.length} cases, ${selection.screens} screens (${selection.areas.join(', ')} + smoke)`
-      : 'nothing visual';
-  const matrix = selection.shards.filter(({ partition }) => partition).length;
-  const suites = selection.shards.filter(({ partition }) => !partition).map(({ shard }) => shard);
-  return [
-    `### What this ${selection.full ? 'run' : 'push'} checks`,
-    '',
-    `Changes measured from \`${base ? base.slice(0, 7) : 'nothing'}\`.`,
-    '',
-    `- **UI grammar:** ${visual}; ${matrix} matrix shard(s)${suites.length ? `, ${suites.join(', ')}` : ''}`,
-    `- **Drift adopted on:** ${selection.adopt.length ? `the ${selection.adopt.length} cases this change draws, on a push` : 'nothing; any drift fails'}`,
-    `- **Game e2e:** ${yes(selection.game)}`,
-    `- **Account journeys:** ${yes(selection.accounts)}${selection.journeys ? `, the ${selection.journeys.length} that play through the table` : ''}`,
-    '- **Mobile quality:** runs',
-    '',
-    '| Changed file | Rule |',
-    '| --- | --- |',
-    ...selection.reasons.slice(0, 200).map(({ file, rule }) => `| \`${file}\` | ${rule} |`),
-    ...(selection.reasons.length > 200 ? [`| … ${selection.reasons.length - 200} more | |`] : []),
-    '',
-  ].join('\n');
-}
-
+const AREAS = [
+  {
+    name: 'table',
+    files:
+      /^(app\/(game\/|table-dev|report-dev)|src\/(game\/|components\/game\/|features\/game\/|stores\/game|types\/game)|scripts\/(readiness-e2e|verify-(table|seat|dealing|waiting|game-over)))/,
+    cases: ['table-playing', 'table-bidding', 'table-game-over', 'table-status-a-cut'],
+    tests: ['game', 'layout', 'lobby'],
+  },
+  {
+    name: 'lobby',
+    files:
+      /^(app\/(lobby|new-table|join)|src\/components\/lobby\/|scripts\/verify-(lobby|create-room))/,
+    cases: ['lobby-list', 'lobby-open', 'new-table-setup', 'new-table-ready'],
+    tests: ['lobby', 'invites'],
+  },
+  {
+    name: 'auth',
+    files:
+      /^(app\/\((auth|onboarding)\)|app\/(welcome|age|auth-flow-dev)|src\/(features\/(auth|onboarding)\/|components\/auth\/|api\/(auth|classic)|stores\/auth))/,
+    cases: ['login', 'register', 'register-name', 'welcome'],
+    tests: ['auth', 'onboarding'],
+  },
+  {
+    name: 'home',
+    files:
+      /^(app\/\(shell\)\/(home|profile|friends|blocked-players|league)|src\/(components\/(friends|profile|home)\/|features\/(friends\/|profile|league|news)))/,
+    cases: ['home', 'profile', 'news-sheet', 'league'],
+    tests: ['friends', 'profile'],
+  },
+  {
+    name: 'settings',
+    files: /^(app\/(\(shell\)\/settings|device-settings)|src\/components\/settings\/)/,
+    cases: ['settings', 'device-settings'],
+    tests: ['rules.test.mjs'],
+  },
+];
+const UNIT_SMOKE = [
+  'packages/mobile/test/scripts/ci-affected.test.mjs',
+  'packages/mobile/test/scripts/ci-ready.test.mjs',
+];
 const mobileRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const repoRoot = resolve(mobileRoot, '../..');
+
+// Follow local imports, including transitive consumers and the workspace package.
+// Area rules below also catch source-reading tests and runtime-selected dependencies.
+function affectedUnitTests(files, tests) {
+  const changed = new Set(files.map((file) => resolve(repoRoot, file)));
+  const graph = new Map();
+  const dependencies = (file) => {
+    if (graph.has(file)) return graph.get(file);
+    const imports = [];
+    graph.set(file, imports);
+    if (!existsSync(file)) return imports;
+    const source = readFileSync(file, 'utf8');
+    for (const [, name] of source.matchAll(
+      /(?:from\s*|import\s*\(?\s*|require\s*\(\s*)['"]([^'"]+)['"]/g
+    )) {
+      const path = name.startsWith('.')
+        ? resolve(dirname(file), name)
+        : name.startsWith('@/')
+          ? resolve(mobileRoot, 'src', name.slice(2))
+          : name === '@pidro/shared'
+            ? resolve(repoRoot, 'packages/shared/src/index.ts')
+            : null;
+      if (!path) continue;
+      const target = [
+        path,
+        `${path}.ts`,
+        `${path}.tsx`,
+        `${path}.js`,
+        `${path}/index.ts`,
+        `${path}/index.tsx`,
+      ].find((candidate) => /\.(mjs|tsx?|js)$/.test(candidate) && existsSync(candidate));
+      if (target) imports.push(target);
+    }
+    return imports;
+  };
+  const reachesChange = (file, seen = new Set()) => {
+    if (changed.has(file)) return true;
+    if (seen.has(file)) return false;
+    seen.add(file);
+    return dependencies(file).some((dependency) => reachesChange(dependency, seen));
+  };
+  return tests.filter((test) => reachesChange(resolve(repoRoot, test)));
+}
+
 export const listGrammar = (flag) =>
   JSON.parse(
     execFileSync(process.execPath, ['scripts/verify-ui-grammar.mjs', flag], {
@@ -339,6 +108,121 @@ export const listGrammar = (flag) =>
     })
   );
 
+const unitInventory = () =>
+  ['packages/mobile/test', 'packages/shared/test'].flatMap((dir) =>
+    readdirSync(resolve(repoRoot, dir), { recursive: true })
+      .filter((name) => /\.test\.(mjs|ts|tsx|js)$/.test(name))
+      .map((name) => `${dir}/${name}`)
+  );
+
+export function selectChecks({ base, files, cases, ids, tests = [], full = false }) {
+  if (full) {
+    return {
+      full: true,
+      reasons: [{ file: '(explicit release test)', rule: 'complete regression' }],
+      areas: [],
+      adopt: [],
+      cases: null,
+      viewports: [],
+      screens: ids.length,
+      shards: shardsFor(ids.length, SUITES),
+      unitTests: null,
+      game: true,
+      accounts: true,
+    };
+  }
+
+  const reasons = [];
+  const areas = new Set();
+  const selectedTests = new Set([...UNIT_SMOKE, ...affectedUnitTests(files ?? [], tests)]);
+  let visual = !base || /^0+$/.test(base) || !files;
+  let shared = visual;
+  let layout = false;
+  if (visual)
+    reasons.push({ file: '(unknown change range)', rule: 'smoke; release coverage deferred' });
+  for (const file of files ?? []) {
+    const path = file.replace(/^packages\/mobile\//, '');
+    if (/\.test\.(mjs|ts|tsx|js)$/.test(file) && tests.includes(file)) selectedTests.add(file);
+    if (/\.md$|^docs\/|^spec\/|^test\/ui-baselines\//.test(path)) {
+      reasons.push({ file, rule: 'docs/baselines; no visual regression' });
+      continue;
+    }
+    const area = AREAS.find(({ files: pattern }) => pattern.test(path));
+    reasons.push({ file, rule: area?.name ?? 'shared/unknown; small smoke, not a full fallback' });
+    if (area) areas.add(area);
+    // Test-only changes exercise their test, not the application's screenshot inventory.
+    if (/\.test\.(mjs|ts|tsx|js)$/.test(file)) continue;
+    visual = true;
+    shared ||= !area;
+    layout ||= /\.tsx$|layout|tokens|global\.css/.test(path);
+    const extraTestDir =
+      path.startsWith('src/channels/') || path === 'src/bootstrap/realtime.ts'
+        ? 'channels/'
+        : path.startsWith('src/features/updates/')
+          ? 'updates/'
+          : /^app\/(_layout|index|\+native-intent)|_layout\.tsx$/.test(path)
+            ? 'navigation/'
+            : null;
+    for (const test of tests) {
+      if (area?.tests.some((dir) => test.startsWith(`packages/mobile/test/${dir}`)))
+        selectedTests.add(test);
+      if (extraTestDir && test.startsWith(`packages/mobile/test/${extraTestDir}`))
+        selectedTests.add(test);
+      if (
+        /^\.github\/|scripts\/(ci-|ui-shards|verify-ui-grammar)/.test(path) &&
+        test.startsWith('packages/mobile/test/scripts/')
+      )
+        selectedTests.add(test);
+      if (file.startsWith('packages/shared/') && test.startsWith('packages/shared/test/'))
+        selectedTests.add(test);
+      // Include direct regressions outside the area's directories (news, league, scripts, etc.).
+      const stem = path
+        .split('/')
+        .at(-1)
+        .replace(/\.(mjs|tsx?|js)$/, '');
+      if (test.split('/').at(-1).startsWith(`${stem}.test.`)) selectedTests.add(test);
+    }
+  }
+
+  const known = new Set(cases.map(({ name }) => name));
+  const affected = [...areas].flatMap((area) => area.cases);
+  const selected = visual
+    ? [...new Set([...SMOKE, ...affected, ...(shared ? ['ui-components'] : [])])]
+        .filter((name) => known.has(name))
+        .slice(0, 16)
+    : [];
+  const viewports = layout ? ['portrait', 'landscape'] : ['portrait'];
+  const count = ids.filter((id) => {
+    const slash = id.indexOf('/');
+    return viewports.includes(id.slice(0, slash)) && selected.includes(id.slice(slash + 1));
+  }).length;
+  return {
+    full: false,
+    reasons,
+    areas: [...areas].map(({ name }) => name),
+    adopt: affected.filter((name) => selected.includes(name)),
+    cases: selected,
+    viewports,
+    screens: count,
+    shards: shardsFor(count, []),
+    unitTests: [...selectedTests].sort(),
+    // Full journeys and the multi-size behavioral suites belong to deliberate releases.
+    game: false,
+    accounts: false,
+  };
+}
+
+function shardsFor(screens, suites) {
+  const total = Math.min(15, Math.ceil(screens / 40));
+  return [
+    ...Array.from({ length: total }, (_, index) => ({
+      shard: `matrix-${index + 1}`,
+      partition: `${index + 1}/${total}`,
+    })),
+    ...suites.map((shard) => ({ shard, partition: '' })),
+  ];
+}
+
 function changedFiles(base, head) {
   try {
     const git = (...args) => execFileSync('git', args, { cwd: mobileRoot, encoding: 'utf8' });
@@ -352,32 +236,39 @@ function changedFiles(base, head) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const full = process.argv[2] === '--full';
   const base = full ? '' : (process.argv[2] ?? '');
-  const head = process.argv[3] || 'HEAD';
   const selection = selectChecks({
     base,
-    files: full || !base ? [] : changedFiles(base, head),
+    files: full || !base ? [] : changedFiles(base, process.argv[3] || 'HEAD'),
     cases: listGrammar('--list-cases'),
     ids: listGrammar('--list'),
-    journeys: tableJourneys(),
+    tests: unitInventory(),
     full,
   });
-  const summary = summarize(selection, base);
+  const summary = [
+    `### ${full ? 'Release' : 'Feature'} checks`,
+    `- UI: ${selection.screens} captures; ${full ? 'every viewport/case' : selection.viewports.join(', ')}`,
+    `- Unit: ${full ? 'complete suite' : selection.unitTests.join(', ')}`,
+    `- Full game/account journeys: ${full ? 'run' : 'deferred to release'}`,
+    '- Feature CI is representative regression coverage, not proof of every affected state.',
+    ...selection.reasons.map(({ file, rule }) => `- \`${file}\`: ${rule}`),
+    '',
+  ].join('\n');
   console.log(summary);
-  if (process.env.GITHUB_OUTPUT) {
+  if (process.env.GITHUB_OUTPUT)
     appendFileSync(
       process.env.GITHUB_OUTPUT,
       [
         `full=${selection.full}`,
         `ui=${selection.shards.length > 0}`,
-        `ui_cases=${selection.full ? '' : selection.cases.join(',')}`,
+        `ui_cases=${selection.cases?.join(',') ?? ''}`,
+        `ui_viewports=${selection.viewports.join(',')}`,
+        `unit_tests=${JSON.stringify(selection.unitTests)}`,
         `shards=${JSON.stringify(selection.shards)}`,
         `ui_adopt=${selection.adopt.join(',')}`,
         `game=${selection.game}`,
         `accounts=${selection.accounts}`,
-        `account_specs=${selection.journeys?.join(' ') ?? ''}`,
         '',
       ].join('\n')
     );
-  }
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
 }

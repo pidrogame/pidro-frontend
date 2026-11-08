@@ -1,146 +1,166 @@
 import { describe, expect, test } from 'bun:test';
-import { listGrammar, selectChecks, SMOKE, tableJourneys } from '../../scripts/ci-affected.mjs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { listGrammar, selectChecks, SMOKE } from '../../scripts/ci-affected.mjs';
 
 const cases = listGrammar('--list-cases');
 const ids = listGrammar('--list');
 const base = '283e333c0000000000000000000000000000beef';
-const journeys = tableJourneys();
-const select = (...files) => selectChecks({ base, files, cases, ids, journeys });
-const casesOn = (prefix) =>
-  cases.filter(({ path }) => path.startsWith(prefix)).map(({ name }) => name);
+const tests = readdirSync(fileURLToPath(new URL('../', import.meta.url)), { recursive: true })
+  .filter((name) => /\.test\.(mjs|ts|tsx)$/.test(name))
+  .map((name) => `packages/mobile/test/${name}`);
+const select = (...files) => selectChecks({ base, files, cases, ids, tests });
 
-describe('what a push runs', () => {
-  test('a table change runs the table cases on every viewport, the smoke set, Game e2e and the table journeys', () => {
+describe('bounded feature checks', () => {
+  test('a table layout change checks representative states at two sizes, not every table or full journeys', () => {
     const run = select('packages/mobile/src/game/canvas/layout.ts');
-    expect(run.full).toBe(false);
-    expect(run.cases).toEqual(expect.arrayContaining([...casesOn('/table-dev'), ...SMOKE]));
-    // The lobby it shares code with: its smoke screen, not every lobby case.
-    expect(run.cases).not.toContain('lobby-open');
-    expect(run.cases).not.toContain('new-table-setup');
-    expect(run.cases).not.toContain('settings');
-    // Every viewport of every case it may adopt, so no adopted case keeps a stale baseline.
-    expect(run.adopt).toContain('table-playing');
-    expect(run.screens).toBeGreaterThanOrEqual(
-      ids.filter((id) => run.adopt.includes(id.slice(id.indexOf('/') + 1))).length
-    );
-    expect(run.game).toBe(true);
-    expect(run.accounts).toBe(true);
-    expect(run.journeys).toEqual(
-      expect.arrayContaining([
-        'specs/leaving-a-table-goes-back-to-the-lobby.spec.ts',
-        'specs/louisiana-table-shows-its-rules.spec.ts',
-        'specs/invite-survives-sign-in.spec.ts',
-      ])
-    );
-    expect(run.journeys).not.toContain('specs/sign-in.spec.ts');
-    expect(run.shards.filter(({ partition }) => !partition).map(({ shard }) => shard)).toEqual([
-      'table-behavior',
-      'seats-and-game-over',
-    ]);
-  });
-
-  test('a table change with anything else runs every journey', () => {
-    const run = select(
-      'packages/mobile/src/game/canvas/layout.ts',
-      'packages/mobile/app/lobby.tsx'
-    );
-    expect(run.journeys).toBeNull();
-    expect(run.cases).toEqual(expect.arrayContaining(['lobby-open', 'table-bidding']));
-  });
-
-  test('a table change with no table journeys found runs every journey', () => {
-    const run = selectChecks({ base, files: ['packages/mobile/src/game/handLog.ts'], cases, ids });
-    expect(run.accounts).toBe(true);
-    expect(run.journeys).toBeNull();
-  });
-
-  test('a lobby change runs the lobby and creation cases, the smoke set and both e2e suites', () => {
-    const run = select('packages/mobile/app/lobby.tsx');
     expect(run.full).toBe(false);
     expect(run.cases).toEqual(
-      expect.arrayContaining([...casesOn('/lobby'), 'new-table-setup', ...SMOKE])
+      expect.arrayContaining([...SMOKE, 'table-bidding', 'table-game-over'])
     );
-    expect(run.cases).not.toContain('table-bidding');
+    expect(run.cases).not.toContain('table-status-b-cut');
     expect(run.cases).not.toContain('register');
-    expect(run.game).toBe(true);
-    expect(run.accounts).toBe(true);
-    expect(run.journeys).toBeNull();
-    expect(run.shards.filter(({ partition }) => !partition)).toEqual([
-      { shard: 'lobby-and-creation', partition: '' },
-    ]);
+    expect(run.viewports).toEqual(['portrait', 'landscape']);
+    expect(run.screens).toBeLessThanOrEqual(run.cases.length * 2);
+    expect(run.shards).toEqual([{ shard: 'matrix-1', partition: '1/1' }]);
+    expect(run.game || run.accounts).toBe(false);
+    expect(run.unitTests).toContain('packages/mobile/test/game/layout.test.mjs');
+    expect(run.unitTests).not.toContain('packages/mobile/test/auth/loginSocial.test.mjs');
+    expect(run.adopt).toContain('table-playing');
+    expect(run.adopt).not.toContain('login');
   });
 
-  test('docs, baselines and unit tests run nothing visual and no e2e', () => {
-    const run = select(
-      'docs/shipping.md',
-      'packages/mobile/docs/FIXTURE-ROUTES.md',
-      'packages/mobile/test/ui-baselines/portrait/home.png',
-      'packages/mobile/test/game/bidding.test.mjs'
-    );
+  test('non-layout game logic uses one size, lobby adds its own representative states', () => {
+    expect(select('packages/mobile/src/features/game/layDown.ts').viewports).toEqual(['portrait']);
+    const run = select('packages/mobile/app/lobby.tsx');
+    expect(run.cases).toContain('new-table-ready');
+    expect(run.cases).not.toContain('table-bidding');
+    expect(run.game || run.accounts).toBe(false);
+    expect(run.unitTests).toContain('packages/mobile/test/lobby/seatRow.test.mjs');
+  });
+
+  test('unit-only and docs-only changes do not start a screenshot or account sweep', () => {
+    const run = select('docs/testing.md', 'packages/mobile/test/game/bidding.test.mjs');
     expect(run).toMatchObject({ full: false, cases: [], shards: [], game: false, accounts: false });
+    expect(run.unitTests).toContain('packages/mobile/test/game/bidding.test.mjs');
+    expect(run.unitTests).not.toContain('packages/mobile/test/game/layDown.test.mjs');
   });
-
-  test.each(['readiness-e2e.mjs', 'readiness-e2e.test.mjs'])(
-    'the readiness harness %s selects its focused browser regression and real journeys',
-    (file) => {
-      const run = select(`packages/mobile/scripts/${file}`);
-      expect(run.full).toBe(false);
-      expect(run.shards).toContainEqual({ shard: 'table-behavior', partition: '' });
-      expect(run.game && run.accounts).toBe(true);
-      expect(run.journeys).toEqual(journeys);
-    }
-  );
 
   test.each([
-    ['a design token', 'packages/mobile/src/design/tokens.ts'],
-    ['the lockfile', 'bun.lock'],
-    ['a path no rule claims', 'packages/mobile/src/somewhere/new.ts'],
-    ['the workflow', '.github/workflows/frontend-ci.yml'],
-    ['the readiness gate', 'packages/mobile/scripts/ci-ready.mjs'],
-  ])('%s runs everything', (_, file) => {
-    const run = select('docs/shipping.md', file);
-    expect(run.full).toBe(true);
-    expect(run.cases).toBeNull();
-    expect(run.game && run.accounts).toBe(true);
-    expect(run.screens).toBe(ids.length);
+    'packages/mobile/src/design/tokens.ts',
+    'bun.lock',
+    'packages/mobile/src/somewhere/new.ts',
+    '.github/workflows/frontend-ci.yml',
+  ])('%s never turns a feature push into a release run', (file) => {
+    const run = select(file);
+    expect(run.full).toBe(false);
+    expect(run.cases).toEqual(expect.arrayContaining(SMOKE));
+    expect(run.cases.length).toBeLessThanOrEqual(16);
+    expect(run.game || run.accounts).toBe(false);
+    expect(run.adopt).toEqual([]);
   });
 
-  test.each([['0000000000000000000000000000000000000000'], [''], [undefined]])(
-    'no base commit (%p) runs everything',
+  test.each([undefined, '', '0000000000000000000000000000000000000000'])(
+    'missing base %p uses smoke, never a full-suite fallback',
     (before) => {
       const run = selectChecks({ base: before, files: [], cases, ids });
-      expect(run.full).toBe(true);
+      expect(run.full).toBe(false);
+      expect(run.cases).toEqual(expect.arrayContaining(SMOKE));
+      expect(run.viewports).toEqual(['portrait']);
+      expect(run.game || run.accounts).toBe(false);
     }
   );
 
-  test('a diff that cannot be read runs everything', () => {
-    expect(selectChecks({ base, files: null, cases, ids }).full).toBe(true);
-  });
-
-  test('a table change adopts drift on the table it draws, not on the smoke screens around it', () => {
-    const run = select('packages/mobile/src/game/canvas/layout.ts');
-    expect(run.adopt).toEqual(expect.arrayContaining([...casesOn('/table-dev'), 'table-playing']));
-    for (const outside of ['lobby-list', 'home', 'login', 'settings'])
-      expect(run.adopt).not.toContain(outside);
-  });
-
-  test('a run that checks everything adopts nothing, even beside a table change', () => {
+  test('unreadable diff and broad multi-area changes remain bounded', () => {
+    expect(selectChecks({ base, files: null, cases, ids }).full).toBe(false);
     const run = select(
-      'packages/mobile/src/components/ui/Button.tsx',
+      'packages/mobile/app/lobby.tsx',
+      'packages/mobile/app/(shell)/home.tsx',
+      'packages/mobile/app/(auth)/login.tsx',
       'packages/mobile/src/game/canvas/layout.ts'
     );
-    expect(run.full).toBe(true);
-    expect(run.adopt).toEqual([]);
-    expect(select('packages/mobile/src/design/tokens.ts').adopt).toEqual([]);
-    expect(selectChecks({ base, files: [], cases, ids, full: true }).adopt).toEqual([]);
-    expect(select('packages/mobile/test/ui-baselines/portrait/home.png').adopt).toEqual([]);
+    expect(run.cases.length).toBeLessThanOrEqual(16);
+    expect(run.screens).toBeLessThanOrEqual(32);
   });
 
-  test('shards hold about forty screens, at most fifteen', () => {
-    const home = select('packages/mobile/app/(shell)/home.tsx');
-    const matrix = home.shards.filter(({ partition }) => partition);
-    expect(matrix.length).toBe(Math.min(15, Math.ceil(home.screens / 40)));
-    expect(matrix.at(-1).partition).toBe(`${matrix.length}/${matrix.length}`);
-    expect(select('packages/mobile/src/components/lobby/SeatRow.tsx').shards).toHaveLength(15 + 3);
+  test('transitive source imports select tests outside an area, without selecting all tests', () => {
+    const run = select('packages/mobile/src/features/league.ts');
+    expect(run.unitTests).toContain('packages/mobile/test/league.test.ts');
+    expect(run.unitTests).not.toContain('packages/mobile/test/auth/loginSocial.test.mjs');
   });
 });
+
+test('the explicit release retains all cases, sizes and behavioral suites with no auto-adoption', () => {
+  const run = selectChecks({ base, files: [], cases, ids, full: true });
+  expect(run.full).toBe(true);
+  expect(run.cases).toBeNull();
+  expect(run.unitTests).toBeNull();
+  expect(run.viewports).toEqual([]);
+  expect(run.screens).toBe(ids.length);
+  expect(run.game && run.accounts).toBe(true);
+  expect(run.shards.filter(({ partition }) => !partition).map(({ shard }) => shard)).toEqual([
+    'table-behavior',
+    'lobby-and-creation',
+    'seats-and-game-over',
+  ]);
+  expect(run.adopt).toEqual([]);
+});
+
+test('the real CLI passes the same narrowed inventory to capture and coverage commands', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'pidro-selection-'));
+  try {
+    const output = join(directory, 'output');
+    const result = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../scripts/ci-affected.mjs', import.meta.url)), base],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          GITHUB_OUTPUT: output,
+          GITHUB_STEP_SUMMARY: join(directory, 'summary'),
+        },
+      }
+    );
+    expect(result.status).toBe(0);
+    const values = Object.fromEntries(
+      readFileSync(output, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => {
+          const index = line.indexOf('=');
+          return [line.slice(0, index), line.slice(index + 1)];
+        })
+    );
+    expect(values).toMatchObject({
+      full: 'false',
+      game: 'false',
+      accounts: 'false',
+      ui_viewports: 'portrait',
+    });
+    expect(JSON.parse(values.unit_tests).length).toBeGreaterThan(0);
+    const list = spawnSync(
+      process.execPath,
+      [fileURLToPath(new URL('../../scripts/verify-ui-grammar.mjs', import.meta.url)), '--list'],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          UI_CASES: values.ui_cases,
+          UI_VIEWPORTS: values.ui_viewports,
+          UI_PARTITION: '',
+        },
+      }
+    );
+    expect(list.status).toBe(0);
+    expect(JSON.parse(list.stdout)).toEqual(
+      expect.arrayContaining(['portrait/home', 'portrait/login'])
+    );
+    expect(JSON.parse(list.stdout).every((id) => id.startsWith('portrait/'))).toBe(true);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}, 20_000);

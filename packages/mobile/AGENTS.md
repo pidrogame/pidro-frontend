@@ -21,15 +21,19 @@ the testing policy, including risk triggers, concrete evidence and release cover
   bug before the fix, rerun the same case after, and check a nearby unchanged control.
   Inspect captures/logs and report the observed state. Disclose fixture mocks and
   skipped boundaries. Missing required evidence means verification is incomplete.
-- **Iterate narrowly.** Run the affected Bun test file, named `UI_CASES` and
-  `UI_VIEWPORTS`, or one relevant journey. Expand for shared-code, integration,
-  responsive or native risks. CI owns the selected regression sweep; do not repeat
-  the full screenshot inventory or full gameplay after every edit/review/rebase.
+- **No full suites in feature orbs.** Exercise changed behavior; run affected Bun
+  files, named `UI_CASES`/`UI_VIEWPORTS`, or a focused real-stack path. One standard
+  phone size; at most one additional size for a named layout risk. Shared code needs
+  representative consumers, not every screen. Full unit/visual/gameplay/account and
+  native regression belong to Marcel's machine or deliberate release verification.
+  Push CI permanently runs affected tests + small smoke; full CI is manual/release.
+  Do not foreground-watch/poll long CI; report its URL and pending/result truthfully.
 - **Browser ≠ native.** Expo-web Chromium proves browser behavior only, including
   phone/tablet/inset-named fixtures. Native modal/keyboard handoffs, real safe areas,
   gestures, rotation, accessibility, worklets/GPU, native SDKs and lifecycle changes
-  require the affected path on iOS (simulator/device as appropriate). If unavailable,
-  report the native evidence blocker; do not call the feature complete.
+  require iOS simulator/device evidence **at release**, not in feature orbs. Name
+  that deferred evidence and owner; never call browser proof native-verified or
+  release-ready. Missing required focused evidence still blocks a completion claim.
 - **Freeze Metro inputs while capturing.** Finish edits, formatting and rebasing,
   warm the route, then run checks with no edits/checkouts/install/cache-clears in
   flight. If work must continue, serve a separate frozen worktree on a distinct port.
@@ -69,7 +73,7 @@ treatments in screens.
   (consume). Changes trickle down; they are never forked per-screen.
 - The separate `packages/web` client is not the visual reference for the React Native
   client. Verify mobile UI in the React Native app (native or its Expo web rendering).
-- **Verify overlays/clearances on a simulator, not just web** — web has zero safe-area
+- **At release, verify overlays/clearances on a simulator** — web has zero safe-area
   insets. Fast loop: `just table-sim "iPhone 17 Pro" bidding`, or with Metro already
   running `xcrun simctl openurl booted "exp://127.0.0.1:8081/--/table-dev?phase=bidding"`;
   screenshot with `xcrun simctl io booted screenshot`. Every fixture route and its
@@ -87,7 +91,7 @@ treatments in screens.
   coordinate. Full guide and the four gotchas (Expo Go `appId`, mandatory
   `stopApp`, `extendedWaitUntil` over `assertVisible`, labels as selectors) are
   in `docs/DEVICE-FLOWS.md`.
-- **A device flow is expensive** (~30s of simulator + bundle). Spend it on
+- **A device flow is release work**, not feature-orb work. Spend it on
   safe-area clearance, touch targets, gestures and rotation. Grammar, wrapping
   and containment stay on `bun run test:ui`.
 - **`/table-dev` inherits the device's real insets.** `?safeArea=island|android|
@@ -97,7 +101,7 @@ android-gesture` only _fakes_ them, so a browser can approximate a device. Never
 - **Native modals need their own `SafeAreaProvider` inside the modal root.** The
   app provider is not a native ancestor across that boundary. Never use cached
   initial window metrics for a remounting modal. Follow the safe-area rules in
-  `src/design/README.md`; check all four edges and both landscape directions.
+  `src/design/README.md`; release checks cover all edges and both landscape directions.
   Zero-inset browser screenshots cannot certify notch/camera or system-bar clearance.
 
 ## Architecture Principle: Dumb Client, Smart Server
@@ -183,8 +187,9 @@ bun lint               # Lint and check formatting
 bun format             # Auto-fix linting and format code
 
 # Testing (root commands run from the repository root)
-bun run test:unit      # Root: Bun unit/regression suites in shared/test + mobile/test
-bun run test:ui        # Mobile: Expo-web grammar matrix; narrow with UI_CASES/UI_VIEWPORTS
+bun test test/game/layDown.test.mjs  # Mobile: example affected unit file
+UI_CASES=home UI_VIEWPORTS=portrait bun run test:ui  # Mobile: focused browser proof
+# Release/manual only: root bun run test:unit; mobile bun run test:ui (full matrix)
 node --test scripts/readiness-e2e.test.mjs  # Mobile: focused Chromium readiness regression
 
 # Clear cache (if styles not updating)

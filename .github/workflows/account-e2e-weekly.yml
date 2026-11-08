@@ -1,9 +1,8 @@
-name: Account e2e, weekly
+name: Account regression (manual)
 
-# Use the same isolated shards as PRs, retaining every journey's recording longer.
+# Deliberate regression only; feature pushes must not start the full journey suite.
+# Keep the filename so existing manual links remain valid.
 on:
-  schedule:
-    - cron: '0 5 * * 1'
   workflow_dispatch:
 
 permissions:

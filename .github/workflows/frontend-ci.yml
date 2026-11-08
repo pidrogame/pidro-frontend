@@ -28,7 +28,8 @@ concurrency:
 
 jobs:
   # What this push runs (scripts/ci-affected.mjs): the changes since the last green
-  # push on main, mapped to UI cases and e2e suites. Anything unclear runs everything.
+  # push on main, mapped to representative cases and affected tests. Only an explicit
+  # manual release run selects the complete regression suite.
   select:
     name: Select checks
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
@@ -40,11 +41,12 @@ jobs:
       full: ${{ steps.select.outputs.full }}
       ui: ${{ steps.select.outputs.ui }}
       ui_cases: ${{ steps.select.outputs.ui_cases }}
+      ui_viewports: ${{ steps.select.outputs.ui_viewports }}
+      unit_tests: ${{ steps.select.outputs.unit_tests }}
       ui_adopt: ${{ steps.select.outputs.ui_adopt }}
       shards: ${{ steps.select.outputs.shards }}
       game: ${{ steps.select.outputs.game }}
       accounts: ${{ steps.select.outputs.accounts }}
-      account_specs: ${{ steps.select.outputs.account_specs }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -108,6 +110,7 @@ jobs:
 
   quality:
     name: Mobile quality
+    needs: select
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
 
@@ -132,8 +135,19 @@ jobs:
       - name: Build shared package
         run: bun run shared:build
 
-      - name: Run unit tests
-        run: bun run test:unit
+      - name: Run affected unit tests and smoke (full only for release)
+        env:
+          FULL: ${{ needs.select.outputs.full }}
+          UNIT_TESTS: ${{ needs.select.outputs.unit_tests }}
+        run: |
+          if [ "$FULL" = true ]; then
+            bun run test:unit
+          else
+            # Explicit paths work on the pinned Bun; no fresh-cache/full-suite fallback.
+            mapfile -t tests < <(jq -er '.[]' <<< "$UNIT_TESTS")
+            test "${#tests[@]}" -gt 0
+            bun test "${tests[@]}"
+          fi
 
       - name: Check mobile source
         working-directory: packages/mobile
@@ -145,7 +159,7 @@ jobs:
       - name: Export production web bundle
         working-directory: packages/mobile
         env:
-          EXPO_NO_DOTENV: '1'
+          EXPO_NO_DOTENV: "1"
           NODE_OPTIONS: --require ./scripts/tailwind-v3-resolve.cjs
         run: bunx expo export --platform web --output-dir /tmp/pidro-mobile-web
 
@@ -214,13 +228,14 @@ jobs:
       - name: Verify mobile UI grammar
         working-directory: packages/mobile
         env:
-          CI: '1'
-          EXPO_NO_DOTENV: '1'
+          CI: "1"
+          EXPO_NO_DOTENV: "1"
           # The full fixture matrix retains Metro/SSR modules across many navigations.
           NODE_OPTIONS: --max-old-space-size=8192 --require ./scripts/tailwind-v3-resolve.cjs
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_PARTITION: ${{ matrix.partition }}
           UI_CASES: ${{ needs.select.outputs.ui_cases }}
+          UI_VIEWPORTS: ${{ needs.select.outputs.ui_viewports }}
           UI_REPORT_PATH: /tmp/ui-reports/${{ matrix.shard }}.json
           UI_SHARD: ${{ matrix.shard }}
         run: |
@@ -378,6 +393,7 @@ jobs:
         env:
           UI_SHOT_DIR: /tmp/ui-grammar-screens
           UI_CASES: ${{ needs.select.outputs.ui_cases }}
+          UI_VIEWPORTS: ${{ needs.select.outputs.ui_viewports }}
         run: node scripts/verify-ui-grammar.mjs --verify-coverage /tmp/ui-reports | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A push adopts the drift on the screens its changes draw since the last green main
@@ -434,8 +450,6 @@ jobs:
     uses: ./.github/workflows/account-e2e.yml
     with:
       backend-sha: ${{ needs.integration-backend.outputs.sha }}
-      # Empty runs every journey; a table push names the ones that play through the table.
-      specs: ${{ needs.select.outputs.account_specs }}
 
   account-e2e:
     name: Account e2e
@@ -456,7 +470,8 @@ jobs:
   ready:
     # ship.mjs releases to production only on a run that checked everything.
     name: ${{ needs.select.outputs.full == 'true' && 'Frontend ready (full)' || 'Frontend ready' }}
-    needs: [select, quality, integration-backend, ui-grammar, game-e2e, account-e2e]
+    needs:
+      [select, quality, integration-backend, ui-grammar, game-e2e, account-e2e]
     if: ${{ !cancelled() }}
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
