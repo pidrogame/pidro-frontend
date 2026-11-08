@@ -10,7 +10,13 @@ If the summary still says "New store build needed" for a commit you just built f
 
 ## 1. Build
 
-From `packages/mobile`: `eas build --profile beta --platform all` (or `--platform ios` / `android` for one). Note the build numbers EAS gives (iOS build number, Android version code).
+Three machines compute the fingerprint of one commit: your Mac when `eas build` starts (it is recorded on the build), the EAS worker (which stops the build at "Configure expo-updates" with "Differing fingerprint" when its own differs) and GitHub Actions (the Beta update). They agree as long as the Mac builds the same files: `fingerprint.config.js` leaves out what differs by machine (the Firebase file only the worker has, a node_modules file Android Gradle rewrites).
+
+1. Build from `main` once its Beta update said "New store build needed": `git checkout main && git pull`, nothing uncommitted, then from the repo root `bun install --frozen-lockfile`.
+2. Check first, from `packages/mobile`: `bunx eas-cli fingerprint:generate --build-profile beta --platform ios --non-interactive --json | jq -r .hash`, and the same with `--platform android`. Each must equal the fingerprint the Beta update summary names for that platform. If one differs, don't build: `bunx eas-cli fingerprint:compare` shows the file.
+3. Build, from `packages/mobile`: `eas build --profile beta --platform all --auto-submit --non-interactive --no-wait` (or `--platform ios` / `android` for one). Don't set `EAS_SKIP_AUTO_FINGERPRINT`: the worker compares anyway.
+
+Note the build numbers EAS gives (iOS build number, Android version code). Updates flow again when the next Beta update summary says **"Beta update published"** for the platform and that it rides on build 3.3.0 (that number).
 
 ## 2. Android: Play open testing
 

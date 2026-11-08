@@ -13,9 +13,16 @@ module.exports = {
   sourceSkips: ['PackageJsonScriptsAll', 'GitIgnore', 'ExpoConfigExtraSection'],
   // app.json's `locales` (permission prompts) are built into the binary, but not counted by default.
   extraSources: [{ type: 'dir', filePath: 'locales', reasons: ['expoConfigLocales'] }],
-  // EAS Build reads google-services.json from a file variable, which `eas update` never
-  // downloads: counted in one and not the other, Android would never match.
-  ignorePaths: process.env.GOOGLE_SERVICES_JSON
-    ? [path.relative(__dirname, path.resolve(__dirname, process.env.GOOGLE_SERVICES_JSON))]
-    : [],
+  ignorePaths: [
+    // masked-view's build.gradle rewrites this file in node_modules whenever Gradle configures
+    // the Android project (it drops the `package` attribute), so a Mac that ever synced or ran
+    // Android hashes it differently from EAS and CI. The file holds nothing but that attribute;
+    // a new version of the package still counts through its other files.
+    '**/node_modules/@react-native-masked-view/masked-view/android/src/main/AndroidManifest.xml',
+    // EAS Build reads google-services.json from a file variable, which `eas update` never
+    // downloads: counted in one and not the other, Android would never match.
+    ...(process.env.GOOGLE_SERVICES_JSON
+      ? [path.relative(__dirname, path.resolve(__dirname, process.env.GOOGLE_SERVICES_JSON))]
+      : []),
+  ],
 };

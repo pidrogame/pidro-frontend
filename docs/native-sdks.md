@@ -87,6 +87,9 @@ the same in the build and in `eas update`: keep them in the EAS `production` env
 as plain text or sensitive. A local `.env` doesn't count, `google-services.json` and
 `extra` are left out (`packages/mobile/fingerprint.config.js`): EAS Build never sees a
 `.env`, `eas update` cannot read a file variable, and `extra` ships in every update.
+A package whose Gradle script edits its own files in `node_modules` (masked-view's
+manifest) is left out there too, or a Mac that ran Android once fails every EAS build
+with "Differing fingerprint".
 
 ## Firebase (Android push)
 
