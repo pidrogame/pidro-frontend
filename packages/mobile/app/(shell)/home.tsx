@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'expo-asset';
 import {
   Animated,
   AppState,
@@ -149,7 +150,17 @@ export default function HomeScreen() {
   const [accountSheetReason, setAccountSheetReason] = useState<AuthSheetReason | null>(null);
   const tell = useMemo(() => tellFixture(fixture), [fixture]);
   const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
-  const newsPreview = useMemo(() => newsFixture(fixture), [fixture]);
+  // The bundled artwork stands in for the editor's image, as in the popup fixtures.
+  const newsPreview = useMemo(
+    () =>
+      newsFixture(
+        fixture,
+        __DEV__ && fixture
+          ? Asset.fromModule(require('../../assets/images/logo-v3.png')).uri
+          : undefined
+      ),
+    [fixture]
+  );
   const storedNews = useNewsStore(
     useShallow(({ posts, unread, marked, status, open }) => ({
       posts,

@@ -8800,6 +8800,22 @@ async function assertNewsState(page, testCase, viewport) {
   assert.equal(await posts.count(), 3);
   for (const [index, title] of NEWS_TITLES.entries())
     await posts.nth(index).getByText(title, { exact: true }).waitFor();
+  // PID-407: the newest post's image tops its card; a broken one goes and leaves no gap.
+  const image = posts.nth(0).getByTestId('news-post-image');
+  await image.locator('img').waitFor({ state: 'attached' });
+  await page.waitForFunction(
+    (el) => el.complete && el.naturalWidth > 0,
+    await image.locator('img').elementHandle()
+  );
+  await posts.nth(2).getByTestId('news-post-image').waitFor({ state: 'detached' });
+  assert.equal(await posts.nth(1).getByTestId('news-post-image').count(), 0);
+  const titleTop = async (index) =>
+    (await getStableBox(posts.nth(index).getByRole('heading'), page)).y -
+    (await getStableBox(posts.nth(index), page)).y;
+  const imageTop =
+    (await getStableBox(image, page)).y - (await getStableBox(posts.first(), page)).y;
+  assert.ok(imageTop < 20 && (await titleTop(0)) > 180, `${testCase.name}: the image on top`);
+  assert.equal(await titleTop(2), await titleTop(1), `${testCase.name}: no gap for a broken image`);
   assert.equal(await page.getByTestId('news-post-new').count(), 2, 'the two new posts keep a dot');
   assert.equal(await posts.nth(2).getByTestId('news-post-new').count(), 0);
   await posts.nth(0).getByText('Today', { exact: true }).waitFor();

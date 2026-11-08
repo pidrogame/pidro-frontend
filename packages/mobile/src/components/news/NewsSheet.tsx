@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
   ScrollView,
@@ -161,8 +162,19 @@ function Post({
   onWriteBack?: () => void;
 }) {
   const { t } = useTranslation();
+  const [imageFailed, setImageFailed] = useState(false);
   return (
     <Surface variant="subtle" testID="news-post" style={styles.post}>
+      {post.image_url && !imageFailed ? (
+        <Image
+          testID="news-post-image"
+          source={{ uri: post.image_url }}
+          accessible={false}
+          resizeMode="contain"
+          onError={() => setImageFailed(true)}
+          style={styles.image}
+        />
+      ) : null}
       <View style={styles.posted}>
         {fresh ? <View testID="news-post-new" style={styles.dot} /> : null}
         <PidroText role="eyebrow" tone="cyan">
@@ -246,6 +258,7 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     borderRadius: PidroRadii.lg,
   },
+  image: { width: '100%', height: 180, borderRadius: PidroRadii.surface },
   posted: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
   dot: {
     width: 9,

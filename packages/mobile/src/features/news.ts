@@ -82,16 +82,22 @@ const FIXTURE_POSTS: NewsPost[] = [
 /**
  * Dev fixtures `?fixture=news-<state>` on Home: `home` shows the door with new posts and
  * friends online, `request` a friend request and nothing new; `sheet`, `reply`, `empty`
- * and `error` open the sheet.
+ * and `error` open the sheet. The newest post shows `image`, the oldest an image that fails.
  */
-export function newsFixture(fixture: string | undefined) {
+export function newsFixture(fixture: string | undefined, image?: string) {
   if (!__DEV__ || !fixture?.startsWith('news-')) return null;
   const state = fixture.slice('news-'.length);
   const empty = state === 'empty' || state === 'error';
   // Doors-Home-Req: the request waits with nothing new to read.
   const unread = empty || state === 'request' ? 0 : 2;
+  const [newest, middle, oldest] = FIXTURE_POSTS;
+  const posts = [
+    { ...newest, image_url: image },
+    middle,
+    { ...oldest, image_url: 'https://example.invalid/news.png' },
+  ];
   return {
-    news: { posts: empty ? [] : FIXTURE_POSTS, unread, marked: unread },
+    news: { posts: empty ? [] : posts, unread, marked: unread },
     failed: state === 'error',
     open: ['sheet', 'reply', 'empty', 'error'].includes(state),
     reply: state === 'reply' ? FIXTURE_POSTS[0] : null,

@@ -926,7 +926,8 @@ to `POST /api/v1/feedback` with `news_post_id`, which the UI-grammar cases route
 | --------- | ---------------------------------------------------------------------- |
 | `home`    | The door with its dot (two new posts), the tab's green count: 2 online |
 | `request` | A friend request and nothing new: the tab's red 1 wins over 2 online   |
-| `sheet`   | News open: Tell us, then three posts, the two new ones with a dot      |
+| `sheet`   | News open: Tell us, then three posts, the two new ones with a dot; the |
+|           | newest with the Pidro artwork as its image, the oldest's image fails   |
 | `reply`   | Write back open over News on the sounds post, its title on the chip    |
 | `empty`   | News open with only the Tell us row                                    |
 | `error`   | News open: Tell us, "News didn't load." and Try again                  |
