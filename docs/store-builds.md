@@ -10,11 +10,14 @@ If the summary still says "New store build needed" for a commit you just built f
 
 ## 1. Build
 
-Three machines compute the fingerprint of one commit: your Mac when `eas build` starts (it is recorded on the build), the EAS worker (which stops the build at "Configure expo-updates" with "Differing fingerprint" when its own differs) and GitHub Actions (the Beta update). They agree as long as the Mac builds the same files: `fingerprint.config.js` leaves out what differs by machine (the Firebase file only the worker has, a node_modules file Android Gradle rewrites).
+Three machines compute the fingerprint of one commit: your Mac when `eas build` starts (it is recorded on the build), the EAS worker (which stops the build at "Configure expo-updates" with "Runtime version mismatch" / "Differing fingerprint" when its own differs) and GitHub Actions (the Beta update). They agree as long as the Mac builds the same files. Two things on a laptop differ from the worker, and `fingerprint.config.js` evens both out:
+
+- **The Firebase file.** On EAS, `GOOGLE_SERVICES_JSON` is a file variable, and the fingerprint leaves the file out. Point the variable at your local copy so the Mac reads the same config the worker does.
+- **masked-view's manifest.** Running Android once (Gradle sync, `expo run:android`) rewrites `@react-native-masked-view/masked-view/android/src/main/AndroidManifest.xml` inside `node_modules`. The fingerprint leaves that file out; before 3.3.0 (19)/(15) it failed every build from the Mac.
 
 1. Build from `main` once its Beta update said "New store build needed": `git checkout main && git pull`, nothing uncommitted, then from the repo root `bun install --frozen-lockfile`.
-2. Check first, from `packages/mobile`: `bunx eas-cli fingerprint:generate --build-profile beta --platform ios --non-interactive --json | jq -r .hash`, and the same with `--platform android`. Each must equal the fingerprint the Beta update summary names for that platform. If one differs, don't build: `bunx eas-cli fingerprint:compare` shows the file.
-3. Build, from `packages/mobile`: `eas build --profile beta --platform all --auto-submit --non-interactive --no-wait` (or `--platform ios` / `android` for one). Don't set `EAS_SKIP_AUTO_FINGERPRINT`: the worker compares anyway.
+2. Check first, from `packages/mobile`: `GOOGLE_SERVICES_JSON=<local copy> bunx eas-cli fingerprint:generate --build-profile beta --platform ios --non-interactive --json | jq -r .hash`, and the same with `--platform android`. Each must equal the fingerprint the Beta update summary names for that platform. If one differs, don't build: `bunx eas-cli fingerprint:compare` shows the file.
+3. Build, from `packages/mobile`, with the App Store Connect key for the iOS submit (`EXPO_ASC_API_KEY_PATH`, `EXPO_ASC_KEY_ID`, `EXPO_ASC_ISSUER_ID`) in the environment: `GOOGLE_SERVICES_JSON=<local copy> eas build --profile beta --platform all --auto-submit --non-interactive --no-wait` (or `--platform ios` / `android` for one). Don't set `EAS_SKIP_AUTO_FINGERPRINT`: the worker compares anyway.
 
 Note the build numbers EAS gives (iOS build number, Android version code). Updates flow again when the next Beta update summary says **"Beta update published"** for the platform and that it rides on build 3.3.0 (that number).
 
