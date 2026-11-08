@@ -151,9 +151,18 @@ function main(sha) {
     process.exit(0);
   }
 
+  // A fingerprint's JSON lists every source, well over the default 1 MB.
   const sh = (command, args) =>
-    execFileSync(command, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
-  const eas = (...args) => JSON.parse(sh('bunx', ['eas-cli', ...args, '--json']));
+    execFileSync(command, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'inherit'],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  // With --environment, eas-cli says which variables it loaded on stdout, before the JSON.
+  const eas = (...args) => {
+    const out = sh('bunx', ['eas-cli', ...args, '--json']);
+    return JSON.parse(out.slice(out.search(/^[[{]/m)));
+  };
   const isAncestor = (commit, of) =>
     spawnSync('git', ['merge-base', '--is-ancestor', commit, of]).status === 0;
 
