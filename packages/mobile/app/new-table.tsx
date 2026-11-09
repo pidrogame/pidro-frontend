@@ -57,7 +57,9 @@ export default function NewTableRoute() {
       if (!response?.code) throw new Error('No room code returned');
       captureAnalytics('room_created', {
         creation_source: 'lobby',
-        has_bots: Object.values(data.seats ?? {}).some((seat) => seat === 'ai'),
+        has_bots: Object.values(data.seats ?? {}).some(
+          (seat) => seat === 'ai' || (typeof seat === 'object' && seat.type === 'ai')
+        ),
       });
       useLobbyStore.getState().upsertLobbyRoom(response.room, 'my_rejoinable');
       router.replace(`/game/${response.code}`);

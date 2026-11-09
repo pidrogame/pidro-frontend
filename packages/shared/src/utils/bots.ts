@@ -15,7 +15,7 @@ export function normalizeBotProfiles(value: unknown): BotProfile[] {
         typeof profile.description === 'string' &&
         typeof profile.avatar_url === 'string',
     )
-    .map(({ id, name, description, avatar_url, strategy, tempo, home, lines }) => {
+    .map(({ id, name, description, avatar_url, strategy, tempo, home, lines, enabled }) => {
       const own = botLines({ lines });
       return {
         id,
@@ -26,6 +26,7 @@ export function normalizeBotProfiles(value: unknown): BotProfile[] {
         ...(typeof tempo === 'string' && { tempo }),
         ...((home === 'anywhere' || home === 'finland' || home === 'louisiana') && { home }),
         ...(own && { lines: own }),
+        ...(typeof enabled === 'boolean' && { enabled }),
       };
     });
 }

@@ -2,7 +2,8 @@ import type { SeatPin } from './game';
 
 export type RoomStatus = 'waiting' | 'ready' | 'playing' | 'finished';
 export type RuleSet = 'finnish' | 'louisiana';
-export type SeatType = 'open' | 'ai' | { type: 'open'; min_games: 0 | 100 | 1000; password?: boolean } | { type: 'held'; user_id: string };
+/** `'ai'` seats anyone; `persona` names who sits there, by catalogue id (PID-410). */
+export type SeatType = 'open' | 'ai' | { type: 'ai'; persona: BotPersona } | { type: 'open'; min_games: 0 | 100 | 1000; password?: boolean } | { type: 'held'; user_id: string };
 export type BotDifficulty = 'random' | 'basic' | 'smart';
 export type Position = 'north' | 'east' | 'south' | 'west';
 /** Opaque catalogue identity, not the bot's player/seat ID. */
@@ -18,6 +19,8 @@ export interface BotProfile {
   home?: 'anywhere' | 'finland' | 'louisiana';
   /** Its own thinking lines at the table (PID-404), at most eight. */
   lines?: string[];
+  /** Off for a character no longer offered; still listed so a seated face resolves (PID-410). */
+  enabled?: boolean;
 }
 export type PositionPreference = Position | 'north_south' | 'east_west';
 

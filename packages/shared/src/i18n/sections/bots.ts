@@ -22,6 +22,11 @@ export const en = {
   'bots.jocke.thinking_2': 'Maybe this…',
   'bots.jocke.thinking_3': 'Let me think…',
   'bots.jocke.thinking_4': 'A trump…',
+  'bots.tempo_quick': 'quick',
+  'bots.tempo_steady': 'steady',
+  'bots.tempo_slow': 'slow',
+  'bots.region_finnish': 'Ostrobothnia',
+  'bots.region_louisiana': 'Acadiana',
 } as const satisfies Record<string, TranslationEntry>;
 
 export const sv = {
@@ -45,4 +50,9 @@ export const sv = {
   'bots.jocke.thinking_2': 'Kanske den här…',
   'bots.jocke.thinking_3': 'Ska tänka lite…',
   'bots.jocke.thinking_4': 'Trumf, månne…',
+  'bots.tempo_quick': 'snabb',
+  'bots.tempo_steady': 'stadig',
+  'bots.tempo_slow': 'långsam',
+  'bots.region_finnish': 'Österbotten',
+  'bots.region_louisiana': 'Acadiana',
 } as const satisfies Record<keyof typeof en, TranslationEntry>;

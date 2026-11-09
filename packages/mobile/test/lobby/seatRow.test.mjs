@@ -34,10 +34,33 @@ describe('before the table opens', () => {
     ).toEqual({ kind: 'open', badge: null, locked: true });
   });
 
-  it('says a bot plays right away', () => {
+  it('says anyone sits in a bot seat until the host chooses who, then shows them', () => {
     const row = seatRow({ team: 'opponent', opened: false, type: 'ai' });
-    expect([row.name, row.status, row.nameTone]).toEqual(['Bot', 'Plays right away', 'default']);
+    expect([row.name, row.status, row.nameTone]).toEqual(['Anyone', 'Whoever turns up', 'default']);
     expect(row.token).toEqual({ kind: 'bot', persona: null });
+    const gun = {
+      id: 'gun',
+      name: 'Gun',
+      description: 'Korsholm. Taught half the village to play.',
+      avatar_url: 'https://fixture.invalid/gun.jpg',
+      strategy: 'rulebook',
+      tempo: 'steady',
+      home: 'finland',
+    };
+    const chosen = seatRow({ team: 'partner', opened: false, type: 'ai', bot: gun });
+    expect([chosen.name, chosen.status, chosen.statusTone]).toEqual(['Gun', 'Korsholm · steady', 'soft']);
+    expect(chosen.token).toEqual({ kind: 'bot', persona: 'gun', botProfile: gun });
+    // A character who plays the odds says so in gold, without the town or tempo.
+    const antti = { ...gun, id: 'antti', name: 'Antti', description: '', strategy: 'search', tempo: 'slow', home: 'anywhere' };
+    const odds = seatRow({ team: 'opponent', opened: false, type: 'ai', bot: antti });
+    expect([odds.name, odds.status, odds.statusTone]).toEqual(['Antti', '★ Plays the odds', 'gold']);
+    try {
+      setLocale('sv');
+      expect(seatRow({ team: 'partner', opened: false, type: 'ai', bot: gun }).status).toBe('Korsholm · stadig');
+      expect(seatRow({ team: 'partner', opened: false, type: 'ai' }).name).toBe('Vem som helst');
+    } finally {
+      setLocale('en');
+    }
   });
 
   it('says a chosen friend is invited once the table opens', () => {

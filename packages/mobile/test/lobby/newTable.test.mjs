@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 import { normalizeRoom, roomWithReadiness, setLocale } from '@pidro/shared';
-import { assignedFriendIds, chooseFriend, chooseSeat, createFailure, defaultSeats, isPractice, newTableRequest, pickerFriends, seatChoice, seatedHuman, seatEntry, seatError, tableFooter, tableHeader, tableTitle, waitingFooter } from '../../src/features/lobby/newTable';
+import { assignedFriendIds, botChoices, botLine, chooseFriend, chooseSeat, createFailure, defaultSeats, isPractice, newTableRequest, pickerFriends, seatChoice, seatedHuman, seatEntry, seatError, seatPersona, tableFooter, tableHeader, tableTitle, waitingFooter } from '../../src/features/lobby/newTable';
 import { seatRow } from '../../src/features/lobby/seatRow';
 
 const maija = { user_id: 'maija', display_name: 'Maija', avatar_url: null, presence: 'online' };
@@ -103,6 +103,69 @@ it('sends each picker choice as one whole entry, and the draft it builds is the 
   expect(seatChoice({ type: 'held', friend: maija })).toBe('friend');
 });
 
+const character = (id, home, extra = {}) => ({ id, name: id, description: `${id}by. A regular.`, avatar_url: `https://fixture.invalid/${id}.jpg`, strategy: 'rulebook', tempo: 'steady', home, ...extra });
+// In the server's order: the club's own three first, as the catalogue sends them.
+const catalogue = [
+  character('antti', 'anywhere', { description: '', strategy: 'search', tempo: 'slow' }),
+  character('alcide', 'louisiana'),
+  character('gun', 'finland', { description: 'Korsholm. Taught half the village to play.' }),
+  character('bengt', 'finland', { tempo: 'slow' }),
+  character('marcel', 'anywhere', { description: '', strategy: 'search', tempo: 'quick' }),
+  character('celeste', 'louisiana'),
+  // An old server sends no home: the character is at the club, not a regular anywhere.
+  character('saga', undefined, { strategy: 'search' }),
+  // Still listed so a seated face resolves, but no longer offered.
+  character('stig', 'finland', { enabled: false }),
+];
+
+it('carries who sits in a bot seat from the picker into the draft and the plan sent on Open', () => {
+  expect(seatEntry('ai', 'gun')).toEqual({ type: 'ai', persona: 'gun' });
+  expect(seatEntry('ai', null)).toBe('ai');
+  expect(seatChoice(seatEntry('ai', 'gun'))).toBe('ai');
+  expect(seatPersona(seatEntry('ai', 'gun'))).toBe('gun');
+  expect(seatPersona(seatEntry('ai'))).toBeNull();
+  expect(seatPersona(seatEntry('password'))).toBeNull();
+  const plan = chooseSeat(chooseSeat(draft(), 'seat_3', seatEntry('ai', 'gun')), 'seat_2', seatEntry('ai', 'antti'));
+  expect(newTableRequest('finnish', plan).seats).toEqual({ seat_2: { type: 'ai', persona: 'antti' }, seat_3: { type: 'ai', persona: 'gun' }, seat_4: 'open' });
+  // Three chosen characters are still a practice game.
+  expect(isPractice(chooseSeat(plan, 'seat_4', 'ai'))).toBe(true);
+  expect(tableFooter(plan)).toBe('Open seats are listed in Tables.');
+  // The server's seat: the character sitting there, never a person.
+  const live = (player) => ({ seat_index: 1, position: 'east', status: 'occupied', player });
+  expect(seatPersona(live({ id: 'bot_east', username: 'Gun', is_bot: true, bot_persona: 'gun' }))).toBe('gun');
+  expect(seatPersona(live({ id: 'bot_east', username: 'Bot', is_bot: true }))).toBeNull();
+  expect(seatPersona(live({ id: 'kalle', username: 'Kalle', bot_persona: 'gun' }))).toBeNull();
+  expect(seatPersona(undefined)).toBeNull();
+});
+
+it('lists the rule set’s regulars first, then the club, leaving out anyone seated elsewhere', () => {
+  const ids = (choices) => [choices.regulars.map((bot) => bot.id), choices.club.map((bot) => bot.id)];
+  expect(ids(botChoices(catalogue, 'finnish', []))).toEqual([['gun', 'bengt'], ['antti', 'marcel', 'saga']]);
+  expect(ids(botChoices(catalogue, 'finnish', ['bengt', 'marcel']))).toEqual([['gun'], ['antti', 'saga']]);
+  expect(ids(botChoices(catalogue, 'louisiana', ['gun']))).toEqual([['alcide', 'celeste'], ['antti', 'marcel', 'saga']]);
+  expect(ids(botChoices([], 'finnish', []))).toEqual([[], []]);
+  // The seat's own character stays, even off its home ground or no longer offered elsewhere.
+  expect(ids(botChoices(catalogue, 'louisiana', [], 'gun'))).toEqual([['alcide', 'celeste'], ['antti', 'gun', 'marcel', 'saga']]);
+  expect(ids(botChoices(catalogue, 'finnish', [], 'stig'))[0]).toEqual(['gun', 'bengt', 'stig']);
+});
+
+it('says where a character is from and how fast, or that it plays the odds', () => {
+  const [antti, , gun, bengt] = catalogue;
+  expect(botLine(gun)).toEqual({ text: 'Korsholm · steady', odds: false });
+  expect(botLine(bengt)).toEqual({ text: 'bengtby · slow', odds: false });
+  expect(botLine(antti)).toEqual({ text: '★ Plays the odds · slow', odds: true });
+  expect(botLine(antti, true)).toEqual({ text: '★ Plays the odds', odds: true });
+  // A regular who plays the odds (PID-411) is tagged by strategy, wherever it is from.
+  expect(botLine({ ...gun, strategy: 'search' })).toEqual({ text: '★ Plays the odds · steady', odds: true });
+  // No full stop, no town; no tempo, no dot.
+  expect(botLine({ ...gun, description: 'New at the table', tempo: undefined }).text).toBe('');
+  expect(botLine({ ...gun, tempo: 'brisk' }).text).toBe('Korsholm');
+  try {
+    setLocale('sv');
+    expect(botLine(antti).text).toBe('★ Spelar på oddsen · långsam');
+  } finally { setLocale('en'); }
+});
+
 it('reopens the picker on the choice the server has for the seat', () => {
   const live = (seat) => ({ seat_index: 3, position: 'west', status: 'free', player: null, min_games: 0, password: false, held_for: null, ...seat });
   expect(seatChoice(live({}))).toBe('open');
@@ -124,9 +187,12 @@ it('says a refused seat change in plain words', () => {
   // The host is at this table: the friend is the one at a table with others, not the host.
   expect(seatError(refused('ALREADY_IN_ROOM'))).toBe('That friend is playing with others now. Choose someone else.');
   expect(seatError(new Error('network'))).toBe('This seat could not be changed. Please try again.');
+  expect(seatError(refused('PERSONA_SEATED'))).toBe('They already have a seat at this table. Choose someone else.');
+  expect(seatError(refused('unknown_persona'))).toBe('They are not at the club any more. Choose someone else.');
   try {
     setLocale('sv');
     expect(seatError(refused('SEAT_NOT_VACANT'))).toBe('Någon har satt sig på den här platsen.');
+    expect(seatError(refused('PERSONA_SEATED'))).toBe('Hen har redan en plats vid bordet. Välj någon annan.');
   } finally { setLocale('en'); }
 });
 
@@ -138,6 +204,9 @@ it('blames a held friend, not the host, when opening is refused for a table else
   const error = refused('ALREADY_IN_ROOM');
   expect(createFailure(error, open)).toEqual({ error, key: 'social.create_error' });
   expect(createFailure(refused('ACCOUNT_REQUIRED'), held).key).toBe('social.account_error');
+  // A character twice in the plan, or one no longer offered: the plan is the host's to change.
+  expect(createFailure(refused('PERSONA_SEATED'), open)).toEqual({ key: 'new_table.persona_seated' });
+  expect(createFailure(refused('UNKNOWN_PERSONA'), open)).toEqual({ key: 'new_table.persona_unknown' });
 });
 
 it('holds Ready for a dropped human by public name, restores it on return, and handles a freed seat', () => {

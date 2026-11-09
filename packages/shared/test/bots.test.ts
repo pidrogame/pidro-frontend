@@ -65,8 +65,8 @@ test('snapshot metadata wins over catalogue, then legacy and neutral fallbacks',
 test('the catalogue keeps how a character plays, sounds and thinks, and drops junk', () => {
   const lines = ['Nå…', 'Hmm…', 'Jaha…', 'Tja…', 'Well…', 'Ok…', 'Joo…', 'Aha…', 'Ninth…'];
   const [full, junk, old] = normalizeBotProfiles([
-    { ...saga, strategy: 'search', tempo: 'slow', home: 'finland', lines, extra: 'kept out' },
-    { ...saga, strategy: 7, tempo: null, home: 'sweden', lines: [' ', 3, 'Nå…', null] },
+    { ...saga, strategy: 'search', tempo: 'slow', home: 'finland', lines, enabled: false, extra: 'kept out' },
+    { ...saga, strategy: 7, tempo: null, home: 'sweden', lines: [' ', 3, 'Nå…', null], enabled: 'no' },
     saga,
   ]);
   expect(full).toStrictEqual({
@@ -75,6 +75,7 @@ test('the catalogue keeps how a character plays, sounds and thinks, and drops ju
     tempo: 'slow',
     home: 'finland',
     lines: lines.slice(0, 8),
+    enabled: false,
   });
   expect(junk).toStrictEqual({ ...saga, lines: ['Nå…'] });
   expect(old).toStrictEqual(saga);

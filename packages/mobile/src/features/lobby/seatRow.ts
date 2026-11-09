@@ -1,5 +1,6 @@
 import { t, formatNumber } from '@pidro/shared';
 import type { BotPersona, BotProfile, FriendPlayer, HeldPlayer, Player } from '@pidro/shared';
+import { botLine } from '@/features/lobby/newTable';
 import { seatName } from '@/features/seatName';
 
 /**
@@ -21,6 +22,8 @@ export type SeatView = {
   held_for?: HeldPlayer | null;
   presence?: FriendPlayer['presence'] | null;
   player?: (Pick<Player, 'username'> & Partial<Player>) | null;
+  /** The character the host chose for a bot seat before opening; none is whoever turns up. */
+  bot?: BotProfile | null;
 };
 
 export type SeatToken =
@@ -117,11 +120,20 @@ function describe(seat: SeatView): Omit<SeatRowWords, 'nameTone' | 'tappable' | 
       statusTone: reconnecting || seat.ready === false ? 'soft' : 'ready',
     };
   }
+  if (seat.type === 'ai' && seat.bot) {
+    const line = botLine(seat.bot, true);
+    return {
+      token: { kind: 'bot', persona: seat.bot.id, botProfile: seat.bot },
+      name: seat.bot.name,
+      status: line.text,
+      statusTone: line.odds ? 'gold' : 'soft',
+    };
+  }
   if (seat.type === 'ai')
     return {
       token: { kind: 'bot', persona: null },
-      name: t('social.bot'),
-      status: t('seat_row.right_away'),
+      name: t('picker.anyone'),
+      status: t('seat_row.whoever'),
       statusTone: 'soft',
     };
   if (seat.type === 'held' && held_for)

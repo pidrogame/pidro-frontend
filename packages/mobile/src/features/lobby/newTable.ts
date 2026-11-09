@@ -1,5 +1,6 @@
 import {
   t,
+  type BotProfile,
   type CreateRoomRequest,
   type FriendPlayer,
   type Room,
@@ -31,10 +32,15 @@ export function roomHasUser(room: Room, userId?: string | null): boolean {
 /** One row of the seat picker. A friend is chosen on the friend list; the rest are entries. */
 export type SeatChoice = 'friend' | 'ai' | 'open' | '100' | '1000' | 'password';
 
-/** The entry a choice stands for, the same before opening (into the draft) and after (to the server). */
+/**
+ * The entry a choice stands for, the same before opening (into the draft) and after (to the
+ * server). A bot seat names who sits there, or plain `'ai'` for whoever turns up.
+ */
 export function seatEntry(
-  choice: Exclude<SeatChoice, 'friend'>
+  choice: Exclude<SeatChoice, 'friend'>,
+  persona?: string | null
 ): Exclude<DraftSeat, { type: 'held' }> {
+  if (choice === 'ai' && persona) return { type: 'ai', persona };
   if (choice === 'ai' || choice === 'open') return choice;
   return choice === 'password'
     ? { type: 'open', min_games: 0, password: true }
@@ -46,18 +52,71 @@ export function seatChoice(seat: DraftSeat | Seat | undefined): SeatChoice {
   if (!seat || seat === 'open') return 'open';
   if (seat === 'ai') return 'ai';
   if ('type' in seat)
-    return seat.type === 'held'
-      ? 'friend'
-      : seat.password
-        ? 'password'
-        : seat.min_games
-          ? (String(seat.min_games) as SeatChoice)
-          : 'open';
+    return seat.type === 'ai'
+      ? 'ai'
+      : seat.type === 'held'
+        ? 'friend'
+        : seat.password
+          ? 'password'
+          : seat.min_games
+            ? (String(seat.min_games) as SeatChoice)
+            : 'open';
   if (seat.held_for) return 'friend';
   // The picker opens only on a seat without a person, so a player there is a bot.
   if (seat.player) return 'ai';
   if (seat.password) return 'password';
   return seat.min_games === 1000 ? '1000' : seat.min_games === 100 ? '100' : 'open';
+}
+
+/** Who sits in a bot seat: the draft's chosen character, or the server's seated one. */
+export function seatPersona(seat: DraftSeat | Seat | undefined): string | null {
+  if (!seat || typeof seat === 'string') return null;
+  if ('type' in seat) return seat.type === 'ai' ? seat.persona : null;
+  return seat.player && !seatedHuman(seat) ? (seat.player.bot_persona ?? null) : null;
+}
+
+/**
+ * The bot picker's two groups: the rule set's own regulars, then everyone at home anywhere.
+ * A character already at another seat of this table, or no longer offered, is left out; the
+ * one in this seat stays, with the club if it is not a regular here.
+ */
+export function botChoices(
+  profiles: readonly BotProfile[],
+  ruleSet: RuleSet,
+  seated: string[],
+  current?: string | null
+) {
+  const home = ruleSet === 'louisiana' ? 'louisiana' : 'finland';
+  const free = profiles.filter(
+    (bot) => bot.id === current || (bot.enabled !== false && !seated.includes(bot.id))
+  );
+  return {
+    regulars: free.filter((bot) => bot.home === home),
+    club: free.filter(
+      (bot) =>
+        bot.home !== home &&
+        (bot.id === current || (bot.home !== 'finland' && bot.home !== 'louisiana'))
+    ),
+  };
+}
+
+/**
+ * A character's meta line: "Korsholm · steady", the town being its description up to the full
+ * stop, or the gold "Plays the odds" for one that searches. `short` leaves the tempo off it.
+ */
+export function botLine(bot: BotProfile, short = false): { text: string; odds: boolean } {
+  const tempo =
+    bot.tempo === 'quick' || bot.tempo === 'steady' || bot.tempo === 'slow'
+      ? t(`bots.tempo_${bot.tempo}`)
+      : '';
+  const odds = bot.strategy === 'search';
+  const stop = bot.description.indexOf('.');
+  const lead = odds
+    ? `★ ${t('picker.plays_odds')}`
+    : stop > 0
+      ? bot.description.slice(0, stop)
+      : '';
+  return { text: [lead, odds && short ? '' : tempo].filter(Boolean).join(' · '), odds };
 }
 
 /** A person sits there. Only those seats are not the picker's: the host may only ask them to leave. */
@@ -72,6 +131,8 @@ export function seatError(error: unknown): string {
   if (code === 'SEAT_NOT_VACANT') return t('new_table.seat_filled');
   // The host is at this table, so the friend is the one playing elsewhere.
   if (code === 'ALREADY_IN_ROOM') return t('new_table.friend_busy');
+  if (code === 'PERSONA_SEATED') return t('new_table.persona_seated');
+  if (code === 'UNKNOWN_PERSONA') return t('new_table.persona_unknown');
   return localizedError(error, 'new_table.seat_error');
 }
 
@@ -85,6 +146,8 @@ export function createFailure(
 ): { error?: unknown; key: TranslationKey } {
   const code = apiErrorInfo(error).code?.toUpperCase();
   if (code === 'ACCOUNT_REQUIRED') return { error, key: 'social.account_error' };
+  if (code === 'PERSONA_SEATED') return { key: 'new_table.persona_seated' };
+  if (code === 'UNKNOWN_PERSONA') return { key: 'new_table.persona_unknown' };
   const holds = Object.values(request.seats ?? {}).some(
     (seat) => typeof seat === 'object' && seat.type === 'held'
   );
@@ -107,7 +170,7 @@ export function assignedFriendIds(draft: TableDraft, current: SeatKey): string[]
 }
 
 export function isPractice(draft: TableDraft): boolean {
-  return Object.values(draft.seats).every((seat) => seat === 'ai');
+  return Object.values(draft.seats).every((seat) => seatChoice(seat) === 'ai');
 }
 
 export function tableFooter(draft: TableDraft): string {
