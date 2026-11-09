@@ -225,6 +225,11 @@ async function assertLivePicker(page, fixture, viewport) {
       await page.waitForTimeout(100);
     }
     await row(position).click();
+    // A bot seat reopens on who sits there; the way back leads to the other choices.
+    if (name === 'Bot') {
+      await checked('Antti');
+      await picker.getByRole('link', { name: /^‹ / }).click();
+    }
     await checked(name);
   };
   const split = viewport.width > viewport.height || viewport.width >= 600;

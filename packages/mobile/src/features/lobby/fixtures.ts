@@ -1,5 +1,5 @@
 import { emptyLobbyCategories, POSITION_TO_INDEX } from '@pidro/shared';
-import type { LobbyCategories, Position, Room, SeatInvitation } from '@pidro/shared';
+import type { BotProfile, LobbyCategories, Position, Room, SeatInvitation } from '@pidro/shared';
 import { friendNoticeFixture } from '../friends/fixtures';
 import { answerEntry, emptyEntry, type PasswordEntry } from './passwordSeat';
 
@@ -52,6 +52,170 @@ export const BOT_CHARACTER = {
     lines: ['Nå, nå…', 'Tja…', 'Hmm, hmm…', 'Jaha…', 'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…'],
   },
 };
+
+/**
+ * The fifteen of `GET /api/v1/bots` (PID-410's New table fixtures), as production sent them on
+ * 2026-11-09. The host is a stand-in: portraits other than the club's own three draw neutral.
+ */
+export const BOT_CATALOGUE: BotProfile[] = [
+  {
+    id: 'antti',
+    name: 'Antti',
+    description: '',
+    avatar_url: 'https://fixture.invalid/images/bots/antti.svg',
+    strategy: 'search',
+    tempo: 'slow',
+    home: 'anywhere',
+  },
+  {
+    id: 'jocke',
+    name: 'Jocke',
+    description: '',
+    avatar_url: 'https://fixture.invalid/images/bots/jocke.svg',
+    strategy: 'search',
+    tempo: 'steady',
+    home: 'anywhere',
+  },
+  {
+    id: 'marcel',
+    name: 'Marcel',
+    description: '',
+    avatar_url: 'https://fixture.invalid/images/bots/marcel.svg',
+    strategy: 'search',
+    tempo: 'quick',
+    home: 'anywhere',
+  },
+  {
+    id: 'alcide',
+    name: 'Alcide',
+    description:
+      'Mamou. Accordion player. Thinks in waltz time, says little, and tends to take the last trick.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/alcide/avatar/fb2cc962726620066244301f871ad24520bac5e9305f6542ea77b8736d590830',
+    strategy: 'rulebook',
+    tempo: 'slow',
+    home: 'louisiana',
+  },
+  {
+    id: 'beau',
+    name: 'Beau',
+    description:
+      'Lafayette. Welder, plays on his lunch break. Quick to bid, and quick to laugh when it goes wrong.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/beau/avatar/15dc824efcb8a3ca8a0a6d4c4e7990db81ac64115b567a58b91d888a3da78330',
+    strategy: 'rulebook',
+    tempo: 'quick',
+    home: 'louisiana',
+  },
+  {
+    id: 'bengt',
+    name: 'Bengt',
+    description:
+      'Vasa. Retired harbour pilot. Has played at the same table every Thursday since 1979 and still keeps the score by hand.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/bengt/avatar/e7c7f444f6987c5e5f5e813c14c668940ffd84db43481cb05453f5031f6c5b44',
+    strategy: 'rulebook',
+    tempo: 'slow',
+    home: 'finland',
+  },
+  {
+    id: 'celeste',
+    name: 'Celeste',
+    description:
+      'Thibodaux. Runs the Sunday table and the kitchen. Knows what her partner holds before he does.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/celeste/avatar/5999a235eba9fff7db6cdc70ee834404e60e68347204736467ff8705a1ec5d0b',
+    strategy: 'rulebook',
+    tempo: 'steady',
+    home: 'louisiana',
+  },
+  {
+    id: 'delphine',
+    name: 'Delphine',
+    description:
+      'New Iberia. Schoolteacher. Quick bids, a straight face, and a laugh you can hear from the porch.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/delphine/avatar/bb929021e742b6a6bac947ba35d3985529400d109f4a948f0fb87d8758db2aba',
+    strategy: 'rulebook',
+    tempo: 'quick',
+    home: 'louisiana',
+  },
+  {
+    id: 'gosta',
+    name: 'Gösta',
+    description:
+      'Närpes. Grows tomatoes. Patient, says little, and backs his partner to the last card.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/gosta/avatar/ee5e42f34700d432fc39446dfc56e1caf91cf9d186a3f011fe9532d98d578c8c',
+    strategy: 'rulebook',
+    tempo: 'steady',
+    home: 'finland',
+  },
+  {
+    id: 'gun',
+    name: 'Gun',
+    description:
+      'Korsholm. Taught half the village to play at her kitchen table. Pours the coffee before the deal.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/gun/avatar/6bc18f5d8a9bb592b9a2b827944d200f9f1eda46a29e6ce470b6be7fa2563d78',
+    strategy: 'rulebook',
+    tempo: 'steady',
+    home: 'finland',
+  },
+  {
+    id: 'majlis',
+    name: 'Maj-Lis',
+    description: 'Karleby. Knits between hands and still sees your bid coming. Trusts the Ace.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/majlis/avatar/c47bb8b494150ee8dff568914c610a1d98cd8c9bd3ee876dc70812157778503d',
+    strategy: 'rulebook',
+    tempo: 'slow',
+    home: 'finland',
+  },
+  {
+    id: 'odile',
+    name: 'Odile',
+    description:
+      'Eunice. Eighty-one. Waits for the right card, then plays it, and tells you why afterwards.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/odile/avatar/b3f1edb908e14317c5a8992c631e50e5d7911a827536278779faaca03fc34df4',
+    strategy: 'rulebook',
+    tempo: 'slow',
+    home: 'louisiana',
+  },
+  {
+    id: 'remy',
+    name: 'Remy',
+    description:
+      'Breaux Bridge. Cooks crawfish on Saturdays and plays cards after. Never hurries, never forgets a trump.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/remy/avatar/d36658c61462caee662d2d5a7a5b1bc4f06a0c98c975c4b10af410bf7c7f3bf9',
+    strategy: 'rulebook',
+    tempo: 'steady',
+    home: 'louisiana',
+  },
+  {
+    id: 'siv',
+    name: 'Siv',
+    description: 'Kristinestad. Pharmacist. Remembers every card thrown and never bids on hope.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/siv/avatar/12d111858df94e5eb8d7c03c4089567a0dacf7c1d57b2ddb61b3f9ad4a3ff9d7',
+    strategy: 'rulebook',
+    tempo: 'quick',
+    home: 'finland',
+  },
+  {
+    id: 'stig',
+    name: 'Stig',
+    description:
+      'Jakobstad. Boat builder. Plays fast and bids early, then looks out of the window while you think.',
+    avatar_url:
+      'https://fixture.invalid/api/v1/bots/stig/avatar/31e1e13aba1ad25e0aae5274e49a8f6bbb39327bf8e5530b0a39d19891ee9728',
+    strategy: 'rulebook',
+    tempo: 'quick',
+    home: 'finland',
+  },
+];
 
 /** The chips the rows show: two Legends, the rest by the length of the name. */
 const fixtureLevel = (name: string) =>

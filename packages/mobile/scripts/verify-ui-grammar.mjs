@@ -1236,6 +1236,9 @@ const allCases = [
     'declined',
     'live-picker',
     'live-friends',
+    'characters',
+    'bot-picker',
+    'bot-picker-louisiana',
   ].map((fixture) => ({
     name: `new-table-${fixture}`,
     path: `/ui-dev?state=new-table&fixture=${fixture}`,
@@ -4831,6 +4834,17 @@ async function assertCreationPresentation(page, testCase) {
     );
   if (fixture === 'friends' || fixture === 'live-friends')
     await page.getByTestId('friend-picker').waitFor();
+  // PID-410: a bot seat shows who sits there, and its picker opens on them.
+  if (fixture === 'characters')
+    assert.match(await page.getByTestId('new-table-seat-south').innerText(), /Gun/);
+  if (fixture.startsWith('bot-picker'))
+    assert.equal(
+      await page
+        .getByTestId('bot-picker')
+        .getByRole('radio', { name: fixture === 'bot-picker' ? /^Gun, / : /^Anyone, / })
+        .getAttribute('aria-checked'),
+      'true'
+    );
   // The board's sideways picker: four rows of two friends, whole, above the bottom edge.
   if (fixture === 'picker' && viewport.width > viewport.height && viewport.height < 600) {
     const scroll = await page.getByTestId('friend-picker-scroll').boundingBox();

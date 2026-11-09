@@ -106,6 +106,11 @@ test('a bot and two open seats share a table link without a name form or seat bi
     await expect(picker).toBeHidden();
     await expect(east).toHaveText(row);
     await east.click();
+    // A bot seat reopens on who sits there; the way back leads to the other choices.
+    if (title === 'Bot') {
+      await expect(picker.getByTestId('bot-picker')).toBeVisible();
+      await picker.getByRole('link', { name: /^‹ / }).click();
+    }
     await expect(choice(title)).toBeChecked();
     await cancelPicker(page);
   }
@@ -433,7 +438,7 @@ test('a delayed partner lookup preserves an explicit seat choice and a cold entr
     await cancelPicker(page);
     await expect(partner).not.toContainText(friendPlayer.name);
     if (choice === 'Anyone') await expect(partner).toContainText('Open seat');
-    else await expect(partner).toContainText('Plays right away');
+    else await expect(partner).toContainText('Whoever turns up');
     // Each picker asks for friends as it opens; one may still be on its way.
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   }

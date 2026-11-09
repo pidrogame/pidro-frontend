@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FriendPlayer, Position, Room, Seat, SeatType } from '@pidro/shared';
 import { NewTableScreen } from '@/components/lobby/NewTableScreen';
 import { InviteLinkModal } from '@/components/invites/InviteLinkModal';
+import { BOT_CATALOGUE } from '@/features/lobby/fixtures';
 import { defaultSeats, type TableDraft } from '@/features/lobby/newTable';
 
 const friends: FriendPlayer[] = [
@@ -27,18 +28,27 @@ const friends: FriendPlayer[] = [
   },
 ];
 
+const bot = (id: string) => BOT_CATALOGUE.find((profile) => profile.id === id)!;
+const botPlayer = (position: string, id: string) => ({
+  id: `bot_${position}`,
+  username: bot(id).name,
+  is_bot: true,
+  bot_persona: id,
+  bot_profile: bot(id),
+});
+
 /** The fixture's server: the seat becomes the entry, as `PUT /rooms/:code/seats/:position` does. */
 function applySeat(seat: Seat, entry: SeatType): Seat {
   const empty = { ...seat, status: 'free' as const, player: null, held_for: null };
-  if (entry === 'ai')
+  if (entry === 'open') return { ...empty, min_games: 0, password: false };
+  if (entry === 'ai' || entry.type === 'ai')
     return {
       ...empty,
       status: 'occupied',
-      player: { id: `bot_${seat.position}`, username: 'Antti', is_bot: true, bot_persona: 'antti' },
+      player: botPlayer(seat.position!, entry === 'ai' ? 'antti' : entry.persona),
       min_games: 0,
       password: false,
     };
-  if (entry === 'open') return { ...empty, min_games: 0, password: false };
   if (entry.type === 'held')
     return { ...empty, held_for: friends.find((friend) => friend.user_id === entry.user_id) };
   return { ...empty, min_games: entry.min_games, password: !!entry.password };
@@ -48,6 +58,9 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
   const [ready, setReady] = useState<Position[]>(['east', 'west', 'south']);
   const [share, setShare] = useState(false);
   const live = fixture.startsWith('live-');
+  const louisiana = fixture.endsWith('louisiana');
+  // `characters`: Antti and Gun chosen, the last bot seat anyone; `bot-picker*` open on Partner.
+  const characters = fixture === 'characters' || fixture === 'bot-picker';
   const full =
     fixture === 'ready' || fixture === 'reconnecting' || fixture.startsWith('ready-error');
   const [opened, setOpened] = useState(
@@ -67,6 +80,15 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
             ...(fixture === 'password' && {
               seat_4: { type: 'open', min_games: 0, password: true },
             }),
+            ...(characters && {
+              seat_2: { type: 'ai', persona: 'antti' },
+              seat_3: { type: 'ai', persona: 'gun' },
+              seat_4: 'ai',
+            }),
+            ...(fixture === 'bot-picker-louisiana' && {
+              seat_2: { type: 'ai', persona: 'celeste' },
+              seat_3: 'ai',
+            }),
           },
   };
   const [room, setRoom] = useState<Room>({
@@ -76,7 +98,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
     seat_password: '4821',
     config: {
       name: null,
-      rule_set: fixture === 'louisiana' ? 'louisiana' : 'finnish',
+      rule_set: louisiana ? 'louisiana' : 'finnish',
       solo: false,
       bot_difficulty: 'basic',
     },
@@ -84,7 +106,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
       north: 'host',
       east: 'kalle',
       south: full ? 'maija' : null,
-      west: full ? 'hanna' : null,
+      west: full ? 'hanna' : fixture === 'live-bots' ? 'bot_west' : null,
     },
     seats: (['north', 'east', 'south', 'west'] as const).map((position, seat_index) => ({
       position,
@@ -106,6 +128,13 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
           : null,
       held_for: position === 'south' && !full && fixture !== 'declined' ? friends[0] : null,
       password: position === 'west' && fixture !== 'ready',
+      // `live-bots`: Gun sits West; Stig has left the club since the catalogue loaded.
+      ...(fixture === 'live-bots' &&
+        position === 'west' && {
+          status: 'occupied' as const,
+          player: botPlayer('west', 'gun'),
+          password: false,
+        }),
     })),
   });
   return (
@@ -114,19 +143,26 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
         key={opened ? 'opened' : fixture}
         room={opened ? room : undefined}
         initialDraft={draft}
-        initialRuleSet={fixture === 'louisiana' ? 'louisiana' : 'finnish'}
+        initialRuleSet={louisiana ? 'louisiana' : 'finnish'}
         initialPicker={
           fixture === 'picker' || fixture === 'live-picker' || fixture === 'live-error'
             ? 'choices'
             : fixture === 'friends' || fixture === 'live-friends'
               ? 'friends'
-              : undefined
+              : fixture.startsWith('bot-picker')
+                ? 'bots'
+                : undefined
         }
-        initialSeat={fixture === 'live-friends' ? 'south' : live ? 'west' : undefined}
+        initialSeat={
+          fixture === 'live-friends' ? 'south' : live ? 'west' : characters ? 'south' : undefined
+        }
         onSetSeat={async (position, entry) => {
           await new Promise((resolve) => setTimeout(resolve, 200));
           // Bot fails outright; anything else finds that someone sat down meanwhile.
           if (fixture === 'live-error' && entry === 'ai') throw new Error('offline');
+          if (fixture === 'live-bots' && typeof entry === 'object' && entry.type === 'ai')
+            if (entry.persona === 'stig')
+              throw { response: { status: 422, data: { errors: [{ code: 'UNKNOWN_PERSONA' }] } } };
           if (fixture === 'live-error') {
             setRoom((current) => ({
               ...current,
@@ -146,6 +182,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
           }));
         }}
         fixtureFriends={friends}
+        fixtureBots={BOT_CATALOGUE}
         youPlayerId={fixture === 'guest' ? 'kalle' : 'host'}
         canManage={fixture !== 'guest'}
         onLeave={() => {}}
