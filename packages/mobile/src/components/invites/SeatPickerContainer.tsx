@@ -18,6 +18,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { TextLink } from '@/components/ui/TextLink';
 import { PidroBevel, PidroColors, PidroFonts, PidroRadii } from '@/design/tokens';
 import { useTranslation } from '@/i18n';
+import { BotPicker, type BotPickerProps } from './BotPicker';
 import { ChoiceList, type ChoiceListProps } from './ChoiceList';
 import { FriendPicker, type FriendPickerProps } from './FriendPicker';
 
@@ -26,8 +27,10 @@ export interface SeatPickerContainerProps {
   subtitle: string;
   choices: Omit<ChoiceListProps, 'compact' | 'onNavigate' | 'label'>;
   friends: Omit<FriendPickerProps, 'compact' | 'columns'>;
+  /** Who sits in a bot seat (PID-410), with the page's one line of help. */
+  bots?: Omit<BotPickerProps, 'columns'> & { help: string };
   onClose: () => void;
-  initialPage?: 'choices' | 'friends';
+  initialPage?: 'choices' | 'friends' | 'bots';
   /** The server's refusal of the last choice, in plain words. */
   error?: string;
 }
@@ -38,6 +41,7 @@ export function SeatPickerContainer({
   subtitle,
   choices,
   friends,
+  bots,
   onClose,
   initialPage = 'choices',
   error,
@@ -51,6 +55,8 @@ export function SeatPickerContainer({
   const reduceMotion = useReducedMotion();
   const [page, setPage] = useState(initialPage);
   const friendPage = !split && page === 'friends';
+  // A bot seat opens on who sits there; the way back leads to the other choices.
+  const botPage = page === 'bots' && !!bots;
   const closeLabel = t('common.cancel');
   return (
     <Modal
@@ -79,7 +85,7 @@ export function SeatPickerContainer({
                 split && styles.screen,
                 phoneLandscape && styles.tight,
                 tablet && styles.panel,
-                friendPage && styles.expanded,
+                (friendPage || botPage) && styles.expanded,
               ]}>
               {!split && <View style={styles.grabber} />}
               {friendPage ? (
@@ -94,81 +100,108 @@ export function SeatPickerContainer({
                   </PidroText>
                 </>
               ) : (
-                <View style={[styles.header, phoneLandscape && styles.inlineHeader]}>
-                  {/* Sideways the ✕ leads the row on round glass, like the back button (the board). */}
-                  {phoneLandscape && (
-                    <BevelPressable
-                      accessibilityRole="button"
-                      accessibilityLabel={closeLabel}
-                      material="glass"
-                      radius={22}
-                      onPress={onClose}
-                      style={styles.close}
-                      contentStyle={styles.closeFace}>
-                      <Icon name="close" size={20} strokeWidth={2.4} />
-                    </BevelPressable>
+                <>
+                  {botPage && !phoneLandscape && (
+                    <TextLink
+                      label={`‹ ${t('picker.other_choices')}`}
+                      onPress={() => setPage('choices')}
+                      style={styles.back}
+                    />
                   )}
-                  <View style={[styles.heading, phoneLandscape && styles.inlineHeading]}>
-                    <PidroText role="title" tone="gold" style={styles.title}>
-                      {title}
-                    </PidroText>
-                    <PidroText role="metadata" tone="soft">
-                      {subtitle}
-                    </PidroText>
+                  <View style={[styles.header, phoneLandscape && styles.inlineHeader]}>
+                    {/* Sideways the ✕ leads the row on round glass, like the back button (the board). */}
+                    {phoneLandscape && (
+                      <BevelPressable
+                        accessibilityRole="button"
+                        accessibilityLabel={closeLabel}
+                        material="glass"
+                        radius={22}
+                        onPress={onClose}
+                        style={styles.close}
+                        contentStyle={styles.closeFace}>
+                        <Icon name="close" size={20} strokeWidth={2.4} />
+                      </BevelPressable>
+                    )}
+                    <View style={[styles.heading, phoneLandscape && styles.inlineHeading]}>
+                      <PidroText role="title" tone="gold" style={styles.title}>
+                        {title}
+                      </PidroText>
+                      <PidroText role="metadata" tone="soft">
+                        {bots && botPage ? bots.help : subtitle}
+                      </PidroText>
+                    </View>
+                    {/* Sideways the way back shares the header row, so the list keeps its height. */}
+                    {botPage && phoneLandscape && (
+                      <TextLink
+                        label={`‹ ${t('picker.other_choices')}`}
+                        onPress={() => setPage('choices')}
+                      />
+                    )}
+                    {!phoneLandscape && (
+                      <DismissButton accessibilityLabel={closeLabel} onPress={onClose} />
+                    )}
                   </View>
-                  {!phoneLandscape && (
-                    <DismissButton accessibilityLabel={closeLabel} onPress={onClose} />
-                  )}
-                </View>
+                </>
               )}
               {error ? (
                 <PidroText role="metadata" tone="danger" accessibilityRole="alert">
                   {error}
                 </PidroText>
               ) : null}
-              <View style={[styles.body, friendPage && styles.expanded, split && styles.split]}>
-                {!friendPage && (
-                  <ScrollView
-                    style={split ? styles.choicesColumn : styles.choicesScroll}
-                    contentContainerStyle={styles.choicesContent}
-                    keyboardShouldPersistTaps="handled">
-                    {tablet && (
-                      <PidroText role="eyebrow" tone="cyan">
-                        {t('picker.fill_or_open')}
-                      </PidroText>
-                    )}
-                    <ChoiceList
-                      {...choices}
-                      label={title}
-                      compact={split}
-                      onNavigate={() => setPage('friends')}
-                      onSelect={(id) => {
-                        choices.onSelect(id);
-                        onClose();
-                      }}
-                    />
-                  </ScrollView>
-                )}
-                {(split || friendPage) && (
-                  <View style={styles.friendsColumn}>
-                    {split && (
-                      <PidroText role="eyebrow" tone="cyan">
-                        {t('picker.or_invite')}
-                      </PidroText>
-                    )}
-                    <FriendPicker
-                      {...friends}
-                      compact={split}
-                      columns={landscape ? 2 : 1}
-                      dense={phoneLandscape}
-                      onInvite={(friend) => {
-                        friends.onInvite(friend);
-                        onClose();
-                      }}
-                    />
-                  </View>
-                )}
-              </View>
+              {bots && botPage ? (
+                <BotPicker
+                  {...bots}
+                  columns={landscape ? 2 : 1}
+                  onSeat={(persona) => {
+                    bots.onSeat(persona);
+                    onClose();
+                  }}
+                />
+              ) : (
+                <View style={[styles.body, friendPage && styles.expanded, split && styles.split]}>
+                  {!friendPage && (
+                    <ScrollView
+                      style={split ? styles.choicesColumn : styles.choicesScroll}
+                      contentContainerStyle={styles.choicesContent}
+                      keyboardShouldPersistTaps="handled">
+                      {tablet && (
+                        <PidroText role="eyebrow" tone="cyan">
+                          {t('picker.fill_or_open')}
+                        </PidroText>
+                      )}
+                      <ChoiceList
+                        {...choices}
+                        label={title}
+                        compact={split}
+                        onNavigate={() => setPage('friends')}
+                        onSelect={(id) => {
+                          choices.onSelect(id);
+                          onClose();
+                        }}
+                      />
+                    </ScrollView>
+                  )}
+                  {(split || friendPage) && (
+                    <View style={styles.friendsColumn}>
+                      {split && (
+                        <PidroText role="eyebrow" tone="cyan">
+                          {t('picker.or_invite')}
+                        </PidroText>
+                      )}
+                      <FriendPicker
+                        {...friends}
+                        compact={split}
+                        columns={landscape ? 2 : 1}
+                        dense={phoneLandscape}
+                        onInvite={(friend) => {
+                          friends.onInvite(friend);
+                          onClose();
+                        }}
+                      />
+                    </View>
+                  )}
+                </View>
+              )}
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>

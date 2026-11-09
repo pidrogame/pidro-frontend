@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBotCatalogueStore } from '@pidro/shared';
+import { resolveBotProfile, useBotCatalogueStore } from '@pidro/shared';
 import type {
+  BotProfile,
   CreateRoomRequest,
   FriendPlayer,
   HeldPlayer,
@@ -26,9 +27,11 @@ import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExpla
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { WatchingBadge } from '@/components/game/WatchingBadge';
 import { PidroFonts } from '@/design/tokens';
+import { loadCatalogue } from '@/features/bots';
 import { assignedRoomPlayerIds } from '@/features/invites/hostControls';
 import {
   assignedFriendIds,
+  botChoices,
   chooseFriend,
   chooseSeat,
   defaultSeats,
@@ -39,6 +42,7 @@ import {
   seatedHuman,
   seatEntry,
   seatError,
+  seatPersona,
   tableFooter,
   tableHeader,
   tableTitle,
@@ -67,10 +71,11 @@ interface Props {
   room?: Room;
   initialDraft?: TableDraft;
   initialRuleSet?: RuleSet;
-  initialPicker?: 'choices' | 'friends';
+  initialPicker?: 'choices' | 'friends' | 'bots';
   initialSeat?: Position;
   partner?: string;
   fixtureFriends?: FriendPlayer[];
+  fixtureBots?: BotProfile[];
   youPlayerId?: string;
   onSubmit?: (request: CreateRoomRequest) => void;
   onLeave: () => void;
@@ -104,6 +109,7 @@ export function NewTableScreen({
   initialSeat = 'south',
   partner,
   fixtureFriends,
+  fixtureBots,
   youPlayerId,
   onSubmit,
   onLeave,
@@ -126,7 +132,11 @@ export function NewTableScreen({
   onDismissDeclined,
 }: Props) {
   const { t } = useTranslation();
-  useBotCatalogueStore((state) => state.profiles);
+  const catalogue = useBotCatalogueStore((state) => state.profiles);
+  const bots = fixtureBots ?? catalogue;
+  useEffect(() => {
+    if (!fixtureBots) loadCatalogue();
+  }, [fixtureBots]);
   const router = useRouter();
   const { width, height } = useWindowDimensions();
   // Sideways the teams sit side by side; a phone keeps every line, an iPad its own column.
@@ -203,13 +213,15 @@ export function NewTableScreen({
       ? { team, opened: false, type: seat }
       : seat.type === 'held'
         ? { team, opened: false, type: 'held', held_for: seat.friend }
-        : {
-            team,
-            opened: false,
-            type: 'open',
-            min_games: seat.min_games,
-            passwordRequired: seat.password,
-          };
+        : seat.type === 'ai'
+          ? { team, opened: false, type: 'ai', bot: resolveBotProfile(seat.persona, null, bots) }
+          : {
+              team,
+              opened: false,
+              type: 'open',
+              min_games: seat.min_games,
+              passwordRequired: seat.password,
+            };
   };
   // Until that seat is taken or held for someone else; the refresh may still be on its way.
   const declinedSeat = declined ? liveSeat(declined.position) : undefined;
@@ -231,7 +243,14 @@ export function NewTableScreen({
       ? selectedDraft.friend
       : undefined;
   const occupied = seatedHuman(selectedLive);
-  const selectedId = seatChoice(room ? selectedLive : selectedDraft);
+  const seatAt = (position: Position) =>
+    room ? liveSeat(position) : seatKeys[position] && draft.seats[seatKeys[position]!];
+  const selectedId = seatChoice(selected ? seatAt(selected) : undefined);
+  // A character sits at one seat of a table only.
+  const seatedBots = positions.flatMap((position) => {
+    const persona = position === selected ? null : seatPersona(seatAt(position));
+    return persona ? [persona] : [];
+  });
   const sections: ChoiceSection[] = [
     {
       title: t('new_table.fill'),
@@ -293,9 +312,9 @@ export function NewTableScreen({
       open(position);
       setPickerError(seatError(caught));
     });
-  const choose = (id: string) => {
+  const choose = (id: string, persona?: string | null) => {
     if (!selected || busy || controlsBusy) return;
-    const seat = seatEntry(id as Exclude<SeatChoice, 'friend'>);
+    const seat = seatEntry(id as Exclude<SeatChoice, 'friend'>, persona);
     if (room) {
       if (editable) send(selected, seat);
     } else {
@@ -339,7 +358,8 @@ export function NewTableScreen({
       onPress={() => {
         if (!busy && !controlsBusy) {
           setPickerError(undefined);
-          setPickerPage(undefined);
+          // A bot seat opens on who sits there.
+          setPickerPage(seatChoice(seatAt(position)) === 'ai' ? 'bots' : undefined);
           if (position === declined?.position) onDismissDeclined?.();
           open(position);
         }
@@ -540,7 +560,23 @@ export function NewTableScreen({
           subtitle={t(selected === order[1] ? 'new_table.partner_help' : 'new_table.opponent_help')}
           initialPage={pickerPage}
           error={pickerError}
-          choices={{ sections, selectedId, onSelect: choose }}
+          choices={{
+            sections,
+            selectedId,
+            // Bot again keeps whoever sits there, as the server does after opening.
+            onSelect: (id) =>
+              choose(id, id === 'ai' && !room ? seatPersona(seatAt(selected)) : null),
+          }}
+          bots={{
+            help: t(selected === order[1] ? 'picker.bot_partner_help' : 'picker.bot_opponent_help'),
+            ...botChoices(bots, ruleSet, seatedBots, seatPersona(seatAt(selected))),
+            region: t(`bots.region_${ruleSet}`),
+            selected: seatPersona(seatAt(selected)),
+            onSeat: (persona) => {
+              // The same face again changes nothing; the server is not asked.
+              if (persona !== seatPersona(seatAt(selected))) choose('ai', persona);
+            },
+          }}
           friends={{
             friends: pickerFriends(
               friends,

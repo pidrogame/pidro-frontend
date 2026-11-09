@@ -10,7 +10,7 @@ import { api } from '@/api/client';
 let pending: Promise<void> | null = null;
 let fetchedAt = 0;
 /** Shared in-flight request; old servers may omit the public endpoint. */
-function loadCatalogue() {
+export function loadCatalogue() {
   if (pending || Date.now() - fetchedAt < 60_000) return;
   fetchedAt = Date.now();
   pending = api
