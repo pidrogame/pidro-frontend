@@ -86,6 +86,7 @@ test('popup actions acknowledge only the current player, retry failures, and kee
   }));
   const lobby = create(() => ({
     minimumNativeVersions: {},
+    minimumNativeBuilds: {},
     nativeStoreUrls: { android: 'https://example.test/android' },
     nativeUpdatePopup: true,
   }));
@@ -111,6 +112,9 @@ test('popup actions acknowledge only the current player, retry failures, and kee
     nativeBuildVersion: '11',
   }));
   mock.module('expo-asset', () => ({ Asset: {} }));
+  mock.module('expo-constants', () => ({
+    default: { expoConfig: { extra: { variant: 'beta' } } },
+  }));
   mock.module('expo-router', () => ({
     useIsFocused: () => path === '/home',
     usePathname: () => path,
@@ -167,6 +171,8 @@ test('popup actions acknowledge only the current player, retry failures, and kee
     expect(document.querySelectorAll('button')).toHaveLength(0);
 
     await act(() => news.setState({ popup: { ...post, id: 42, app_update: true } }));
+    // No build minimum from the lobby: no build line.
+    expect(document.body.textContent).not.toContain('You have build');
     await click('news.later');
     expect(receipts).toEqual([['a', 41]]);
     await act(() => root.render(null));
@@ -177,7 +183,7 @@ test('popup actions acknowledge only the current player, retry failures, and kee
     open = async () => {
       throw new Error('no handler');
     };
-    await click('news.updateAndroid');
+    await click('Update in Google Play');
     expect(receipts).toEqual([['a', 41]]);
     expect(document.body.textContent).toContain('news.popupFailed');
     let resolveLink;
@@ -185,19 +191,19 @@ test('popup actions acknowledge only the current player, retry failures, and kee
       new Promise((resolve) => {
         resolveLink = resolve;
       });
-    await click('news.updateAndroid');
+    await click('Update in Google Play');
     await act(() => auth.setState({ user: { id: 'b' } }));
     await act(async () => resolveLink());
     expect(receipts).toEqual([['a', 41]]);
     open = async () => {};
-    await click('news.updateAndroid');
+    await click('Update in Google Play');
     expect(receipts).toEqual([
       ['a', 41],
       ['b', 43],
     ]);
     expect(document.querySelectorAll('button')).toHaveLength(0);
     await act(() => auth.setState({ user: { id: 'a' } }));
-    await click('news.updateAndroid');
+    await click('Update in Google Play');
     expect(receipts.at(-1)).toEqual(['a', 43]);
     expect(document.querySelectorAll('button')).toHaveLength(0);
 
@@ -213,7 +219,8 @@ test('popup actions acknowledge only the current player, retry failures, and kee
     expect(document.querySelectorAll('button')).toHaveLength(0);
     await act(() => lobby.setState({ minimumNativeBuilds: { android: '12' } }));
     expect(document.body.textContent).toContain('news.updateTitle');
-    await click('news.updateAndroid');
+    expect(document.body.textContent).toContain('You have build 11 · this is build 12');
+    await click('Update in Google Play');
     expect(receipts.at(-1)).toEqual(['a', 43]);
   } finally {
     await act(() => root.unmount());

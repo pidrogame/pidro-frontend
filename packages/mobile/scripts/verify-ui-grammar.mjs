@@ -8692,7 +8692,7 @@ async function assertNewsPopup(page, { popup, locale, name }, viewport) {
   const sv = locale === 'sv';
   const update = !['news', 'link'].includes(popup);
   const label = update
-    ? `${sv ? 'Uppdatera i' : 'Update in'} ${popup === 'ios' ? 'App Store' : 'Google Play'}`
+    ? `${sv ? 'Uppdatera i' : 'Update in'} ${popup === 'ios' ? 'TestFlight' : 'Google Play'}`
     : popup === 'link'
       ? sv
         ? 'Läs mer'
@@ -8720,10 +8720,17 @@ async function assertNewsPopup(page, { popup, locale, name }, viewport) {
     { exact: true }
   );
   assert.equal(await bold.evaluate((el) => getComputedStyle(el).fontWeight), '900');
-  assert.doesNotMatch(
-    (await card.innerText()).replace(/App Store/g, ''),
-    /\bstore\b|TestFlight|!/i
-  );
+  assert.doesNotMatch((await card.innerText()).replace(label, ''), /\bstore\b|TestFlight|!/i);
+  // PID-415: update cards name both builds (fixture 14 and 19); news has no line.
+  const builds = card.getByTestId('news-popup-builds');
+  assert.equal(await builds.count(), update ? 1 : 0);
+  if (update)
+    assert.equal(
+      await builds.innerText(),
+      sv
+        ? 'Du har byggnummer 14 · det här är byggnummer 19'
+        : 'You have build 14 · this is build 19'
+    );
   const image = card.getByTestId('news-popup-image');
   assert.equal(await image.count(), ['image', 'news'].includes(popup) ? 1 : 0);
   if (await image.count())

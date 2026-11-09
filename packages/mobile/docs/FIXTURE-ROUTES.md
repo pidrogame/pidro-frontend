@@ -949,7 +949,9 @@ UI grammar: the `news-*` cases at 390×844, 375×667, 844×390 and 768×1024. Th
 
 `update` is the Android update board without an image; `image` adds an image;
 `news` is the plain-news board with an image and no eyebrow or Later; `ios` uses
-the App Store button; `link` is plain news with a custom linked button. These
+the iPhone button (TestFlight in the beta variant, App Store in production); `link`
+is plain news with a custom linked button. Update cards name both builds under the
+body, "You have build 14 · this is build 19" (fixture numbers; web has no build). These
 render the real centered card over Home. The bundled Pidro artwork stands in for
 the editor's image. Images retain their whole contents; in phone landscape the
 image sits beside the copy so the text and actions keep their size.

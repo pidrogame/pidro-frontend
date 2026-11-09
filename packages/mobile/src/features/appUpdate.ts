@@ -50,6 +50,23 @@ export function nativeStoreUpdate(
   return have !== null && need !== null && have < need ? nudge : null;
 }
 
+/** Beta testers update an iPhone in TestFlight; nowhere to update has no label. */
+export function updateStoreLabel(platform: string, variant: string | undefined) {
+  if (platform === 'android') return t('news.updateAndroid');
+  if (platform !== 'ios') return null;
+  return t(variant === 'beta' ? 'news.updateTestFlight' : 'news.updateIos');
+}
+
+/** "You have build 14 · this is build 19", only when both are known and installed is below. */
+export function updateBuildLine(
+  installed: string | null | undefined,
+  minimum: string | null | undefined
+) {
+  if (!installed || !minimum || !/^\d+$/.test(installed) || !/^\d+$/.test(minimum)) return null;
+  if (Number(installed) >= Number(minimum)) return null;
+  return t('news.updateBuilds', { installed, minimum });
+}
+
 export interface RunningUpdateInput {
   /** OTA updates work in this build: a release build, not web or dev. */
   enabled: boolean;

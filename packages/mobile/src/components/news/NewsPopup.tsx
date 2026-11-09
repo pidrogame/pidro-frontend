@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
 import { Asset } from 'expo-asset';
+import Constants from 'expo-constants';
 import { useIsFocused, usePathname } from 'expo-router';
 import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
@@ -21,7 +22,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
 import { PidroColors, PidroFonts, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
-import { nativeStoreUpdate } from '@/features/appUpdate';
+import { nativeStoreUpdate, updateBuildLine, updateStoreLabel } from '@/features/appUpdate';
 import { newsPopupFixture, popupForStart } from '@/features/newsPopup';
 import { useTranslation } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
@@ -81,7 +82,17 @@ export function NewsPopup({ fixture, blocked }: { fixture?: string; blocked: boo
     atHome: focused && pathname === '/home' && !blocked,
     inGame: pathname.startsWith('/game'),
   });
-  if (!post || (fixture && !preview) || (post.app_update && !url)) return null;
+  const storeLabel = updateStoreLabel(platform, Constants.expoConfig?.extra?.variant);
+  if (!post || (fixture && !preview) || (post.app_update && !(url && storeLabel))) return null;
+  // Web has no build number, so previews show the boards' 14 and 19.
+  const builds = post.app_update
+    ? preview
+      ? updateBuildLine('14', '19')
+      : updateBuildLine(
+          nativeBuildVersion,
+          platform === 'android' || platform === 'ios' ? minimumBuilds[platform] : null
+        )
+    : null;
 
   const close = async (later: boolean) => {
     if (!preview && useAuthStore.getState().user?.id !== userId) return;
@@ -99,11 +110,8 @@ export function NewsPopup({ fixture, blocked }: { fixture?: string; blocked: boo
       key={`${userId}:${post.id}`}
       post={post}
       url={post.app_update ? url : (post.button_url ?? undefined)}
-      label={
-        post.app_update
-          ? t(platform === 'ios' ? 'news.updateIos' : 'news.updateAndroid')
-          : post.button_label || t('news.gotIt')
-      }
+      label={post.app_update ? storeLabel! : post.button_label || t('news.gotIt')}
+      builds={builds}
       close={close}
     />
   );
@@ -113,11 +121,13 @@ function PopupCard({
   post,
   url,
   label,
+  builds,
   close,
 }: {
   post: NewsPost;
   url?: string;
   label: string;
+  builds: string | null;
   close: (later: boolean) => Promise<void>;
 }) {
   const { t } = useTranslation();
@@ -195,6 +205,11 @@ function PopupCard({
                   style={styles.body}
                   onLinkError={() => setFailed(true)}
                 />
+                {builds ? (
+                  <PidroText testID="news-popup-builds" role="metadata" tone="muted">
+                    {builds}
+                  </PidroText>
+                ) : null}
               </ScrollView>
               <View style={styles.actions}>
                 {failed ? (

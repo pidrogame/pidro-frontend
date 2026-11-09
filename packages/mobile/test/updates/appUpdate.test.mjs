@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'bun:test';
-import { channelLabel, runningUpdate, nativeStoreUpdate } from '../../src/features/appUpdate.ts';
+import { setLocale } from '@pidro/shared';
+import {
+  channelLabel,
+  runningUpdate,
+  nativeStoreUpdate,
+  updateBuildLine,
+  updateStoreLabel,
+} from '../../src/features/appUpdate.ts';
 
 it('opens only the server destination below its configured native minimum', () => {
   const versions = { android: '3.2.10', ios: '3.3.0' };
@@ -56,6 +63,41 @@ it('on the minimum version, a build below the minimum build gets the nudge', () 
   expect(nudge('ios', '3.2.9', '14', { versions: minimums.versions })).toBe(urls.ios);
   expect(nudge('ios', '3.3.0', null)).toBeNull();
   expect(nudge('ios', '3.3.0', '14', { ...minimums, builds: { ios: 'soon' } })).toBeNull();
+});
+
+describe('the update card', () => {
+  it('sends beta iPhones to TestFlight and everyone else to their store', () => {
+    expect(updateStoreLabel('ios', 'beta')).toBe('Update in TestFlight');
+    expect(updateStoreLabel('ios', 'production')).toBe('Update in App Store');
+    expect(updateStoreLabel('ios', undefined)).toBe('Update in App Store');
+    expect(updateStoreLabel('android', 'beta')).toBe('Update in Google Play');
+    expect(updateStoreLabel('android', 'production')).toBe('Update in Google Play');
+    expect(updateStoreLabel('web', 'beta')).toBeNull();
+  });
+
+  it('names both builds only when the installed one is below', () => {
+    expect(updateBuildLine('14', '19')).toBe('You have build 14 · this is build 19');
+    // Numbers, not text: 9 is below 10.
+    expect(updateBuildLine('9', '10')).toBe('You have build 9 · this is build 10');
+    expect(updateBuildLine('19', '19')).toBeNull();
+    expect(updateBuildLine('20', '19')).toBeNull();
+    expect(updateBuildLine('100', '19')).toBeNull();
+    expect(updateBuildLine(null, '19')).toBeNull();
+    expect(updateBuildLine('14', undefined)).toBeNull();
+    expect(updateBuildLine('14', 'soon')).toBeNull();
+    expect(updateBuildLine('14b', '19')).toBeNull();
+    expect(updateBuildLine('', '19')).toBeNull();
+  });
+
+  it('speaks Swedish with the word Settings uses', () => {
+    setLocale('sv');
+    try {
+      expect(updateStoreLabel('ios', 'beta')).toBe('Uppdatera i TestFlight');
+      expect(updateBuildLine('14', '19')).toBe('Du har byggnummer 14 · det här är byggnummer 19');
+    } finally {
+      setLocale('en');
+    }
+  });
 });
 
 describe('what Settings says is running', () => {
