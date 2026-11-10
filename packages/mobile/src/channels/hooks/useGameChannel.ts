@@ -1,5 +1,5 @@
 import { lifecycleFromReply, publicPlayerName } from '@pidro/shared';
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Channel, Presence } from 'phoenix';
 import {
   extractGamePresentation,
@@ -28,6 +28,7 @@ import { diagnosticMetadata } from '@/diagnostics/metadata';
 import { pendingPlay } from '@/features/game/pendingPlay';
 import { awayPlays } from '@/features/game/awayPlays';
 import { randomUUID } from '@/diagnostics/uuid';
+import { mergeTalk, saidFrom, type Said } from '@/features/game/talk';
 
 let globalGameChannel: Channel | null = null;
 let pendingCard: ReturnType<typeof pendingPlay> | null = null;
@@ -46,6 +47,52 @@ export function onTableTalk(listener: (event: 'talk' | 'moment', payload: unknow
   return () => {
     talkListeners.delete(listener);
   };
+}
+
+/**
+ * The room's talk (PID-418), oldest first: the join reply's replay, then every line
+ * since. The waiting room and the table's log both read it, so neither loses a line
+ * at the handover and a rejoin adds only what it missed. What they show starts at
+ * `from`: where the room is now, waiting (null) or a game, decides it.
+ */
+interface RoomTalk {
+  topic: string | null;
+  lines: Said[];
+  from: number;
+  at?: string | null;
+}
+const NO_TALK: RoomTalk = { topic: null, lines: [], from: 0 };
+let roomTalk = NO_TALK;
+const talkReaders = new Set<() => void>();
+
+function setRoomTalk(next: RoomTalk) {
+  roomTalk = next;
+  talkReaders.forEach((read) => read());
+}
+
+/**
+ * The first game keeps what was said while the table filled; after a game, the
+ * next waiting room or rematch starts clean. A remount at the same place changes nothing.
+ */
+export function talkAt(at: string | null) {
+  if (roomTalk.at === at) return;
+  const ended = typeof roomTalk.at === 'string';
+  setRoomTalk({ ...roomTalk, at, from: ended ? roomTalk.lines.length : roomTalk.from });
+}
+
+/** A replay is the room's whole talk until it fills the server's window. */
+const REPLAY_WINDOW = 20;
+
+const readTalk = (read: () => void) => {
+  talkReaders.add(read);
+  return () => {
+    talkReaders.delete(read);
+  };
+};
+
+export function useRoomTalk(): Said[] {
+  const talk = useSyncExternalStore(readTalk, () => roomTalk);
+  return useMemo(() => talk.lines.slice(talk.from), [talk]);
 }
 
 interface UseGameChannelOptions {
@@ -221,6 +268,8 @@ export const useGameChannel = ({
         ...connectionParams(),
       }));
       currentTopic = topic;
+      // Another room's talk is not this one's.
+      if (roomTalk.topic !== topic) setRoomTalk({ ...NO_TALK, topic });
       let presences: Record<string, unknown> = {};
       let dealerSelectionRequestKey: string | null = null;
       const isCurrentChannel = () => !disposed && globalGameChannel === channel;
@@ -280,6 +329,14 @@ export const useGameChannel = ({
             }
 
             if (response?.readiness) setReadiness(response.readiness as ReadinessSnapshot);
+            if (Array.isArray(response?.talk)) {
+              const replay = response.talk.flatMap((payload) => saidFrom(payload) ?? []);
+              const { lines, from } = roomTalk;
+              const merged = mergeTalk(lines, replay, replay.length < REPLAY_WINDOW);
+              // This game's lines stay this game's, however many older ones the replay changed.
+              const kept = Math.max(0, merged.length - (lines.length - from));
+              setRoomTalk({ ...roomTalk, lines: merged, from: Math.min(from, kept) });
+            }
             const gameState = extractGameState(response);
             if (gameState) {
               // Back after a drop: say what the table played from your hand meanwhile.
@@ -613,6 +670,8 @@ export const useGameChannel = ({
       }
 
       onCurrent('talk', (payload: unknown) => {
+        const said = saidFrom(payload);
+        if (said) setRoomTalk({ ...roomTalk, lines: [...roomTalk.lines, said] });
         talkListeners.forEach((listener) => listener('talk', payload));
       });
 
@@ -689,6 +748,7 @@ export const useGameChannel = ({
         globalGameChannel = null;
         notifySeatEvent = undefined;
         currentTopic = null;
+        setRoomTalk(NO_TALK);
       }
     };
   }, [

@@ -88,6 +88,38 @@ export function saidFrom(payload: unknown): Said | null {
   return null;
 }
 
+const same = (a: Said, b: Said) =>
+  a.seat === b.seat && a.userId === b.userId && a.item === b.item && a.text === b.text;
+
+/**
+ * The room's talk after a join reply's replay (PID-418). The replay is the room's
+ * latest lines, oldest first; what this device already holds ends where it overlaps
+ * them, or sits inside them whole. Lines carry no id, so the longest overlap wins.
+ * With no overlap, a `whole` replay (the room's every line) is the truth: what this
+ * device holds and the server no longer shows it, someone blocked since, goes.
+ */
+export function mergeTalk(held: Said[], replay: Said[], whole = false): Said[] {
+  for (let k = Math.min(held.length, replay.length); k > 0; k--) {
+    const tail = held.slice(-k);
+    const starts = k === held.length ? replay.length - k : 0;
+    for (let at = 0; at <= starts; at++)
+      if (tail.every((said, i) => same(said, replay[at + i])))
+        return [...held, ...replay.slice(at + k)];
+  }
+  return whole ? replay : [...held, ...replay];
+}
+
+/** A line of nothing but emoji, drawn larger (PID-418). */
+export function onlyEmoji(text: string | undefined): boolean {
+  const bare = text?.replace(/\s/g, '');
+  return (
+    !!bare &&
+    /^(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\p{Regional_Indicator}{2})+$/u.test(
+      bare
+    )
+  );
+}
+
 /** About three seconds at the seat; typed words stay longer, by length. */
 export function landingMs(said: Pick<Said, 'text'>): number {
   return said.text ? Math.min(8_000, 3_000 + said.text.length * 60) : 3_000;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { onTableTalk, pushGameAction } from '@/channels/hooks/useGameChannel';
+import { onTableTalk, pushGameAction, talkAt, useRoomTalk } from '@/channels/hooks/useGameChannel';
 import {
   land,
   landingMs,
@@ -33,7 +33,7 @@ export interface TableTalk {
   landed: Partial<Record<Position, Landed>>;
   /** The band's last line, once its landing has faded. */
   line: Said | null;
-  /** What was said this game, on this device only. */
+  /** What was said this game, the waiting room's talk before the first (PID-418). */
   log: Said[];
   /** Someone else said something while no sheet of words was open (PID-393). */
   unread: boolean;
@@ -102,7 +102,12 @@ export function useTableTalk(
     )
   );
   const [line, setLine] = useState<Said | null>(fixture?.line ?? null);
-  const [log, setLog] = useState<Said[]>(fixture?.log ?? []);
+  // The room's talk is the log, from where this game began; a fixture holds its own.
+  const room = useRoomTalk();
+  const [fixtureLog, setFixtureLog] = useState<Said[]>(fixture?.log ?? []);
+  useEffect(() => {
+    if (you.game && !fixture) talkAt(you.game);
+  }, [fixture, you.game]);
   const [sheet, setSheet] = useState<TalkSheet | null>(fixture?.sheet ?? null);
   const [person, setPerson] = useState<string | null>(fixture?.person ?? null);
   const [unread, setUnread] = useState(fixture?.unread ?? false);
@@ -130,7 +135,7 @@ export function useTableTalk(
     setGame(you.game);
     setLanded({});
     setLine(null);
-    setLog([]);
+    setFixtureLog([]);
     open(null);
     setUnread(false);
     setOffer(null);
@@ -143,7 +148,6 @@ export function useTableTalk(
   const show = useCallback((said: Said) => {
     const at = ++key.current;
     setLanded((previous) => ({ ...previous, [said.seat]: land(previous[said.seat], said, at) }));
-    setLog((previous) => [...previous, said]);
     clearTimeout(timers.current[said.seat]);
     timers.current[said.seat] = setTimeout(() => {
       setLanded((previous) => {
@@ -156,6 +160,15 @@ export function useTableTalk(
       if (!quietRef.current.includes(said.userId)) setLine(said);
     }, landingMs(said));
   }, []);
+
+  // A fixture's own words land and join its log, as the server's echo would.
+  const echo = useCallback(
+    (said: Said) => {
+      show(said);
+      setFixtureLog((previous) => [...previous, said]);
+    },
+    [show]
+  );
 
   // A landing still fading, or an offer, must not carry into the next game.
   useEffect(() => {
@@ -214,11 +227,11 @@ export function useTableTalk(
       answer();
       playActionHaptic();
       if (!you.seat) return;
-      if (__DEV__ && fixture) return show({ seat: you.seat, userId: you.userId ?? '', item });
+      if (__DEV__ && fixture) return echo({ seat: you.seat, userId: you.userId ?? '', item });
       // A send that fails says nothing: the server broadcast nothing.
       pushGameAction('talk', { item }).catch(() => undefined);
     },
-    [answer, fixture, open, show, you.seat, you.userId]
+    [answer, echo, fixture, open, you.seat, you.userId]
   );
 
   // Typed talk lands from the echo too; only readers get it, the sender among them.
@@ -227,7 +240,7 @@ export function useTableTalk(
     if (!text || !you.seat) return 'failed';
     if (__DEV__ && fixture) {
       if (fixture.filtered) return 'filtered';
-      show({ seat: you.seat, userId: you.userId ?? '', text });
+      echo({ seat: you.seat, userId: you.userId ?? '', text });
     } else {
       try {
         await pushGameAction('say', { text });
@@ -240,7 +253,7 @@ export function useTableTalk(
     answer();
     playActionHaptic();
     return 'sent';
-  }, [answer, draft, fixture, open, show, you.seat, you.userId]);
+  }, [answer, draft, echo, fixture, open, you.seat, you.userId]);
 
   const hush = useCallback((userId: string) => {
     // What the band offers may answer them; it goes too.
@@ -273,7 +286,7 @@ export function useTableTalk(
   return {
     landed: shown,
     line: line && heard(line) ? line : null,
-    log: log.filter(heard),
+    log: (fixture ? fixtureLog : room).filter(heard),
     unread,
     sheet,
     person,

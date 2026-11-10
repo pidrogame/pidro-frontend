@@ -4,6 +4,8 @@ import {
   TALK_LINES,
   land,
   landingMs,
+  mergeTalk,
+  onlyEmoji,
   saidFrom,
   tailFit,
   talker,
@@ -292,5 +294,44 @@ describe('table talk', () => {
     expect(twoLines('Nice trick!')).toBe('Nice\ntrick!');
     expect(twoLines('ab cd efghijk lm')).toBe('ab cd\nefghijk lm');
     expect(twoLines('Thanks!')).toBe('Thanks!');
+  });
+
+  // PID-418: the join reply replays the room's latest lines; the device keeps one copy of each.
+  describe('merging the replay with what this device heard', () => {
+    const line = (userId, text) => ({ seat: 'east', userId, text });
+    const [a, b, c, d, e] = ['a', 'b', 'c', 'd', 'e'].map((text) => line('kalle', text));
+    it('adds only what came while away, wherever the replay starts', () => {
+      expect(mergeTalk([], [a, b])).toEqual([a, b]);
+      expect(mergeTalk([a, b, c], [a, b, c])).toEqual([a, b, c]);
+      // The server keeps the latest lines only: the replay starts inside what is held.
+      expect(mergeTalk([a, b, c], [b, c, d, e])).toEqual([a, b, c, d, e]);
+      // Or it reaches back before this device's first line, which it holds whole.
+      expect(mergeTalk([c, d], [a, b, c, d, e])).toEqual([c, d, e]);
+      // So much was said that nothing overlaps: both, in order.
+      expect(mergeTalk([a, b], [d, e])).toEqual([a, b, d, e]);
+    });
+    it('tells two of the same face apart by where they fall', () => {
+      const thumb = { seat: 'east', userId: 'kalle', item: 'coin_thumb' };
+      // Kalle thumbed twice; the device heard the first before the drop.
+      expect(mergeTalk([a, thumb], [a, thumb, thumb])).toEqual([a, thumb, thumb]);
+      expect(mergeTalk([thumb], [thumb])).toEqual([thumb]);
+      // The same words from someone else are another line.
+      expect(mergeTalk([a], [a, line('maija', 'a')])).toEqual([a, line('maija', 'a')]);
+    });
+    it('takes a replay shorter than the window as the whole room when nothing overlaps', () => {
+      // Kalle's last line is gone from the server's replay (blocked since): no line twice.
+      expect(mergeTalk([a, b, c], [a, b, d], true)).toEqual([a, b, d]);
+      // A full window may start after everything held: both, in order.
+      expect(mergeTalk([a, b, c], [d, e], false)).toEqual([a, b, c, d, e]);
+      // An overlap still wins over the whole replay.
+      expect(mergeTalk([c, d], [a, b, c, d, e], true)).toEqual([c, d, e]);
+    });
+  });
+
+  it('draws a line of nothing but emoji larger', () => {
+    for (const text of ['👍', '👍 👍', '👍🏽', '❤️', '👨‍👩‍👧', '🇫🇮', ' 😂😅 '])
+      expect(onlyEmoji(text)).toBe(true);
+    for (const text of ['Moi 👍', 'ok', '123', '#1', '', undefined, '❤️!', ':)'])
+      expect(onlyEmoji(text)).toBe(false);
   });
 });

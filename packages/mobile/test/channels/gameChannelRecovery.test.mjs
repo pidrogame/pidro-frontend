@@ -28,6 +28,11 @@ it('back after a drop, says nothing when the card that left was the one you tapp
   await check('away-own');
 });
 
+// PID-418: the waiting room and the table read one talk; a rejoin adds only what it missed.
+it('fills the room talk from the join replay and live lines, each line once across a rejoin', async () => {
+  await check('talk');
+});
+
 async function check(scenario) {
   if (!process.env.CHANNEL_RECOVERY_CHILD) {
     const child = Bun.spawnSync([process.execPath, 'test', import.meta.path], {
@@ -97,7 +102,7 @@ async function check(scenario) {
   }));
   mock.module('react-native', () => ({ unstable_batchedUpdates: (run) => run() }));
   const { useGameStore } = await import('@pidro/shared');
-  const { useGameChannel, pushGameAction, sendCard } =
+  const { useGameChannel, useRoomTalk, talkAt, pushGameAction, sendCard } =
     await import('../../src/channels/hooks/useGameChannel.ts');
   const card = { rank: 14, suit: 'clubs' };
   const state = {
@@ -129,8 +134,10 @@ async function check(scenario) {
   };
   if (scenario === 'untimed') response.turn_timer = null;
   const notices = [];
+  let talk = [];
   function Table() {
     useGameChannel({ roomCode: 'TEST', onSeatEvent: (notice) => notices.push(notice) });
+    talk = useRoomTalk();
     return null;
   }
   const root = createRoot(document.getElementById('root'));
@@ -192,6 +199,61 @@ async function check(scenario) {
       // Quiet either way: no retry, and no "too late" from the kept tap.
       expect(pushes.slice(sent).filter(({ event }) => event === 'play_card')).toEqual([]);
       expect(await pending).toBe(scenario === 'away-own');
+    } else if (scenario === 'talk') {
+      const said = (user_id, text) => ({
+        seat: user_id === 'kalle' ? 'east' : 'west',
+        user_id,
+        text,
+      });
+      const line = ({ seat, user_id, text }) => ({ seat, userId: user_id, text });
+      const [hi, bus, thumb, sauna] = [
+        said('kalle', 'Moi!'),
+        said('player', 'Maija is on the bus'),
+        { seat: 'east', user_id: 'kalle', item: 'coin_thumb' },
+        said('kalle', 'One game before sauna then'),
+      ];
+      // An old server's reply has no talk: nothing is invented.
+      expect(talk).toEqual([]);
+      joinRef = '2';
+      await act(async () =>
+        joined.callbacks.ok({ ...response, talk: [hi, { seat: 'up', user_id: 'x' }] })
+      );
+      expect(talk).toEqual([line(hi)]);
+      await act(async () => events.talk(bus));
+      // Dropped after the thumb: the rejoin's replay holds what the device heard and what it missed.
+      await act(async () => events.talk(thumb));
+      joinRef = '3';
+      await act(async () => joined.callbacks.ok({ ...response, talk: [bus, thumb, thumb, sauna] }));
+      expect(talk).toEqual([
+        line(hi),
+        line(bus),
+        { seat: 'east', userId: 'kalle', item: 'coin_thumb' },
+        { seat: 'east', userId: 'kalle', item: 'coin_thumb' },
+        line(sauna),
+      ]);
+      // The same replay again adds nothing.
+      await act(async () => joined.callbacks.ok({ ...response, talk: [bus, thumb, thumb, sauna] }));
+      expect(talk).toHaveLength(5);
+      // The first game's log opens with the waiting room; a remount there changes nothing.
+      await act(async () => talkAt(null));
+      await act(async () => talkAt('game-1'));
+      await act(async () => talkAt('game-1'));
+      expect(talk).toHaveLength(5);
+      const nice = said('kalle', 'Nice hand');
+      await act(async () => events.talk(nice));
+      expect(talk.at(-1)).toEqual(line(nice));
+      // A rematch starts clean, and a rejoin in it brings back none of the last game.
+      await act(async () => talkAt('game-2'));
+      expect(talk).toEqual([]);
+      const again = said('player', 'Again!');
+      await act(async () => events.talk(again));
+      await act(async () =>
+        joined.callbacks.ok({ ...response, talk: [hi, bus, thumb, thumb, sauna, nice, again] })
+      );
+      expect(talk).toEqual([line(again)]);
+      // Back to waiting after a game: the table reopens clean too.
+      await act(async () => talkAt(null));
+      expect(talk).toEqual([]);
     } else if (scenario === 'rejoin') {
       await act(async () =>
         joined.callbacks.ok({
