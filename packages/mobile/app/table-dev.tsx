@@ -47,7 +47,7 @@ import { handResultTiming } from '@/features/game/handResult';
 import { secondDealDurationMs } from '@/game/canvas/animationTiming';
 import type { HeldStyle } from '@/game/canvas/layout';
 import type { TalkFixture } from '@/game/useTableTalk';
-import type { TalkItem } from '@/features/game/talk';
+import type { Said, TalkItem } from '@/features/game/talk';
 import { momentOffer, replyOffer } from '@/features/game/offers';
 import { isStillCapture } from '@/utils/stillCapture';
 
@@ -919,6 +919,7 @@ function TableDevHarness() {
       : ['north', 'west']
   );
   const [waitingPositions, setWaitingPositions] = useState<Room['positions']>();
+  const [waitingTalk, setWaitingTalk] = useState<Said[]>([]);
   const [inviteOpen, setInviteOpen] = useState(params.invite === 'true');
 
   if (fixture === 'lay-down') {
@@ -1165,6 +1166,21 @@ function TableDevHarness() {
                     }
                   : null
               }
+              // PID-418: a seated player talks while the table fills; the fixture echoes it.
+              talk={{
+                lines: waitingTalk,
+                typing: 'type',
+                send: (item) =>
+                  setWaitingTalk((current) => [
+                    ...current,
+                    { seat: viewerPosition, userId: `p-${viewerPosition}`, item },
+                  ]),
+                say: async (text) =>
+                  setWaitingTalk((current) => [
+                    ...current,
+                    { seat: viewerPosition, userId: `p-${viewerPosition}`, text },
+                  ]),
+              }}
             />
           </FixtureInsets>
           {hostControls && inviteOpen ? (

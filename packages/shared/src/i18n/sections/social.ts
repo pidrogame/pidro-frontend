@@ -473,6 +473,12 @@ export const en = {
   "social.password_wait_minutes": "Try again in %{minutes} minutes.",
   "social.password_typed": "Password, %{number} of 4 numbers typed",
   "social.password_delete": "Delete the last number",
+  "waiting_talk.sat_down": "%{name} sat down",
+  "waiting_talk.left": "%{name} left",
+  "waiting_talk.cant_come": "%{name} can’t come",
+  "waiting_talk.rules": "Rules",
+  "waiting_talk.done": "Done",
+  "waiting_talk.seats": "Show the seats",
 } as const;
 export const sv: Record<keyof typeof en, TranslationEntry> = {
   "new_table.title": "Nytt bord",
@@ -951,4 +957,10 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "social.password_wait_minutes": "Försök igen om %{minutes} minuter.",
   "social.password_typed": "Lösenord, %{number} av 4 siffror skrivna",
   "social.password_delete": "Radera den sista siffran",
+  "waiting_talk.sat_down": "%{name} satte sig vid bordet",
+  "waiting_talk.left": "%{name} lämnade bordet",
+  "waiting_talk.cant_come": "%{name} kan inte komma",
+  "waiting_talk.rules": "Regler",
+  "waiting_talk.done": "Klar",
+  "waiting_talk.seats": "Visa platserna",
 };

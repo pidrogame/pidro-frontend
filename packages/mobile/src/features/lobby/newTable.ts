@@ -236,6 +236,8 @@ export function waitingFooter(room: Room, canManage: boolean, readyCount: number
     return {
       full,
       ready: false,
+      // News, not the standing line: the waiting room's talk keeps it (PID-418).
+      news: true,
       line:
         t('game.waiting_for', {
           name: dropped.map((seat) => seatName(seat.player, t('social.player'))).join(', '),
@@ -252,6 +254,25 @@ export function waitingFooter(room: Room, canManage: boolean, readyCount: number
     ready: false,
     line: canManage ? `${waiting} ${t('new_table.change_seat')}` : waiting,
   };
+}
+
+/**
+ * Who sat down or left between two snapshots of the room, as the quiet lines of the
+ * waiting room's talk (PID-418). People only: a bot is the host's choice, not news.
+ * `mute` is who goes unannounced: you, and whoever the host removed.
+ */
+export function seatChanges(before: Room, after: Room, mute: string[]): string[] {
+  const person = (seat?: Seat) =>
+    seatedHuman(seat) && !mute.includes(seat!.player!.id) ? seat!.player! : null;
+  return (after.seats ?? []).flatMap((seat) => {
+    const left = person(before.seats?.find((was) => was.position === seat.position));
+    const came = person(seat);
+    if (left?.id === came?.id) return [];
+    return [
+      ...(left ? [t('waiting_talk.left', { name: seatName(left, t('social.player')) })] : []),
+      ...(came ? [t('waiting_talk.sat_down', { name: seatName(came, t('social.player')) })] : []),
+    ];
+  });
 }
 
 export function pickerFriends(

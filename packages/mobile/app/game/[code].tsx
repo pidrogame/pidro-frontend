@@ -49,6 +49,7 @@ import { canManageRoom } from '@/features/invites/hostControls';
 import { claimDailyGuestSavePrompt } from '@/features/auth/guestSavePrompt';
 import { tableInvitation } from '@/features/invites/tableInvitation';
 import { readingTimeMs } from '@/features/game/readingTime';
+import { typingFor } from '@/features/game/talk';
 import { t, useTranslation } from '@/i18n';
 import { useSeatDecisions } from '@pidro/shared';
 import { TableSeatDecision, useTableNotices } from '@/components/game/TableFeedback';
@@ -932,6 +933,19 @@ export default function GameScreen() {
         onDismissNotice={dismissNotice}
         declined={declined?.roomCode === code && room.host_id === youPlayerId ? declined : null}
         onDismissDeclined={() => setDeclined(null)}
+        talk={
+          role === 'player' && youPositionAbs
+            ? {
+                typing: typingFor(
+                  readiness?.seats?.[youPositionAbs]?.reads_typed,
+                  Boolean(currentUser?.guest)
+                ),
+                // A face that fails says nothing, as at the table; refused words stay in the field.
+                send: (item) => void pushGameAction('talk', { item }).catch(() => undefined),
+                say: (text) => pushGameAction('say', { text }),
+              }
+            : undefined
+        }
       />
       {canManage && shareOpen ? (
         <InviteLinkModal key={room.code} roomCode={room.code} onClose={() => setShareOpen(false)} />

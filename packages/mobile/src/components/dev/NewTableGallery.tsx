@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FriendPlayer, Position, Room, Seat, SeatType } from '@pidro/shared';
 import { NewTableScreen } from '@/components/lobby/NewTableScreen';
 import { InviteLinkModal } from '@/components/invites/InviteLinkModal';
+import type { Said } from '@/features/game/talk';
 import { BOT_CATALOGUE } from '@/features/lobby/fixtures';
 import { defaultSeats, type TableDraft } from '@/features/lobby/newTable';
 
@@ -54,17 +55,52 @@ function applySeat(seat: Seat, entry: SeatType): Seat {
   return { ...empty, min_games: entry.min_games, password: !!entry.password };
 }
 
+/** PID-418's boards: Kalle seated, Maija on her way, a 100+ seat open, and what was said. */
+const kalle = (said: Omit<Said, 'seat' | 'userId'>): Said => ({
+  seat: 'east',
+  userId: 'kalle',
+  ...said,
+});
+const TALK: Said[] = [
+  kalle({ text: 'Moi! My brother wants the other seat, he’s on his way' }),
+  { seat: 'north', userId: 'host', text: 'Great. Maija is coming too, she’s still on the bus' },
+  kalle({ item: 'coin_thumb' }),
+  kalle({ text: 'One game before sauna then' }),
+];
+const FULL_TALK: Said[] = [
+  ...TALK,
+  { seat: 'south', userId: 'maija', text: 'Made it! Hi Kalle' },
+  { seat: 'west', userId: 'hanna', text: 'Sorry sorry. Let’s go' },
+];
+
 export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
-  const [ready, setReady] = useState<Position[]>(['east', 'west', 'south']);
+  // `talk*` (PID-418): `talk-opened` before anyone came, `talk-full` all four ready,
+  // `talk-typing` the field focused, `talk-guest` / `talk-teen` who cannot type,
+  // `talk-filtered` refuses what is typed.
+  const talking = fixture.startsWith('talk');
+  const [ready, setReady] = useState<Position[]>(
+    fixture === 'talk-full'
+      ? ['east', 'west', 'south']
+      : talking
+        ? ['east']
+        : ['east', 'west', 'south']
+  );
+  const [lines, setLines] = useState<Said[]>(
+    fixture === 'talk-full' ? FULL_TALK : talking && fixture !== 'talk-opened' ? TALK : []
+  );
+  const kalleAway = fixture === 'talk-opened';
   const [share, setShare] = useState(false);
   const live = fixture.startsWith('live-');
   const louisiana = fixture.endsWith('louisiana');
   // `characters`: Antti and Gun chosen, the last bot seat anyone; `bot-picker*` open on Partner.
   const characters = fixture === 'characters' || fixture === 'bot-picker';
   const full =
-    fixture === 'ready' || fixture === 'reconnecting' || fixture.startsWith('ready-error');
+    fixture === 'ready' ||
+    fixture === 'reconnecting' ||
+    fixture.startsWith('ready-error') ||
+    fixture === 'talk-full';
   const [opened, setOpened] = useState(
-    live || full || ['opened', 'guest', 'declined'].includes(fixture)
+    live || full || talking || ['opened', 'guest', 'declined'].includes(fixture)
   );
   const [declined, setDeclined] = useState(
     fixture === 'declined' ? { position: 'south' as const, user: friends[0] } : null
@@ -104,30 +140,31 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
     },
     positions: {
       north: 'host',
-      east: 'kalle',
+      east: kalleAway ? null : 'kalle',
       south: full ? 'maija' : null,
       west: full ? 'hanna' : fixture === 'live-bots' ? 'bot_west' : null,
     },
     seats: (['north', 'east', 'south', 'west'] as const).map((position, seat_index) => ({
       position,
       seat_index,
-      status: full || seat_index < 2 ? 'occupied' : 'free',
+      status: full || (seat_index < 2 && !(kalleAway && seat_index === 1)) ? 'occupied' : 'free',
       connectionStatus:
         fixture === 'reconnecting' && position === 'east' ? 'reconnecting' : 'normal',
       player:
-        full || seat_index < 2
+        full || (seat_index < 2 && !(kalleAway && seat_index === 1))
           ? {
               id: ['host', 'kalle', 'maija', 'hanna'][seat_index],
               username: [
                 'Bertil',
                 fixture === 'reconnecting' ? 'Pedro1' : 'Kalle',
                 'Maija',
-                'Hanna',
+                fixture === 'talk-full' ? 'Ville' : 'Hanna',
               ][seat_index],
             }
           : null,
       held_for: position === 'south' && !full && fixture !== 'declined' ? friends[0] : null,
-      password: position === 'west' && fixture !== 'ready',
+      password: position === 'west' && fixture !== 'ready' && !talking,
+      ...(talking && position === 'west' && { min_games: 100 }),
       // `live-bots`: Gun sits West; Stig has left the club since the catalogue loaded.
       ...(fixture === 'live-bots' &&
         position === 'west' && {
@@ -190,6 +227,34 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
         onOpenInvite={() => setShare(true)}
         declined={declined}
         onDismissDeclined={() => setDeclined(null)}
+        initialTyping={fixture === 'talk-typing'}
+        talk={
+          talking
+            ? {
+                lines,
+                typing:
+                  fixture === 'talk-guest' ? 'guest' : fixture === 'talk-teen' ? null : 'type',
+                heard:
+                  fixture === 'talk-opened'
+                    ? []
+                    : fixture === 'talk-full'
+                      ? [
+                          { at: 4, text: 'Maija sat down' },
+                          { at: 5, text: 'Ville sat down' },
+                        ]
+                      : [{ at: 0, text: 'Kalle sat down' }],
+                draft: fixture === 'talk-typing' ? 'Perfect, I’ll heat it' : undefined,
+                // The fixture's server echoes what it takes, as the channel's `talk` push does.
+                send: (item) =>
+                  setLines((current) => [...current, { seat: 'north', userId: 'host', item }]),
+                say: async (text) => {
+                  await new Promise((resolve) => setTimeout(resolve, 200));
+                  if (fixture === 'talk-filtered') throw { error: 'filtered' };
+                  setLines((current) => [...current, { seat: 'north', userId: 'host', text }]);
+                },
+              }
+            : undefined
+        }
         readyPlayers={ready}
         readyDisabled={false}
         onReady={async () => {

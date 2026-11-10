@@ -77,21 +77,22 @@ function describe(seat: SeatView): Omit<SeatRowWords, 'nameTone' | 'tappable' | 
         prestige: player?.prestige,
       },
       name: t('social.you'),
+      // Ready outranks Host: with the footer's count gone, your row says it (PID-418).
       status: t(
         reconnecting
           ? 'game.reconnecting'
-          : seat.host !== false
-            ? 'social.host'
-            : seat.ready
-              ? 'seat_row.ready'
+          : seat.ready
+            ? 'seat_row.ready'
+            : seat.host !== false
+              ? 'social.host'
               : 'game.not_ready'
       ),
       statusTone: reconnecting
         ? 'soft'
-        : seat.host !== false
-          ? 'gold'
-          : seat.ready
-            ? 'ready'
+        : seat.ready
+          ? 'ready'
+          : seat.host !== false
+            ? 'gold'
             : 'soft',
     };
   if (player) {

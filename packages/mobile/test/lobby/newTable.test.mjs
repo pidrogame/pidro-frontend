@@ -1,6 +1,6 @@
 import { expect, it } from 'bun:test';
 import { normalizeRoom, roomWithReadiness, setLocale } from '@pidro/shared';
-import { assignedFriendIds, botChoices, botLine, chooseFriend, chooseSeat, createFailure, defaultSeats, isPractice, newTableRequest, pickerFriends, seatChoice, seatedHuman, seatEntry, seatError, seatPersona, tableFooter, tableHeader, tableTitle, waitingFooter } from '../../src/features/lobby/newTable';
+import { assignedFriendIds, botChoices, botLine, chooseFriend, chooseSeat, createFailure, defaultSeats, isPractice, newTableRequest, pickerFriends, seatChoice, seatedHuman, seatEntry, seatError, seatChanges, seatPersona, tableFooter, tableHeader, tableTitle, waitingFooter } from '../../src/features/lobby/newTable';
 import { seatRow } from '../../src/features/lobby/seatRow';
 
 const maija = { user_id: 'maija', display_name: 'Maija', avatar_url: null, presence: 'online' };
@@ -213,7 +213,7 @@ it('holds Ready for a dropped human by public name, restores it on return, and h
   const positions = { north: 'host', east: 'pedro', south: 'maija', west: 'bot_west' };
   const snapshot = { room_id: 'room', status: 'waiting', positions, seats: Object.fromEntries(Object.entries(positions).map(([position, id]) => [position, { user_id: id, occupant_type: id.startsWith('bot_') ? 'bot' : 'human', status: position === 'east' ? 'reconnecting' : 'normal', username: position === 'east' ? 'guest_12345678' : id, display_name: position === 'east' ? 'Pedro1' : null }])) };
   const room = roomWithReadiness({ code: 'TEST', seats: [] }, snapshot);
-  expect(waitingFooter(room, false, 3)).toEqual({ full: true, ready: false, line: 'Waiting for Pedro1…' });
+  expect(waitingFooter(room, false, 3)).toEqual({ full: true, ready: false, news: true, line: 'Waiting for Pedro1…' });
   try {
     setLocale('sv');
     expect(waitingFooter(room, true, 3).line).toBe('Väntar på Pedro1…');
@@ -241,4 +241,28 @@ it('preserves a reconnecting status from both room payload shapes and a second n
   }
   const vacant = normalizeRoom({ code: 'TEST', seats: { east: { user_id: null, status: null } } });
   expect(normalizeRoom(vacant)).toEqual(vacant);
+});
+
+// PID-418: the waiting room's talk hears who came and went between two snapshots.
+it('says who sat down or left, never a bot, you, or whoever the host removed', () => {
+  const seat = (position, player) => ({ position, player, held_for: null });
+  const room = (players) => ({ code: 'TEST', seats: ['north', 'east', 'south', 'west'].map((position) => seat(position, players[position] ?? null)) });
+  const you = { id: 'host', username: 'Bertil' };
+  const kalle = { id: 'kalle', username: 'guest_12345678', display_name: 'Kalle' };
+  const maija = { id: 'maija', username: 'Maija' };
+  const gun = { id: 'bot_west', username: 'Gun', is_bot: true, bot_persona: 'gun' };
+  const before = room({ north: you, east: kalle });
+  expect(seatChanges(before, before, ['host'])).toEqual([]);
+  expect(seatChanges(before, room({ north: you, east: kalle, south: maija }), ['host'])).toEqual(['Maija sat down']);
+  expect(seatChanges(before, room({ north: you }), ['host'])).toEqual(['Kalle left']);
+  // Someone else in Kalle's chair: one went, one came.
+  expect(seatChanges(before, room({ north: you, east: maija }), ['host'])).toEqual(['Kalle left', 'Maija sat down']);
+  // A bot is the host's choice; you are never news to yourself; a removed player goes quietly.
+  expect(seatChanges(before, room({ north: you, east: kalle, west: gun }), ['host'])).toEqual([]);
+  expect(seatChanges(room({}), before, ['host'])).toEqual(['Kalle sat down']);
+  expect(seatChanges(before, room({ north: you }), ['host', 'kalle'])).toEqual([]);
+  try {
+    setLocale('sv');
+    expect(seatChanges(before, room({ north: you, east: maija }), ['host'])).toEqual(['Kalle lämnade bordet', 'Maija satte sig vid bordet']);
+  } finally { setLocale('en'); }
 });

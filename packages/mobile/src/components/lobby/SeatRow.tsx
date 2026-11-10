@@ -182,6 +182,11 @@ function SeatRowToken({ token, size }: { token: SeatToken; size: (typeof SIZES)[
   );
 }
 
+/** A seat's token alone at 44 dp, for the folded strip of the waiting room's talk (PID-418). */
+export const SeatFace = ({ token }: { token: SeatToken }) => (
+  <SeatRowToken token={token} size={SIZES.landscape} />
+);
+
 /** A group of seats under its title: "Us" in gold, "Them" in cyan. */
 export function TeamSection({
   team,

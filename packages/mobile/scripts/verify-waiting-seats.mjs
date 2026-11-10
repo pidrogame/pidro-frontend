@@ -18,6 +18,9 @@ const viewports = [
   { name: 'tablet-portrait', width: 768, height: 1024 },
   { name: 'tablet-landscape', width: 1024, height: 768 },
 ];
+// PID-418: a seated player's rows say who is ready; the footer no longer counts them.
+const readyRow = (page, position) =>
+  page.getByTestId(`new-table-seat-${position}`).getByText('Ready', { exact: true });
 const browser = await chromium.launch({ headless: true });
 await mkdir(shots, { recursive: true });
 let checks = 0;
@@ -46,7 +49,8 @@ try {
         const confirmed = page.getByRole('button', { name: "You're ready", exact: true });
         await confirmed.waitFor();
         assert.equal(await confirmed.isDisabled(), true);
-        await page.getByText('3 of 4 ready', { exact: true }).waitFor();
+        await readyRow(page, 'south').waitFor();
+        assert.equal(await page.getByText(/of 4 ready/).count(), 0);
       }
       await page.screenshot({ path: `${shots}/${viewport.name}-${phase}.png` });
       checks++;
@@ -54,7 +58,8 @@ try {
 
     // Failure must leave the intent retryable, without inventing server confirmation.
     await page.goto(`${baseUrl}/table-dev?phase=ready-solo&readyResult=error`);
-    await page.getByText('3 of 4 ready', { exact: true }).waitFor();
+    await readyRow(page, 'north').waitFor();
+    assert.equal(await readyRow(page, 'south').count(), 0);
     await page.getByRole('button', { name: "I'm ready", exact: true }).click();
     await page.getByText('Readiness was not confirmed.', { exact: false }).waitFor();
     assert.equal(
@@ -62,9 +67,10 @@ try {
       true
     );
     await page.goto(`${baseUrl}/table-dev?phase=ready-solo&viewer=east`);
-    await page.getByText('3 of 4 ready', { exact: true }).waitFor();
+    await readyRow(page, 'north').waitFor();
+    assert.equal(await readyRow(page, 'east').count(), 0);
     await page.getByRole('button', { name: "I'm ready", exact: true }).click();
-    await page.getByText('4 of 4 ready', { exact: true }).waitFor();
+    await readyRow(page, 'east').waitFor();
 
     // Occupied chairs go straight to removal confirmation, never a host settings panel.
     await page.goto(`${baseUrl}/table-dev?phase=ready-host`);
@@ -112,7 +118,10 @@ try {
       0,
       'spectators have no player or host intents'
     );
+    // Spectators keep the standing footer and say nothing.
     await page.getByTestId('waiting-rules-menu').waitFor();
+    await page.getByText(/^\d of 4 ready$/).waitFor();
+    assert.equal(await page.getByTestId('waiting-talk-field').count(), 0);
     await page.close();
   }
   console.log(

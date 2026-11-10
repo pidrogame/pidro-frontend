@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { talkAt, useRoomTalk } from '@/channels/hooks/useGameChannel';
+import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { resolveBotProfile, useBotCatalogueStore } from '@pidro/shared';
@@ -28,6 +30,7 @@ import { TableFeedback } from '@/components/game/TableFeedback';
 import { WatchingBadge } from '@/components/game/WatchingBadge';
 import { PidroFonts } from '@/design/tokens';
 import { loadCatalogue } from '@/features/bots';
+import type { Said } from '@/features/game/talk';
 import { assignedRoomPlayerIds } from '@/features/invites/hostControls';
 import {
   assignedFriendIds,
@@ -43,6 +46,7 @@ import {
   seatEntry,
   seatError,
   seatPersona,
+  seatChanges,
   tableFooter,
   tableHeader,
   tableTitle,
@@ -52,6 +56,7 @@ import {
   type TableDraft,
 } from '@/features/lobby/newTable';
 import { seatRow, type SeatView } from '@/features/lobby/seatRow';
+import { seatName } from '@/features/seatName';
 import type { TableNotice } from '@/game/tableNotices';
 import { useTranslation } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
@@ -59,6 +64,15 @@ import { refreshFriends, useFriendsStore } from '@/stores/friends';
 import { useSettingsStore } from '@/stores/settings';
 import { localizedError } from '@/utils/apiErrors';
 import { SeatRow, TeamSection, VsDivider } from './SeatRow';
+import {
+  SeatStrip,
+  TalkEmoji,
+  TalkField,
+  TalkLines,
+  useFold,
+  type WaitingLine,
+  type WaitingTalk,
+} from './WaitingTalk';
 
 const positions: Position[] = ['north', 'east', 'south', 'west'];
 const seatKeys: Partial<Record<Position, SeatKey>> = {
@@ -98,6 +112,10 @@ interface Props {
   /** The host's: an invited friend said Not now or sat down elsewhere. */
   declined?: { position: Position; user: HeldPlayer } | null;
   onDismissDeclined?: () => void;
+  /** PID-418: a seated player's talk while the table fills. */
+  talk?: WaitingTalk;
+  /** Fixtures: the field focused, the seats folded. */
+  initialTyping?: boolean;
 }
 
 /** The draft and the server room share their furniture, never their state. */
@@ -130,6 +148,8 @@ export function NewTableScreen({
   onDismissNotice,
   declined,
   onDismissDeclined,
+  talk,
+  initialTyping = false,
 }: Props) {
   const { t } = useTranslation();
   const catalogue = useBotCatalogueStore((state) => state.profiles);
@@ -181,6 +201,62 @@ export function NewTableScreen({
   const editable = !room || (canManage && !isSpectator);
   const rules = useRulesExplainer(ruleSet, !room || isSpectator || !youPosition, rulesFixtureSeen);
   const liveSeat = (position: Position) => room?.seats?.find((seat) => seat.position === position);
+  // PID-418: once the table is open, a seated player talks while it fills.
+  const talking = !!room && !!youPosition && !isSpectator && !!talk;
+  // The room's talk, unless a fixture brings its own; after a game the waiting room starts clean.
+  const roomLines = useRoomTalk();
+  const lines = talk?.lines ?? roomLines;
+  const live = talking && !talk.lines;
+  useEffect(() => {
+    if (live) talkAt(null);
+  }, [live]);
+  // Focusing the field folds a phone's rows into faces; the keyboard closing unfolds them.
+  const [typing, setTyping] = useState(initialTyping);
+  const [folds, setFolds] = useState(0);
+  const fold = useFold();
+  const folded = talking && typing && !tablet;
+  const unfold = () => {
+    Keyboard.dismiss();
+    setTyping(false);
+  };
+  useEffect(() => {
+    const hidden = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
+    return () => hidden.remove();
+  }, []);
+  // Who came and went, as quiet lines between what was said; never the host's own edits.
+  const [heard, setHeard] = useState(talk?.heard ?? []);
+  const [kicked, setKicked] = useState<string[]>([]);
+  const [seen, setSeen] = useState({ room, declined });
+  if (seen.room !== room || seen.declined !== declined) {
+    setSeen({ room, declined });
+    // A removed player goes quietly; seated again, they are news again.
+    if (kicked.length)
+      setKicked(kicked.filter((id) => room?.seats?.some((seat) => seat.player?.id === id)));
+    const said = [
+      ...(seen.room && room ? seatChanges(seen.room, room, [you, ...kicked]) : []),
+      ...(declined && declined !== seen.declined
+        ? [t('waiting_talk.cant_come', { name: declined.user.display_name })]
+        : []),
+    ];
+    if (talking && said.length)
+      setHeard((previous) => [...previous, ...said.map((text) => ({ at: lines.length, text }))]);
+  }
+  const timeline: WaitingLine[] = talking
+    ? [
+        ...lines.map((said, at) => ({ at, key: `said-${at}`, said })),
+        ...heard.map(({ at, text }, i) => ({ at: at - 0.5, key: `seat-${i}`, quiet: text })),
+      ].sort((a, b) => a.at - b.at)
+    : [];
+  const who = (said: Said) => ({
+    name:
+      said.userId === you
+        ? t('game.you')
+        : seatName(
+            room?.seats?.find((seat) => seat.player?.id === said.userId)?.player,
+            t('social.player')
+          ),
+    ours: said.seat === order[0] || said.seat === order[1],
+  });
   const view = (position: Position, index: number): SeatView => {
     const team = position === youPosition ? 'you' : index < 2 ? 'partner' : 'opponent';
     if (room) {
@@ -391,7 +467,12 @@ export function NewTableScreen({
     />
   );
   const rulesLink = room && (
-    <TextLink testID="waiting-rules-menu" label={t('rules.menu')} onPress={rules.show} />
+    <TextLink
+      testID="waiting-rules-menu"
+      // An upright phone's header has room for the short word only.
+      label={t(talking && !wide && !tablet ? 'waiting_talk.rules' : 'rules.menu')}
+      onPress={rules.show}
+    />
   );
   // Phone portrait: pills over their line. Sideways: the line beside them; iPad: under them.
   const rulesChoice = !room && (
@@ -458,7 +539,8 @@ export function NewTableScreen({
       onPress={onOpenInvite}
     />
   ) : null;
-  const footerLine = (
+  // While talking, the rows say who is waiting and who is ready; the line speaks only for news.
+  const footerLine = (!talking || footer?.news) && (
     <PidroText role="metadata" tone="soft" align={align} accessibilityLiveRegion="polite">
       {footer ? footer.line : tableFooter(draft)}
     </PidroText>
@@ -474,17 +556,45 @@ export function NewTableScreen({
         {error || (readyError ? localizedError(readyError, 'game.ready_failed') : pickerError)}
       </PidroText>
     ) : null;
+  // Typing gets the field (and the faces once it is focused); a guest or a 13 to 17 the faces alone.
+  const faces = talking && (talk.typing !== 'type' || typing) && (
+    <TalkEmoji onSend={talk.send} inline={phoneLandscape} />
+  );
+  const field = talking && talk.typing === 'type' && (
+    <TalkField
+      talk={talk}
+      send={typing || tablet}
+      style={phoneLandscape && styles.grow}
+      onFocus={() => {
+        if (!typing) setFolds((count) => count + 1);
+        setTyping(true);
+      }}
+    />
+  );
+  const nudge = talking && talk.typing === 'guest' && (
+    <PidroText role="metadata" tone="soft" align={align}>
+      {`${t('talk.guest_type')} ${t('talk.guest_account')}.`}
+    </PidroText>
+  );
+  const strip = folded && (
+    <SeatStrip
+      faces={order.map((position, index) => seatRow(view(position, index)).token)}
+      onPress={unfold}
+    />
+  );
   return (
     <>
       <ScreenShell
         testID={room ? 'waiting-table' : 'new-table-screen'}
         // Fits at every text size the boards draw; scrolls only if a larger one cannot.
-        scroll={phoneLandscape}
+        scroll={phoneLandscape && !talking}
         contentStyle={[
           styles.screen,
           compact && styles.compact,
           phoneLandscape && styles.landscape,
           tablet && (wide ? styles.tabletWide : styles.tablet),
+          // The lines take what the screen has left and scroll; they never push the field off it.
+          talking && styles.fit,
         ]}>
         <View testID="waiting-toolbar" style={styles.header}>
           <BackButton
@@ -494,32 +604,95 @@ export function NewTableScreen({
             onPress={onLeave}
             disabled={busy}
           />
-          <View style={styles.heading}>
-            <PidroText role="title" tone="gold" style={styles.title}>
-              {room ? tableTitle(room, you) : t('new_table.title')}
-            </PidroText>
-            {room && (
-              <PidroText testID="waiting-rule-set" role="metadata" tone="soft">
-                {tableHeader(room)}
-              </PidroText>
-            )}
-          </View>
-          {(wide || tablet) && (room ? rulesLink : rulesChoice)}
+          {phoneLandscape && strip ? (
+            <>
+              <View style={styles.heading}>{strip}</View>
+              <TextLink label={t('waiting_talk.done')} onPress={unfold} />
+            </>
+          ) : (
+            <>
+              <View style={styles.heading}>
+                <PidroText role="title" tone="gold" style={styles.title}>
+                  {room ? tableTitle(room, you) : t('new_table.title')}
+                </PidroText>
+                {room && (
+                  <PidroText testID="waiting-rule-set" role="metadata" tone="soft">
+                    {tableHeader(room)}
+                  </PidroText>
+                )}
+              </View>
+              {(wide || tablet || talking) && (room ? rulesLink : rulesChoice)}
+            </>
+          )}
         </View>
         {!compact && !phoneLandscape && declinedCard}
         {!wide && !tablet && !room && rulesChoice}
-        <View style={[styles.teams, compact && styles.compactTeams, wide && styles.columns]}>
-          <TeamSection team="yours" style={wide && styles.column}>
-            {order.slice(0, 2).map((position, index) => row(position, index))}
-          </TeamSection>
-          <VsDivider between={wide ? 'columns' : 'rows'} />
-          <TeamSection team="opponents" style={wide && styles.column}>
-            {order.slice(2).map((position, index) => row(position, index + 2))}
-          </TeamSection>
-        </View>
-        <View testID="readiness-panel" style={[styles.footer, phoneLandscape && styles.footerRow]}>
-          {room && !wide && !tablet && rulesLink}
-          {phoneLandscape && footerCard ? (
+        {folded ? (
+          !phoneLandscape && strip
+        ) : (
+          <Animated.View
+            entering={folds ? fold : undefined}
+            style={[styles.teams, compact && styles.compactTeams, wide && styles.columns]}>
+            <TeamSection team="yours" style={wide && styles.column}>
+              {order.slice(0, 2).map((position, index) => row(position, index))}
+            </TeamSection>
+            <VsDivider between={wide ? 'columns' : 'rows'} />
+            <TeamSection team="opponents" style={wide && styles.column}>
+              {order.slice(2).map((position, index) => row(position, index + 2))}
+            </TeamSection>
+          </Animated.View>
+        )}
+        {talking && !phoneLandscape && (
+          <View style={[styles.talk, tablet && styles.talkColumn]}>
+            <TalkLines lines={timeline} who={who} />
+            {tablet && (
+              <>
+                {faces}
+                {field}
+                {nudge}
+              </>
+            )}
+          </View>
+        )}
+        <View
+          testID="readiness-panel"
+          style={[
+            styles.footer,
+            talking && styles.footerTalk,
+            talking && tablet && styles.talkColumn,
+            phoneLandscape && styles.footerRow,
+            talking && phoneLandscape && styles.footerEnd,
+            talking && phoneLandscape && folded && styles.grow,
+          ]}>
+          {room && !wide && !tablet && !talking && rulesLink}
+          {talking && phoneLandscape ? (
+            // One place for the field folded or not: moving it would drop its focus and the keyboard.
+            <>
+              <View style={[styles.words, folded && styles.stretch]}>
+                {joining}
+                {footerLine}
+                {failureLine}
+                {footerCard && declinedCard}
+                <TalkLines lines={folded ? timeline : timeline.slice(-2)} who={who} few={!folded} />
+                <View style={styles.talkRow}>
+                  {faces}
+                  {field}
+                </View>
+                {nudge}
+              </View>
+              {!folded && !footerCard && action && <View style={styles.action}>{action}</View>}
+            </>
+          ) : talking && !tablet && !phoneLandscape ? (
+            <>
+              {joining}
+              {footerLine}
+              {failureLine}
+              {faces}
+              {field}
+              {nudge}
+              {!folded && action}
+            </>
+          ) : phoneLandscape && footerCard ? (
             <View style={styles.words}>
               {declinedCard}
               {failureLine}
@@ -622,8 +795,10 @@ export function NewTableScreen({
             fullWidth
             disabled={controlsBusy}
             onPress={() => {
-              if (selected && room?.positions?.[selected] === kickPlayer?.id)
+              if (selected && room?.positions?.[selected] === kickPlayer?.id) {
+                setKicked((previous) => [...previous, kickPlayer!.id]);
                 onKickPlayer?.(selected);
+              }
               setSelected(null);
             }}
           />
@@ -656,6 +831,14 @@ const styles = StyleSheet.create({
   footer: { marginTop: 'auto', paddingTop: 12, gap: 8, alignItems: 'center' },
   footerRow: { flexDirection: 'row', gap: 20 },
   words: { flex: 1, minWidth: 0, gap: 4 },
+  footerTalk: { marginTop: 0, alignItems: 'stretch' },
+  talk: { flex: 1, minHeight: 0, gap: 12 },
+  talkColumn: { width: '100%', maxWidth: 660, alignSelf: 'center' },
+  talkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  grow: { flex: 1 },
+  fit: { flexShrink: 1, minHeight: 0 },
+  footerEnd: { alignItems: 'flex-end' },
+  stretch: { alignSelf: 'stretch' },
   action: { width: 300 },
   confirm: { gap: 12 },
 });
