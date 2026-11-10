@@ -13,6 +13,7 @@ import {
   type TextInput,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import type { TranslationKey } from '@pidro/shared';
 import { useReducedMotion } from 'react-native-reanimated';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
@@ -57,7 +58,8 @@ export function TalkSheet({
   typing?: 'type' | 'guest' | null;
   draft?: string;
   onDraft?: (draft: string) => void;
-  onSay?: () => Promise<'sent' | 'filtered' | 'failed'>;
+  /** Null once sent, else the line that says why not. */
+  onSay?: () => Promise<TranslationKey | null>;
   /** Who is seated with you and will not see what you type. */
   unread?: string[];
   onAccount?: () => void;
@@ -80,15 +82,15 @@ export function TalkSheet({
     if (!locked.current) onOpen(null);
   };
   const [error, setError] = useState<unknown>(null);
-  const [filtered, setFiltered] = useState(false);
+  const [refused, setRefused] = useState<TranslationKey | null>(null);
   // Each opening starts clean.
   const [opened, setOpened] = useState(sheet);
   if (sheet !== opened) {
     setOpened(sheet);
     setError(null);
-    setFiltered(false);
+    setRefused(null);
   }
-  // Refused words stay in the box, and say so; a send that fails stays quietly.
+  // Refused words stay in the box, and say why (PID-420).
   const sendDraft = async () => {
     if (locked.current || !onSay || !draft.trim()) return;
     locked.current = true;
@@ -96,8 +98,8 @@ export function TalkSheet({
     const result = await onSay();
     locked.current = false;
     setBusy(false);
-    setFiltered(result === 'filtered');
-    if (result === 'filtered') AccessibilityInfo.announceForAccessibility(t('talk.filtered'));
+    setRefused(result);
+    if (result) AccessibilityInfo.announceForAccessibility(t(result));
   };
   const run = async (action: () => Promise<void>, next: Sheet | null) => {
     if (locked.current) return;
@@ -252,9 +254,9 @@ export function TalkSheet({
                       })}
                     </PidroText>
                   ) : null}
-                  {filtered ? (
+                  {refused ? (
                     <PidroText role="metadata" tone="danger" accessibilityRole="alert">
-                      {t('talk.filtered')}
+                      {t(refused)}
                     </PidroText>
                   ) : null}
                   <View style={styles.field}>
@@ -272,7 +274,7 @@ export function TalkSheet({
                       returnKeyType="send"
                       onSubmitEditing={() => void sendDraft()}
                       onChangeText={(text) => {
-                        setFiltered(false);
+                        setRefused(null);
                         onDraft?.(text);
                       }}
                       containerClassName="w-auto flex-1"

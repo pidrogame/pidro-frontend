@@ -560,6 +560,11 @@ export const en = {
   "talk.guest_type": "Want to type?",
   "talk.guest_account": "Make a free account",
   "talk.filtered": "Try other words",
+  "talk.slow_down": "Slow down a little.",
+  "talk.closed": "Talk is off at this table.",
+  "talk.not_seated": "Only seated players can talk.",
+  "talk.faces_only": "You can send faces, not typed words.",
+  "talk.invalid_text": "Some of those characters can’t be sent.",
   "talk.turn_first": "Your turn first.",
 } as const;
 export const sv: Record<keyof typeof en, TranslationEntry> = {
@@ -1119,5 +1124,10 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "talk.guest_type": "Vill du skriva?",
   "talk.guest_account": "Skapa ett gratiskonto",
   "talk.filtered": "Prova andra ord",
+  "talk.slow_down": "Ta det lite lugnare.",
+  "talk.closed": "Pratet är avstängt vid det här bordet.",
+  "talk.not_seated": "Bara de som sitter vid bordet kan prata.",
+  "talk.faces_only": "Du kan skicka ansikten men inte skriva.",
+  "talk.invalid_text": "Några av tecknen går inte att skicka.",
   "talk.turn_first": "Din tur först.",
 };

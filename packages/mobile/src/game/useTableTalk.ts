@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onTableTalk, pushGameAction, talkAt, useRoomTalk } from '@/channels/hooks/useGameChannel';
+import type { TranslationKey } from '@pidro/shared';
 import {
   land,
   landingMs,
   saidFrom,
+  talkRefusal,
   type Landed,
   type Position,
   type Said,
@@ -49,8 +51,8 @@ export interface TableTalk {
   /** What you are typing (PID-318); it waits while the sheet is closed. */
   draft: string;
   setDraft: (draft: string) => void;
-  /** Sends the draft; refused words stay in the box. */
-  say: () => Promise<'sent' | 'filtered' | 'failed'>;
+  /** Sends the draft: null once sent, else why not (PID-420); refused words stay in the box. */
+  say: () => Promise<TranslationKey | null>;
   hush: (userId: string) => void;
   report: (userId: string, reason: ReportReason) => Promise<void>;
 }
@@ -237,22 +239,22 @@ export function useTableTalk(
   // Typed talk lands from the echo too; only readers get it, the sender among them.
   const say = useCallback(async () => {
     const text = draft.trim();
-    if (!text || !you.seat) return 'failed';
+    if (!text || !you.seat) return talkRefusal(null);
     if (__DEV__ && fixture) {
-      if (fixture.filtered) return 'filtered';
+      if (fixture.filtered) return talkRefusal({ error: 'filtered' });
       echo({ seat: you.seat, userId: you.userId ?? '', text });
     } else {
       try {
         await pushGameAction('say', { text });
       } catch (error: unknown) {
-        return (error as { error?: string } | null)?.error === 'filtered' ? 'filtered' : 'failed';
+        return talkRefusal(error);
       }
     }
     setDraft('');
     open(null);
     answer();
     playActionHaptic();
-    return 'sent';
+    return null;
   }, [answer, draft, echo, fixture, open, you.seat, you.userId]);
 
   const hush = useCallback((userId: string) => {

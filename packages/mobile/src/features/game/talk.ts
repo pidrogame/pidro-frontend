@@ -227,5 +227,32 @@ export function twoLines(text: string): string {
   return `${text.slice(0, at)}\n${text.slice(at + 1)}`;
 }
 
+/** A name in the waiting room's lines (PID-420): a very long one ends in "…" so the words lead. */
+export function talkName(name: string, most = 16): string {
+  const letters = [...name];
+  return letters.length > most ? `${letters.slice(0, most - 1).join('')}…` : name;
+}
+
 /** The most a typed line holds. */
 export const SAY_MAX = 80;
+
+/**
+ * Why a `say` or a `talk` did not go (PID-420), as the line under it says: the
+ * channel's refusals by name (game_channel.ex), and a timeout, a lost socket or
+ * anything else as "didn't go through".
+ */
+export function talkRefusal(error: unknown): TranslationKey {
+  const code = (error as { error?: unknown } | null)?.error;
+  return typeof code === 'string' && Object.hasOwn(REFUSALS, code)
+    ? REFUSALS[code]
+    : 'talk.report_failed';
+}
+
+const REFUSALS: Record<string, TranslationKey> = {
+  filtered: 'talk.filtered',
+  rate_limited: 'talk.slow_down',
+  no_table: 'talk.closed',
+  not_seated: 'talk.not_seated',
+  not_allowed: 'talk.faces_only',
+  invalid_text: 'talk.invalid_text',
+};

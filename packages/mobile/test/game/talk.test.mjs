@@ -9,6 +9,8 @@ import {
   saidFrom,
   tailFit,
   talker,
+  talkName,
+  talkRefusal,
   talkTable,
   twoLines,
   typingFor,
@@ -341,5 +343,36 @@ describe('table talk', () => {
       expect(onlyEmoji(text)).toBe(true);
     for (const text of ['Moi 👍', 'ok', '123', '#1', '', undefined, '❤️!', ':)'])
       expect(onlyEmoji(text)).toBe(false);
+  });
+
+  // PID-420: no refusal goes unsaid; each of the channel's own has its line.
+  it('says why a line did not go, by the channel code', () => {
+    const lines = {
+      filtered: 'talk.filtered',
+      rate_limited: 'talk.slow_down',
+      no_table: 'talk.closed',
+      not_seated: 'talk.not_seated',
+      not_allowed: 'talk.faces_only',
+      invalid_text: 'talk.invalid_text',
+    };
+    for (const [error, line] of Object.entries(lines)) expect(talkRefusal({ error })).toBe(line);
+    // A timeout, a lost socket, watching, an unknown code or nothing at all: "try again".
+    for (const error of [{ reason: 'timeout' }, { reason: 'disconnected' }, new Error('Watching is read-only'), { error: 'invalid_item' }, { error: 'toString' }, null, undefined])
+      expect(talkRefusal(error)).toBe('talk.report_failed');
+    // Every line is in both languages, and none is the same in both.
+    for (const line of [...Object.values(lines), 'talk.report_failed']) {
+      expect(catalogs.en[line]).toBeTruthy();
+      expect(catalogs.sv[line]).toBeTruthy();
+      expect(catalogs.sv[line]).not.toBe(catalogs.en[line]);
+    }
+    expect(catalogs.en['talk.slow_down']).toBe('Slow down a little.');
+  });
+
+  it('ends a very long name in the talk', () => {
+    expect(talkName('Kalle')).toBe('Kalle');
+    expect(talkName('x'.repeat(16))).toBe('x'.repeat(16));
+    expect(talkName('Maija-Liisa Korhonen-Virtanen')).toBe('Maija-Liisa Kor…');
+    // Counted in letters, not code units: an emoji is one.
+    expect(talkName(`${'👍'.repeat(17)}`)).toBe(`${'👍'.repeat(15)}…`);
   });
 });
