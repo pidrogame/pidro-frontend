@@ -124,6 +124,20 @@ export function seatedHuman(seat?: Seat): boolean {
   return !!seat?.player && !seat.player.is_bot && !seat.player.id?.startsWith('bot_');
 }
 
+/**
+ * Whether the waiting room offers talk to `you` (PID-420). Typed words follow the
+ * server's `talk_table?/2` in game_channel.ex: never at a game against bots, a solo
+ * table or bots in the other three seats; open while a second person sits or a seat
+ * is still open, held or invited. Keep the two together. The server still takes faces
+ * from bots' company; the room offers none there, since only bots would see them.
+ */
+export function talkOpens(room: Room, you: string): boolean {
+  if (room.config?.solo) return false;
+  return (room.seats ?? []).some(
+    (seat) => seat.player?.id !== you && (!seat.player || seatedHuman(seat))
+  );
+}
+
 /** What the picker says when the server refused a seat change, in the picker's own words. */
 export function seatError(error: unknown): string {
   const code = apiErrorInfo(error).code?.toUpperCase();

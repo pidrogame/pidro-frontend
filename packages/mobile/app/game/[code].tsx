@@ -940,8 +940,8 @@ export default function GameScreen() {
                   readiness?.seats?.[youPositionAbs]?.reads_typed,
                   Boolean(currentUser?.guest)
                 ),
-                // A face that fails says nothing, as at the table; refused words stay in the field.
-                send: (item) => void pushGameAction('talk', { item }).catch(() => undefined),
+                // The screen says why either is refused (PID-420); refused words stay in the field.
+                send: (item) => pushGameAction('talk', { item }),
                 say: (text) => pushGameAction('say', { text }),
               }
             : undefined

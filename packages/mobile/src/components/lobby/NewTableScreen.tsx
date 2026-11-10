@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Keyboard, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { talkAt, useRoomTalk } from '@/channels/hooks/useGameChannel';
 import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -14,6 +14,7 @@ import type {
   Room,
   RuleSet,
   SeatType,
+  TranslationKey,
 } from '@pidro/shared';
 import { NoticeCard } from '@/components/friends/NoticeCard';
 import { SeatPickerContainer } from '@/components/invites/SeatPickerContainer';
@@ -28,9 +29,12 @@ import { TextLink } from '@/components/ui/TextLink';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { WatchingBadge } from '@/components/game/WatchingBadge';
-import { PidroFonts } from '@/design/tokens';
+import { PidroFonts, PidroLayout } from '@/design/tokens';
 import { loadCatalogue } from '@/features/bots';
-import type { Said } from '@/features/game/talk';
+import { talkRefusal, type Said, type TalkItem } from '@/features/game/talk';
+import { talkText } from '@/components/game/TableTalk';
+import { playActionHaptic } from '@/game/useGameHaptics';
+import { useHardwareBack } from '@/hooks/useFlowBack';
 import { assignedRoomPlayerIds } from '@/features/invites/hostControls';
 import {
   assignedFriendIds,
@@ -48,6 +52,7 @@ import {
   seatPersona,
   seatChanges,
   tableFooter,
+  talkOpens,
   tableHeader,
   tableTitle,
   waitingFooter,
@@ -65,11 +70,15 @@ import { useSettingsStore } from '@/stores/settings';
 import { localizedError } from '@/utils/apiErrors';
 import { SeatRow, TeamSection, VsDivider } from './SeatRow';
 import {
+  Rise,
   SeatStrip,
+  TALK_RINGS,
   TalkEmoji,
   TalkField,
   TalkLines,
-  useFold,
+  Travel,
+  useFades,
+  type Spots,
   type WaitingLine,
   type WaitingTalk,
 } from './WaitingTalk';
@@ -212,17 +221,52 @@ export function NewTableScreen({
   }, [live]);
   // Focusing the field folds a phone's rows into faces; the keyboard closing unfolds them.
   const [typing, setTyping] = useState(initialTyping);
-  const [folds, setFolds] = useState(0);
-  const fold = useFold();
   const folded = talking && typing && !tablet;
-  const unfold = () => {
+  const unfold = useCallback(() => {
     Keyboard.dismiss();
     setTyping(false);
-  };
+  }, []);
   useEffect(() => {
     const hidden = Keyboard.addListener('keyboardDidHide', () => setTyping(false));
     return () => hidden.remove();
   }, []);
+  // PID-420: folded, back (the header's and Android's) unfolds; leaving is for the open rows.
+  useHardwareBack(folded, unfold);
+  // Each fold and unfold is a turn: the faces travel between the rows and the strip.
+  const [turn, setTurn] = useState({ folded, n: 0 });
+  if (turn.folded !== folded) setTurn({ folded, n: turn.n + 1 });
+  const spots = useRef<Spots>({});
+  const fades = useFades();
+  // The talk column rises by what the rows leave, or settles back under them: their height
+  // less the strip's, as each was last laid out (the strip's faces are 44 before the first fold).
+  const [heights, setHeights] = useState<{ rows: number; strip: number }>({
+    rows: 0,
+    strip: PidroLayout.touchTarget,
+  });
+  const lift = turn.n && heights.rows ? (folded ? 1 : -1) * (heights.rows - heights.strip) : 0;
+  // The room takes talk only where someone can read it, as the server decides.
+  const talkOpen = talking && !!room && talkOpens(room, you);
+  // A seat change that takes talk away while typing unfolds and closes the keyboard.
+  if (typing && talking && !talkOpen) setTyping(false);
+  // Why the last thing said did not go, where the field is; the next try clears it. It
+  // belongs to the talk it refused: closed, it goes, even one that was still on its way.
+  const [refused, setRefused] = useState<TranslationKey | null>(null);
+  if (refused && !talkOpen) setRefused(null);
+  useEffect(() => {
+    if (!talkOpen) Keyboard.dismiss();
+  }, [talkOpen]);
+  const refuse = useCallback(
+    (line: TranslationKey | null) => {
+      setRefused(line);
+      if (line) AccessibilityInfo.announceForAccessibility(t(line));
+    },
+    [t]
+  );
+  const sendFace = (item: TalkItem) =>
+    void talk?.send(item).then(
+      () => refuse(null),
+      (error: unknown) => refuse(talkRefusal(error))
+    );
   // Who came and went, as quiet lines between what was said; never the host's own edits.
   const [heard, setHeard] = useState(talk?.heard ?? []);
   const [kicked, setKicked] = useState<string[]>([]);
@@ -257,6 +301,37 @@ export function NewTableScreen({
           ),
     ours: said.seat === order[0] || said.seat === order[1],
   });
+  // PID-420: someone else's new line rings their face once, is read out once, and, while
+  // the field is not focused, taps like a line at the table.
+  const [pulses, setPulses] = useState<Partial<Record<Position, number>>>({});
+  // News is what comes after the last line already held. A join's replay arrives with
+  // the talk itself, and a reconnect's lines without the last held one: neither is news.
+  const [held, setHeld] = useState({ talking, last: lines.at(-1) });
+  const [news, setNews] = useState<{ read: string; tap: boolean } | null>(null);
+  if (held.talking !== talking || held.last !== lines.at(-1)) {
+    setHeld({ talking, last: lines.at(-1) });
+    const after = held.last ? lines.indexOf(held.last) + 1 : 0;
+    const fresh =
+      held.talking && talking && (after > 0 || !held.last)
+        ? lines.slice(after).filter((said) => said.userId !== you)
+        : [];
+    if (fresh.length) {
+      setPulses((previous) =>
+        fresh.reduce(
+          (next, said) => ({ ...next, [said.seat]: (next[said.seat] ?? 0) + 1 }),
+          previous
+        )
+      );
+      setNews({
+        read: fresh.map((said) => `${who(said).name}: ${talkText(said)}`).join('. '),
+        tap: !typing,
+      });
+    }
+  }
+  useEffect(() => {
+    if (news?.tap) playActionHaptic();
+    if (news) AccessibilityInfo.announceForAccessibility(news.read);
+  }, [news]);
   const view = (position: Position, index: number): SeatView => {
     const team = position === youPosition ? 'you' : index < 2 ? 'partner' : 'opponent';
     if (room) {
@@ -431,6 +506,21 @@ export function NewTableScreen({
       key={position}
       testID={`new-table-seat-${position}`}
       row={seatRow(view(position, index))}
+      wrapFace={
+        talking
+          ? (face) => (
+              <Travel
+                spots={spots}
+                id={`row:${position}`}
+                from={`strip:${position}`}
+                turn={turn.n}
+                pulse={pulses[position]}
+                ring={index < 2 ? TALK_RINGS.ours : TALK_RINGS.theirs}>
+                {face}
+              </Travel>
+            )
+          : undefined
+      }
       onPress={() => {
         if (!busy && !controlsBusy) {
           setPickerError(undefined);
@@ -557,29 +647,55 @@ export function NewTableScreen({
       </PidroText>
     ) : null;
   // Typing gets the field (and the faces once it is focused); a guest or a 13 to 17 the faces alone.
-  const faces = talking && (talk.typing !== 'type' || typing) && (
-    <TalkEmoji onSend={talk.send} inline={phoneLandscape} />
+  const faces = talkOpen && (talk.typing !== 'type' || typing) && (
+    <TalkEmoji onSend={sendFace} inline={phoneLandscape} />
   );
-  const field = talking && talk.typing === 'type' && (
+  const field = talkOpen && talk.typing === 'type' && (
     <TalkField
       talk={talk}
       send={typing || tablet}
       style={phoneLandscape && styles.grow}
-      onFocus={() => {
-        if (!typing) setFolds((count) => count + 1);
-        setTyping(true);
-      }}
+      onRefused={refuse}
+      onFocus={() => setTyping(true)}
     />
   );
-  const nudge = talking && talk.typing === 'guest' && (
+  const nudge = talkOpen && talk.typing === 'guest' && (
     <PidroText role="metadata" tone="soft" align={align}>
       {`${t('talk.guest_type')} ${t('talk.guest_account')}.`}
     </PidroText>
   );
+  // PID-420: every other seat a bot, nobody reads it; opening one is how talk comes back.
+  // A table made with three bots is solo for good (room/config.ex): it has no talk to promise.
+  const closed = talking && !talkOpen && !room.config?.solo && (
+    <PidroText testID="waiting-talk-closed" role="metadata" tone="soft" align={align}>
+      {t('waiting_talk.opens')}
+    </PidroText>
+  );
+  const refusal = talkOpen && refused && (
+    <PidroText
+      testID="waiting-talk-refused"
+      role="metadata"
+      tone="danger"
+      accessibilityRole="alert">
+      {t(refused)}
+    </PidroText>
+  );
+  const hint = talkOpen && !lines.length ? t('waiting_talk.say_hi') : undefined;
   const strip = folded && (
     <SeatStrip
-      faces={order.map((position, index) => seatRow(view(position, index)).token)}
+      faces={order.map((position, index) => ({
+        position,
+        token: seatRow(view(position, index)).token,
+        ring: index < 2 ? TALK_RINGS.ours : TALK_RINGS.theirs,
+      }))}
       onPress={unfold}
+      spots={spots}
+      turn={turn.n}
+      pulses={pulses}
+      onLayout={(event) => {
+        const strip = event.nativeEvent.layout.height;
+        if (strip !== heights.strip) setHeights((previous) => ({ ...previous, strip }));
+      }}
     />
   );
   return (
@@ -599,9 +715,15 @@ export function NewTableScreen({
         <View testID="waiting-toolbar" style={styles.header}>
           <BackButton
             accessibilityLabel={t(
-              room ? (isSpectator ? 'game.lobby' : 'game.leave') : 'social.cancel_creation'
+              folded
+                ? 'waiting_talk.seats'
+                : room
+                  ? isSpectator
+                    ? 'game.lobby'
+                    : 'game.leave'
+                  : 'social.cancel_creation'
             )}
-            onPress={onLeave}
+            onPress={folded ? unfold : onLeave}
             disabled={busy}
           />
           {phoneLandscape && strip ? (
@@ -631,7 +753,13 @@ export function NewTableScreen({
           !phoneLandscape && strip
         ) : (
           <Animated.View
-            entering={folds ? fold : undefined}
+            entering={turn.n ? fades.entering : undefined}
+            exiting={folded || !talking || tablet ? undefined : fades.exiting}
+            onLayout={(event) => {
+              const rows = event.nativeEvent.layout.height;
+              if (talking && rows !== heights.rows)
+                setHeights((previous) => ({ ...previous, rows }));
+            }}
             style={[styles.teams, compact && styles.compactTeams, wide && styles.columns]}>
             <TeamSection team="yours" style={wide && styles.column}>
               {order.slice(0, 2).map((position, index) => row(position, index))}
@@ -643,16 +771,19 @@ export function NewTableScreen({
           </Animated.View>
         )}
         {talking && !phoneLandscape && (
-          <View style={[styles.talk, tablet && styles.talkColumn]}>
-            <TalkLines lines={timeline} who={who} />
+          // Each fold mounts it again where the rows or the strip left it, and it moves from there.
+          <Rise key={turn.n} from={lift} style={[styles.talk, tablet && styles.talkColumn]}>
+            <TalkLines lines={timeline} who={who} hint={hint} />
             {tablet && (
               <>
                 {faces}
+                {refusal}
                 {field}
                 {nudge}
+                {closed}
               </>
             )}
-          </View>
+          </Rise>
         )}
         <View
           testID="readiness-panel"
@@ -673,12 +804,19 @@ export function NewTableScreen({
                 {footerLine}
                 {failureLine}
                 {footerCard && declinedCard}
-                <TalkLines lines={folded ? timeline : timeline.slice(-2)} who={who} few={!folded} />
+                <TalkLines
+                  lines={folded ? timeline : timeline.slice(-2)}
+                  who={who}
+                  hint={hint}
+                  few={!folded}
+                />
+                {refusal}
                 <View style={styles.talkRow}>
                   {faces}
                   {field}
                 </View>
                 {nudge}
+                {closed}
               </View>
               {!folded && !footerCard && action && <View style={styles.action}>{action}</View>}
             </>
@@ -688,8 +826,10 @@ export function NewTableScreen({
               {footerLine}
               {failureLine}
               {faces}
+              {refusal}
               {field}
               {nudge}
+              {closed}
               {!folded && action}
             </>
           ) : phoneLandscape && footerCard ? (
@@ -831,7 +971,7 @@ const styles = StyleSheet.create({
   footer: { marginTop: 'auto', paddingTop: 12, gap: 8, alignItems: 'center' },
   footerRow: { flexDirection: 'row', gap: 20 },
   words: { flex: 1, minWidth: 0, gap: 4 },
-  footerTalk: { marginTop: 0, alignItems: 'stretch' },
+  footerTalk: { marginTop: 0, paddingTop: 0, alignItems: 'stretch' },
   talk: { flex: 1, minHeight: 0, gap: 12 },
   talkColumn: { width: '100%', maxWidth: 660, alignSelf: 'center' },
   talkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },

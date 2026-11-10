@@ -1094,6 +1094,8 @@ function TableDevHarness() {
     let bot = 0;
     const fixtureRoom = {
       ...waitingRoom,
+      // Three bots from the start is a solo table for good, as the server makes it (PID-420).
+      ...(phase === 'ready-solo' && { config: { ...waitingRoom.config!, solo: true } }),
       host_id: `p-${viewerPosition}`,
       positions: waitingPositions ?? waitingRoom.positions,
       seats: waitingRoom.seats?.map((seat) =>
@@ -1170,7 +1172,7 @@ function TableDevHarness() {
               talk={{
                 lines: waitingTalk,
                 typing: 'type',
-                send: (item) =>
+                send: async (item) =>
                   setWaitingTalk((current) => [
                     ...current,
                     { seat: viewerPosition, userId: `p-${viewerPosition}`, item },

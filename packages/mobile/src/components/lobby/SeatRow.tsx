@@ -67,15 +67,18 @@ export function SeatRow({
   row,
   onPress,
   testID,
+  wrapFace = (face) => face,
 }: {
   row: SeatRowWords;
   onPress?: () => void;
   testID?: string;
+  /** The waiting room's talk moves and rings the face (PID-420). */
+  wrapFace?: (face: ReactNode) => ReactNode;
 }) {
   const size = useRowSize();
   const body = (
     <>
-      <SeatRowToken token={row.token} size={size} />
+      {wrapFace(<SeatRowToken token={row.token} size={size} />)}
       <View style={styles.copy}>
         <PidroText
           numberOfLines={1}

@@ -479,6 +479,8 @@ export const en = {
   "waiting_talk.rules": "Rules",
   "waiting_talk.done": "Done",
   "waiting_talk.seats": "Show the seats",
+  "waiting_talk.opens": "Talk opens when a player sits down.",
+  "waiting_talk.say_hi": "Say hi while the table fills.",
 } as const;
 export const sv: Record<keyof typeof en, TranslationEntry> = {
   "new_table.title": "Nytt bord",
@@ -963,4 +965,6 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "waiting_talk.rules": "Regler",
   "waiting_talk.done": "Klar",
   "waiting_talk.seats": "Visa platserna",
+  "waiting_talk.opens": "Pratet öppnas när en spelare sätter sig.",
+  "waiting_talk.say_hi": "Säg hej medan bordet fylls.",
 };

@@ -76,8 +76,10 @@ const FULL_TALK: Said[] = [
 export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
   // `talk*` (PID-418): `talk-opened` before anyone came, `talk-full` all four ready,
   // `talk-typing` the field focused, `talk-guest` / `talk-teen` who cannot type,
-  // `talk-filtered` refuses what is typed.
+  // `talk-filtered` refuses what is typed; `talk-bots` (PID-420) has bots in the other three
+  // seats, so nobody reads talk until a seat opens.
   const talking = fixture.startsWith('talk');
+  const bots = fixture === 'talk-bots';
   const [ready, setReady] = useState<Position[]>(
     fixture === 'talk-full'
       ? ['east', 'west', 'south']
@@ -86,7 +88,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
         : ['east', 'west', 'south']
   );
   const [lines, setLines] = useState<Said[]>(
-    fixture === 'talk-full' ? FULL_TALK : talking && fixture !== 'talk-opened' ? TALK : []
+    fixture === 'talk-full' ? FULL_TALK : talking && fixture !== 'talk-opened' && !bots ? TALK : []
   );
   const kalleAway = fixture === 'talk-opened';
   const [share, setShare] = useState(false);
@@ -140,9 +142,9 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
     },
     positions: {
       north: 'host',
-      east: kalleAway ? null : 'kalle',
-      south: full ? 'maija' : null,
-      west: full ? 'hanna' : fixture === 'live-bots' ? 'bot_west' : null,
+      east: bots ? 'bot_east' : kalleAway ? null : 'kalle',
+      south: full ? 'maija' : bots ? 'bot_south' : null,
+      west: full ? 'hanna' : fixture === 'live-bots' || bots ? 'bot_west' : null,
     },
     seats: (['north', 'east', 'south', 'west'] as const).map((position, seat_index) => ({
       position,
@@ -171,6 +173,13 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
           status: 'occupied' as const,
           player: botPlayer('west', 'gun'),
           password: false,
+        }),
+      ...(bots &&
+        position !== 'north' && {
+          status: 'occupied' as const,
+          player: botPlayer(position, ['antti', 'gun', 'jocke'][seat_index - 1]),
+          held_for: null,
+          min_games: 0,
         }),
     })),
   });
@@ -235,7 +244,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
                 typing:
                   fixture === 'talk-guest' ? 'guest' : fixture === 'talk-teen' ? null : 'type',
                 heard:
-                  fixture === 'talk-opened'
+                  fixture === 'talk-opened' || bots
                     ? []
                     : fixture === 'talk-full'
                       ? [
@@ -245,12 +254,18 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
                       : [{ at: 0, text: 'Kalle sat down' }],
                 draft: fixture === 'talk-typing' ? 'Perfect, I’ll heat it' : undefined,
                 // The fixture's server echoes what it takes, as the channel's `talk` push does.
-                send: (item) =>
+                send: async (item) =>
                   setLines((current) => [...current, { seat: 'north', userId: 'host', item }]),
                 say: async (text) => {
                   await new Promise((resolve) => setTimeout(resolve, 200));
                   if (fixture === 'talk-filtered') throw { error: 'filtered' };
                   setLines((current) => [...current, { seat: 'north', userId: 'host', text }]);
+                  // PID-420: at `talk`, Kalle answers with a thumb, a line from someone else.
+                  if (fixture === 'talk')
+                    setTimeout(
+                      () => setLines((current) => [...current, kalle({ item: 'coin_thumb' })]),
+                      1200
+                    );
                 },
               }
             : undefined

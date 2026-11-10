@@ -1241,6 +1241,8 @@ const allCases = [
     'bot-picker-louisiana',
     // PID-418: the waiting room's talk at rest; folded rows are not a team layout.
     'talk',
+    // PID-420: bots in the other three seats: no field or faces, the quiet line instead.
+    'talk-bots',
   ].map((fixture) => ({
     name: `new-table-${fixture}`,
     path: `/ui-dev?state=new-table&fixture=${fixture}`,
