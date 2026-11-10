@@ -54,6 +54,8 @@ export type Position = 'north' | 'east' | 'south' | 'west';
 
 /** One thing said at the table: a word or a face, or (PID-318) typed text. */
 export interface Said {
+  /** The room's number for the line (PID-418): a line heard twice shows once. */
+  id?: number;
   seat: Position;
   /** A person's account, or `bot:<persona>` for a bot (PID-408). */
   userId: string;
@@ -78,27 +80,39 @@ const POSITIONS: readonly string[] = ['north', 'east', 'south', 'west'];
 /** A `talk` push as the client trusts it; null for anything it cannot show. */
 export function saidFrom(payload: unknown): Said | null {
   if (!payload || typeof payload !== 'object') return null;
-  const { seat, user_id, item, text } = payload as Record<string, unknown>;
+  const { id, seat, user_id, item, text } = payload as Record<string, unknown>;
   if (typeof seat !== 'string' || !POSITIONS.includes(seat) || typeof user_id !== 'string')
     return null;
-  if (typeof item === 'string' && ITEMS.includes(item))
-    return { seat: seat as Position, userId: user_id, item: item as TalkItem };
-  if (typeof text === 'string' && text.trim())
-    return { seat: seat as Position, userId: user_id, text: text.trim() };
+  const line = {
+    ...(Number.isInteger(id) && { id: id as number }),
+    seat: seat as Position,
+    userId: user_id,
+  };
+  if (typeof item === 'string' && ITEMS.includes(item)) return { ...line, item: item as TalkItem };
+  if (typeof text === 'string' && text.trim()) return { ...line, text: text.trim() };
   return null;
 }
 
 const same = (a: Said, b: Said) =>
   a.seat === b.seat && a.userId === b.userId && a.item === b.item && a.text === b.text;
 
+/** Whether this line is already held: by its id, which every line from a current server carries. */
+export const heard = (held: Said[], said: Said) =>
+  said.id !== undefined && held.some((line) => line.id === said.id);
+
 /**
- * The room's talk after a join reply's replay (PID-418). The replay is the room's
- * latest lines, oldest first; what this device already holds ends where it overlaps
- * them, or sits inside them whole. Lines carry no id, so the longest overlap wins.
+ * The room's talk after a join reply's replay (PID-418), oldest first. A line with an
+ * id joins unless that id is held. A server without ids: what this device holds ends
+ * where it overlaps the replay, or sits inside it whole, and the longest overlap wins.
  * With no overlap, a `whole` replay (the room's every line) is the truth: what this
  * device holds and the server no longer shows it, someone blocked since, goes.
  */
 export function mergeTalk(held: Said[], replay: Said[], whole = false): Said[] {
+  if (replay.length && replay.every((said) => said.id !== undefined)) {
+    const all = [...held, ...replay.filter((said) => !heard(held, said))];
+    // A line heard live while joining comes before the reply's older ones: the ids order them.
+    return all.every((said) => said.id !== undefined) ? all.sort((a, b) => a.id! - b.id!) : all;
+  }
   for (let k = Math.min(held.length, replay.length); k > 0; k--) {
     const tail = held.slice(-k);
     const starts = k === held.length ? replay.length - k : 0;

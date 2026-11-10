@@ -102,7 +102,7 @@ async function check(scenario) {
   }));
   mock.module('react-native', () => ({ unstable_batchedUpdates: (run) => run() }));
   const { useGameStore } = await import('@pidro/shared');
-  const { useGameChannel, useRoomTalk, talkAt, pushGameAction, sendCard } =
+  const { useGameChannel, useRoomTalk, talkAt, onTableTalk, pushGameAction, sendCard } =
     await import('../../src/channels/hooks/useGameChannel.ts');
   const card = { rank: 14, suit: 'clubs' };
   const state = {
@@ -254,6 +254,17 @@ async function check(scenario) {
       // Back to waiting after a game: the table reopens clean too.
       await act(async () => talkAt(null));
       expect(talk).toEqual([]);
+      // A current server numbers its lines: one heard live twice after a reconnect, and again
+      // in the next join reply, shows once, and the table hears it once.
+      const heardLive = [];
+      const stop = onTableTalk((event, payload) => event === 'talk' && heardLive.push(payload));
+      const wave = { id: 31, seat: 'east', user_id: 'kalle', item: 'coin_thumb' };
+      await act(async () => events.talk(wave));
+      await act(async () => events.talk(wave));
+      await act(async () => joined.callbacks.ok({ ...response, talk: [{ ...wave }] }));
+      stop();
+      expect(talk).toEqual([{ id: 31, seat: 'east', userId: 'kalle', item: 'coin_thumb' }]);
+      expect(heardLive).toHaveLength(1);
     } else if (scenario === 'rejoin') {
       await act(async () =>
         joined.callbacks.ok({

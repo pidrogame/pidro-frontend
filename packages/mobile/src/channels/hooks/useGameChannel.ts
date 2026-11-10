@@ -28,7 +28,7 @@ import { diagnosticMetadata } from '@/diagnostics/metadata';
 import { pendingPlay } from '@/features/game/pendingPlay';
 import { awayPlays } from '@/features/game/awayPlays';
 import { randomUUID } from '@/diagnostics/uuid';
-import { mergeTalk, saidFrom, type Said } from '@/features/game/talk';
+import { heard, mergeTalk, saidFrom, type Said } from '@/features/game/talk';
 
 let globalGameChannel: Channel | null = null;
 let pendingCard: ReturnType<typeof pendingPlay> | null = null;
@@ -671,6 +671,8 @@ export const useGameChannel = ({
 
       onCurrent('talk', (payload: unknown) => {
         const said = saidFrom(payload);
+        // The same line again (in the join reply, or live twice after a reconnect) is not news.
+        if (said && heard(roomTalk.lines, said)) return;
         if (said) setRoomTalk({ ...roomTalk, lines: [...roomTalk.lines, said] });
         talkListeners.forEach((listener) => listener('talk', payload));
       });

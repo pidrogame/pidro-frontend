@@ -318,6 +318,14 @@ describe('table talk', () => {
       // The same words from someone else are another line.
       expect(mergeTalk([a], [a, line('maija', 'a')])).toEqual([a, line('maija', 'a')]);
     });
+    it('goes by id when the server numbers its lines', () => {
+      const n = (id, text) => ({ id, seat: 'east', userId: 'kalle', text });
+      // Heard live while joining, then in the reply: once. Same words, new id: a new line.
+      expect(mergeTalk([n(3, 'c')], [n(1, 'a'), n(2, 'b'), n(3, 'c')])).toEqual([n(1, 'a'), n(2, 'b'), n(3, 'c')]);
+      expect(mergeTalk([n(1, 'a'), n(2, 'b')], [n(2, 'b'), n(3, 'b')])).toEqual([n(1, 'a'), n(2, 'b'), n(3, 'b')]);
+      expect(saidFrom({ id: 7, seat: 'north', user_id: 'u', item: 'coin_heart' })).toEqual({ id: 7, seat: 'north', userId: 'u', item: 'coin_heart' });
+      expect(saidFrom({ id: 'x', seat: 'north', user_id: 'u', text: 'hi' })).toEqual({ seat: 'north', userId: 'u', text: 'hi' });
+    });
     it('takes a replay shorter than the window as the whole room when nothing overlaps', () => {
       // Kalle's last line is gone from the server's replay (blocked since): no line twice.
       expect(mergeTalk([a, b, c], [a, b, d], true)).toEqual([a, b, d]);
