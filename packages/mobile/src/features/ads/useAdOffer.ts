@@ -158,6 +158,8 @@ export function useAdOffer(context: AdContext, fixture: AdSheetPhase | null = nu
       dealing: busy,
       onWatch: () => void watch(),
       onClose: () => void finish('closed', session.current),
+      // Premium bought from the sheet: ask again, and the server no longer wants an ad.
+      onDeal: () => void play(deal.current),
     },
   };
 }

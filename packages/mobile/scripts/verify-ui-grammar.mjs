@@ -593,6 +593,18 @@ const allCases = [
       authFixture: premiumAuthFixture,
     },
   ]),
+  // PID-126: the Premium sheet over Settings, every state, with made-up store packages.
+  ...['en', 'sv'].flatMap((locale) =>
+    ['choose', 'buying', 'failed', 'waiting', 'bought', 'bought-ad', 'bought-guest', 'empty'].map(
+      (state) => ({
+        name: `premium-sheet-${state}-${locale}`,
+        path: `/ui-dev?state=settings&fixture=premium-sheet-${state}&locale=${locale}`,
+        testId: 'premium-sheet',
+        locale,
+        premiumSheet: state,
+      })
+    )
+  ),
   // PID-119: Settings → Privacy, shown only where Google's form is required (forced here).
   ...['en', 'sv'].map((locale) => ({
     name: `settings-privacy-choices-${locale}`,
@@ -3810,6 +3822,129 @@ async function assertPremium(page, { premium, locale }, viewport) {
   // The whole panel is on screen at once, on every size.
   const box = await panel.boundingBox();
   assertInsideViewport('Premium panel', box, viewport);
+  await waitForScreenshotReady(page);
+}
+
+const PREMIUM_SHEET_COPY = {
+  en: {
+    title: 'Pidro Premium',
+    lines: ['No ads', 'Every felt and card back, when themes arrive', 'Keeps Pidro going'],
+    yearly: ['Yearly', '$2.08 a month', '$24.99', 'a year'],
+    monthly: ['Monthly', '$4.99', 'a month'],
+    subscribe: 'Subscribe',
+    retry: 'Try again',
+    renews: '$24.99 a year, renews until you cancel. Cancel any time in your App Store account.',
+    links: ['Restore purchases', 'Terms', 'Privacy'],
+    failed: 'The purchase did not go through.',
+    waiting: [
+      'Almost there',
+      'The App Store is still confirming your purchase. Premium turns on by itself when it does. You can close this and play.',
+    ],
+    bought: [
+      'You are Premium',
+      'Until 11 November 2027. It renews by itself; turn that off any time in your App Store account.',
+    ],
+    done: 'Done',
+    deal: 'Deal the cards',
+    close: 'Close',
+    empty: 'Premium cannot be bought right now. Try again in a little while.',
+    keep: 'Keep your progress',
+  },
+  sv: {
+    title: 'Pidro Premium',
+    lines: [
+      'Ingen reklam',
+      'Alla bordsdukar och kortbaksidor, när teman kommer',
+      'Håller Pidro igång',
+    ],
+    yearly: ['Årsvis', '$2.08 per månad', '$24.99', 'per år'],
+    monthly: ['Månadsvis', '$4.99', 'per månad'],
+    subscribe: 'Prenumerera',
+    retry: 'Försök igen',
+    renews:
+      '$24.99 per år, förnyas tills du säger upp. Säg upp när du vill i ditt App Store-konto.',
+    links: ['Återställ köp', 'Villkor', 'Integritet'],
+    failed: 'Köpet gick inte igenom.',
+    waiting: [
+      'Nästan klart',
+      'App Store bekräftar fortfarande ditt köp. Premium slås på av sig självt när det är klart. Du kan stänga det här och spela.',
+    ],
+    bought: [
+      'Du har Premium',
+      'Till 11 november 2027. Det förnyas av sig självt; stäng av det när du vill i ditt App Store-konto.',
+    ],
+    done: 'Klar',
+    deal: 'Dela ut korten',
+    close: 'Stäng',
+    empty: 'Premium går inte att köpa just nu. Försök igen om en stund.',
+    keep: 'Behåll dina framsteg',
+  },
+};
+
+// PID-126: the board's words, yearly first and chosen, the one-time package left out, no
+// badge or crossed-out price, 44pt targets, and the wood or closing button reachable.
+async function assertPremiumSheet(page, testCase, viewport) {
+  const state = testCase.premiumSheet;
+  const copy = PREMIUM_SHEET_COPY[testCase.locale];
+  const sheet = page.getByTestId('premium-sheet');
+  await sheet.waitFor();
+  const text = (await sheet.innerText()).replace(/\s+/g, ' ');
+  const has = (line) => assert.ok(text.includes(line), `${testCase.name}: "${line}" in ${text}`);
+  assert.doesNotMatch(text, /119|%|!/, `${testCase.name}: no one-time package, discount or shout`);
+  const choosing = ['choose', 'buying', 'failed'].includes(state);
+  const radios = sheet.getByRole('radio');
+  assert.equal(await radios.count(), choosing ? 2 : 0, `${testCase.name}: plan rows`);
+  if (choosing) {
+    [
+      copy.title,
+      ...copy.lines,
+      ...copy.yearly,
+      ...copy.monthly,
+      copy.renews,
+      ...copy.links,
+    ].forEach(has);
+    assert.deepEqual(
+      await radios.evaluateAll((rows) => rows.map((row) => row.getAttribute('aria-checked'))),
+      ['true', 'false'],
+      'yearly first, and chosen'
+    );
+    // One snapshot: the sheet may still be sliding up.
+    const [yearly, monthly] = await radios.evaluateAll((rows) =>
+      rows.map((row) => [row.dataset.testid, row.getBoundingClientRect().y])
+    );
+    assert.equal(yearly[0], 'premium-plan-yearly');
+    assert.ok(yearly[1] < monthly[1], 'yearly above monthly');
+    const subscribe = sheet.getByTestId('premium-subscribe');
+    const busy = state === 'buying';
+    assert.equal(await subscribe.getByRole('progressbar').count(), busy ? 1 : 0, 'busy');
+    if (!busy) has(state === 'failed' ? copy.retry : copy.subscribe);
+    assert.equal(text.includes(copy.failed), state === 'failed', `${testCase.name}: failed line`);
+    for (const radio of await radios.all())
+      assert.equal((await radio.getAttribute('aria-disabled')) === 'true', busy, 'rows locked');
+    await subscribe.scrollIntoViewIfNeeded();
+    assertInsideViewport(
+      `${testCase.name} Subscribe`,
+      await getStableBox(subscribe, page),
+      viewport
+    );
+  } else if (state === 'empty') {
+    [copy.title, copy.empty, copy.close].forEach(has);
+  } else if (state === 'waiting') {
+    [...copy.waiting, copy.close].forEach(has);
+  } else {
+    [...copy.bought, state === 'bought-ad' ? copy.deal : copy.done].forEach(has);
+    if (state === 'bought-guest')
+      await page.getByTestId('keep-progress-prompt').getByText(copy.keep).waitFor();
+  }
+  const action = sheet.getByTestId(
+    choosing ? 'premium-subscribe' : state.startsWith('bought') ? 'premium-done' : 'premium-close'
+  );
+  await action.scrollIntoViewIfNeeded();
+  assertInsideViewport(`${testCase.name} action`, await getStableBox(action, page), viewport);
+  for (const button of await sheet.getByRole('button').all()) {
+    const box = await button.boundingBox();
+    if (box) assert.ok(box.height >= 44, `${testCase.name}: a button is ${box.height}px tall`);
+  }
   await waitForScreenshotReady(page);
 }
 
@@ -9757,6 +9892,7 @@ async function main() {
           testCase.league ||
           testCase.popup ||
           testCase.premium ||
+          testCase.premiumSheet ||
           testCase.adSheet ||
           testCase.privacyChoices
         )
@@ -10562,6 +10698,7 @@ async function main() {
           if (testCase.appUpdate) await assertAppUpdate(page, testCase);
           if (testCase.testAd) await assertTestAd(page);
           if (testCase.premium) await assertPremium(page, testCase, caseViewport);
+          if (testCase.premiumSheet) await assertPremiumSheet(page, testCase, caseViewport);
           await assertAdSheet(page, testCase, caseViewport);
           if (testCase.privacyChoices) await assertPrivacyChoices(page, testCase);
           if (testCase.newTableFixture?.startsWith('ready-error')) {

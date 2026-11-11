@@ -1462,6 +1462,41 @@ UI_CASES=settings-premium-none-en,settings-premium-until-en,settings-premium-lif
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
 
+## `/ui-dev?state=settings&fixture=premium-sheet-<state>` — The Premium sheet (PID-126)
+
+Where Premium is bought: an upward sheet with what it is, the plans (yearly chosen, then
+monthly), one wood Subscribe, the renewal line, then Restore purchases, Terms and Privacy.
+It opens from Settings (a "Pidro Premium" panel for a player the server says has none,
+where the build can sell it) and from the ad ticket's Go Premium. The fixture opens it
+over Settings as a player without Premium sees it, with made-up packages from
+`premiumSheetFixture` in `src/features/premium/premiumSheet.ts`: $24.99 a year ($2.08 a
+month, as the store would say), $4.99 a month, and a one-time $119.99 package the sheet
+must ignore. Nothing in a fixture reaches the store; Subscribe and Restore do nothing.
+
+| `fixture=premium-sheet-` | Shows                                                                   |
+| ------------------------ | ----------------------------------------------------------------------- |
+| `choose`                 | The plans, yearly chosen; Subscribe; the yearly renewal line; the links |
+| `buying`                 | As `choose`, Subscribe busy, rows, links and close locked               |
+| `failed`                 | "The purchase did not go through…" over Try again                      |
+| `waiting`                | Almost there: the store is still confirming; Close                      |
+| `bought`                 | You are Premium, until 11 November 2027; Done (from Settings)           |
+| `bought-ad`              | As `bought`; Deal the cards (from the ad ticket)                        |
+| `bought-guest`           | As `bought`, with Keep your progress over it                            |
+| `empty`                  | The store has nothing to sell: one calm line and Close                  |
+
+Grammar cases `premium-sheet-{choose,buying,failed,waiting,bought,bought-ad,bought-guest,empty}-{en,sv}`
+assert the board's words, yearly above monthly and chosen, no one-time package, no
+discount or `!`, rows locked while buying, 44pt targets, and that the wood or closing
+button is reachable (the sheet scrolls when it is taller than the screen), at all four
+sizes. A real purchase, the store's dialog, Ask to Buy and the native sheet need the
+`com.oneapps.pidro` build on a device: see `../../docs/native-sdks.md`.
+
+```sh
+UI_CASES=premium-sheet-choose-en,premium-sheet-buying-en,premium-sheet-failed-en,premium-sheet-waiting-en,premium-sheet-bought-en,premium-sheet-bought-ad-en,premium-sheet-bought-guest-en,premium-sheet-empty-en,premium-sheet-choose-sv \
+  UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+  MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
+```
+
 ## `/home?fixture=ad-<state>` — A short ad, then we deal (PID-120)
 
 The sheet that opens instead of dealing when the server says the next solo game needs a

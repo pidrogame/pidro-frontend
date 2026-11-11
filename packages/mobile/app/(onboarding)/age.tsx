@@ -26,9 +26,9 @@ import { useAuthStore } from '@/stores/auth';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { useTranslation, type TranslationKey } from '@/i18n';
 import { Background } from '@/components/ui/Background';
+import { LEGAL_URLS } from '@/constants/config';
 
-const TERMS_URL = 'https://www.pidro.online/terms-of-use';
-const PRIVACY_URL = 'https://www.pidro.online/privacy-policy';
+const { terms: TERMS_URL, privacy: PRIVACY_URL } = LEGAL_URLS;
 
 const OPTIONS: { value: DeclaredAgeBand; label: TranslationKey }[] = [
   { value: 'under_13', label: 'auth.age_under' },

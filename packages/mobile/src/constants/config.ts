@@ -28,3 +28,9 @@ export const APP_CONFIG = {
   name: 'Pidro',
   version: appJson.expo.version,
 } as const;
+
+/** The pages sign-up agrees to, also linked from the Premium sheet. */
+export const LEGAL_URLS = {
+  terms: 'https://www.pidro.online/terms-of-use',
+  privacy: 'https://www.pidro.online/privacy-policy',
+} as const;
