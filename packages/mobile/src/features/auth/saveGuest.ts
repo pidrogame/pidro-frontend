@@ -3,6 +3,7 @@ import {
   localizedError,
   localizedFieldErrors,
   t,
+  type ClassicPremium,
   type FriendPlayer,
   type TranslationKey,
   type User,
@@ -32,7 +33,12 @@ export type GuestSaveFailure = {
   uncertain?: boolean;
 };
 export type GuestSaveResult = { ok: true } | { ok: false; error: GuestSaveFailure };
-export type GuestSaveResponse = { token: string; user: User; linked_friend?: FriendPlayer };
+export type GuestSaveResponse = {
+  token: string;
+  user: User;
+  linked_friend?: FriendPlayer;
+  classic_premium?: ClassicPremium;
+};
 
 type GuestSaveSession = {
   accessToken: string | null;

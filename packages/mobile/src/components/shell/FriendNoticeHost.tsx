@@ -11,6 +11,7 @@ import { NoticeCard } from '@/components/friends/NoticeCard';
 import { joinSeatInvitation } from '@/components/invites/SeatInvitations';
 import { friendNoticeFixture } from '@/features/friends/fixtures';
 import { tableInvitationLine } from '@/features/invites/tableInvitation';
+import { classicPremiumLine } from '@/features/premium/classicPremium';
 import { relativeDay } from '@/features/relativeDay';
 import { useTranslation } from '@/i18n';
 import { useAuthStore } from '@/stores/auth';
@@ -53,6 +54,7 @@ export function FriendNoticeHost({
 }) {
   const { t } = useTranslation();
   const router = useRouter();
+  const ownAvatar = useAuthStore((s) => s.user?.avatar_url);
   const busy = useRef(false);
   const [loading, setLoading] = useState(false);
   const [declining, setDeclining] = useState(false);
@@ -132,7 +134,9 @@ export function FriendNoticeHost({
   const name =
     'player' in notice
       ? notice.player.display_name
-      : notice.invitation.host?.display_name || t('social.player');
+      : 'invitation' in notice
+        ? notice.invitation.host?.display_name || t('social.player')
+        : '';
   const when =
     notice.kind === 'request' && notice.played_together_at
       ? relativeDay(notice.played_together_at)
@@ -152,18 +156,34 @@ export function FriendNoticeHost({
       onLayout={(event) => onHeight(event.nativeEvent.layout.height)}>
       <NoticeCard
         testID="friend-notice"
-        variant={notice.kind === 'sent' ? 'accepted' : notice.kind}
-        title={t(
-          notice.kind === 'seat'
-            ? 'seat_invitation.waiting'
+        variant={
+          notice.kind === 'classic_premium'
+            ? notice.premium.state === 'carried'
+              ? 'accepted'
+              : 'too_late'
             : notice.kind === 'sent'
-              ? 'friends.sent_toast'
-              : `friend_notice.${notice.kind}`,
-          { name }
-        )}
+              ? 'accepted'
+              : notice.kind
+        }
+        title={
+          notice.kind === 'classic_premium'
+            ? (classicPremiumLine(notice.premium) ?? '')
+            : t(
+                notice.kind === 'seat'
+                  ? 'seat_invitation.waiting'
+                  : notice.kind === 'sent'
+                    ? 'friends.sent_toast'
+                    : `friend_notice.${notice.kind}`,
+                { name }
+              )
+        }
         body={body}
         avatarUrl={
-          'player' in notice ? notice.player.avatar_url : notice.invitation.host?.avatar_url
+          'player' in notice
+            ? notice.player.avatar_url
+            : 'invitation' in notice
+              ? notice.invitation.host?.avatar_url
+              : ownAvatar
         }
         primary={
           asks

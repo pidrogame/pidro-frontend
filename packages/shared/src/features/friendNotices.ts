@@ -1,7 +1,10 @@
+import type { ClassicPremium } from '../api/classic';
 import type { FriendLists, FriendPlayer } from '../api/friends';
 import type { SeatInvitation } from '../types/lobby';
 
 export type FriendNotice =
+  /** After a claim, what became of Classic Premium (PID-391). */
+  | { kind: 'classic_premium'; premium: ClassicPremium }
   | { kind: 'request'; player: FriendPlayer; played_together_at: string | null }
   | { kind: 'accepted'; player: FriendPlayer; source: 'accept' }
   /** Signing up through someone's own link sends them a request; they still answer it. */
@@ -84,6 +87,7 @@ export function seatGoneIsLate(reason: unknown): boolean {
 }
 
 export function friendNoticeId(notice: FriendNotice): string {
+  if (notice.kind === 'classic_premium') return notice.kind;
   return notice.kind === 'seat' || notice.kind === 'too_late'
     ? `${notice.kind}:${notice.invitation.code}:${notice.invitation.position}:${notice.invitation.held_since ?? ''}`
     : `${notice.kind}:${notice.player.user_id}`;

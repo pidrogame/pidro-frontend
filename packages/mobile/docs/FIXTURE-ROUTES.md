@@ -706,13 +706,17 @@ Home and the tab use the server's `waiting_for_you` total for signed-in players,
 even when a refused seat join has cleared the local invitation cache. Guests count
 their cached seat invitations; they cannot have incoming friend requests.
 
-`/home?fixture=friend-request|friend-accepted|friend-linked|friend-seat|friend-offline|friend-queue|friend-too-late` shows the
+`/home?fixture=friend-request|friend-accepted|friend-linked|friend-seat|friend-offline|friend-queue|friend-too-late|friend-premium-carried|friend-premium-ended` shows the
 real shell notice and Friends badge without a backend. Accepted and too late stay visible in
 the fixture for capture; live ones disappear after four seconds. Too late (PID-254)
 replaces a seat notice whose seat went because the game started, the host let it go or
 the room closed, and after a refused Sit down; it has no buttons and no badge.
 Linked (PID-247) is the notice after signing up through someone's own link, which sends them
 a friend request: "Request sent. You'll be friends once Nora accepts.", with no buttons.
+Premium carried and ended (PID-391) are the line after a Classic claim: "Your Pidro Premium
+came with you." on the green edge, or "Your Premium in the old Pidro app ended on 12 March
+2026." on the quiet one, with the player's own picture and no buttons. A live claim queues it
+before the linked friend's notice, so it shows first; pending or no answer shows nothing.
 On a seat notice Not now declines the seat for real. Home also holds that seat's invitation,
 which it does not list a second time while the notice is up. Offline is the seat notice whose
 Not now fails: "Couldn’t send that. Try again." under the buttons, and the notice stays. The queue

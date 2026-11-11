@@ -220,6 +220,8 @@ export function friendNoticeFixture(value?: string): FriendNotice[] | undefined 
       'friend-offline',
       'friend-queue',
       'friend-too-late',
+      'friend-premium-carried',
+      'friend-premium-ended',
     ].includes(value ?? '')
   )
     return;
@@ -243,5 +245,13 @@ export function friendNoticeFixture(value?: string): FriendNotice[] | undefined 
   if (value === 'friend-queue') return [accepted, request, seat];
   if (value === 'friend-linked') return [{ kind: 'sent', player: players[0] }];
   if (value === 'friend-too-late') return [{ kind: 'too_late', invitation: seat.invitation }];
+  if (value === 'friend-premium-carried')
+    return [
+      { kind: 'classic_premium', premium: { state: 'carried', until: '2027-03-12T12:00:00Z' } },
+    ];
+  if (value === 'friend-premium-ended')
+    return [
+      { kind: 'classic_premium', premium: { state: 'ended', until: '2026-03-12T12:00:00Z' } },
+    ];
   return [value === 'friend-request' ? request : value === 'friend-accepted' ? accepted : seat];
 }

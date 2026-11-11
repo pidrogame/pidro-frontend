@@ -2,12 +2,14 @@ import {
   isFriendPlayer,
   useFriendsStore,
   type BlockedPlayers,
+  type ClassicPremium,
   type FriendLists,
   type FriendPlayer,
   type SeatInvitation,
 } from '@pidro/shared';
 import { friendsApi } from '@/api/friends';
 import { lobbyApi } from '@/api/lobby';
+import { classicPremiumLine } from '@/features/premium/classicPremium';
 import { apiErrorInfo } from '@/utils/apiErrors';
 import { authStore } from './auth';
 
@@ -89,6 +91,12 @@ export function queueLinkedFriend(friend: FriendPlayer | undefined) {
         useFriendsStore.getState().queueNotice({ kind: 'sent', player: friend });
     })
     .catch(() => undefined);
+}
+
+/** A claim's word on Classic Premium; queued before the linked friend, so it shows first. */
+export function queueClassicPremium(premium: ClassicPremium | undefined) {
+  if (premium && classicPremiumLine(premium))
+    useFriendsStore.getState().queueNotice({ kind: 'classic_premium', premium });
 }
 
 /** Home asks again as it comes into focus, at most every 30 s; the lobby channel's join covers the foreground. */

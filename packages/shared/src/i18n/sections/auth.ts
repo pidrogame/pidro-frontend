@@ -242,6 +242,8 @@ export const en = {
     "We could not verify that %{provider} account. Try again.",
   "auth.classic_claim_failed":
     "We couldn’t bring your name and games over. Try again.",
+  "auth.classic_premium_carried": "Your Pidro Premium came with you.",
+  "auth.classic_premium_ended": "Your Premium in the old Pidro app ended on %{date}.",
   "auth.device": "device",
   "auth.phone": "phone",
   "auth.tablet": "tablet",
@@ -500,6 +502,8 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
     "Vi kunde inte verifiera det %{provider}-kontot. Försök igen.",
   "auth.classic_claim_failed":
     "Vi kunde inte ta med ditt namn och dina spel. Försök igen.",
+  "auth.classic_premium_carried": "Ditt Pidro Premium följde med dig.",
+  "auth.classic_premium_ended": "Ditt Premium i gamla Pidro tog slut den %{date}.",
   "auth.device": "enheten",
   "auth.phone": "telefonen",
   "auth.tablet": "surfplattan",

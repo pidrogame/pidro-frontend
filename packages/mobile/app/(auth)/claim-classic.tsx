@@ -49,7 +49,7 @@ import { storedAgeTerms } from '@/features/onboarding/ageTerms';
 import { authenticatedEntryDestination } from '@/navigation/initialRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
 import { useAuthStore } from '@/stores/auth';
-import { queueLinkedFriend } from '@/stores/friends';
+import { queueClassicPremium, queueLinkedFriend } from '@/stores/friends';
 import { pendingFriendSlug } from '@/stores/pendingFriendLink';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { apiErrorInfo } from '@/utils/apiErrors';
@@ -454,6 +454,7 @@ export default function ClaimClassicScreen() {
           getSession: useAuthStore.getState,
           install: (response) => {
             setSession({ accessToken: response.token, user: response.user });
+            queueClassicPremium(response.classic_premium);
             queueLinkedFriend(response.linked_friend);
           },
           setSessionPreservation: (preserve) =>
@@ -475,6 +476,7 @@ export default function ClaimClassicScreen() {
       } else {
         const result = await claim();
         setSession({ accessToken: result.token, user: result.user });
+        queueClassicPremium(result.classic_premium);
         queueLinkedFriend(result.linked_friend);
       }
       const claimed = useAuthStore.getState().user;
