@@ -58,6 +58,15 @@ export interface ClassicClaimAccount {
   display_name?: string;
 }
 
+/** What became of the Classic account's Premium at claim (PID-391). */
+export interface ClassicPremium {
+  state: 'carried' | 'ended' | 'pending';
+  until: string | null;
+}
+
+/** Absent for a Classic account that never had Premium, and from an older server. */
+export type ClassicClaimResponse = LoginResponse & { classic_premium?: ClassicPremium };
+
 export interface ClassicClaimRequest extends SignUpExtras {
   ticket: string;
   install_id?: string;
@@ -96,10 +105,12 @@ export function createClassicApi(api: ApiClient) {
       return response.data.data;
     },
 
-    claim: async (request: ClassicClaimRequest): Promise<LoginResponse> => {
-      const response = await api.post<{ data: LoginResponse }>('/api/v1/classic/claim', request, {
-        preserveSessionOnUnauthorized: true,
-      });
+    claim: async (request: ClassicClaimRequest): Promise<ClassicClaimResponse> => {
+      const response = await api.post<{ data: ClassicClaimResponse }>(
+        '/api/v1/classic/claim',
+        request,
+        { preserveSessionOnUnauthorized: true }
+      );
       return response.data.data;
     },
 

@@ -44,6 +44,8 @@ export {
   type ClassicClaimMethod,
   type ClassicClaimPreview,
   type ClassicClaimRequest,
+  type ClassicClaimResponse,
+  type ClassicPremium,
   type ClassicHelpRequest,
   type ClassicNewAccount,
   type ClassicSignInCode,
