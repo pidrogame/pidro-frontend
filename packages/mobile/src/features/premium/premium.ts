@@ -4,9 +4,10 @@
  * its answer on the session user. Nothing here decides who is Premium.
  */
 import type { PremiumFields } from '@pidro/shared';
+import type { PurchasesPackage } from 'react-native-purchases';
 import { premiumApi } from '@/api/premium';
 import { authStore } from '@/stores/auth';
-import { purchasesAvailable, restorePurchases } from './purchases';
+import { purchase, purchasesAvailable, restorePurchases } from './purchases';
 
 export function premiumStatus(user: Partial<PremiumFields> | null | undefined) {
   return {
@@ -71,6 +72,36 @@ export async function restorePremium(): Promise<RestoreOutcome> {
   const fields = await refreshPremium();
   if (!fields) return 'failed';
   return fields.premium ? 'restored' : 'notFound';
+}
+
+export type BuyOutcome = 'bought' | 'waiting' | 'cancelled' | 'failed';
+
+/**
+ * Subscribe: the store, then the server. Premium only once the server says so; a purchase
+ * the store took but the server has not heard of yet (or Ask to Buy) is waiting, and the
+ * session user turns Premium on a later refresh.
+ */
+export async function buyPremium(pkg: PurchasesPackage): Promise<BuyOutcome> {
+  let answer;
+  try {
+    answer = await purchase(pkg);
+  } catch (error) {
+    console.warn('[Premium] Purchase did not go through', error);
+    return 'failed';
+  }
+  if (answer === 'cancelled') return 'cancelled';
+  if (answer === 'pending') return 'waiting';
+  const fields = await refreshPremium();
+  return fields?.premium ? 'bought' : 'waiting';
+}
+
+/** "12 March 2027" in English, "12 mars 2027" in Swedish. */
+export function premiumDate(until: Date, locale: string) {
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : locale, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(until);
 }
 
 const fixtureUsers: Record<string, PremiumFields> = {

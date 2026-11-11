@@ -7,7 +7,7 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { PurchasesError, PurchasesOffering, PurchasesPackage } from 'react-native-purchases';
+import type { PurchasesError, PurchasesOfferings, PurchasesPackage } from 'react-native-purchases';
 
 const SYNCED_KEY = 'purchases.synced.v1';
 let configured = false;
@@ -82,22 +82,30 @@ export async function restorePurchases(): Promise<{ ok: true } | { ok: false; re
   }
 }
 
-/** For the paywall (PID-126). */
-export async function getDefaultOffering(): Promise<PurchasesOffering | null> {
+/** For the Premium sheet (PID-126). Null when the store cannot answer, such as offline. */
+export async function getOfferings(): Promise<PurchasesOfferings | null> {
   if (!configured) return null;
-  return (await sdk().getOfferings()).current;
+  try {
+    return await sdk().getOfferings();
+  } catch (error) {
+    console.warn('[Purchases] No offerings', error);
+    return null;
+  }
 }
 
-/** Cancelling is an answer, not an error; other failures throw. */
-export async function purchase(pkg: PurchasesPackage): Promise<'purchased' | 'cancelled'> {
+/** Cancelling and a pending payment (Ask to Buy) are answers, not errors; other failures throw. */
+export async function purchase(
+  pkg: PurchasesPackage
+): Promise<'purchased' | 'cancelled' | 'pending'> {
   if (!configured) throw new Error('Purchases are unavailable');
   const Purchases = sdk();
   try {
     await Purchases.purchasePackage(pkg);
     return 'purchased';
   } catch (error) {
-    if (errorCode(error) === Purchases.PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR)
-      return 'cancelled';
+    const code = errorCode(error);
+    if (code === Purchases.PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR) return 'cancelled';
+    if (code === Purchases.PURCHASES_ERROR_CODE.PAYMENT_PENDING_ERROR) return 'pending';
     throw error;
   }
 }

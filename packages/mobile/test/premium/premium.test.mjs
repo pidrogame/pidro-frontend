@@ -20,6 +20,7 @@ test('premium is the server answer: once per identity, quiet when unavailable, o
   const calls = [];
   const answers = [];
   let restore = { ok: true };
+  let bought = 'purchased';
   let available = true;
   const logs = [];
   console.log = (...args) => logs.push(['log', ...args]);
@@ -41,13 +42,24 @@ test('premium is the server answer: once per identity, quiet when unavailable, o
       calls.push(['restore']);
       return restore;
     },
+    purchase: async (pkg) => {
+      calls.push(['purchase', pkg]);
+      if (bought instanceof Error) throw bought;
+      return bought;
+    },
   }));
   const httpError = (status) =>
     Object.assign(new Error(`HTTP ${status}`), { response: { status } });
   const until = { premium: true, premium_until: '2027-03-12T12:00:00Z', premium_source: 'store' };
   const none = { premium: false, premium_until: null, premium_source: null };
-  const { premiumInSettings, premiumStatus, refreshForIdentity, refreshPremium, restorePremium } =
-    await import('../../src/features/premium/premium.ts');
+  const {
+    buyPremium,
+    premiumInSettings,
+    premiumStatus,
+    refreshForIdentity,
+    refreshPremium,
+    restorePremium,
+  } = await import('../../src/features/premium/premium.ts');
 
   // premiumStatus: an older server sends nothing, which is no Premium.
   expect(premiumStatus(null)).toEqual({ premium: false, until: null, source: null });
@@ -178,4 +190,43 @@ test('premium is the server answer: once per identity, quiet when unavailable, o
     ['refresh', 'frida'],
     ['restore'],
   ]);
+
+  // Subscribe: the store, then the server. Premium only once the server says so.
+  calls.length = 0;
+  restore = { ok: true };
+  signIn('greta', none);
+  answers.push(until);
+  expect(await buyPremium('yearly')).toBe('bought');
+  expect(state.user).toMatchObject({ id: 'greta', ...until });
+  // The store took it, the server has not heard yet (webhook not in): waiting, still none.
+  signIn('greta', none);
+  answers.push(none);
+  expect(await buyPremium('yearly')).toBe('waiting');
+  // The server could not look at all: the purchase stands, so waiting, not failed.
+  answers.push(httpError(503));
+  expect(await buyPremium('monthly')).toBe('waiting');
+  expect(state.user).toMatchObject({ id: 'greta', ...none });
+  expect(calls).toEqual([
+    ['purchase', 'yearly'],
+    ['refresh', 'greta'],
+    ['purchase', 'yearly'],
+    ['refresh', 'greta'],
+    ['purchase', 'monthly'],
+    ['refresh', 'greta'],
+  ]);
+  // Ask to Buy: the store holds the payment; nothing to ask the server yet.
+  calls.length = 0;
+  bought = 'pending';
+  expect(await buyPremium('yearly')).toBe('waiting');
+  // Cancelled in the store's dialog is an answer; any other failure is one line.
+  bought = 'cancelled';
+  expect(await buyPremium('yearly')).toBe('cancelled');
+  bought = Object.assign(new Error('store problem'), { code: '2' });
+  expect(await buyPremium('yearly')).toBe('failed');
+  expect(calls).toEqual([
+    ['purchase', 'yearly'],
+    ['purchase', 'yearly'],
+    ['purchase', 'yearly'],
+  ]);
+  expect(state.user).toMatchObject({ id: 'greta', ...none });
 });

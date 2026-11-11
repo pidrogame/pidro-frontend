@@ -31,6 +31,8 @@ describe('analytics event names', () => {
         'classic_forgot_started',
         'table_wait_started',
         'table_wait_ended',
+        'premium_sheet_opened',
+        'premium_purchase',
       ].sort()
     );
     expect(new Set(ANALYTICS_EVENTS).size).toBe(ANALYTICS_EVENTS.length);

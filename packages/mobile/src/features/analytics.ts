@@ -21,6 +21,8 @@ export const ANALYTICS_EVENTS = [
   'classic_forgot_started',
   'table_wait_started',
   'table_wait_ended',
+  'premium_sheet_opened',
+  'premium_purchase',
 ] as const;
 
 export type AnalyticsEvent = (typeof ANALYTICS_EVENTS)[number];

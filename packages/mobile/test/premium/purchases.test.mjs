@@ -17,6 +17,7 @@ test('purchases configure once, sync once per install, and stay quiet without a 
   const storage = new Map();
   const calls = [];
   let syncFails = true;
+  let offeringsFail = false;
   mock.module('react-native', () => ({ Platform: { OS: 'ios' } }));
   mock.module('expo-constants', () => ({
     default: { expoConfig: { extra: { revenueCatKey: { ios: key, android: 'goog_other' } } } },
@@ -30,7 +31,11 @@ test('purchases configure once, sync once per install, and stay quiet without a 
   mock.module('react-native-purchases', () => ({
     default: {
       LOG_LEVEL: { VERBOSE: 'VERBOSE' },
-      PURCHASES_ERROR_CODE: { LOG_OUT_ANONYMOUS_USER_ERROR: '22', PURCHASE_CANCELLED_ERROR: '1' },
+      PURCHASES_ERROR_CODE: {
+        LOG_OUT_ANONYMOUS_USER_ERROR: '22',
+        PURCHASE_CANCELLED_ERROR: '1',
+        PAYMENT_PENDING_ERROR: '20',
+      },
       logOut: async () => {
         calls.push(['logOut']);
         throw { code: '22', message: 'already anonymous' };
@@ -39,6 +44,12 @@ test('purchases configure once, sync once per install, and stay quiet without a 
         calls.push(['purchase', pkg]);
         if (pkg === 'cancel') throw { code: '1', message: 'cancelled' };
         if (pkg === 'broken') throw { code: '2', message: 'store problem' };
+        if (pkg === 'ask') throw { code: '20', message: 'payment pending' };
+      },
+      getOfferings: async () => {
+        calls.push(['offerings']);
+        if (offeringsFail) throw new Error('offline');
+        return { current: null, all: { pidro_premium: { identifier: 'pidro_premium' } } };
       },
       setLogLevel: async () => {},
       configure: (options) => calls.push(['configure', options]),
@@ -69,14 +80,21 @@ test('purchases configure once, sync once per install, and stay quiet without a 
     // Cancelling is an answer; any other store failure still throws.
     expect(await purchases.purchase('pkg')).toBe('purchased');
     expect(await purchases.purchase('cancel')).toBe('cancelled');
+    // Ask to Buy: the store holds the payment until a parent answers.
+    expect(await purchases.purchase('ask')).toBe('pending');
     await expect(purchases.purchase('broken')).rejects.toMatchObject({ code: '2' });
+    // The sheet's offerings, or null when the store cannot answer (offline): never a throw.
+    expect((await purchases.getOfferings()).all.pidro_premium).toBeDefined();
+    offeringsFail = true;
+    console.warn = () => {};
+    expect(await purchases.getOfferings()).toBeNull();
   } else {
     expect(purchases.purchasesAvailable()).toBe(false);
     expect(calls).toEqual([]);
     expect(storage.size).toBe(0);
     expect(await purchases.restorePurchases()).toEqual({ ok: false, reason: 'unavailable' });
     await purchases.clearPurchaser();
-    expect(await purchases.getDefaultOffering()).toBeNull();
+    expect(await purchases.getOfferings()).toBeNull();
     expect(calls).toEqual([]);
   }
 });
