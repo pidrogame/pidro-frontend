@@ -49,7 +49,7 @@ import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
-import { teamLine, type SeatLine } from '@/features/game/seatLine';
+import { choosingTrumpLine, teamLine, type SeatLine } from '@/features/game/seatLine';
 import { Scoreboard } from './Scoreboard';
 import type { TickerRestingLine } from './ActionTicker';
 import { buildHandLog } from '@/game/handLog';
@@ -171,11 +171,11 @@ function statusText(
   );
   // A catalogue line runs to 40 characters; where the seat swaps in its short line, it says
   // the plain turn text instead (PID-405). The built-in lines always fit.
-  const now = (text: string): SeatLine | null =>
+  const now = (text: string, short?: string): SeatLine | null =>
     player.isCurrentTurn
       ? {
           text: thinking ?? text,
-          ...(botLines(player.bot_profile) && { short: text }),
+          ...((short || botLines(player.bot_profile)) && { short: short ?? text }),
           tone: 'now',
         }
       : null;
@@ -196,7 +196,10 @@ function statusText(
     case 'declaring':
     case 'declaring_trump':
     case 'trump_declaration':
-      if (player.isCurrentTurn) return held ?? now(t('game.choosing_trump'));
+      if (player.isCurrentTurn) {
+        const choosing = choosingTrumpLine();
+        return held ?? now(choosing.text, choosing.short);
+      }
       return state?.trump ? { text: t('game.trump', { suit: SUIT_SYMBOLS[state.trump] }) } : null;
     case 'discarding':
     case 'second_deal':

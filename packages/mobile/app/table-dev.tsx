@@ -878,6 +878,7 @@ function TableDevHarness() {
     invitation?: string;
     botTurn?: Position;
     botHand?: string;
+    turn?: Position;
     character?: string;
     /** `fixture=bot-crew&talk=lines|sheet` (PID-408): the crew's talk, Gun sitting East. */
     talk?: string;
@@ -1038,6 +1039,7 @@ function TableDevHarness() {
             details={fixture === 'details'}
             status={fixture === 'status' ? (params.seats === 'b' ? 'b' : 'a') : undefined}
             bidder={params.bidder}
+            turnSeat={params.turn === 'east' || params.turn === 'west' ? params.turn : null}
             longNames={params.names === 'long'}
             scoreHistory={fixture === 'scores'}
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
@@ -1312,6 +1314,7 @@ function RolePreview({
   details = false,
   status,
   bidder = 'east',
+  turnSeat = null,
   longNames = false,
   botTrick = false,
   trick,
@@ -1347,6 +1350,11 @@ function RolePreview({
   /** `fixture=status&seats=a|b`: the players of `Status-Seats` (PID-338). */
   status?: 'a' | 'b';
   bidder?: Position;
+  /**
+   * `turn=east|west` (PID-450): that seat is on turn while you watch; with
+   * `phase=declaring` it won the bid at 14 and chooses trump.
+   */
+  turnSeat?: Position | null;
   /** `names=long`: ironman3001 at West and a long North name. */
   longNames?: boolean;
   botTrick?: boolean;
@@ -1519,8 +1527,9 @@ function RolePreview({
       variant: ruleSet,
       config: { min_bid: ruleSet === 'louisiana' ? 7 : 6 },
       phase: deal === 'true' ? 'dealing' : previewPhase,
-      current_player:
-        previewPhase === 'second_deal'
+      current_player: turnSeat
+        ? turnSeat
+        : previewPhase === 'second_deal'
           ? dealerPosition
           : bidRound
             ? bidRound.bids[0].position
@@ -1570,7 +1579,7 @@ function RolePreview({
         },
       },
       current_trick:
-        previewPhase === 'playing' && !botCrew
+        previewPhase === 'playing' && !botCrew && turnSeat !== 'west'
           ? [{ player: 'west', card: { rank: 5, suit: 'diamonds' } }]
           : [],
       ...(outPlayers && {
@@ -1633,7 +1642,9 @@ function RolePreview({
       // PID-209: you dealt and won the bid; hearts, with the 5♦, is your best suit.
       ...(previewPhase === 'declaring' && {
         dealer: 'south',
-        highest_bid: { position: 'south', amount: 8 },
+        highest_bid: turnSeat
+          ? { position: turnSeat, amount: 14 }
+          : { position: 'south', amount: 8 },
         players: {
           north: { hand: 9 },
           east: { hand: 9 },
@@ -1675,7 +1686,7 @@ function RolePreview({
               .map((amount) => ({ type: 'bid', amount }) as const),
             ...(canPass ? ([{ type: 'pass' }] as const) : []),
           ]
-        : previewPhase === 'declaring'
+        : previewPhase === 'declaring' && !turnSeat
           ? (['clubs', 'diamonds', 'hearts', 'spades'] as const).map(
               (suit) => ({ type: 'declare_trump', suit }) as const
             )
@@ -1744,6 +1755,7 @@ function RolePreview({
     botCharacter,
     botTurn,
     botHand,
+    turnSeat,
     tableRoom,
     scoreHistory,
     talk,

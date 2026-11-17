@@ -29,6 +29,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   DEALER_SLIDE_MS,
+  PLATE_REACH,
   PlayerAvatar,
   type DealerTrail,
   type PlayerAvatarProps,
@@ -37,7 +38,7 @@ import { PressableFX } from '@/components/ui/PressableFX';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { avatarLabel, avatarParts, textFits } from '@/features/avatar';
-import { seatLine, seatPlate, type SeatLine } from '@/features/game/seatLine';
+import { fittedLine, seatLine, seatPlate, type SeatLine } from '@/features/game/seatLine';
 import { whosePoints } from '@/features/game/points';
 import {
   AVATAR_SIZE,
@@ -597,14 +598,16 @@ export function SeatLayer({
                 status: seat.status === line.text ? (line.short ?? null) : seat.status,
                 accessibilityLabel: avatarLabel(spoken),
               })}
-            /* A narrow upright side column says "High 14" where "Bid 14 · high" won't fit (PID-450). */
+            /* A narrow upright side column says "High 14" or "Trump…" where the line won't fit; a lit plate also keeps on screen (PID-450). */
             {...(portrait &&
-              (rel === 'east' || rel === 'west') &&
-              line?.short &&
-              seat.plate !== 'turn' &&
-              !textFits(line.text, parts.status.fontSize, sideColumn - PidroSpacing.xs * 2) && {
-                status: line.short ?? null,
-                accessibilityLabel: avatarLabel(spoken),
+              (rel === 'east' || rel === 'west') && {
+                status: fittedLine(
+                  seat.status ?? null,
+                  line,
+                  parts.status.fontSize,
+                  sideColumn - 2 * (seat.plate ? PLATE_REACH : PidroSpacing.xs)
+                ),
+                accessibilityLabel: avatarLabel({ ...spoken, ...(tight && { level: null }) }),
               })}
           />
         );

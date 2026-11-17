@@ -510,7 +510,7 @@ const PLATES = {
  * reaches past them (padding 3/12/4 inside a 1.5 edge); beside the avatar it
  * keeps clear of the ring and its light.
  */
-const PLATE_REACH = 12 + 1.5;
+export const PLATE_REACH = 12 + 1.5;
 const PLATE_EDGE = {
   below: { left: -PLATE_REACH, right: -PLATE_REACH },
   right: { left: -4, right: -PLATE_REACH },

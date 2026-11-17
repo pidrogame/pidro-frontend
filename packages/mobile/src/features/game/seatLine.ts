@@ -4,6 +4,7 @@
  * partner's seat says so whenever it has nothing else to say (PID-383).
  */
 import { getRankLabel, SUIT_SYMBOLS, t, type Card, type SeatStatus } from '@pidro/shared';
+import { textFits } from '@/features/avatar';
 
 /**
  * `now` is the player on turn, `high` holds the high bid. A new `pulse` lights
@@ -40,6 +41,29 @@ export function seatPlate(
   if (line?.tone === 'out') return { plate: 'out', text: line.text };
   if (!onTurn || line?.tone === 'high') return null;
   return { plate: 'turn', text: isYou ? t('game.your_turn') : (line?.text ?? null) };
+}
+
+/** The bidding's winner choosing trump; "Trump…" where a narrow seat has no room for it. */
+export const choosingTrumpLine = (): SeatLine => ({
+  text: t('game.choosing_trump'),
+  short: t('game.choosing_trump_short'),
+  tone: 'now',
+});
+
+/**
+ * What a seat shows in `room` (PID-450): `shown` (its line, or what its plate
+ * says), or the line's short form where the line would run out of the room.
+ * Plate text that is not the line, like "Your turn", stands as it is.
+ */
+export function fittedLine(
+  shown: string | null,
+  line: SeatLine | null,
+  fontSize: number,
+  room: number
+): string | null {
+  if (!shown || !line?.short || shown !== line.text || textFits(shown, fontSize, room))
+    return shown;
+  return line.short;
 }
 
 export function seatLine(

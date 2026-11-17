@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
-import { seatLine, seatPlate, teamLine } from '../../src/features/game/seatLine.ts';
+import {
+  choosingTrumpLine,
+  fittedLine,
+  seatLine,
+  seatPlate,
+  teamLine,
+} from '../../src/features/game/seatLine.ts';
 
 const seat = (overrides) => ({
   seatStatus: 'bot_substitute',
@@ -147,6 +153,52 @@ describe('the plate under a seat (PID-450)', () => {
     try {
       expect(seatPlate(playing, { onTurn: true, isYou: true })?.text).toBe('Din tur');
       expect(seatLine(seat({ out: true }))?.text).toBe('Ute');
+    } finally {
+      setLocale('en');
+    }
+  });
+});
+
+describe('a side seat in a narrow column (PID-450)', () => {
+  // 360 wide: the side column leaves 78pt for a 14pt line; 390 leaves 93.
+  const fit = (line, room, shown = line.text) => fittedLine(shown, line, 14, room);
+  const high = { text: 'Bid 14 · high', short: 'High 14', tone: 'high' };
+
+  it('chooses trump in its short form where the line would be cut off, on the lit plate too', () => {
+    const choosing = choosingTrumpLine();
+    expect(choosing).toEqual({ text: 'Choosing trump…', short: 'Trump…', tone: 'now' });
+    expect(fit(choosing, 78)).toBe('Trump…');
+    expect(seatPlate(choosing, { onTurn: true, isYou: false })?.text).toBe('Choosing trump…');
+    // A bot's own line (PID-405) gives way to the same short form.
+    expect(fit({ ...choosing, text: 'Hmm, which suit is it going to be…' }, 78)).toBe('Trump…');
+    // A tablet's side column has room for the whole line.
+    expect(fit(choosing, 134)).toBe('Choosing trump…');
+  });
+
+  it('keeps the high bid whole where it fits, and short where it would not', () => {
+    expect(fit(high, 93)).toBe('Bid 14 · high');
+    expect(fit(high, 78)).toBe('High 14');
+  });
+
+  it('leaves lines that fit, lines without a short form, and plate text as they are', () => {
+    expect(fit({ text: 'Playing…', tone: 'now' }, 78)).toBe('Playing…');
+    expect(fit({ text: 'Bidding…', short: 'Bidding…', tone: 'now' }, 78)).toBe('Bidding…');
+    // "Your turn" on your plate is not the line it stands for.
+    expect(fit({ text: 'Playing…', short: 'Playing…' }, 10, 'Your turn')).toBe('Your turn');
+    expect(fittedLine(null, high, 14, 78)).toBeNull();
+    expect(fittedLine('Bid 14 · high', null, 14, 78)).toBe('Bid 14 · high');
+  });
+
+  it('says it in Swedish at a Swedish table', () => {
+    setLocale('sv');
+    try {
+      const choosing = choosingTrumpLine();
+      expect(choosing.text).toBe('Väljer trumf…');
+      expect(fit(choosing, 78)).toBe('Trumf…');
+      // 390 wide: 93pt fits the line itself, but a lit plate reaching 13.5pt past
+      // it each side leaves 82 to stay on screen.
+      expect(fit(choosing, 82)).toBe('Trumf…');
+      expect(fit({ text: 'Bud 14 · högst', short: 'Högst 14' }, 78)).toBe('Högst 14');
     } finally {
       setLocale('en');
     }
