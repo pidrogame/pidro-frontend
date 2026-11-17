@@ -286,7 +286,7 @@ describe('side stacks and the hand', () => {
       );
       expect(box.right).toBeLessThan(width - insets.right - 24 - 182);
       const picker = trumpPicker(L, L.top, 0);
-      expect(box.right).toBeLessThan(picker.left);
+      expect(box.right < picker.left || box.top > picker.top + picker.height).toBe(true);
       expect(box.left).toBeGreaterThan(sideStackInner(L.cardW, insets.left));
       expect(box.bottom).toBeLessThan(landscapeSouthY(L) - AVATAR_SIZE[L.profile] / 2);
       expect(box.top).toBeGreaterThan(L.top);
@@ -1008,11 +1008,30 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
       const P = trumpPicker(L, tableTop, headerBottom);
       const bottom = P.top + P.height;
 
-      // A 2×2 grid in portrait, one row in landscape, of buttons 64pt or more.
+      // A 2×2 grid in portrait, one row in landscape (PID-374): untight
+      // phones' buttons 108pt tall with a 50pt suit, 80pt wide or more, and a
+      // tablet's half as big again; tight phones' 80pt or more.
       expect(P.columns).toBe(portrait ? 2 : 4);
-      expect(Math.min(TRUMP_BUTTON.width, P.buttonHeight)).toBeGreaterThanOrEqual(64);
-      if (!L.tight) expect(P.caption && P.buttonHeight === TRUMP_BUTTON.height).toBe(true);
-      expect(P.width).toBe(P.columns * TRUMP_BUTTON.width + (P.columns - 1) * P.gap);
+      const scale = L.profile.startsWith('tablet') ? 1.5 : 1;
+      expect(Math.min(P.buttonWidth, P.buttonHeight)).toBeGreaterThanOrEqual(80);
+      expect(P.buttonWidth).toBeLessThanOrEqual(TRUMP_BUTTON.width * scale);
+      if (!L.tight) {
+        expect(P.caption).toBe(true);
+        expect(P.buttonHeight).toBe(TRUMP_BUTTON.height * scale);
+        expect(P.suit).toBe(TRUMP_BUTTON.suit * scale);
+      }
+      // Landscape phones' side seats that hang beside their stacks keep a
+      // TRICK_GAP from the row, a long name filling their column included.
+      if (L.sidesUnder) {
+        const seat = SIDE_SEAT_GAP + (L.sideSeatWidth ?? SIDE_SEAT_WIDTH);
+        expect(P.left).toBeGreaterThanOrEqual(
+          sideStackInner(L.cardW, insets.left) + seat + TRICK_GAP
+        );
+        expect(P.left + P.width).toBeLessThanOrEqual(
+          width - sideStackInner(L.cardW, insets.right) - seat - TRICK_GAP
+        );
+      }
+      expect(P.width).toBe(P.columns * P.buttonWidth + (P.columns - 1) * P.gap);
 
       // In the trick circle.
       expect(P.left + P.width / 2).toBeCloseTo(L.trick.cx);

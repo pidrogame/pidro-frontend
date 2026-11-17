@@ -9,7 +9,7 @@ import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { PidroColors, PidroRadii } from '@/design/tokens';
 import { TRUMP_SUITS, trumpsIn } from '@/features/game/trump';
-import { TRUMP_BUTTON, type trumpPicker } from '@/game/canvas/layout';
+import type { trumpPicker } from '@/game/canvas/layout';
 import type { Card, Suit } from '@/types/game';
 import { useTranslation } from '@/i18n';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
@@ -85,7 +85,7 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
               onPress={() => actionTap('declare_trump', () => choose(suit))}
               style={[
                 styles.suit,
-                { height: frame.buttonHeight },
+                { width: frame.buttonWidth, height: frame.buttonHeight },
                 active && styles.active,
                 chosen === suit && styles.chosen,
                 chosen && chosen !== suit && styles.waiting,
@@ -93,10 +93,15 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
               pressedStyle={styles.chosen}>
               <Image
                 source={SUIT_IMAGES[suit]}
-                style={[styles.glyph, frame.buttonHeight < TRUMP_BUTTON.height && styles.short]}
+                style={[styles.glyph, { width: frame.suit, height: frame.suit }]}
                 resizeMode="contain"
               />
-              <PidroText role="label" align="center" numberOfLines={1} maxFontSizeMultiplier={1.2}>
+              <PidroText
+                role="label"
+                align="center"
+                numberOfLines={1}
+                maxFontSizeMultiplier={1.2}
+                style={frame.name}>
                 {name}
               </PidroText>
               <PidroText
@@ -104,7 +109,8 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
                 tone={active ? 'gold' : 'soft'}
                 align="center"
                 numberOfLines={1}
-                maxFontSizeMultiplier={1.2}>
+                maxFontSizeMultiplier={1.2}
+                style={frame.count}>
                 {chosen === suit ? t('game.declaring') : count}
               </PidroText>
             </PressableFX>
@@ -128,8 +134,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   suit: {
-    width: TRUMP_BUTTON.width,
-    height: TRUMP_BUTTON.height,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: PidroRadii.panel,
@@ -148,9 +152,6 @@ const styles = StyleSheet.create({
     opacity: 0.48,
   },
   glyph: {
-    width: 32,
-    height: 32,
     marginBottom: 2,
   },
-  short: { width: 24, height: 24 },
 });
