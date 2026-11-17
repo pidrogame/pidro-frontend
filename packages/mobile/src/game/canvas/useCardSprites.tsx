@@ -36,6 +36,7 @@ import {
 import type { Card, Suit } from '@/types/game';
 import { trumpsIn } from '@/features/game/trump';
 import { catchUpPace } from '@/features/game/catchUp';
+import { retarget } from '@/features/game/heldCard';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playSelectionHaptic } from '@/utils/haptics';
 import { cutSoundKey, shuffleAtMs } from '@/features/game/sounds';
@@ -646,12 +647,16 @@ export function useCardSprites({
         collectTo,
       };
 
-      const pressed = pressSlot.value === sl;
       const signature = `${d.kind}:${d.tx}:${d.ty}:${d.trot}:${d.tscale}:${d.topacity}`;
-      const targetChanged = targets.current.get(sl) !== signature || isNew;
+      const { move, record } = retarget({
+        recorded: isNew ? undefined : targets.current.get(sl),
+        signature,
+        pressed: pressSlot.value === sl,
+        kind: d.kind,
+      });
       const playingFlight =
         model.phase === 'playing' && (d.kind === 'played' || slots[sl]?.kind === 'played');
-      targets.current.set(sl, signature);
+      if (record) targets.current.set(sl, signature);
       // Upright phones (PID-381): a card lying in its pile settles back in
       // place, smaller and shaded, as its seat's next card lands; in one short
       // motion, or at once where the table itself moved.
@@ -741,14 +746,13 @@ export function useCardSprites({
           withTiming(d.tscale * 1.035, { duration: 120 }),
           withTiming(d.tscale, { duration: 440 })
         );
-      } else if (settles && targetChanged && !collectTo) {
+      } else if (settles && move && !collectTo) {
         sx[sl].value = withDelay(settleAt, withTiming(d.tx, settle));
         sy[sl].value = withDelay(settleAt, withTiming(d.ty, settle));
         srot[sl].value = withDelay(settleAt, withTiming(d.trot, settle));
         sscale[sl].value = withDelay(settleAt, withTiming(d.tscale, settle));
       } else if (
-        !pressed &&
-        targetChanged &&
+        move &&
         !collectTo &&
         !(
           d.kind === 'hand' &&
@@ -1131,6 +1135,7 @@ export function useCardSprites({
               {
                 key: slot.key,
                 kind: slot.kind,
+                pressed: pressSlot.value === i,
                 x: sx[i].value,
                 y: sy[i].value,
                 width: cardW,
