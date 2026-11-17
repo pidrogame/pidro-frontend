@@ -807,7 +807,8 @@ export function sendCard(card: Card): Promise<boolean> {
 }
 
 export function pushGameAction(event: string, payload: object, actionId?: string) {
-  const channel = globalGameChannel as (Channel & { joinRef(): string }) | null;
+  const channel = globalGameChannel as
+    (Channel & { joinRef(): string; trigger(event: string, payload: unknown): void }) | null;
   const attempt = actionId
     ? { id: actionId, record: gameDiagnostics.attempt(diagnosticAction(event), actionId) }
     : pushAttempt(event);
@@ -823,6 +824,9 @@ export function pushGameAction(event: string, payload: object, actionId?: string
 
   attempt.record('push', 'pending');
   const joinRef = channel.joinRef();
+  // A late answer from the previous join must not tear down a healthy rejoin.
+  const sameJoin = () =>
+    globalGameChannel === channel && channel.state === 'joined' && channel.joinRef() === joinRef;
   return new Promise<void>((resolve, reject) => {
     channel
       .push(
@@ -842,24 +846,28 @@ export function pushGameAction(event: string, payload: object, actionId?: string
       .receive(
         'error',
         (error: { readiness?: ReadinessSnapshot; reason?: unknown; error_code?: unknown }) => {
-          attempt.record('push', diagnosticCode(error?.error_code ?? error?.reason));
+          // Phoenix's answer for a topic this connection has not joined: the channel only
+          // thinks it is at the table.
+          const unjoined = error?.reason === 'unmatched topic';
+          attempt.record(
+            'push',
+            unjoined ? 'disconnected' : diagnosticCode(error?.error_code ?? error?.reason)
+          );
           const snapshot = lifecycleFromReply(error);
           if (snapshot && globalGameChannel === channel)
             applyLifecycle(snapshot, true, notifySeatEvent);
           if (globalGameChannel === channel && error?.readiness)
             useGameStore.getState().setReadiness(error.readiness);
           reject(error);
+          // The connection is fine; only the channel is not. Its own error path shows the
+          // table reconnecting and rejoins it once, which sends a pending card again.
+          if (unjoined && sameJoin()) channel.trigger('phx_error', error.reason);
         }
       )
       .receive('timeout', () => {
         attempt.record('timeout', 'unavailable');
         reject({ reason: 'timeout' });
-        // A late timeout from the previous join must not tear down a healthy rejoin.
-        if (
-          globalGameChannel === channel &&
-          channel.state === 'joined' &&
-          channel.joinRef() === joinRef
-        ) {
+        if (sameJoin()) {
           useGameStore.getState().setChannelStatus(false, true);
           phoenixSocket.reconnect('push_timeout');
         }

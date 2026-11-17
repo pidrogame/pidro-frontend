@@ -40,7 +40,8 @@ export function pendingPlay({
       () => finish(true),
       (error) => {
         if (settled || serial !== attempt) return;
-        if (error?.reason === 'disconnected' || error?.reason === 'timeout') return;
+        // Unanswered, or the server lost the table and it is rejoining: the rejoin resends it.
+        if (['disconnected', 'timeout', 'unmatched topic'].includes(error?.reason)) return;
         // The client sends only on its turn: the server saying otherwise means the turn moved on.
         finish(false, error?.error_code === 'not_your_turn' ? TOO_LATE : error);
       }

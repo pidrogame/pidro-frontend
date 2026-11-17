@@ -38,6 +38,41 @@ it('retains an unanswered intent, retries on rejoin, accepts once and ignores la
   expect(replies).toHaveLength(4);
 });
 
+// PID-446: Phoenix answers a push on a topic this connection never joined like this.
+it('keeps the card through an unmatched topic, sends it once on rejoin, and still ends on a refusal', async () => {
+  for (const answer of ['unmatched', 'late', 'refused']) {
+    const replies = [];
+    const intent = pendingPlay({
+      card,
+      position: 'west',
+      state,
+      send: () => new Promise((resolve, reject) => replies.push({ resolve, reject })),
+    });
+    let outcome = 'pending';
+    intent.promise.then(
+      (accepted) => (outcome = accepted),
+      (error) => (outcome = error.reason)
+    );
+    intent.rejoin();
+    if (answer === 'unmatched') replies[0].reject({ reason: 'unmatched topic' });
+    if (answer === 'late')
+      replies[0].reject({ reason: 'Not your turn', error_code: 'not_your_turn' });
+    if (answer === 'refused') replies[0].reject({ reason: 'illegal_card' });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(outcome).toBe(
+      answer === 'unmatched' ? 'pending' : answer === 'late' ? 'too_late' : 'illegal_card'
+    );
+    intent.rejoin();
+    expect(replies).toHaveLength(answer === 'unmatched' ? 2 : 1);
+    if (answer !== 'unmatched') continue;
+    replies[1].resolve();
+    expect(await intent.promise).toBe(true);
+    intent.rejoin();
+    expect(replies).toHaveLength(2);
+  }
+});
+
 it('refuses explicitly, clears a moot revision, and never replays into the next hand', async () => {
   for (const outcome of ['refused', 'late', 'played', 'turn', 'hand', 'trick', 'cancel']) {
     let reject;
