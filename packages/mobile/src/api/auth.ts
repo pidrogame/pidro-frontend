@@ -11,6 +11,7 @@ export type {
   CreateGuestResponse,
   FacebookCredential,
   LoginResponse,
+  PasswordLoginResponse,
   ProviderCredential,
   ProviderLoginResponse,
   RegisterResponse,
@@ -21,6 +22,7 @@ export type {
 const authApi = createAuthApi(api);
 
 export const login = authApi.login;
+export const passwordLogin = authApi.passwordLogin;
 export const register = authApi.register;
 export const upgradeGuest = authApi.upgradeGuest;
 export const createGuest = authApi.createGuest;

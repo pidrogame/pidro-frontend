@@ -18,7 +18,7 @@ export const en = {
   "error.not_found": "The requested item was not found.",
   "error.rate_limited":
     "Too many requests. Try again in %{retry_after} seconds.",
-  "error.invalid_credentials": "Invalid sign-in credentials.",
+  "error.invalid_credentials": "That name and password don’t match.",
   "error.mail_unavailable": "Your message could not be sent right now.",
   "error.provider_unavailable":
     "This sign-in provider is temporarily unavailable.",
@@ -166,7 +166,7 @@ export const sv: Record<keyof typeof en, string> = {
   "error.not_found": "Det du söker hittades inte.",
   "error.rate_limited":
     "För många förfrågningar. Försök igen om %{retry_after} sekunder.",
-  "error.invalid_credentials": "Felaktiga inloggningsuppgifter.",
+  "error.invalid_credentials": "Namnet och lösenordet stämmer inte.",
   "error.mail_unavailable": "Ditt meddelande kunde inte skickas just nu.",
   "error.provider_unavailable":
     "Denna inloggningstjänst är tillfälligt otillgänglig.",

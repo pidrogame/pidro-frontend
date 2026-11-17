@@ -32,7 +32,10 @@ import { PidroSpacing } from '@/design/tokens';
 import { useFlowBack, useHardwareBack } from '@/hooks/useFlowBack';
 import { getInstallId } from '@/features/invites/installId';
 import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
-import { takePendingClassicClaim } from '@/features/auth/classicFound';
+import { classicVerification, takePendingClassicClaim } from '@/features/auth/classicFound';
+import { signInOutcome } from '@/features/auth/signInOutcome';
+import { useProviderSignIn } from '@/components/auth/useProviderSignIn';
+import { useAuth } from '@/hooks/useAuth';
 import { take } from '@/features/auth/pendingClassicVerification';
 import {
   alreadyClaimedView,
@@ -44,7 +47,7 @@ import {
   type LoginField,
 } from '@/features/auth/classicClaimForm';
 import { runGuestSave } from '@/features/auth/saveGuest';
-import { claimFailure } from '@/features/analytics';
+import { claimFailure, signInEvent } from '@/features/analytics';
 import { storedAgeTerms } from '@/features/onboarding/ageTerms';
 import { authenticatedEntryDestination } from '@/navigation/initialRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
@@ -53,7 +56,7 @@ import { queueClassicPremium, queueLinkedFriend } from '@/stores/friends';
 import { pendingFriendSlug } from '@/stores/pendingFriendLink';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { apiErrorInfo } from '@/utils/apiErrors';
-import { formatNumber, useTranslation, type TranslationKey } from '@/i18n';
+import { formatDate, formatNumber, useTranslation, type TranslationKey } from '@/i18n';
 import { localizedError } from '@pidro/shared';
 
 // Ticket errors a retry can't fix: start over with a fresh verification.
@@ -76,6 +79,9 @@ type Fixture =
   | 'rename'
   | 'already-claimed'
   | 'already-claimed-apple'
+  | 'moved'
+  | 'moved-apple'
+  | 'moved-facebook'
   | 'details'
   | 'rename-details'
   | 'taken';
@@ -100,6 +106,16 @@ function memberSince(value: string): string {
   return String(date.getUTCFullYear());
 }
 
+/** "3 November", or "3 November 2025" from another year; each language orders it in its sentence. */
+function movedOn(value: string): { day: string; month: string } {
+  const date = new Date(value);
+  const thisYear = date.getFullYear() === new Date().getFullYear();
+  return {
+    day: String(date.getDate()),
+    month: formatDate(date, thisYear ? { month: 'long' } : { month: 'long', year: 'numeric' }),
+  };
+}
+
 export default function ClaimClassicScreen() {
   const { t } = useTranslation();
   const router = useRouter();
@@ -111,9 +127,11 @@ export default function ClaimClassicScreen() {
   const { layout, metrics, inputStyle } = useAuthFlow();
   const goBack = useFlowBack();
   const focused = useIsFocused();
-  const user = useAuthStore((state) => state.user);
+  const signedIn = useAuthStore((state) => state.user);
   const setSession = useAuthStore((state) => state.setSession);
   const [providerHandoff] = useState(takePendingClassicClaim);
+  const { signInWithProvider, error: providerError } = useAuth();
+  const providerSignIn = useProviderSignIn(signInWithProvider);
   const fixtureVerification = useMemo(() => {
     if (!fixture || fixture === 'method' || fixture === 'login' || fixture === 'login-wrong-twice')
       return null;
@@ -135,14 +153,37 @@ export default function ClaimClassicScreen() {
         ...(fixture === 'social'
           ? { new_account: { username: 'ThunderThor88', email: null } }
           : {}),
+        ...(fixture?.startsWith('moved') ? { new_account: null } : {}),
       },
       ...(fixture === 'already-claimed'
         ? { already_claimed: { sign_in_method: 'password' as const } }
         : fixture === 'already-claimed-apple'
           ? { already_claimed: { sign_in_method: 'apple' as const } }
-          : {}),
+          : fixture?.startsWith('moved')
+            ? {
+                already_claimed: {
+                  sign_in_method:
+                    fixture === 'moved-apple'
+                      ? ('apple' as const)
+                      : fixture === 'moved-facebook'
+                        ? ('facebook' as const)
+                        : ('password' as const),
+                  claimed_at: '2026-11-03T10:00:00Z',
+                },
+              }
+            : {}),
     };
   }, [fixture]);
+  // A password Sign in's answer is bound to this install, not to a guest here, who already
+  // chose to switch players: that answer is claimed as if signed out. Anything after it
+  // (back, the emailed code, Apple) is the guest's own again.
+  const [verification, setVerification] = useState<ClassicVerification | null>(
+    providerHandoff?.verification ?? fixtureVerification
+  );
+  const user =
+    providerHandoff?.method === 'password' && verification === providerHandoff.verification
+      ? null
+      : signedIn;
   const [method, setMethod] = useState<ClassicClaimMethod | null>(
     providerHandoff?.method ??
       (fixture === 'social'
@@ -150,9 +191,6 @@ export default function ClaimClassicScreen() {
         : fixtureVerification || fixture === 'login' || fixture === 'login-wrong-twice'
           ? 'password'
           : null)
-  );
-  const [verification, setVerification] = useState<ClassicVerification | null>(
-    providerHandoff?.verification ?? fixtureVerification
   );
   const [step, setStep] = useState<'check' | 'details'>(
     fixture &&
@@ -174,15 +212,17 @@ export default function ClaimClassicScreen() {
   const [wrongPasswords, setWrongPasswords] = useState(fixture === 'login-wrong-twice' ? 2 : 0);
   // The Classic login the shown verification came from; a recovery or provider has none.
   const [verifiedLogin, setVerifiedLogin] = useState(
-    fixture === 'password-short' || fixture === 'password-reused'
-      ? 'Petter'
-      : fixture === 'already-claimed'
-        ? 'ThunderThor88'
-        : ''
+    providerHandoff?.login ??
+      (fixture === 'password-short' || fixture === 'password-reused'
+        ? 'Petter'
+        : fixture === 'already-claimed' || fixture?.startsWith('moved')
+          ? 'ThunderThor88'
+          : '')
   );
   const [guestGames, setGuestGames] = useState(fixture === 'already-claimed' ? 12 : 0);
   const [classicPassword, setClassicPassword] = useState(
-    fixture === 'password-short' ? 'oldpass' : fixture === 'password-reused' ? 'oldpass8' : ''
+    providerHandoff?.password ??
+      (fixture === 'password-short' ? 'oldpass' : fixture === 'password-reused' ? 'oldpass8' : '')
   );
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -258,6 +298,22 @@ export default function ClaimClassicScreen() {
       router.replace({ pathname: '/(auth)/login', params: email ? { email } : {} }),
     [router]
   );
+
+  // From "That's your old password": Sign in again, the name kept and the password to retype.
+  const movedLogin = claimed?.login;
+  const tryAgain = useCallback(
+    () =>
+      router.replace({
+        pathname: '/(auth)/login',
+        params: movedLogin ? { email: movedLogin, focus: 'password' } : {},
+      }),
+    [movedLogin, router]
+  );
+
+  const movedMethod = claimed?.moved ? (alreadyClaimed?.sign_in_method ?? 'unknown') : null;
+  useEffect(() => {
+    if (!fixture && movedMethod) captureAnalytics('sign_in_moved_shown', { method: movedMethod });
+  }, [fixture, movedMethod, verification]);
 
   const finishVerification = useCallback(
     (result: ClassicVerification, nextMethod: ClassicClaimMethod, verifiedAs = '') => {
@@ -349,22 +405,56 @@ export default function ClaimClassicScreen() {
     setError(null);
     setRequestFailure(null);
     try {
-      const installId = user ? undefined : await getInstallId();
-      const result = await classicApi.verify({
-        method: 'password',
-        login: login.trim(),
-        password: classicPassword,
-        install_id: installId,
-      });
-      finishVerification(result, 'password', login.trim());
+      if (user) {
+        const result = await classicApi.verify({
+          method: 'password',
+          login: login.trim(),
+          password: classicPassword,
+        });
+        finishVerification(result, 'password', login.trim());
+        return;
+      }
+      // Signed out, this is Sign in's call: a new Pidro password signs in here too.
+      captureAnalytics('sign_in_started', { method: 'password' });
+      const answer = await authApi.passwordLogin(
+        login.trim(),
+        classicPassword,
+        await getInstallId(),
+        storedAgeTerms()
+      );
+      captureAnalytics(...signInEvent('password', signInOutcome(answer)));
+      if (answer.status === 'classic_found') {
+        finishVerification(classicVerification(answer.claim), 'password', login.trim());
+        return;
+      }
+      setSession({ accessToken: answer.session.token, user: answer.session.user });
+      router.replace(
+        authenticatedEntryDestination(
+          usePendingInviteStore.getState().pendingInvite,
+          useAgeGateStore.getState().ageBand,
+          answer.session.user
+        ) as Href
+      );
     } catch (requestError) {
-      if (apiErrorInfo(requestError).code === 'INVALID_CREDENTIALS')
-        setWrongPasswords((count) => count + 1);
+      const code = apiErrorInfo(requestError).code;
+      if (!user)
+        captureAnalytics(...signInEvent('password', signInOutcome({ status: 'failure', code })));
+      if (code === 'INVALID_CREDENTIALS') setWrongPasswords((count) => count + 1);
       reportRequestError(requestError, 'auth.classic_verify_failed');
     } finally {
       setBusy(false);
     }
-  }, [busy, classicPassword, finishVerification, fixture, login, reportRequestError, user]);
+  }, [
+    busy,
+    classicPassword,
+    finishVerification,
+    fixture,
+    login,
+    reportRequestError,
+    router,
+    setSession,
+    user,
+  ]);
 
   const verifyProvider = useCallback(
     async (provider: 'apple' | 'facebook') => {
@@ -428,13 +518,16 @@ export default function ClaimClassicScreen() {
         verification.classic.name_allowed
       );
       const claim = () =>
-        classicApi.claim({
-          ticket: verification.ticket,
-          install_id: installId,
-          ...(Object.keys(account).length ? { account } : {}),
-          ...storedAgeTerms(),
-          ...pendingFriendSlug(),
-        });
+        classicApi.claim(
+          {
+            ticket: verification.ticket,
+            install_id: installId,
+            ...(Object.keys(account).length ? { account } : {}),
+            ...storedAgeTerms(),
+            ...pendingFriendSlug(),
+          },
+          { withoutSession: !user }
+        );
       if (guestCredentials) {
         // This claim saves the guest as Save your progress does, retiring the guest's token,
         // so an answer lost after the server saved is recovered by signing in.
@@ -543,7 +636,8 @@ export default function ClaimClassicScreen() {
 
   const onBack = () => {
     if (busy) return;
-    if (verification && step === 'details') {
+    if (claimed?.moved) tryAgain();
+    else if (verification && step === 'details') {
       setStep('check');
       setError(null);
       setRequestFailure(null);
@@ -568,7 +662,7 @@ export default function ClaimClassicScreen() {
     (!failure ||
       (requestFailure !== null &&
         apiErrorInfo(requestFailure.error).code === 'INVALID_CREDENTIALS'));
-  const notice = offersCode ? null : failure;
+  const notice = offersCode ? null : (failure ?? providerSignIn.notice ?? providerError);
   const fieldCount =
     Object.values(form.asks).filter(Boolean).length +
     (form.asks.password && reusedPassword ? -1 : 0) +
@@ -579,7 +673,9 @@ export default function ClaimClassicScreen() {
       ? 'auth.claim_login_title'
       : 'auth.claim_method'
     : alreadyClaimed
-      ? 'auth.already_in_pidro'
+      ? claimed?.moved
+        ? 'auth.moved_title'
+        : 'auth.already_in_pidro'
       : !details
         ? 'auth.classic_found'
         : !verification.classic.name_allowed
@@ -658,6 +754,20 @@ export default function ClaimClassicScreen() {
               }
             />
           </>
+        ) : claimed?.moved ? (
+          claimed.forgot ? (
+            <TextLink
+              label={t('auth.moved_forgot')}
+              size={metrics.link}
+              style={layout === 'landscape' ? undefined : styles.centerLink}
+              onPress={() =>
+                router.push({
+                  pathname: '/(auth)/forgot-password',
+                  params: claimed.login ? { identifier: claimed.login } : {},
+                })
+              }
+            />
+          ) : undefined
         ) : claimed ? (
           <View style={layout === 'landscape' ? styles.sideLinks : styles.links}>
             {claimed.forgot ? (
@@ -899,7 +1009,28 @@ export default function ClaimClassicScreen() {
                 ) : null}
               </View>
             </Surface>
-            {claimed ? (
+            {claimed?.moved ? (
+              <>
+                <PidroText role="body" tone="soft" align="center" style={metrics.body}>
+                  {t(claimed.moved.sentence, movedOn(claimed.moved.on))}
+                </PidroText>
+                {claimed.moved.provider ? (
+                  <AuthProviderButtons
+                    showEmail={false}
+                    only={claimed.moved.provider}
+                    availability={fixture ? { apple: true, facebook: true } : undefined}
+                    onApple={() => void providerSignIn.start('apple')}
+                    onFacebook={() => void providerSignIn.start('facebook')}
+                  />
+                ) : (
+                  <AuthFlowButton
+                    testID="classic-forward"
+                    label={t('auth.try_again')}
+                    onPress={tryAgain}
+                  />
+                )}
+              </>
+            ) : claimed ? (
               <>
                 {claimed.hint ? (
                   <PidroText role="body" tone="soft" align="center" style={metrics.body}>

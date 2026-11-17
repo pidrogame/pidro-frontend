@@ -1,7 +1,10 @@
 import { useCallback, useState } from 'react';
 import { useRouter, type Href } from 'expo-router';
 import type { AuthProvider } from '@/api/auth';
+import { captureAnalytics } from '@/analytics/PostHogAnalytics';
+import { signInEvent } from '@/features/analytics';
 import { handleClassicFound } from '@/features/auth/classicFound';
+import { signInOutcome } from '@/features/auth/signInOutcome';
 import { handleSocialSignInOutcome } from '@/features/auth/loginSocial';
 import type { SocialSignInOutcome } from '@/hooks/useAuth';
 import { authenticatedEntryDestination } from '@/navigation/initialRoute';
@@ -25,7 +28,9 @@ export function useProviderSignIn(
   const start = useCallback(
     async (provider: AuthProvider) => {
       setNotice(null);
+      captureAnalytics('sign_in_started', { method: provider });
       const outcome = await signInWithProvider(provider);
+      captureAnalytics(...signInEvent(provider, signInOutcome(outcome)));
       handleSocialSignInOutcome(outcome, {
         onSignedIn: () => {
           if (outcome.status !== 'signed_in') return;

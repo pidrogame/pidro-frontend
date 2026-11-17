@@ -1,4 +1,5 @@
 import type { ReadinessSnapshot, SeatLifecycleSnapshot, ServerGameState } from '@pidro/shared';
+import type { SignInOutcome } from '@/features/auth/signInOutcome';
 
 /**
  * Every event the app sends to PostHog. Saved insights and the dashboard look
@@ -19,6 +20,10 @@ export const ANALYTICS_EVENTS = [
   'claim_succeeded',
   'claim_failed',
   'classic_forgot_started',
+  'sign_in_started',
+  'sign_in_succeeded',
+  'sign_in_failed',
+  'sign_in_moved_shown',
   'table_wait_started',
   'table_wait_ended',
   'premium_sheet_opened',
@@ -153,6 +158,12 @@ export function nextTableWait(
 
 // Field errors come back as the field's name; everything else as an UPPER_SNAKE code.
 const FIELD_CODES = new Set(['email', 'password', 'username']);
+
+/** A sign-in that led somewhere succeeded; the rest stopped on Sign in. Never a name or password. */
+export function signInEvent(method: string, outcome: SignInOutcome) {
+  const led = outcome === 'signed_in' || outcome === 'classic_found' || outcome === 'moved';
+  return [led ? 'sign_in_succeeded' : 'sign_in_failed', { method, outcome }] as const;
+}
 
 /** A failed claim says how and which code, never a message or what the player typed. */
 export function claimFailure(method: string, code: unknown) {

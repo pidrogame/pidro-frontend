@@ -25,6 +25,8 @@ export interface ClassicNewAccount {
 /** Set when the Classic account is linked to a different player. */
 export interface ClassicAlreadyClaimed {
   sign_in_method: ClassicClaimMethod | null;
+  /** When it was moved; only a Sign in with its old password says (PID-455). */
+  claimed_at?: string | null;
 }
 
 export interface ClassicVerification {
@@ -105,11 +107,15 @@ export function createClassicApi(api: ApiClient) {
       return response.data.data;
     },
 
-    claim: async (request: ClassicClaimRequest): Promise<ClassicClaimResponse> => {
+    /** `withoutSession`: a ticket from signing in is bound to this install, not to a guest here. */
+    claim: async (
+      request: ClassicClaimRequest,
+      { withoutSession = false } = {}
+    ): Promise<ClassicClaimResponse> => {
       const response = await api.post<{ data: ClassicClaimResponse }>(
         '/api/v1/classic/claim',
         request,
-        { preserveSessionOnUnauthorized: true }
+        { preserveSessionOnUnauthorized: true, withoutSession }
       );
       return response.data.data;
     },

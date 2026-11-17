@@ -99,6 +99,15 @@ export interface AlreadyClaimedView {
   guestGamesLost: boolean;
   /** The other saved account this phone is signed in to, which has to sign out first. */
   signedInAs: string | null;
+  /**
+   * Signed in with the old password of an account already moved (PID-455): when it
+   * moved, how it signs in now, and the provider button that does it, if any.
+   */
+  moved?: {
+    on: string;
+    sentence: 'auth.moved_password' | 'auth.moved_apple' | 'auth.moved_facebook' | 'auth.moved';
+    provider: 'apple' | 'facebook' | null;
+  };
 }
 
 /**
@@ -129,5 +138,13 @@ export function alreadyClaimedView({
     forgot: password,
     guestGamesLost: Boolean(user?.guest) && guestGames > 0,
     signedInAs: user && !user.guest ? user.display_name || user.username : null,
+    moved:
+      alreadyClaimed.claimed_at && signIn
+        ? {
+            on: alreadyClaimed.claimed_at,
+            sentence: method ? `auth.moved_${method}` : 'auth.moved',
+            provider: method === 'apple' || method === 'facebook' ? method : null,
+          }
+        : undefined,
   };
 }

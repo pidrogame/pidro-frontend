@@ -15,12 +15,15 @@ import { Input } from '@/components/ui/Input';
 import { PidroText } from '@/components/ui/PidroText';
 import { TextLink } from '@/components/ui/TextLink';
 import { PidroSpacing } from '@/design/tokens';
+import { captureAnalytics } from '@/analytics/PostHogAnalytics';
+import { signInEvent } from '@/features/analytics';
+import { handleClassicFound } from '@/features/auth/classicFound';
+import { signInOutcome } from '@/features/auth/signInOutcome';
 import { useAuth } from '@/hooks/useAuth';
 import { useFlowBack } from '@/hooks/useFlowBack';
 import { useTranslation, type TranslationKey } from '@/i18n';
 import { authenticatedEntryDestination } from '@/navigation/initialRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
-import { useAuthStore } from '@/stores/auth';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import type { AuthProvider } from '@/api/auth';
 
@@ -28,7 +31,12 @@ type LoginField = 'identifier' | 'password';
 
 export default function LoginScreen() {
   const { t } = useTranslation();
-  const params = useLocalSearchParams<{ email?: string; known?: string; fixture?: string }>();
+  const params = useLocalSearchParams<{
+    email?: string;
+    known?: string;
+    focus?: string;
+    fixture?: string;
+  }>();
   const fixture = __DEV__ ? params.fixture : undefined;
   const [identifier, setIdentifier] = useState(params.email ?? '');
   const [password, setPassword] = useState('');
@@ -62,16 +70,23 @@ export default function LoginScreen() {
 
   const performLogin = useCallback(async () => {
     Keyboard.dismiss();
-    const success = await signIn(identifier.trim(), password);
-    const signedInUser = useAuthStore.getState().user;
-    if (success && signedInUser) {
+    const login = identifier.trim();
+    captureAnalytics('sign_in_started', { method: 'password' });
+    const answer = await signIn(login, password);
+    if (!answer) return;
+    captureAnalytics(...signInEvent('password', signInOutcome(answer)));
+    if (answer.status === 'signed_in') {
       router.replace(
         authenticatedEntryDestination(
           pendingInvite,
           useAgeGateStore.getState().ageBand,
-          signedInUser
+          answer.session.user
         ) as Href
       );
+    } else if (answer.status === 'classic_found') {
+      // Only the old Pidro knew them: "Is this you?", or the account already moved.
+      handleClassicFound(answer.claim, 'password', { login, password });
+      router.replace('/(auth)/claim-classic');
     }
   }, [identifier, password, pendingInvite, router, signIn]);
 
@@ -118,10 +133,13 @@ export default function LoginScreen() {
     </View>
   );
 
+  const notice = error ?? (fixture === 'mismatch' ? t('error.invalid_credentials') : null);
+
   return (
     <AuthFlowScreen
       testID="login-screen"
       headerTitle={t('auth.sign_in')}
+      body={t('auth.sign_in_intro')}
       onBack={goBack}
       aside={
         <View style={[styles.aside, landscape && styles.asideLandscape]}>
@@ -135,13 +153,14 @@ export default function LoginScreen() {
         </View>
       }>
       <AuthFlowWindow testID="auth-window">
-        {error ? <AuthFlowNotice>{error}</AuthFlowNotice> : null}
+        {notice ? <AuthFlowNotice>{notice}</AuthFlowNotice> : null}
         {knownAccount ? <AuthFlowNotice tone="info">{t('auth.email_known')}</AuthFlowNotice> : null}
         <AuthProviderButtons
           showEmail={false}
           showEmailDivider
+          dividerLabel={t('auth.or_password')}
           direction={landscape ? 'row' : 'column'}
-          availability={fixture === 'providers' ? { apple: true, facebook: true } : undefined}
+          availability={fixture ? { apple: true, facebook: true } : undefined}
           onApple={() => handleProviderLogin('apple')}
           onFacebook={() => handleProviderLogin('facebook')}
         />
@@ -151,7 +170,6 @@ export default function LoginScreen() {
             <Input
               ref={identifierRef}
               label={t('auth.identifier')}
-              placeholder={t('auth.email_placeholder')}
               value={identifier}
               onChangeText={(next) => {
                 setIdentifier(next);
@@ -177,6 +195,8 @@ export default function LoginScreen() {
             <Input
               ref={passwordRef}
               label={t('auth.password')}
+              // Back from "That's your old password": the name stays, the password is retyped.
+              autoFocus={params.focus === 'password'}
               value={password}
               onChangeText={(next) => {
                 setPassword(next);

@@ -4,6 +4,8 @@ import type { PlatformConfig } from '../platform/types';
 declare module 'axios' {
   interface AxiosRequestConfig {
     preserveSessionOnUnauthorized?: boolean;
+    /** Sends no Authorization header, even while someone is signed in. */
+    withoutSession?: boolean;
   }
 }
 
@@ -35,7 +37,7 @@ export function createApiClient({
   instance.interceptors.request.use(
     (reqConfig: InternalAxiosRequestConfig) => {
       const token = getToken();
-      if (token) {
+      if (token && !reqConfig.withoutSession) {
         reqConfig.headers.Authorization = `Bearer ${token}`;
       }
       return reqConfig;

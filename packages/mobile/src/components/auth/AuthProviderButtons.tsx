@@ -16,6 +16,10 @@ export interface AuthProviderButtonsProps {
   onEmail?: () => void;
   showEmail?: boolean;
   showEmailDivider?: boolean;
+  /** Only this provider's button, for an account that signs in with it. */
+  only?: 'apple' | 'facebook';
+  /** The divider's words; "or with email" unless the screen says otherwise. */
+  dividerLabel?: string;
   /** Side by side where height is short (phone landscape). */
   direction?: 'column' | 'row';
   /** Deterministic native-capability override for development fixtures. */
@@ -44,6 +48,8 @@ export function AuthProviderButtons({
   onEmail,
   showEmail = true,
   showEmailDivider = false,
+  dividerLabel,
+  only,
   direction = 'column',
   availability: availabilityOverride,
 }: AuthProviderButtonsProps) {
@@ -52,7 +58,13 @@ export function AuthProviderButtons({
     apple: false,
     facebook: false,
   });
-  const availability = availabilityOverride ?? detectedAvailability;
+  const offered = availabilityOverride ?? detectedAvailability;
+  const availability = only
+    ? {
+        apple: only === 'apple' && offered.apple,
+        facebook: only === 'facebook' && offered.facebook,
+      }
+    : offered;
 
   useEffect(() => {
     if (availabilityOverride) return;
@@ -120,7 +132,7 @@ export function AuthProviderButtons({
         <View style={styles.dividerRow}>
           <View style={styles.divider} />
           <PidroText role="metadata" tone="soft">
-            {t('auth.or_email')}
+            {dividerLabel ?? t('auth.or_email')}
           </PidroText>
           <View style={styles.divider} />
         </View>

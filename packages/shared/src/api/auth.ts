@@ -26,6 +26,8 @@ export type SignUpExtras = AgeTermsRequest & FriendLinkRequest;
 export interface LoginRequest extends AgeTermsRequest {
   username: string;
   password: string;
+  /** Lets the server try the old Pidro when the new one does not know the password (PID-455). */
+  install_id?: string;
 }
 
 export type User = {
@@ -81,15 +83,17 @@ export interface ClassicPreview {
 export interface ClassicFound {
   classic_found: true;
   classic: ClassicPreview;
-  ticket: string;
-  expires_at: string;
+  /** Absent when the account was already moved: there is nothing left to claim. */
+  ticket?: string;
+  expires_at?: string;
   already_claimed?: ClassicAlreadyClaimed | null;
 }
 
-export type ProviderLoginResponse =
+export type PasswordLoginResponse =
   | { status: 'signed_in'; session: LoginResponse }
-  | { status: 'classic_found'; claim: ClassicFound }
-  | { status: 'unknown_identity' };
+  | { status: 'classic_found'; claim: ClassicFound };
+
+export type ProviderLoginResponse = PasswordLoginResponse | { status: 'unknown_identity' };
 
 type ProviderAuthEnvelope =
   | AuthResponseEnvelope
@@ -229,6 +233,26 @@ export function createAuthApi(api: ApiClient) {
         preserveSessionOnUnauthorized: true,
       });
       return response.data.data;
+    },
+
+    /**
+     * Sign in with an install: a name and password only the old Pidro knows
+     * answer with that account instead of a refusal.
+     */
+    passwordLogin: async (
+      username: string,
+      password: string,
+      installId: string | undefined,
+      ageTerms: AgeTermsRequest = {}
+    ): Promise<PasswordLoginResponse> => {
+      const request: LoginRequest = { username, password, ...ageTerms, install_id: installId };
+      const response = await api.post<ProviderAuthEnvelope>('/api/v1/auth/login', request, {
+        preserveSessionOnUnauthorized: true,
+      });
+      const data = response.data.data;
+      return 'token' in data
+        ? { status: 'signed_in', session: data }
+        : { status: 'classic_found', claim: data };
     },
 
     register: async (

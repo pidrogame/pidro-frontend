@@ -12,7 +12,7 @@ export const en = {
   "auth.continue_caps": "CONTINUE",
   "auth.email": "Email",
   "auth.email_placeholder": "you@example.com",
-  "auth.identifier": "Email or username",
+  "auth.identifier": "Username or email",
   "auth.password": "Password",
   "auth.public_name": "Public name",
   "auth.forgot": "Forgot password?",
@@ -217,6 +217,19 @@ export const en = {
   "auth.signed_password": "Sign in with your username and password.",
   "auth.signed_apple": "You signed in with Apple.",
   "auth.signed_facebook": "You signed in with Facebook.",
+  "auth.sign_in_intro":
+    "Sign in the way you always have. Your name and password from the old Pidro app work here too.",
+  "auth.or_password": "or with your password",
+  "auth.moved_title": "That’s your old password",
+  "auth.moved_password":
+    "You moved this account to the new Pidro on %{day} %{month} and chose a new password then.",
+  "auth.moved_apple":
+    "You moved this account to the new Pidro on %{day} %{month} and sign in with Apple.",
+  "auth.moved_facebook":
+    "You moved this account to the new Pidro on %{day} %{month} and sign in with Facebook.",
+  "auth.moved": "You moved this account to the new Pidro on %{day} %{month}.",
+  "auth.try_again": "Try again",
+  "auth.moved_forgot": "Forgot it? Email me a link",
   "auth.signed_in_other": "You're signed in as %{name}. Sign out first to use this one.",
   "auth.guest_games_left": "Your guest games won't come along.",
   "auth.back": "Back",
@@ -262,7 +275,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.continue_caps": "FORTSÄTT",
   "auth.email": "E-post",
   "auth.email_placeholder": "du@exempel.se",
-  "auth.identifier": "E-post eller användarnamn",
+  "auth.identifier": "Användarnamn eller e-post",
   "auth.password": "Lösenord",
   "auth.public_name": "Offentligt namn",
   "auth.forgot": "Glömt lösenordet?",
@@ -476,6 +489,19 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.signed_password": "Logga in med ditt användarnamn och lösenord.",
   "auth.signed_apple": "Du loggade in med Apple.",
   "auth.signed_facebook": "Du loggade in med Facebook.",
+  "auth.sign_in_intro":
+    "Logga in som du alltid har gjort. Ditt namn och lösenord från gamla Pidro-appen fungerar här också.",
+  "auth.or_password": "eller med ditt lösenord",
+  "auth.moved_title": "Det är ditt gamla lösenord",
+  "auth.moved_password":
+    "Du flyttade det här kontot till nya Pidro den %{day} %{month} och valde ett nytt lösenord då.",
+  "auth.moved_apple":
+    "Du flyttade det här kontot till nya Pidro den %{day} %{month} och loggar in med Apple.",
+  "auth.moved_facebook":
+    "Du flyttade det här kontot till nya Pidro den %{day} %{month} och loggar in med Facebook.",
+  "auth.moved": "Du flyttade det här kontot till nya Pidro den %{day} %{month}.",
+  "auth.try_again": "Försök igen",
+  "auth.moved_forgot": "Glömt det? Mejla mig en länk",
   "auth.signed_in_other":
     "Du är inloggad som %{name}. Logga ut först för att använda det här kontot.",
   "auth.guest_games_left": "Dina gästspel följer inte med.",

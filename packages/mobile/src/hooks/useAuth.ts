@@ -10,7 +10,7 @@ import {
 import { invitePlatform } from '@/features/invites/platform';
 import type { SocialCredentialResult } from '@/features/auth/socialCredentials';
 import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
-import type { AuthProvider, ProviderLoginResponse } from '@/api/auth';
+import type { AuthProvider, PasswordLoginResponse, ProviderLoginResponse } from '@/api/auth';
 import { guestSaveFailure, runGuestSave, type GuestSaveResult } from '@/features/auth/saveGuest';
 import { storedAgeTerms } from '@/features/onboarding/ageTerms';
 import { queueLinkedFriend } from '@/stores/friends';
@@ -21,6 +21,8 @@ import { useTranslation, type TranslationKey, type TranslationValues } from '@/i
 export type { GuestSaveField, GuestSaveFailure, GuestSaveResult } from '@/features/auth/saveGuest';
 
 type AuthFailure = { cause?: unknown; key: TranslationKey; values?: TranslationValues };
+
+export type PasswordSignInOutcome = PasswordLoginResponse | { status: 'failure'; code?: string };
 
 export type SocialSignInOutcome =
   ProviderLoginResponse | Extract<SocialCredentialResult, { status: 'cancelled' | 'failure' }>;
@@ -51,19 +53,23 @@ export function useAuth() {
   const requestInFlight = useRef(false);
 
   const signIn = useCallback(
-    async (username: string, password: string) => {
-      if (requestInFlight.current) return false;
+    async (username: string, password: string): Promise<PasswordSignInOutcome | null> => {
+      if (requestInFlight.current) return null;
       requestInFlight.current = true;
 
       try {
         setIsLoading(true);
         setError(null);
-        const response = await authApi.login(username, password, storedAgeTerms());
-        setSession({
-          accessToken: response.token,
-          user: response.user,
-        });
-        return true;
+        // With the install, a name and password only the old Pidro knows find that account.
+        const installId = await getInstallId().catch(() => undefined);
+        const answer = await authApi.passwordLogin(username, password, installId, storedAgeTerms());
+        if (answer.status === 'signed_in') {
+          setSession({
+            accessToken: answer.session.token,
+            user: answer.session.user,
+          });
+        }
+        return answer;
       } catch (e) {
         if (e instanceof AxiosError) {
           console.warn('[Auth] Sign in request failed:', getSafeAxiosErrorDetails(e));
@@ -71,7 +77,7 @@ export function useAuth() {
           console.warn('[Auth] Sign in failed with a non-API error');
         }
         setError({ cause: e, key: 'auth.login_failed' });
-        return false;
+        return { status: 'failure', code: apiErrorInfo(e).code };
       } finally {
         requestInFlight.current = false;
         setIsLoading(false);

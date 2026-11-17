@@ -13,6 +13,7 @@ export {
   createAuthApi,
   type LoginRequest,
   type LoginResponse,
+  type PasswordLoginResponse,
   type PasswordResetRequestResponse,
   type ProviderLoginResponse,
   type ProviderAuthRequest,
