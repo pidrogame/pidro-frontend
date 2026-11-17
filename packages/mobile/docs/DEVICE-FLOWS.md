@@ -121,3 +121,26 @@ not minutes. See `WEB-PARITY.md` for the full division of labour.
 
 `test/flows/seat-decisions.yaml` is the worked example: the device twin of
 `scripts/verify-seat-decisions.mjs`, which can only ever run in a browser.
+
+## A card pressed again while it is played (PID-444)
+
+`scripts/press-during-play.native.mjs` proves that a card your finger touches
+again before its play is drawn still lands on the table, rather than hanging
+over the hand. The touch runs on the UI thread and the table redraws from the
+JS thread, so neither the browser nor two Maestro taps can reach that order: the
+script holds the app's JS thread busy through Metro's debugger, taps the card
+and presses it again, and lets the play be drawn under the finger. It compares
+that run with one plain tap, and reads the sprites from the table's dev hook
+(`globalThis.__pidroCardMotion`), whose `pressed` flag shows the finger was
+still down. It taps at the card's point from that hook, not by label: the card
+has no label of its own.
+
+```bash
+just table-sim "iPhone 17 Pro" playing   # Metro running, one simulator booted
+METRO_PORT=8081 node scripts/press-during-play.native.mjs
+```
+
+Exit 0: the card landed where one tap puts it. Exit 1: it hangs over the hand.
+Exit 2: the control failed or the play was not drawn under the finger; the run
+proves nothing, so rerun it or tune `HOLD_MS`/`PRESS_MS`. Release work, like
+every flow here; run it with one Android phone check by hand.
