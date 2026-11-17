@@ -23,6 +23,7 @@ it('renders reconnect status only offline and card backs at every spectator seat
   }));
   mock.module('react-native-reanimated', () => ({
     default: { View: view },
+    FadeIn: { duration: () => ({}) },
     FadeOut: { duration: () => ({}) },
     Easing: { out: (x) => x, back: () => ({}) },
     useReducedMotion: () => true,
@@ -37,6 +38,7 @@ it('renders reconnect status only offline and card backs at every spectator seat
   mock.module('../../src/components/ui/PlayerAvatar.tsx', () => ({
     PlayerAvatar: () => null,
     DEALER_SLIDE_MS: 0,
+    PLATE_REACH: 0,
   }));
   mock.module('../../src/components/ui/PressableFX.tsx', () => ({ PressableFX: view }));
   mock.module('../../src/components/ui/StillLayer.tsx', () => ({ StillLayer: view }));

@@ -6691,6 +6691,8 @@ async function assertBidLines(page, testCase, viewport) {
 
 const TEAM_US = 'rgb(184, 198, 255)';
 const TEAM_THEM = 'rgb(255, 180, 185)';
+const TEAM_US_ON_LIGHT = 'rgb(43, 63, 158)';
+const TEAM_THEM_ON_LIGHT = 'rgb(160, 42, 60)';
 
 // PID-294: no seat has a light of its team's colour (the old soft glow under
 // each seat), your and your partner's names share our colour, both opponents
@@ -6698,29 +6700,40 @@ const TEAM_THEM = 'rgb(255, 180, 185)';
 async function assertTeams(page, testCase) {
   if (!testCase.teams) return;
   const seen = {};
+  const onPlate = {};
   for (const position of ['north', 'east', 'south', 'west']) {
     const seat = page.getByTestId(`seat-${position}`).first();
-    const { names, lights } = await seat.evaluate((root) => {
+    const { names, lights, lit } = await seat.evaluate((root) => {
       const nodes = [...root.querySelectorAll('*')];
       const team = /(146, 230, 178|255, 180, 185|184, 198, 255)/;
       return {
         names: nodes
           .filter((n) => n.childElementCount === 0 && n.textContent.trim())
           .map((n) => getComputedStyle(n))
-          .filter((style) => style.fontWeight === '800')
+          .filter((style) => style.fontWeight === '900')
           .map((style) => style.color),
         lights: nodes
           .map((n) => getComputedStyle(n))
           .filter((style) => team.test(`${style.backgroundColor} ${style.boxShadow}`)).length,
+        // PID-450: the seat on turn carries its name on the lit plate.
+        lit: nodes.some((n) => getComputedStyle(n).backgroundColor === 'rgb(201, 247, 255)'),
       };
     });
     assert.equal(lights, 0, `${testCase.name}: seat-${position} has a team light`);
     assert.equal(names.length, 1, `${testCase.name}: seat-${position} has one name`);
     seen[position] = names[0];
+    onPlate[position] = lit;
   }
   // You sit south; a spectator's south is N/S too. Both fixtures watch from the
   // south, so this pins the N/S rule for a spectator, not an east/west viewer.
-  const expected = { north: TEAM_US, south: TEAM_US, east: TEAM_THEM, west: TEAM_THEM };
+  // On the lit plate the name keeps its team in the tone that reads on cyan.
+  const tone = (position, team, onLight) => (onPlate[position] ? onLight : team);
+  const expected = {
+    north: tone('north', TEAM_US, TEAM_US_ON_LIGHT),
+    south: tone('south', TEAM_US, TEAM_US_ON_LIGHT),
+    east: tone('east', TEAM_THEM, TEAM_THEM_ON_LIGHT),
+    west: tone('west', TEAM_THEM, TEAM_THEM_ON_LIGHT),
+  };
   assert.deepEqual(seen, expected, `${testCase.name}: names in their team's colour`);
   const labels = testCase.teams === 'spectator' ? ['N/S', 'E/W'] : ['US', 'THEM'];
   const label = (text) =>
