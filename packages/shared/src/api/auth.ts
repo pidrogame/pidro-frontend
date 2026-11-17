@@ -40,6 +40,8 @@ export type User = {
   has_photo?: boolean;
   share_slug?: string | null;
   bio?: string | null;
+  /** The account came from the old Pidro: the profile's `classic`, kept on the user (PID-451). */
+  classic?: boolean;
   age_band?: AgeBand;
   terms_version?: string | null;
   // Owned by the server (PID-125). Absent from an older server: not Premium.

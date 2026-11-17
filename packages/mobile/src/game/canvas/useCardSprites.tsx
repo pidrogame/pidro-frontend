@@ -400,7 +400,7 @@ export function useCardSprites({
     // Landscape phones (PID-308): each seat's latest card lies on the cross; its
     // earlier cards this hand trail behind it, smaller and shaded, all still
     // there to be counted. A card from an earlier trick waits on the cross for
-    // its seat's next card, shaded too. With "Help me keep count" on, point cards
+    // its seat's next card, shaded too. With "Count for me" on, point cards
     // keep their light wherever they lie. Upright phones keep their piles on the
     // circle, the latest card in front and the earlier ones behind it (PID-381).
     const upright = L.profile === 'phone-portrait';

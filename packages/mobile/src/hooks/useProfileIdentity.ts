@@ -32,6 +32,7 @@ export function useProfileIdentity() {
         has_photo:
           fresh && identity.has_photo !== undefined ? identity.has_photo : currentUser.has_photo,
         bio: identity.bio,
+        classic: identity.classic != null,
       },
     });
     return identity;

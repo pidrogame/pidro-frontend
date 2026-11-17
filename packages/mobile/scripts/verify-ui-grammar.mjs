@@ -36,7 +36,8 @@ const authFixture = JSON.stringify({
   state: {
     accessToken: 'ui-grammar-token',
     refreshToken: null,
-    user: { id: 'ui-grammar-user', username: 'Bengt', age_band: '18_plus' },
+    // As saved once the profile answered: Bengt came from the old Pidro (PID-451).
+    user: { id: 'ui-grammar-user', username: 'Bengt', age_band: '18_plus', classic: true },
   },
   version: 0,
 });
@@ -6897,16 +6898,6 @@ async function assertTableDetails(page, testCase, viewport) {
   }
   await page.waitForTimeout(150);
   assert.deepEqual(await poses(), before, 'backs never jitter between frames');
-  await page.getByRole('button', { name: 'Table settings', exact: true }).click();
-  const toggle = page.getByRole('switch', { name: 'Show the bid during play', exact: true });
-  assert.equal(await toggle.getAttribute('aria-checked'), 'true');
-  await toggle.click();
-  assert.equal(await toggle.getAttribute('aria-checked'), 'false');
-  assert.equal(await chips.count(), 0, 'off hides the bid immediately');
-  await toggle.click();
-  assert.equal(await chips.count(), 1, 'on restores it without count help');
-  assert.deepEqual(await poses(), before, 'backs stay fixed across preference rerenders');
-  await page.getByRole('button', { name: 'Close Table settings', exact: true }).click();
 }
 
 // A seat that played says so aloud and on screen, inside the viewport.
@@ -8277,18 +8268,24 @@ async function assertSwitchInteractions(page, name, screenshotDir) {
       .getByTestId('ui-switch-panel')
       .screenshot({ path: resolve(screenshotDir, 'ui-switches.png') });
   } else {
-    const bid = page.getByRole('switch', { name: 'Show the bid during play', exact: true });
-    const count = page.getByRole('switch', { name: 'Help me keep count', exact: true });
-    const originalCount = await checked(count);
-    assert.equal(await checked(bid), 'true');
-    await bid.click();
-    assert.equal(await checked(bid), 'false');
-    assert.equal(await checked(count), originalCount, 'Bid reminder is independent of count help');
+    // Counting is one choice of two with a line that follows it (PID-451).
+    const counting = page.getByTestId('settings-counting');
+    const self = counting.getByRole('radio', { name: 'I count myself', exact: true });
+    const forMe = counting.getByRole('radio', { name: 'Count for me', exact: true });
+    await forMe.click();
+    assert.equal(await checked(forMe), 'true');
+    assert.equal(await checked(self), 'false');
+    await self.click();
+    assert.equal(await checked(self), 'true');
+    assert.equal(await checked(forMe), 'false');
+    await counting
+      .getByText('The table as in the old Pidro: the cards, the bids and the score.')
+      .waitFor();
     await page.reload();
     await first.waitFor();
     assert.equal(await checked(first), 'false', 'Sound preference must survive reload');
     assert.equal(await checked(second), 'true', 'Haptics must remain unchanged');
-    assert.equal(await checked(bid), 'false', 'Bid preference must survive reload');
+    assert.equal(await checked(self), 'true', 'Counting must survive reload');
   }
 }
 
@@ -10850,9 +10847,15 @@ async function main() {
           if (testCase.paceSettings) {
             const pace = page.getByTestId('settings-pace');
             await pace.scrollIntoViewIfNeeded();
-            for (const choice of await pace.getByRole('radio').all()) {
+            for (const choice of [
+              ...(await page.getByTestId('settings-counting').getByRole('radio').all()),
+              ...(await pace.getByRole('radio').all()),
+            ]) {
               const box = await choice.boundingBox();
-              assert.ok(box.height >= 48, 'Every Pace choice must be at least 48 points tall');
+              assert.ok(
+                box.height >= 48,
+                'Every Counting and Pace choice must be at least 48 points tall'
+              );
             }
             if (testCase.path.startsWith('/table-dev')) {
               // Sound is the Settings tab's switch: same words, same saved setting.

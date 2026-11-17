@@ -653,7 +653,7 @@ export default function GameCanvasDev({
         currentTurnRelative: turn,
         canPlay,
         getCardCountForPlayer: (abs) => (abs ? (COUNTS[abs] ?? null) : null),
-        // `count=on`: "Help me keep count": the log, the points as tricks are
+        // `count=on`: "Count for me": the log, the points as tricks are
         // taken, and the card winning the trick, as at the real table.
         countHelp: count === 'on',
       }),

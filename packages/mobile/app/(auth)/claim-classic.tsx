@@ -453,7 +453,8 @@ export default function ClaimClassicScreen() {
             authApi.login(identifier, accountPassword, storedAgeTerms()),
           getSession: useAuthStore.getState,
           install: (response) => {
-            setSession({ accessToken: response.token, user: response.user });
+            // A claimed account came from the old Pidro (PID-451).
+            setSession({ accessToken: response.token, user: { ...response.user, classic: true } });
             queueClassicPremium(response.classic_premium);
             queueLinkedFriend(response.linked_friend);
           },
@@ -475,7 +476,7 @@ export default function ClaimClassicScreen() {
         }
       } else {
         const result = await claim();
-        setSession({ accessToken: result.token, user: result.user });
+        setSession({ accessToken: result.token, user: { ...result.user, classic: true } });
         queueClassicPremium(result.classic_premium);
         queueLinkedFriend(result.linked_friend);
       }

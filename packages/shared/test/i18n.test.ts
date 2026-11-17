@@ -123,7 +123,8 @@ describe("settings language migration and hydration", () => {
       soundEnabled: false,
       pins: { player: "none" },
       preferredRuleSet: "louisiana",
-      showBid: true,
+      // Never chosen: Counting follows the account (PID-451).
+      countHelp: null,
     });
   });
 

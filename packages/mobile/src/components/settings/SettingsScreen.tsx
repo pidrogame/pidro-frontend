@@ -25,6 +25,7 @@ import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { TellRow } from '@/components/feedback/TellRow';
 import { PidroSpacing } from '@/design/tokens';
 import { canTell, tellFixture } from '@/features/feedback';
+import { useCountHelp } from '@/hooks/useCountHelp';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 
@@ -43,10 +44,8 @@ export function SettingsScreen({
   const hapticEnabled = useSettingsStore((state) => state.hapticEnabled);
   const toggleSound = useSettingsStore((state) => state.toggleSound);
   const toggleHaptic = useSettingsStore((state) => state.toggleHaptic);
-  const countHelp = useSettingsStore((state) => state.countHelp);
-  const toggleCountHelp = useSettingsStore((state) => state.toggleCountHelp);
-  const showBid = useSettingsStore((state) => state.showBid);
-  const toggleShowBid = useSettingsStore((state) => state.toggleShowBid);
+  const countHelp = useCountHelp();
+  const setCountHelp = useSettingsStore((state) => state.setCountHelp);
   const pace = useSettingsStore((state) => state.pace);
   const setPace = useSettingsStore((state) => state.setPace);
   const signedIn = useAuthStore((state) => Boolean(state.user));
@@ -140,18 +139,23 @@ export function SettingsScreen({
               value={hapticEnabled}
               onValueChange={toggleHaptic}
             />
-            <SettingRow
-              title={t('settings.countHelp')}
-              subtitle={t('settings.countHelpHint')}
-              value={countHelp}
-              onValueChange={toggleCountHelp}
-            />
-            <SettingRow
-              title={t('settings.showBid')}
-              subtitle={t('settings.showBidHint')}
-              value={showBid}
-              onValueChange={toggleShowBid}
-            />
+            <Surface variant="subtle" style={styles.rulesRow} testID="settings-counting">
+              <PidroText role="label">{t('settings.counting')}</PidroText>
+              <View style={styles.choices}>
+                {([false, true] as const).map((value) => (
+                  <ActionPill
+                    key={String(value)}
+                    size="lg"
+                    label={t(value ? 'settings.countForMe' : 'settings.countSelf')}
+                    selected={countHelp === value}
+                    onPress={() => setCountHelp(value)}
+                  />
+                ))}
+              </View>
+              <PidroText role="metadata" tone="muted">
+                {t(countHelp ? 'settings.countForMeHint' : 'settings.countSelfHint')}
+              </PidroText>
+            </Surface>
             <Surface variant="subtle" style={styles.rulesRow} testID="settings-pace">
               <PidroText role="label">{t('settings.pace')}</PidroText>
               <View style={styles.choices}>

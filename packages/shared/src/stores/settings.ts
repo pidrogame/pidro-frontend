@@ -17,9 +17,11 @@ interface SettingsState {
   preferredRuleSet: RuleSet;
   lobbyRuleSetFilter: RuleSet | 'all' | null;
   hasSeenLouisianaRules: boolean;
-  /** Beginner aids at the table: the bidders' count and the last trick (PID-220). */
-  countHelp: boolean;
-  showBid: boolean;
+  /**
+   * Counting at the table (PID-220): `true` is Count for me, `false` I count myself,
+   * `null` never chosen, which follows the account (PID-451).
+   */
+  countHelp: boolean | null;
   /** Requested pace at tables where this player is the only human. */
   pace: TablePace;
 
@@ -30,8 +32,7 @@ interface SettingsState {
   setPreferredRuleSet: (preferredRuleSet: RuleSet) => void;
   setLobbyRuleSetFilter: (lobbyRuleSetFilter: RuleSet | 'all') => void;
   markLouisianaRulesSeen: () => void;
-  toggleCountHelp: () => void;
-  toggleShowBid: () => void;
+  setCountHelp: (countHelp: boolean) => void;
   setPace: (pace: TablePace) => void;
 }
 
@@ -70,8 +71,7 @@ export function createSettingsStore({
         preferredRuleSet: 'finnish',
         lobbyRuleSetFilter: null,
         hasSeenLouisianaRules: false,
-        countHelp: false,
-        showBid: true,
+        countHelp: null,
         pace: 'quick',
 
         setTheme: (theme) => set({ theme }),
@@ -81,8 +81,7 @@ export function createSettingsStore({
         setPreferredRuleSet: (preferredRuleSet) => set({ preferredRuleSet }),
         setLobbyRuleSetFilter: (lobbyRuleSetFilter) => set({ lobbyRuleSetFilter }),
         markLouisianaRulesSeen: () => set({ hasSeenLouisianaRules: true }),
-        toggleCountHelp: () => set((state) => ({ countHelp: !state.countHelp })),
-        toggleShowBid: () => set((state) => ({ showBid: !state.showBid })),
+        setCountHelp: (countHelp) => set({ countHelp }),
         setPace: (pace) => set({ pace }),
       }),
       {

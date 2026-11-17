@@ -231,7 +231,7 @@ describe('trick signals from the server (PID-218)', () => {
   const ace = { suit: 'spades', rank: 14 };
   const five = { suit: 'spades', rank: 5 };
   const king = { suit: 'spades', rank: 13 };
-  // The winning card lights only with "Help me keep count" on (PID-230).
+  // The winning card lights only with "Count for me" on (PID-230).
   const counting = (overrides) => build({ countHelp: true, ...overrides });
 
   it('lights the card the server says is winning, with what the trick holds', () => {

@@ -58,9 +58,8 @@ test('device preferences and a dismissed Louisiana explanation survive rehydrati
   };
   const store = createSettingsStore({ storage });
   expect(store.getState().preferredRuleSet).toBe('finnish');
-  expect(store.getState().showBid).toBe(true);
-  expect(store.getState().countHelp).toBe(false);
-  store.getState().toggleShowBid();
+  expect(store.getState().countHelp).toBeNull();
+  store.getState().setCountHelp(false);
   expect(shouldExplainLouisiana('finnish', false, false)).toBe(false);
   expect(shouldExplainLouisiana('louisiana', false, true)).toBe(false);
   expect(shouldExplainLouisiana('louisiana', false, false)).toBe(true);
@@ -73,7 +72,6 @@ test('device preferences and a dismissed Louisiana explanation survive rehydrati
     preferredRuleSet: 'louisiana',
     lobbyRuleSetFilter: 'all',
     hasSeenLouisianaRules: true,
-    showBid: false,
     countHelp: false,
   });
   expect(

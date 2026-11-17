@@ -102,10 +102,10 @@ export type TableModel = {
   /**
    * The played card the server says is taking the trick: the current trick's
    * leader, or once a trick is done, its winner until the next card lands.
-   * Only with "Help me keep count" on (PID-230); null otherwise.
+   * Only with "Count for me" on (PID-230); null otherwise.
    */
   winningKey: string | null;
-  /** "Help me keep count" is on. */
+  /** "Count for me" is on. */
   countHelp: boolean;
   /** What the trick in progress holds for its winner, as the server counts it. */
   trickPoints: number | null;
@@ -165,7 +165,7 @@ export type TableModelInput = {
   getCardCountForPlayer: (absPosition: Position | null) => number | null;
   /** The server's per-seat view: who is out of trumps and how many they folded. */
   serverPlayers?: Partial<Record<Position, ServerPlayerView>> | null;
-  /** "Help me keep count": lights the card winning the trick. */
+  /** "Count for me": lights the card winning the trick. */
   countHelp?: boolean;
   /** Trumps killed over six (PID-306); absent from older servers. */
   killedCards?: Partial<Record<Position, Card[]>> | null;

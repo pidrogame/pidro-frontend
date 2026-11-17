@@ -9,6 +9,7 @@ import { ActionPill } from '@/components/ui/ActionPill';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroColors, PidroSpacing } from '@/design/tokens';
 import { useSettingsStore } from '@/stores/settings';
+import { useCountHelp } from '@/hooks/useCountHelp';
 import { headerTop } from './TableChrome';
 import { TableUtilityWindow } from './TableUtilityWindow';
 import { useTranslation } from '@/i18n';
@@ -42,10 +43,8 @@ export function TableSettings({
   const toggleSound = useSettingsStore((state) => state.toggleSound);
   const hapticEnabled = useSettingsStore((state) => state.hapticEnabled);
   const toggleHaptic = useSettingsStore((state) => state.toggleHaptic);
-  const countHelp = useSettingsStore((state) => state.countHelp);
-  const toggleCountHelp = useSettingsStore((state) => state.toggleCountHelp);
-  const showBid = useSettingsStore((state) => state.showBid);
-  const toggleShowBid = useSettingsStore((state) => state.toggleShowBid);
+  const countHelp = useCountHelp();
+  const setCountHelp = useSettingsStore((state) => state.setCountHelp);
   const pace = useSettingsStore((state) => state.pace);
   const setPace = useSettingsStore((state) => state.setPace);
   const close = () => setPanel(null);
@@ -117,25 +116,22 @@ export function TableSettings({
                   onValueChange={toggleHaptic}
                 />
               </View>
-              <View style={styles.row}>
-                <View style={styles.copy}>
-                  <PidroText role="label">{t('settings.countHelp')}</PidroText>
+              <View style={styles.choice} testID="settings-counting">
+                <PidroText role="label">{t('settings.counting')}</PidroText>
+                <View style={styles.choices}>
+                  {([false, true] as const).map((value) => (
+                    <ActionPill
+                      key={String(value)}
+                      size="lg"
+                      label={t(value ? 'settings.countForMe' : 'settings.countSelf')}
+                      selected={countHelp === value}
+                      onPress={() => setCountHelp(value)}
+                    />
+                  ))}
                 </View>
-                <PidroSwitch
-                  accessibilityLabel={t('settings.countHelp')}
-                  value={countHelp}
-                  onValueChange={toggleCountHelp}
-                />
-              </View>
-              <View style={styles.row}>
-                <View style={styles.copy}>
-                  <PidroText role="label">{t('settings.showBid')}</PidroText>
-                </View>
-                <PidroSwitch
-                  accessibilityLabel={t('settings.showBid')}
-                  value={showBid}
-                  onValueChange={toggleShowBid}
-                />
+                <PidroText role="metadata" tone="muted">
+                  {t(countHelp ? 'settings.countForMeHint' : 'settings.countSelfHint')}
+                </PidroText>
               </View>
             </View>
             <View style={[styles.column, landscape && styles.half]}>
@@ -150,7 +146,7 @@ export function TableSettings({
                   }}
                 />
               )}
-              <View style={styles.pace} testID="settings-pace">
+              <View style={styles.choice} testID="settings-pace">
                 <PidroText role="label">{t('settings.pace')}</PidroText>
                 <View style={styles.choices}>
                   {(['quick', 'own'] as const).map((value) => (
@@ -219,7 +215,7 @@ const styles = StyleSheet.create({
     gap: PidroSpacing.sm,
   },
   copy: { flex: 1, gap: PidroSpacing.xxs },
-  pace: { gap: PidroSpacing.xxs },
+  choice: { gap: PidroSpacing.xxs },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xs },
   exitAction: { flex: 1, minWidth: 0 },
   exit: {

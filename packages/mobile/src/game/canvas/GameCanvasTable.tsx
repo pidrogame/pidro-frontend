@@ -55,7 +55,7 @@ import { buildHandLog } from '@/game/handLog';
 import { bidSeatLine, bidsShown } from '@/features/game/bidding';
 import { isSoloTable, loneTrumpHolder } from '@/features/game/tableHelp';
 import { handResultTiming, waitsForContinue } from '@/features/game/handResult';
-import { useSettingsStore } from '@/stores/settings';
+import { useCountHelp } from '@/hooks/useCountHelp';
 import { LastTrick, type LastTrickView } from './LastTrick';
 
 import { TABLE_HEADER, headerTop, useTableReserves, useTableSize } from './TableChrome';
@@ -396,8 +396,7 @@ export function GameCanvasTable({
     controller.youPositionAbs === dealerRobPresentation?.dealer && !!dealerRobPresentation.pool;
   const isSpectator = role === 'spectator';
   const textures = useCardTextures();
-  const countHelp = useSettingsStore((state) => state.countHelp);
-  const showBid = useSettingsStore((state) => state.showBid);
+  const countHelp = useCountHelp();
   // Your own pick from the pack plays out in your hand: the pool lands in it,
   // and what you keep is what the server sends once the pick is done.
   const serverModel = useTableModel(
@@ -874,7 +873,6 @@ export function GameCanvasTable({
             held={model.held}
             said={talking ? said : undefined}
             bid={
-              showBid &&
               !dealing &&
               [
                 'declaring',

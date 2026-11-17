@@ -1416,7 +1416,7 @@ function RolePreview({
       automaticRobbed[3],
       automaticRobbed[4],
     ];
-    useSettingsStore.setState({ countHelp, showBid: true });
+    useSettingsStore.setState({ countHelp });
     store.reset();
     store.initFromRoom({ room: tableRoom, youPlayerId: 'p-south' });
     store.setRole(role);
