@@ -13,12 +13,34 @@ import { getRankLabel, SUIT_SYMBOLS, t, type Card, type SeatStatus } from '@pidr
 export type SeatLine = {
   text: string;
   short?: string;
-  tone?: 'now' | 'quiet' | 'high' | 'danger';
+  tone?: 'now' | 'quiet' | 'high' | 'danger' | 'out';
   pulse?: string;
 };
 
-/** Out of trumps: the seat sits back, its line says so. */
-const outLine = (): SeatLine => ({ text: t('game.out'), short: t('game.out'), tone: 'quiet' });
+/**
+ * Out of trumps: the seat sits back, its line says so on a navy plate until
+ * the hand ends, and it lights up once as it goes out (PID-450).
+ */
+const outLine = (): SeatLine => ({
+  text: t('game.out'),
+  short: t('game.out'),
+  tone: 'out',
+  pulse: 'out',
+});
+
+/**
+ * The plate under a seat's name and line (PID-450): lit for the seat on turn,
+ * saying "Your turn" on yours and the seat's own line on anyone else's; navy
+ * for a seat out of trumps. A bidding winner's held bid (`high`) stays off it.
+ */
+export function seatPlate(
+  line: SeatLine | null,
+  { onTurn, isYou }: { onTurn: boolean; isYou: boolean }
+): { plate: 'turn' | 'out'; text: string | null } | null {
+  if (line?.tone === 'out') return { plate: 'out', text: line.text };
+  if (!onTurn || line?.tone === 'high') return null;
+  return { plate: 'turn', text: isYou ? t('game.your_turn') : (line?.text ?? null) };
+}
 
 export function seatLine(
   seat: {

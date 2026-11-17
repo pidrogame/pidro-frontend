@@ -109,6 +109,13 @@ export interface PlayerAvatarProps {
    */
   pulse?: string | null;
   label?: 'below' | 'right' | 'left';
+  /**
+   * A seat at the table: the table's type (`avatarParts`), and its name and
+   * line on a `plate` when it has one: lit while on turn, navy once out of
+   * trumps, when the face fades back (PID-450).
+   */
+  seat?: boolean;
+  plate?: 'turn' | 'out' | null;
   /** At the table the name says the team: `us` is you and your partner. */
   nameTone?: 'default' | 'us' | 'them';
   statusTone?: 'default' | 'now' | 'quiet' | 'high' | 'warning' | 'danger';
@@ -155,6 +162,8 @@ export function PlayerAvatar({
   status,
   pulse = null,
   label = 'below',
+  seat = false,
+  plate = null,
   nameTone = 'default',
   statusTone = 'default',
   accessibilityLabel,
@@ -162,7 +171,7 @@ export function PlayerAvatar({
   testID,
 }: PlayerAvatarProps) {
   const { t } = useTranslation();
-  const parts = avatarParts(size, { beside: label !== 'below' });
+  const parts = avatarParts(size, { beside: label !== 'below', seat });
   const crew = kind === 'bot' ? persona : null;
   const profile = useBotProfile(crew, botProfile);
   if (crew && name) name = profile?.name || name;
@@ -195,8 +204,7 @@ export function PlayerAvatar({
   const named = !!name || kind === 'open';
   const acted = useActedPulse(pulse);
   const below = label === 'below';
-  // The bot badge's coin; the winning bid matches it across the top.
-  const badge = (parts.dealer?.size ?? Math.round(size * 0.42)) + 2;
+  const badge = parts.bid;
   // The bid arrives from the middle of the status line, under the avatar or beside it.
   const copyHeight = (named ? parts.name.lineHeight : 0) + parts.status.lineHeight;
   const statusY = below
@@ -209,7 +217,7 @@ export function PlayerAvatar({
   });
 
   const avatar = (
-    <View style={{ width: size, height: size }}>
+    <View style={[{ width: size, height: size }, plate === 'out' && styles.out]}>
       <ActedLight size={size} acted={acted} />
       {turn && arc ? (
         <TurnLight
@@ -371,9 +379,9 @@ export function PlayerAvatar({
         />
       ) : null}
 
-      {away && seated && parts.dealer ? <AwayBadge away={away} size={parts.dealer.size} /> : null}
+      {away && seated && parts.dealer ? <AwayBadge away={away} size={parts.badge} /> : null}
       {crew && !away ? (
-        <AwayBadge away="bot" size={badge - 2} testID={testID ? `${testID}-bot` : undefined} />
+        <AwayBadge away="bot" size={parts.badge} testID={testID ? `${testID}-bot` : undefined} />
       ) : null}
       {bid && seated ? (
         <RNAnimated.View
@@ -420,13 +428,26 @@ export function PlayerAvatar({
           ]}>
           {/* Capped to the copy's width beside the avatar too, or a long name runs on unclipped. */}
           <View style={below ? styles.copyBlock : styles.copyLine}>
+            {plate ? (
+              <View
+                testID={testID ? `${testID}-plate` : undefined}
+                pointerEvents="none"
+                style={[styles.plate, PLATE_EDGE[label], PLATES[plate]]}
+              />
+            ) : null}
             {named ? (
               <PidroText
                 numberOfLines={1}
                 style={[
                   styles.name,
-                  nameType(parts.name, name, nameRoom),
-                  { color: kind === 'open' ? PidroColors.cyanText : NAME_TONES[nameTone] },
+                  nameType(parts.name, name, nameRoom, parts.smallName),
+                  {
+                    color:
+                      kind === 'open'
+                        ? PidroColors.cyanText
+                        : (plate === 'turn' ? NAME_ON_PLATE : NAME_TONES)[nameTone],
+                  },
+                  plate === 'turn' && styles.onPlate,
                   away ? styles.awayName : null,
                 ]}>
                 {name || (kind === 'open' ? t('ui.openSeat') : '')}
@@ -439,7 +460,19 @@ export function PlayerAvatar({
               <PidroText
                 numberOfLines={1}
                 maxFontSizeMultiplier={named ? undefined : 1}
-                style={[styles.status, parts.status, { color: STATUS_TONES[statusTone] }]}>
+                style={[
+                  styles.status,
+                  parts.status,
+                  {
+                    color:
+                      plate === 'turn'
+                        ? PidroColors.turnPlateInk
+                        : plate === 'out'
+                          ? PidroColors.text
+                          : STATUS_TONES[statusTone],
+                  },
+                  plate === 'turn' && styles.onPlate,
+                ]}>
                 {status || ' '}
               </PidroText>
             </RNAnimated.View>
@@ -454,6 +487,34 @@ const NAME_TONES = {
   default: PidroColors.text,
   us: PidroColors.teamUs,
   them: PidroColors.teamThem,
+} as const;
+
+/** On the lit plate each team's name takes a darker tone that reads on cyan. */
+const NAME_ON_PLATE = {
+  default: PidroColors.turnPlateInk,
+  us: PidroColors.teamUsOnLight,
+  them: PidroColors.teamThemOnLight,
+} as const;
+
+const PLATES = {
+  turn: {
+    backgroundColor: PidroColors.turnLight,
+    borderColor: PidroColors.turnLight,
+    boxShadow: PidroColors.turnPlateGlow,
+  },
+  out: { backgroundColor: PidroBevel.panelDeep, borderColor: PidroColors.outPlateBorder },
+} as const;
+
+/**
+ * The plate lies behind the lines, so the turn moving on never moves one: it
+ * reaches past them (padding 3/12/4 inside a 1.5 edge); beside the avatar it
+ * keeps clear of the ring and its light.
+ */
+const PLATE_REACH = 12 + 1.5;
+const PLATE_EDGE = {
+  below: { left: -PLATE_REACH, right: -PLATE_REACH },
+  right: { left: -4, right: -PLATE_REACH },
+  left: { left: -PLATE_REACH, right: -4 },
 } as const;
 
 const STATUS_TONES = {
@@ -671,16 +732,14 @@ const BREATH_DEPTHS = BREATH_PHASES.map((at) => (1 - breathAt(1, at)) / 0.65);
 /** One breath in or out; quicker when the timer runs low. */
 const BREATH_MS = 2000;
 const URGENT_BREATH_MS = 450;
-/** Another player's shine, held still: present, but quieter than yours. */
-const OTHER_SHINE = 0.55;
-/** A nudge brightens it to full and back: a fade, so it stays with reduced motion. */
+/** A nudge brightens it with a second glow and back: a fade, so it stays with reduced motion. */
 const NUDGE_UP_MS = 220;
 const NUDGE_DOWN_MS = 380;
 
 /**
  * The shine behind whoever is on turn: a soft glow just outside the timer
- * ring. Yours breathes for as long as the turn is yours; another player's
- * holds still and quieter, so only your turn moves on the table.
+ * ring, as strong on every seat (PID-450). Yours breathes for as long as the
+ * turn is yours; another player's holds still, so only your turn moves.
  */
 function TurnLight({
   size,
@@ -697,7 +756,7 @@ function TurnLight({
 }) {
   const calm = useReducedMotion() || isStillCapture();
   const breathing = !!attention && !calm;
-  const [shine] = useState(() => new RNAnimated.Value(OTHER_SHINE));
+  const [shine] = useState(() => new RNAnimated.Value(0));
   const nudged = useRef(nudge);
   useEffect(() => {
     if (nudge === nudged.current) return;
@@ -718,7 +777,7 @@ function TurnLight({
         useNativeDriver,
       }),
       RNAnimated.timing(shine, {
-        toValue: OTHER_SHINE,
+        toValue: 0,
         duration: NUDGE_DOWN_MS,
         easing: Easing.inOut(Easing.quad),
         useNativeDriver,
@@ -785,13 +844,22 @@ function TurnLight({
   );
   // A fresh view when the breath stops, so no value the driver set outlives it.
   return (
-    <RNAnimated.View
-      key={breathing ? 'breathing' : 'still'}
-      testID="turn-light"
-      pointerEvents="none"
-      renderToHardwareTextureAndroid={breathing}
-      style={[glowBox(size, glow), { opacity: attention ? 1 : shine }, breathing ? motion : null]}
-    />
+    <>
+      <RNAnimated.View
+        key={breathing ? 'breathing' : 'still'}
+        testID="turn-light"
+        pointerEvents="none"
+        renderToHardwareTextureAndroid={breathing}
+        style={[glowBox(size, glow), breathing ? motion : null]}
+      />
+      {attention ? null : (
+        <RNAnimated.View
+          testID="turn-nudge"
+          pointerEvents="none"
+          style={[glowBox(size, glow), { opacity: shine }]}
+        />
+      )}
+    </>
   );
 }
 
@@ -1123,6 +1191,20 @@ const styles = StyleSheet.create({
   },
   awayName: {
     opacity: 0.7,
+  },
+  out: {
+    opacity: 0.6,
+  },
+  plate: {
+    position: 'absolute',
+    top: -3 - 1.5,
+    bottom: -4 - 1.5,
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  onPlate: {
+    textShadowColor: 'transparent',
+    textShadowRadius: 0,
   },
   status: {
     fontFamily: PidroFonts.ui,

@@ -717,10 +717,10 @@ describe('tight phones', () => {
       expect(L.hand.cx).toBe(width / 2);
       expect(L.hand.maxWidth).toBe(width - 32);
       const avatarTop = L.hand.cy + L.cardH / 2 + TIGHT_SOUTH_GAP;
-      // The avatar, a 4pt gap, one 14pt status line and 8pt of air above the
-      // home indicator, the table's bottom edge (PID-393).
+      // The avatar, a 4pt gap, one 18pt status line (14pt type, PID-450) and
+      // 8pt of air above the home indicator, the table's bottom edge (PID-393).
       expect(L.bottom).toBe(height - insets.bottom);
-      expect(avatarTop + TIGHT_AVATAR + 4 + 14 + 8).toBeCloseTo(L.bottom);
+      expect(avatarTop + TIGHT_AVATAR + 4 + 18 + 8).toBeCloseTo(L.bottom);
       const south = playedCardTarget(L, 'south', 0, 1);
       expect(south.y + (L.cardH * south.scale) / 2).toBeLessThanOrEqual(
         L.hand.cy - L.cardH / 2 - handLift(L)
@@ -749,7 +749,8 @@ describe('upright phones seat East and West low beside the trick', () => {
       const size = L.tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
       // The avatar over its name and line (a tight one has no level).
       const seatTop = L.sides.seat - size / 2;
-      const seatBottom = seatTop + (L.tight ? TIGHT_AVATAR + 34 : 98);
+      // PID-450: name and line 14pt on 18pt lines.
+      const seatBottom = seatTop + (L.tight ? TIGHT_AVATAR + 40 : 104);
       expect(sideSeatTop(L, { tableTop, seatHeight: 0, headerBottom: 0 })).toBeCloseTo(seatTop);
       // Their avatars below North's seat: North alone at the top.
       expect(L.sides.seat).toBeGreaterThan(northSeatBottom(L, tableTop));

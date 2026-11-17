@@ -31,6 +31,7 @@ import type {
   SeatStatus,
   ServerBid,
   ServerGameState,
+  Suit,
 } from '@pidro/shared';
 import { TableFeedback, TableSeatDecision, useTableNotices } from '@/components/game/TableFeedback';
 import { refusalNotice, type TableNotice } from '@/game/tableNotices';
@@ -52,7 +53,7 @@ import { momentOffer, replyOffer } from '@/features/game/offers';
 import { isStillCapture } from '@/utils/stillCapture';
 
 // `bids=`: a hand's bids landing one by one against three bots.
-const BID_ROUNDS: Record<string, { dealer: Position; bids: ServerBid[] }> = {
+const BID_ROUNDS: Record<string, { dealer: Position; bids: ServerBid[]; trump?: Suit }> = {
   // South deals: West passes, North bids 7, East goes to 9, then it is you.
   round: {
     dealer: 'south',
@@ -61,6 +62,17 @@ const BID_ROUNDS: Record<string, { dealer: Position; bids: ServerBid[] }> = {
       { position: 'north', amount: 7 },
       { position: 'east', amount: 9 },
     ],
+  },
+  // The same round into trump (PID-450): you pass, East wins at 9, then names hearts.
+  trump: {
+    dealer: 'south',
+    bids: [
+      { position: 'west', amount: 'pass' },
+      { position: 'north', amount: 7 },
+      { position: 'east', amount: 9 },
+      { position: 'south', amount: 'pass' },
+    ],
+    trump: 'hearts',
   },
   // West deals: North bids 7, East passes, you go to 9, and West is still to bid.
   high: {
@@ -1998,6 +2010,31 @@ function RolePreview({
         start + BID_STEP_MS * (index + 1)
       )
     );
+    const won = highBid(bidRound.bids);
+    const end = start + BID_STEP_MS * (bidRound.bids.length + 1);
+    if (bidRound.trump && won) {
+      const settled = { ...initial, bids: bidRound.bids, highest_bid: won };
+      timers.push(
+        setTimeout(() => {
+          store.setLegalActions([]);
+          store.setServerState({
+            ...settled,
+            phase: 'declaring',
+            current_player: won.position,
+          } as unknown as ServerGameState);
+        }, end),
+        setTimeout(
+          () =>
+            store.setServerState({
+              ...settled,
+              phase: 'playing',
+              trump: bidRound.trump,
+              current_player: won.position,
+            } as unknown as ServerGameState),
+          end + 3_000
+        )
+      );
+    }
     return () => timers.forEach(clearTimeout);
   }, [Table, bidRound, role, phase, canPass, dealer, deal]);
   return (

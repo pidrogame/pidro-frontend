@@ -37,7 +37,7 @@ import { PressableFX } from '@/components/ui/PressableFX';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { avatarLabel, avatarParts, textFits } from '@/features/avatar';
-import { seatLine, type SeatLine } from '@/features/game/seatLine';
+import { seatLine, seatPlate, type SeatLine } from '@/features/game/seatLine';
 import { whosePoints } from '@/features/game/points';
 import {
   AVATAR_SIZE,
@@ -133,6 +133,9 @@ function avatarFor(
         ? 'open'
         : 'player';
   const onTurn = data.isCurrentTurn && kind !== 'open';
+  const plate = seatPlate(line, { onTurn, isYou: data.isYou });
+  // Every line reads white (PID-450): a pass stays softer, the high bid gold.
+  const tone = line?.tone === 'out' ? undefined : line?.tone;
   return {
     uri: data.avatar_url,
     // What you earned: one chip, and never on a bot. A bot sitting in for a
@@ -155,16 +158,12 @@ function avatarFor(
     persona: crew,
     botProfile: data.bot_profile,
     name: kind === 'open' ? null : data.username,
-    status: line?.text ?? null,
+    status: plate ? plate.text : (line?.text ?? null),
+    plate: plate?.plate ?? null,
     pulse: line?.pulse ?? null,
     // Two against two at a glance: the name is in its team's colour.
     nameTone: team,
-    statusTone:
-      line?.tone === 'now' && onTurn && turn?.urgent
-        ? 'warning'
-        : kind === 'bot' && line?.tone !== 'high'
-          ? 'quiet'
-          : (line?.tone ?? 'default'),
+    statusTone: tone === 'now' && onTurn && turn?.urgent ? 'warning' : (tone ?? 'now'),
   };
 }
 
@@ -270,10 +269,10 @@ export function SeatLayer({
   const tight = portrait && L.tight;
   const size = tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
   const tablet = L.profile.startsWith('tablet');
-  const parts = avatarParts(size);
+  const parts = avatarParts(size, { seat: true });
   // Where a landscape line would run into the hand (yours) or the menu
   // (North's), the seat says its short line instead, as your tight seat does.
-  const besideStatus = avatarParts(size, { beside: true }).status.fontSize;
+  const besideStatus = avatarParts(size, { beside: true, seat: true }).status.fontSize;
   // Portrait names sit in a fixed column so a long one truncates instead of
   // pushing the seat off its axis. North and south have the table's width to
   // themselves; east and west get what North's column leaves them, their
@@ -536,7 +535,12 @@ export function SeatLayer({
         // A spectator sees North–South as the first team.
         const team = whosePoints(data.absolutePosition, viewer).column;
         const seat = quiet
-          ? { ...avatarFor(data, false, null, undefined, team), level: null, turn: null }
+          ? {
+              ...avatarFor(data, false, null, undefined, team),
+              level: null,
+              turn: null,
+              plate: null,
+            }
           : {
               ...avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team, nudge),
               ...(!levels && { level: null }),
@@ -554,6 +558,7 @@ export function SeatLayer({
           <PlayerAvatar
             testID={`seat-${rel}`}
             size={size}
+            seat
             label={labelSide}
             bid={holds != null ? { amount: holds, tone: team } : null}
             dealerTrail={dealerTrail}
@@ -568,11 +573,13 @@ export function SeatLayer({
             }
             style={[
               tight && rel === 'south'
-                ? { width: size + PidroSpacing.xs * 2 }
+                ? // Room for "Your turn" on its plate.
+                  { width: size * 2 }
                 : L.sidesUnder && (rel === 'east' || rel === 'west')
                   ? { width: L.sideSeatWidth ?? SIDE_SEAT_WIDTH }
                   : seatWidth(rel),
-              data.out && styles.out,
+              // Out without its plate (its last card still on the table): the seat sits back whole.
+              data.out && seat.plate !== 'out' && styles.out,
             ]}
             {...seat}
             {...(tight && { level: null })}
@@ -580,13 +587,22 @@ export function SeatLayer({
               rel === 'south' && {
                 label: 'below' as const,
                 name: null,
-                status: line?.short ?? null,
+                status: seat.plate === 'turn' ? seat.status : (line?.short ?? null),
                 accessibilityLabel: avatarLabel({ ...spoken, level: null }),
               })}
             {...(!portrait &&
               (rel === 'south' || rel === 'north') &&
               line &&
-              !textFits(line.text, besideStatus, reach(rel)) && {
+              !textFits(seat.status ?? '', besideStatus, reach(rel)) && {
+                status: seat.status === line.text ? (line.short ?? null) : seat.status,
+                accessibilityLabel: avatarLabel(spoken),
+              })}
+            /* A narrow upright side column says "High 14" where "Bid 14 · high" won't fit (PID-450). */
+            {...(portrait &&
+              (rel === 'east' || rel === 'west') &&
+              line?.short &&
+              seat.plate !== 'turn' &&
+              !textFits(line.text, parts.status.fontSize, sideColumn - PidroSpacing.xs * 2) && {
                 status: line.short ?? null,
                 accessibilityLabel: avatarLabel(spoken),
               })}

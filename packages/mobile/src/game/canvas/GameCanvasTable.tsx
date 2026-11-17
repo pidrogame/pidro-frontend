@@ -36,6 +36,7 @@ import { botLines } from '@pidro/shared';
 import { thinkingLine } from '@/features/game/tableVoice';
 import { pushGameAction, type ProgressionSummary } from '@/channels/hooks/useGameChannel';
 import { getRankLabel, SUIT_SYMBOLS } from '@/utils/cards';
+import { isStillCapture } from '@/utils/stillCapture';
 import { useCardTextures } from './cardTextures';
 import { buildTableModel, useTableModel, type TableModel } from './tableModel';
 import { useHandPresentationReady } from './useHandPresentationReady';
@@ -52,7 +53,7 @@ import { teamLine, type SeatLine } from '@/features/game/seatLine';
 import { Scoreboard } from './Scoreboard';
 import type { TickerRestingLine } from './ActionTicker';
 import { buildHandLog } from '@/game/handLog';
-import { bidSeatLine, bidsShown } from '@/features/game/bidding';
+import { BID_HOLD_MS, bidSeatLine, bidsShown, heldBidLine } from '@/features/game/bidding';
 import { isSoloTable, loneTrumpHolder } from '@/features/game/tableHelp';
 import { handResultTiming, waitsForContinue } from '@/features/game/handResult';
 import { useCountHelp } from '@/hooks/useCountHelp';
@@ -152,7 +153,8 @@ function trickCardForPlayer(state: ServerGameState | null, absolutePosition: str
 function statusText(
   player: NonNullable<ReturnType<typeof useGameTableController>['viewModel']>['players'][number],
   state: ServerGameState | null,
-  room: string
+  room: string,
+  held: SeatLine | null = null
 ): SeatLine | null {
   const phase = state?.phase ?? 'bidding';
   const absolutePosition = player.absolutePosition;
@@ -194,7 +196,7 @@ function statusText(
     case 'declaring':
     case 'declaring_trump':
     case 'trump_declaration':
-      if (player.isCurrentTurn) return now(t('game.choosing_trump'));
+      if (player.isCurrentTurn) return held ?? now(t('game.choosing_trump'));
       return state?.trump ? { text: t('game.trump', { suit: SUIT_SYMBOLS[state.trump] }) } : null;
     case 'discarding':
     case 'second_deal':
@@ -231,6 +233,17 @@ useGameStore.subscribe((next, prev) => {
 
 /** The turn light turns urgent for the last five seconds. */
 const URGENT_MS = 5_000;
+
+const DECLARING = ['declaring', 'declaring_trump', 'trump_declaration'];
+/** From the bidding's end until the next deal, the score box shows the bid (PID-450). */
+const BID_STANDS = [
+  ...DECLARING,
+  'discarding',
+  'second_deal',
+  'playing',
+  'scoring',
+  'hand_complete',
+];
 
 function useTurnTimerProgress(
   turnTimer: ActiveTurnTimer | null
@@ -616,6 +629,27 @@ export function GameCanvasTable({
   // Classic's "Bet 6": from the first bid, the ticker rests on who holds the
   // bid; between hands, on how the last hand ended.
   const highBid = shownState?.highest_bid;
+  // The bidding's winner says their bid for a beat before choosing trump (PID-450).
+  const declaring = DECLARING.includes(shownState?.phase ?? '');
+  const declaringHand = declaring
+    ? (shownState?.hand_number ?? shownState?.round_number ?? 0)
+    : null;
+  // A table opened mid-choice (a rejoin) holds nothing it did not see.
+  const [seenHand, setSeenHand] = useState(declaringHand);
+  const [heldHand, setHeldHand] = useState<number | null>(null);
+  if (declaringHand != null && declaringHand !== seenHand) {
+    setSeenHand(declaringHand);
+    setHeldHand(isStillCapture() ? null : declaringHand);
+  }
+  useEffect(() => {
+    if (heldHand == null) return;
+    const id = setTimeout(() => setHeldHand(null), BID_HOLD_MS);
+    return () => clearTimeout(id);
+  }, [heldHand]);
+  const heldBid =
+    declaringHand != null && heldHand === declaringHand
+      ? heldBidLine(typeof highBid?.amount === 'number' ? highBid.amount : null)
+      : null;
   const bidLine =
     highBid && typeof highBid.amount === 'number'
       ? buildHandLog({
@@ -673,7 +707,7 @@ export function GameCanvasTable({
           : { text: t('game.dealing') }
         : laying && laid.show?.rel === player.relativePosition
           ? { text: t('game.takes_rest'), short: t('game.all_yours'), tone: 'now' as const }
-          : statusText(player, shownState, room.code);
+          : statusText(player, shownState, room.code, heldBid);
       acc[player.relativePosition] =
         pidro?.side === 'theirs' && pidro.seat === player.relativePosition
           ? { ...(line ?? { text: t('game.took_trick') }), pulse: `pidro-${trickKey}` }
@@ -722,7 +756,7 @@ export function GameCanvasTable({
   // room left of it, short of your avatar and its turn light by a small step.
   const upright = layout.profile === 'phone-portrait';
   const yourSize = layout.tight ? TIGHT_AVATAR : AVATAR_SIZE[layout.profile];
-  const yours = avatarParts(yourSize);
+  const yours = avatarParts(yourSize, { seat: true });
   const bubbleTop = layout.tight
     ? layout.hand.cy + layout.cardH / 2 + TIGHT_SOUTH_GAP + (yourSize - TALK_ROW) / 2
     : layout.bottom -
@@ -1069,6 +1103,13 @@ export function GameCanvasTable({
               logInPanel={countHelp && !fullTicker}
               glow={countHelp ? scoreGlow(model.lastTrick, model.seats, trickKey) : null}
               delta={handResult.result?.hand.delta ?? null}
+              bid={
+                !dealing &&
+                BID_STANDS.includes(tableState?.phase ?? '') &&
+                typeof highBid?.amount === 'number'
+                  ? { amount: highBid.amount, trump: tableState?.trump ?? null }
+                  : null
+              }
               yourTurn={
                 isYourTurn &&
                 !laying &&

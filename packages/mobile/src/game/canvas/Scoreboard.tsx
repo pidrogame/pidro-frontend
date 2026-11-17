@@ -7,7 +7,9 @@
  * Classic's "Bet 6" did. Tap the ticker for the hand's log. With count help
  * (PID-220), the "Last trick" pill sits under it. Tight phones leave both
  * out and open the hand's log from the score panel instead (PID-304). Points
- * a trick scores glow the column they landed in (PID-230).
+ * a trick scores glow the column they landed in (PID-230). From the bidding's
+ * end to the next deal a third cell holds the bid, and trump once it is named,
+ * as Classic kept "Bet 6" beside the bidder (PID-450).
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -31,6 +33,8 @@ import type { Position } from '@/types/lobby';
 import type { PointsSide } from '@/features/game/points';
 import { isStillCapture } from '@/utils/stillCapture';
 import type { ServerHandSummary } from '@pidro/shared';
+import type { Suit } from '@/types/game';
+import { SUIT_SYMBOLS } from '@/utils/cards';
 import { HandHistory } from '@/components/game/HandHistory';
 import { handLogEntries, type HandLogEntry, type HandLogGroup } from '@/game/handLog';
 import { ActionTicker, type TickerRestingLine } from './ActionTicker';
@@ -168,6 +172,7 @@ export function Scoreboard({
   logInPanel = false,
   glow = null,
   delta = null,
+  bid = null,
 }: {
   scores: Scores;
   youPosition: Position | null;
@@ -194,6 +199,8 @@ export function Scoreboard({
   glow?: ScoreGlow | null;
   /** What the hand just scored moved each team's score by (`delta` of `last_hand`). */
   delta?: ConcreteScores | null;
+  /** The hand's winning bid, and trump once it is named. */
+  bid?: { amount: number; trump: Suit | null } | null;
 }) {
   const { t } = useTranslation();
   const { width, height } = useWindowDimensions();
@@ -240,7 +247,13 @@ export function Scoreboard({
       <StillLayer bleed={24}>
         <PressableFX
           accessibilityRole="button"
-          accessibilityLabel={t('game.score_accessibility', { usLabel, us, themLabel, them })}
+          accessibilityLabel={[
+            t('game.score_accessibility', { usLabel, us, themLabel, them }),
+            bid && t('game.bid', { amount: bid.amount }),
+            bid?.trump && t('game.trump', { suit: SUIT_SYMBOLS[bid.trump] }),
+          ]
+            .filter(Boolean)
+            .join(' ')}
           accessibilityState={{ expanded: isOpen }}
           onPress={() => setIsOpen((open) => !open)}
           style={[styles.plaque, gradientBg(PidroBevel.goldRimGradient)]}>
@@ -273,6 +286,41 @@ export function Scoreboard({
               </PidroText>
             </View>
             {moved ? <ScoreDelta value={moved.them} side={themSide} /> : null}
+            {bid ? (
+              <>
+                <View style={styles.divider} />
+                <View style={[styles.col, styles.bidCol]} testID="score-bid">
+                  <PidroText
+                    role="metadata"
+                    style={[styles.label, { color: PidroColors.goldLight }]}
+                    maxFontSizeMultiplier={1}>
+                    {t('game.score_bid').toLocaleUpperCase()}
+                  </PidroText>
+                  <View style={styles.bidRow}>
+                    <PidroText role="title" style={styles.value} maxFontSizeMultiplier={1}>
+                      {formatNumber(bid.amount)}
+                    </PidroText>
+                    {bid.trump ? (
+                      <PidroText
+                        testID="score-bid-trump"
+                        style={[
+                          styles.value,
+                          styles.suit,
+                          {
+                            color:
+                              bid.trump === 'hearts' || bid.trump === 'diamonds'
+                                ? PidroColors.suitRedOnFelt
+                                : PidroColors.text,
+                          },
+                        ]}
+                        maxFontSizeMultiplier={1}>
+                        {SUIT_SYMBOLS[bid.trump]}
+                      </PidroText>
+                    ) : null}
+                  </View>
+                </View>
+              </>
+            ) : null}
             <Icon name="chevron-down" size={14} color={PidroColors.goldLight} />
           </View>
         </PressableFX>
@@ -334,6 +382,9 @@ const styles = StyleSheet.create({
     boxShadow: PidroBevel.glassFaceInset,
   },
   col: { alignItems: 'center', minWidth: 52 },
+  bidCol: { minWidth: 44 },
+  bidRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  suit: { fontFamily: PidroFonts.ui, fontSize: 20 },
   glow: {
     ...StyleSheet.absoluteFill,
     borderRadius: PidroRadii.tight,

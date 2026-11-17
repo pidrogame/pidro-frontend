@@ -33,17 +33,18 @@ const LEVEL: Stop[] = [
   [104, 42, 24, 13, 8, -11],
   [150, 52, 28, 15, 10, -13],
 ];
-// size, diameter, left, bottom
+// size, dealer coin, left, bottom, the bot and offline badges, the winning bid
+// (PID-450: the coin and the bid read at arm's length; the badges stay as they were)
 const DEALER: Stop[] = [
-  [44, 19, -8, 0],
-  [56, 22, -10, 0],
-  [64, 26, -11, 1],
-  [150, 36, -14, 6],
+  [44, 26, -11, -1, 19, 23],
+  [56, 30, -13, -1, 22, 28],
+  [64, 34, -14, 0, 26, 32],
+  [150, 49, -18, 5, 36, 44],
 ];
 // size, gap between ring and arc, stroke
 const TURN: Stop[] = [
   [36, 4, 2.5],
-  [56, 6, 3.5],
+  [56, 6, 5],
   [150, 13, 4],
 ];
 
@@ -72,11 +73,18 @@ export interface AvatarParts {
     bottom: number;
   } | null;
   dealer: { size: number; left: number; bottom: number } | null;
+  /** The bot and offline badges' coin, and the winning bid's, beside the dealer's. */
+  badge: number;
+  bid: number;
   turn: { radius: number; stroke: number } | null;
   /** Name and status type: phone sizes below 64, iPad sizes from 64 up (52 beside). */
-  name: { fontSize: number; lineHeight: number };
-  status: { fontSize: number; lineHeight: number };
+  name: LabelType;
+  status: LabelType;
+  /** Where a name too long for its room drops to before it truncates. */
+  smallName: LabelType;
 }
+
+type LabelType = { fontSize: number; lineHeight: number; fontWeight?: '800' | '900' };
 
 /**
  * A label beside the avatar has the avatar's height to itself, so from 52 up
@@ -84,7 +92,17 @@ export interface AvatarParts {
  */
 const BESIDE_LARGE_TYPE = 52;
 
-export function avatarParts(size: number, { beside = false } = {}): AvatarParts {
+/**
+ * A seat at the table (PID-450): name and line one size, 14 on phones and 16
+ * on iPads, the line under the name as big as the name, as Classic's were.
+ * Beside a landscape phone's seat the name keeps 16 and the line takes 14;
+ * where that line cannot fit, the seat says its short line instead.
+ */
+const SEAT_PHONE = { fontSize: 14, lineHeight: 18 };
+const SEAT_LARGE = { fontSize: 16, lineHeight: 20 };
+const bold = (type: LabelType, fontWeight: '800' | '900') => ({ ...type, fontWeight });
+
+export function avatarParts(size: number, { beside = false, seat = false } = {}): AvatarParts {
   const [ring] = at(RING, size) ?? [RING[0][1]];
   const pin = at(PIN, size);
   const level = at(LEVEL, size);
@@ -92,6 +110,17 @@ export function avatarParts(size: number, { beside = false } = {}): AvatarParts 
   const turn = at(TURN, size);
   const large = size >= 64;
   const largeType = large || (beside && size >= BESIDE_LARGE_TYPE);
+  const type = seat
+    ? {
+        name: bold(largeType ? SEAT_LARGE : SEAT_PHONE, '900'),
+        status: bold(large ? SEAT_LARGE : SEAT_PHONE, '800'),
+        smallName: bold(SEAT_PHONE, '900'),
+      }
+    : {
+        name: largeType ? LARGE_NAME : SMALL_NAME,
+        status: largeType ? { fontSize: 13, lineHeight: 17 } : { fontSize: 11, lineHeight: 14 },
+        smallName: SMALL_NAME,
+      };
 
   return {
     ring: half(ring),
@@ -116,9 +145,11 @@ export function avatarParts(size: number, { beside = false } = {}): AvatarParts 
       left: Math.round(dealer[1]),
       bottom: Math.round(dealer[2]),
     },
+    // Below the dealer's stops the badges keep their old share of the face.
+    badge: dealer ? Math.round(dealer[3]) : Math.round(size * 0.42),
+    bid: dealer ? Math.round(dealer[4]) : Math.round(size * 0.42) + 2,
     turn: turn && { radius: half(size / 2 + turn[0]), stroke: half(turn[1]) },
-    name: largeType ? LARGE_NAME : SMALL_NAME,
-    status: largeType ? { fontSize: 13, lineHeight: 17 } : { fontSize: 11, lineHeight: 14 },
+    ...type,
   };
 }
 
@@ -138,10 +169,11 @@ export const textFits = (text: string, fontSize: number, room: number) =>
 export function nameType(
   type: AvatarParts['name'],
   name: string | null | undefined,
-  room: number | undefined
+  room: number | undefined,
+  small: AvatarParts['name'] = SMALL_NAME
 ): AvatarParts['name'] {
   const long = !!name && room != null && !textFits(name, type.fontSize, room);
-  return long && type.fontSize > SMALL_NAME.fontSize ? SMALL_NAME : type;
+  return long && type.fontSize > small.fontSize ? small : type;
 }
 
 /**

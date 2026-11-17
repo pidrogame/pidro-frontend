@@ -8,7 +8,7 @@ describe('avatar parts by size', () => {
     expect(parts.ring).toBe(6);
     expect(parts.pin).toMatchObject({ size: 48, right: -8, top: 2 });
     expect(parts.level).toMatchObject({ minWidth: 52, height: 28, fontSize: 15 });
-    expect(parts.dealer).toMatchObject({ size: 36, left: -14, bottom: 6 });
+    expect(parts.dealer).toMatchObject({ size: 49, left: -18, bottom: 5 });
     expect(parts.turn).toEqual({ radius: 88, stroke: 4 });
   });
 
@@ -17,8 +17,11 @@ describe('avatar parts by size', () => {
     expect(parts.ring).toBe(3);
     expect(parts.pin?.size).toBe(20);
     expect(parts.level).toMatchObject({ minWidth: 26, height: 18, fontSize: 10, bottom: -9 });
-    expect(parts.dealer?.size).toBe(22);
-    expect(parts.turn).toEqual({ radius: 34, stroke: 3.5 });
+    // PID-450: the dealer coin 30 and the winning bid 28; the bot badge stays.
+    expect(parts.dealer?.size).toBe(30);
+    expect(parts.bid).toBe(28);
+    expect(parts.badge).toBe(22);
+    expect(parts.turn).toEqual({ radius: 34, stroke: 5 });
     expect(parts.gem).toBe(12);
   });
 
@@ -32,13 +35,15 @@ describe('avatar parts by size', () => {
       ring: 3.5,
       pin: { size: 24 },
       level: { minWidth: 30, height: 20, fontSize: 11 },
-      dealer: { size: 26 },
+      dealer: { size: 34 },
+      bid: 32,
     });
     expect(avatarParts(44)).toMatchObject({
       ring: 2.5,
       pin: { size: 17 },
       level: { minWidth: 22, height: 16, fontSize: 9 },
-      dealer: { size: 19 },
+      dealer: { size: 26 },
+      badge: 19,
     });
   });
 
@@ -47,7 +52,7 @@ describe('avatar parts by size', () => {
     expect(parts.ring).toBe(2.5);
     expect(parts.pin?.size).toBe(18);
     expect(parts.level?.minWidth).toBe(23);
-    expect(parts.dealer?.size).toBe(20);
+    expect(parts.dealer?.size).toBe(27);
   });
 
   it('drops the level and dealer at 36 but keeps the pin', () => {
@@ -63,6 +68,30 @@ describe('avatar parts by size', () => {
     expect(avatarParts(52, { beside: true }).status.fontSize).toBe(13);
     expect(avatarParts(56).name.fontSize).toBe(13);
     expect(avatarParts(44, { beside: true }).name.fontSize).toBe(13);
+  });
+
+  it('gives a seat at the table one size for name and line (PID-450)', () => {
+    const type = (size, beside = false) => {
+      const parts = avatarParts(size, { beside, seat: true });
+      return [parts.name.fontSize, parts.status.fontSize, parts.name.fontWeight];
+    };
+    // Upright phones, the tight phone's seats beside their names, and iPads.
+    expect(type(56)).toEqual([14, 14, '900']);
+    expect(type(44, true)).toEqual([14, 14, '900']);
+    expect(type(64)).toEqual([16, 16, '900']);
+    // A landscape phone's name keeps 16 beside the seat; its line takes 14, never less.
+    expect(type(52, true)).toEqual([16, 14, '900']);
+    expect(avatarParts(56, { seat: true }).status.fontWeight).toBe('800');
+    // Off the table nothing changes.
+    expect(avatarParts(56).status.fontSize).toBe(11);
+  });
+
+  it('drops a long seat name to 14 at most, never below it', () => {
+    const name = 'Alexandria the Long-Named Player';
+    const landscape = avatarParts(52, { beside: true, seat: true });
+    expect(nameType(landscape.name, name, 104, landscape.smallName).fontSize).toBe(14);
+    const upright = avatarParts(56, { seat: true });
+    expect(nameType(upright.name, name, 40, upright.smallName)).toBe(upright.name);
   });
 
   it('drops a name too long for its room one type step, never below the phone type', () => {
@@ -87,7 +116,7 @@ describe('avatar parts by size', () => {
   });
 
   it('grows in proportion above the largest board size', () => {
-    expect(avatarParts(300)).toMatchObject({ ring: 12, pin: { size: 96 }, dealer: { size: 72 } });
+    expect(avatarParts(300)).toMatchObject({ ring: 12, pin: { size: 96 }, dealer: { size: 98 } });
   });
 
   it('switches name and status to iPad type at 64', () => {

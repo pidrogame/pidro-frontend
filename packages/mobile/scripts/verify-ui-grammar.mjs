@@ -2369,12 +2369,13 @@ async function assertBlockedTap(page, testCase) {
   const out = testCase.flaky === 'out-tap';
   await page.getByTestId(`rendered-hand-card-count-${out ? 0 : 2}`).waitFor({ state: 'attached' });
   await page.waitForTimeout(1_500);
+  // Every seat's light is at full strength (PID-450); a nudge lights a second glow over it.
   const shine = () =>
     page
       .getByTestId('seat-north')
-      .getByTestId('turn-light')
+      .getByTestId('turn-nudge')
       .evaluate((light) => Number(getComputedStyle(light).opacity));
-  assert.equal(await shine(), 0.55, `${testCase.name}: North's shine starts quiet`);
+  assert.equal(await shine(), 0, `${testCase.name}: North's shine starts quiet`);
   const hand = (await page.evaluate(() => window.__pidroCardMotion()))
     .filter((sprite) => sprite.kind === 'hand')
     .sort((a, b) => a.x - b.x);
@@ -2402,7 +2403,7 @@ async function assertBlockedTap(page, testCase) {
   assert.equal(await page.getByTestId('table-feedback').count(), 0, `${testCase.name}: no words`);
   if (out) {
     assert.equal(xs.length, 0, `${testCase.name}: no card of yours to shake`);
-    assert.equal(await shine(), 0.55, `${testCase.name}: North's shine stays quiet`);
+    assert.equal(await shine(), 0, `${testCase.name}: North's shine stays quiet`);
     return;
   }
   const swing = Math.max(...xs.map((x) => Math.abs(x - xs[0])));

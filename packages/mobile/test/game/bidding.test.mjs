@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
-import { bidSeatLine, bidsShown } from '../../src/features/game/bidding.ts';
+import { seatPlate } from '../../src/features/game/seatLine.ts';
+import {
+  BID_HOLD_MS,
+  bidSeatLine,
+  bidsShown,
+  heldBidLine,
+} from '../../src/features/game/bidding.ts';
 import { buildHandLog, handLogEntries } from '../../src/game/handLog.ts';
 
 const line = (overrides) =>
@@ -120,5 +126,29 @@ describe('the bidding while the deal plays (PID-267)', () => {
     const midDeal = served(4, round);
     expect(bidsShown(midDeal, true)).toMatchObject({ phase: 'bidding', hand_number: 4 });
     expect(bidsShown(null, true)).toBeNull();
+  });
+});
+
+describe('the bidding winner, held for a beat (PID-450)', () => {
+  it('says their bid in gold, not the high mark, for about a second and a half', () => {
+    expect(BID_HOLD_MS).toBe(1500);
+    expect(heldBidLine(9)).toEqual({ text: 'Bid 9', short: 'Bid 9', tone: 'high' });
+  });
+
+  it('stays off the turn plate while held, and goes on it when it turns to trump', () => {
+    expect(seatPlate(heldBidLine(9), { onTurn: true, isYou: false })).toBeNull();
+    expect(
+      seatPlate({ text: 'Choosing trump…', tone: 'now' }, { onTurn: true, isYou: false })
+    ).toEqual({ plate: 'turn', text: 'Choosing trump…' });
+  });
+
+  it('holds nothing without a numeric bid', () => {
+    expect(heldBidLine(null)).toBeNull();
+    expect(heldBidLine(undefined)).toBeNull();
+  });
+
+  it('is in Swedish at a Swedish table', () => {
+    setLocale('sv');
+    expect(heldBidLine(14)?.text).toBe('Bud 14');
   });
 });

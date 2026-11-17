@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
-import { seatLine, teamLine } from '../../src/features/game/seatLine.ts';
+import { seatLine, seatPlate, teamLine } from '../../src/features/game/seatLine.ts';
 
 const seat = (overrides) => ({
   seatStatus: 'bot_substitute',
@@ -95,6 +95,58 @@ describe('what a seat’s sheet says about whose side they play on (PID-383)', (
     try {
       expect(teamLine(at(true, false))).toBe('Din partner');
       expect(teamLine(at(false, true))).toBe('Spelar mot dig');
+    } finally {
+      setLocale('en');
+    }
+  });
+});
+
+describe('the plate under a seat (PID-450)', () => {
+  const playing = { text: 'Playing…', tone: 'now' };
+
+  it('lights the seat on turn with its own line, and yours with "Your turn"', () => {
+    expect(seatPlate(playing, { onTurn: true, isYou: false })).toEqual({
+      plate: 'turn',
+      text: 'Playing…',
+    });
+    expect(seatPlate(playing, { onTurn: true, isYou: true })).toEqual({
+      plate: 'turn',
+      text: 'Your turn',
+    });
+    // A seat on turn with nothing to say yet is still lit, its name alone on the plate.
+    expect(seatPlate(null, { onTurn: true, isYou: false })).toEqual({ plate: 'turn', text: null });
+  });
+
+  it('leaves every seat off turn unlit, whatever it last said', () => {
+    expect(seatPlate(playing, { onTurn: false, isYou: false })).toBeNull();
+    expect(seatPlate({ text: 'Bid 7' }, { onTurn: false, isYou: true })).toBeNull();
+    expect(seatPlate(null, { onTurn: false, isYou: false })).toBeNull();
+  });
+
+  it('keeps the bidding winner off the plate while their bid is held', () => {
+    expect(seatPlate({ text: 'Bid 9', tone: 'high' }, { onTurn: true, isYou: true })).toBeNull();
+  });
+
+  it('puts a seat out of trumps on the navy plate, and lights it once as it goes out', () => {
+    const out = seatLine(seat({ out: true }));
+    expect(out).toMatchObject({ text: 'Out', tone: 'out', pulse: 'out' });
+    expect(seatPlate(out, { onTurn: false, isYou: false })).toEqual({ plate: 'out', text: 'Out' });
+  });
+
+  it('keeps a seat out until the hand ends, whatever the table says of it meanwhile', () => {
+    // The trick it did not play in, the turn passing on, a Pidro taken: still Out.
+    for (const meanwhile of [playing, { text: 'Won the trick' }, null]) {
+      expect(seatLine(seat({ out: true }), meanwhile)?.tone).toBe('out');
+    }
+    // The table model clears `out` with the hand: the seat speaks again.
+    expect(seatLine(seat({ out: false }), playing)).toBe(playing);
+  });
+
+  it('says it in Swedish at a Swedish table', () => {
+    setLocale('sv');
+    try {
+      expect(seatPlate(playing, { onTurn: true, isYou: true })?.text).toBe('Din tur');
+      expect(seatLine(seat({ out: true }))?.text).toBe('Ute');
     } finally {
       setLocale('en');
     }

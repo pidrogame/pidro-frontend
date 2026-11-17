@@ -51,3 +51,17 @@ export function bidSeatLine({
   }
   return onTurn ? { text: t('game.bidding'), short: t('game.bidding'), tone: 'now' } : null;
 }
+
+/** How long the bidding's winner keeps saying their bid once it ends (PID-450). */
+export const BID_HOLD_MS = 1500;
+
+/**
+ * The bidding's winner, for a beat once it ends (`BID_HOLD_MS`): their line
+ * stays on their bid, in gold and off the turn's plate, before it turns to
+ * choosing trump, so the table sees who won it.
+ */
+export function heldBidLine(amount: number | null | undefined): BidSeatLine | null {
+  if (typeof amount !== 'number') return null;
+  const text = t('game.bid', { amount });
+  return { text, short: text, tone: 'high' };
+}

@@ -52,6 +52,13 @@ export const PidroColors = {
   // The shine behind the player on turn, drawn as a soft glow around the ring.
   turnLightShine: 'rgba(139, 234, 255, 0.6)',
   turnUrgentShine: 'rgba(255, 184, 107, 0.65)',
+  // The seat on turn sits on a plate of the turn light's colour (PID-450): dark
+  // ink on it, each team's name a tone deeper. Out of trumps, a navy plate.
+  turnPlateGlow: '0px 0px 10px rgba(139, 234, 255, 0.55)',
+  turnPlateInk: '#06294a',
+  teamUsOnLight: '#2b3f9e',
+  teamThemOnLight: '#a02a3c',
+  outPlateBorder: 'rgba(255, 255, 255, 0.6)',
   // Trick signals: the "on the table" chip and the shadow under a "+N" pop.
   trickChipBg: 'rgba(10, 35, 64, 0.72)',
   popShadow: 'rgba(0, 0, 0, 0.6)',

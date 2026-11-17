@@ -94,9 +94,9 @@ const SIDE_STACK_LEAST = 0.3;
  * Portrait North, top to bottom, as SeatLayer draws it: a gap, the fan of
  * backs, a gap, then the seat (avatar, level chip, name and status).
  */
-const NORTH_SEAT_STACK = { phone: 98, tablet: 115 } as const;
+const NORTH_SEAT_STACK = { phone: 104, tablet: 118 } as const;
 /** A landscape phone's side seat, as SeatLayer stacks it: avatar, level chip, name and status. */
-const LANDSCAPE_SIDE_SEAT = 93;
+const LANDSCAPE_SIDE_SEAT = 99;
 /** One of North's card backs, as SeatLayer draws them. */
 // Opponents' backs are big enough to count at a glance: veterans read the
 // second deal off them (how many each drew), not just that cards are there.
@@ -644,9 +644,9 @@ const sideAvatar = (L: Pick<TableLayout, 'tight' | 'profile'>) =>
 /** Between your hand and your tight avatar: the turn ring's room. */
 export const TIGHT_SOUTH_GAP = 6;
 /** Your tight seat under the hand: the gap, the avatar, its short line and air above the home indicator. */
-const TIGHT_SOUTH_SEAT = TIGHT_SOUTH_GAP + TIGHT_AVATAR + 4 + 14 + 8;
+const TIGHT_SOUTH_SEAT = TIGHT_SOUTH_GAP + TIGHT_AVATAR + 4 + 18 + 8;
 /** East's or West's tight seat: the avatar over its name and line, no level. */
-const TIGHT_SIDE_SEAT = TIGHT_AVATAR + 4 + 16 + 14;
+const TIGHT_SIDE_SEAT = TIGHT_AVATAR + 4 + 18 + 18;
 /**
  * Small phones leave the ticker out: the seats' status lines say the same,
  * and the table needs the room (Marcel, 2026-10-15). Landscape phones too.
