@@ -79,6 +79,11 @@ export interface ReadinessSnapshot {
     }
   >;
   ready_players: Position[];
+  /**
+   * PID-457: milliseconds from its arrival until the host may be offered bots, 0 when due;
+   * null when off, nothing could be filled, or the room is not waiting. Older servers leave it out.
+   */
+  bots_offer_in_ms?: number | null;
 }
 
 /**

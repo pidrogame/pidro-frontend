@@ -146,6 +146,12 @@ export function createLobbyApi(api: ApiClient) {
       const response = await api.put<GetRoomResponse>(`/api/v1/rooms/${code}/seats/${position}`, { seat });
       return normalizeRoom(response.data?.data?.room ?? response.data?.room);
     },
+
+    /** Host only, while waiting (PID-457): a bot sits in every open seat; a held seat stays held. */
+    fillWithBots: async (code: string): Promise<Room> => {
+      const response = await api.post<GetRoomResponse>(`/api/v1/rooms/${code}/fill-with-bots`);
+      return normalizeRoom(response.data?.data?.room ?? response.data?.room);
+    },
   };
 }
 
