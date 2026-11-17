@@ -92,6 +92,11 @@ export class PhoenixSocket {
     this.disconnecting = true;
     this.socket.disconnect(() => {
       this.disconnecting = false;
+      // A dead link never confirms the close, and Phoenix then drops the transport
+      // without erroring its channels: they would stay "joined" on a connection the
+      // server never saw. Errored now, with the old transport gone, they rejoin
+      // once, on the next open.
+      (this.socket as Socket & { triggerChanError(): void }).triggerChanError();
       if (this.connectionRequested) this.openConnection();
     });
   }
