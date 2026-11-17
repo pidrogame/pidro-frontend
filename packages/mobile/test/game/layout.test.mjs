@@ -50,6 +50,8 @@ import {
   TRUMP_BUTTON,
   TRUMP_MARK,
   trumpPicker,
+  throwPile,
+  throwSpread,
 } from '../../src/game/canvas/layout.ts';
 
 describe('played-card piles', () => {
@@ -581,6 +583,98 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
         ['west', 'north'],
       ])
         expect(apart(pile(a), pile(b)), `${a} and ${b}`).toBe(true);
+    });
+  }
+
+  // PID-452: the second deal's throws lie spread to be counted, as Classic's:
+  // every back at least a third clear of the next, and clear of everything else.
+  it('draws a throw smaller only where its room is short of a third each', () => {
+    expect(throwSpread(1, 30, 45)).toEqual({ w: 30, step: 0 });
+    expect(throwSpread(4, 200, 45)).toEqual({ w: 45, step: 45 * 0.44 });
+    const short = throwSpread(9, 110, 45);
+    expect(short.w).toBeCloseTo(30);
+    expect(short.step).toBeCloseTo(10);
+  });
+  for (const [width, height, insets] of [
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [667, 375, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    it(`shows a third of every thrown back, 1 to 9 at each seat, on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, 60);
+      for (const rel of ['north', 'east', 'south', 'west']) {
+        for (let n = 1; n <= 9; n++) {
+          const { w, spots } = throwPile(L, rel, n);
+          expect(spots).toHaveLength(n);
+          for (let i = 1; i < n; i++) {
+            const apart = Math.hypot(spots[i].x - spots[i - 1].x, spots[i].y - spots[i - 1].y);
+            expect(apart, `${rel} ${n}`).toBeGreaterThanOrEqual(w / 3 - 0.01);
+          }
+        }
+      }
+      const box = (rel) => {
+        const { w, spots } = throwPile(L, rel, 9);
+        const [hw, hh] =
+          rel === 'east' || rel === 'west'
+            ? [(w * 110) / 78 / 2, w / 2]
+            : [w / 2, (w * 110) / 78 / 2];
+        return {
+          left: Math.min(...spots.map((s) => s.x)) - hw,
+          right: Math.max(...spots.map((s) => s.x)) + hw,
+          top: Math.min(...spots.map((s) => s.y)) - hh,
+          bottom: Math.max(...spots.map((s) => s.y)) + hh,
+        };
+      };
+      const apart = (a, b) =>
+        a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+      const piles = Object.fromEntries(['north', 'east', 'south', 'west'].map((r) => [r, box(r)]));
+      for (const [a, b] of [
+        ['north', 'east'],
+        ['east', 'south'],
+        ['south', 'west'],
+        ['west', 'north'],
+        ['north', 'south'],
+        ['east', 'west'],
+      ])
+        expect(apart(piles[a], piles[b]), `${a} and ${b}`).toBe(true);
+      if (L.profile !== 'phone-portrait') return;
+      // Upright: off the trump mark, above a lifted card of yours, beside the
+      // side stacks and under the side seats.
+      const mark = (L.cardW * TRUMP_MARK) / 2;
+      const markBox = {
+        left: L.trick.cx - mark,
+        right: L.trick.cx + mark,
+        top: L.trick.cy - mark,
+        bottom: L.trick.cy + mark,
+      };
+      const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
+      const { top, maxHeight } = sideStacks(L);
+      const seatBottom = L.trick.cy - (L.cardW * L.trick.pileScale) / 2 - TRICK_GAP;
+      for (const [rel, pile] of Object.entries(piles)) {
+        expect(apart(pile, markBox), `${rel} and the trump mark`).toBe(true);
+        expect(pile.bottom, `${rel} and your hand`).toBeLessThanOrEqual(lifted);
+        for (const stack of [
+          { left: -Infinity, right: sideStackInner(L.cardW, 0), top, bottom: top + maxHeight },
+          {
+            left: width - sideStackInner(L.cardW, 0),
+            right: Infinity,
+            top,
+            bottom: top + maxHeight,
+          },
+        ])
+          expect(apart(pile, stack), `${rel} and a side stack`).toBe(true);
+        if (rel === 'east' || rel === 'west') expect(pile.top).toBeGreaterThan(seatBottom);
+        // North's and yours run between the side seats' columns.
+        else {
+          expect(pile.left).toBeGreaterThan(SIDE_SEAT_WIDTH);
+          expect(pile.right).toBeLessThan(width - SIDE_SEAT_WIDTH);
+        }
+      }
     });
   }
 

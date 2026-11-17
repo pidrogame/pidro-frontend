@@ -19,6 +19,8 @@ import {
   BEFORE,
   CLOCKWISE,
   dealerThrow,
+  drewAt,
+  drewCounts,
   makePlan,
   showAt,
   type Plan,
@@ -125,10 +127,17 @@ export function useSecondDealPresentation(
     const timer = setTimeout(() => setKilledShown(killedKey), KILLED_SHOW_MS);
     return () => clearTimeout(timer);
   }, [showKilled, killedKey]);
-  const shown = useMemo(
-    () => (anyKilled && !showKilled ? { ...model, killed: {} } : model),
-    [model, anyKilled, showKilled]
-  );
+  // With count help, what each drew stays by their hand until the first card (PID-452).
+  const shown = useMemo(() => {
+    const drew =
+      model.countHelp && model.phase === 'playing' && !hasPlay(model) ? drewCounts(model) : null;
+    if (!drew && !(anyKilled && !showKilled)) return model;
+    return {
+      ...model,
+      ...(anyKilled && !showKilled && { killed: {} }),
+      ...(drew && { drew }),
+    };
+  }, [model, anyKilled, showKilled]);
 
   if (!plan || !frame || !AFTER.has(model.phase) || hasPlay(model)) return shown;
   if (reducedMotion) return { ...shown, dealUnseen: true };
@@ -180,5 +189,6 @@ export function useSecondDealPresentation(
     pack: show.pack,
     secondDealShow: show,
     killed: {},
+    drew: model.countHelp ? drewAt(frame, model) : undefined,
   };
 }

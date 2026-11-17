@@ -55,8 +55,8 @@ The second deal loops at `/table-dev?deal=draw`, fed the snapshots the server
 sends (trump named, then the hand ready to play, play held while the table
 shows the second deal). It plays at Classic's pace: each player in turn from
 the dealer's left throws their non-trumps face down in front of them, the
-piles hold to be counted and clear, the dealer gives each player their cards
-one at a time, takes the rest and throws down to six last (`dealerHoldMs`).
+piles hold to be counted, the dealer gives each player their cards one at a
+time, each pile lying until its player's first card comes, takes the rest and throws down to six last (`dealerHoldMs`).
 Throws are backs for everyone, the thrower included, as many as each player
 threw; the dealer alone sees the pool they took up less the six they kept face
 up for `dealerHoldMs`, everyone else as many backs as the server's
@@ -67,7 +67,9 @@ gives, and slides to the dealer as they take the rest. Upright, your pack
 lies bottom left, under your hand, since talk has the bottom right corner. West deals unless
 `dealer=north|east`; `you=deal` has you deal; `kill=1` has East keep seven trumps and kill the
 queen, face up in East's front row for everyone until the first card lands
-(`killed_cards`); `hand=still|tilt|fan` tries how hands hold their
+(`killed_cards`); `nine=1` has East throw all nine, spread so each back shows
+a third, and `count=on` puts what each drew by their hand until the first card
+(PID-452); `hand=still|tilt|fan` tries how hands hold their
 cards. **Tune** opens live timings (each change replays); the link takes the
 same keys, e.g. `&holdMs=3000&cardMs=230&throwGapMs=550`. The server's
 `second_deal_transition_delay_ms` must hold play for the whole of it.

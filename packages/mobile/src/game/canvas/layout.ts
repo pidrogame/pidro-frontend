@@ -892,6 +892,76 @@ export function pileSpot(L: TableLayout, rel: RelativePosition, i: number, n: nu
   return { x: at.x + (i - (n - 1) / 2) * step, y: at.y };
 }
 
+/** A thrown back shows at least this much of itself, as Classic's do (PID-452). */
+export const THROW_SHOWN = 1 / 3;
+/**
+ * `n` thrown backs along `room` (PID-452): each `step` clear of the next, up
+ * to 0.44 of a back, never less than THROW_SHOWN; where the room is short
+ * even for that, the backs draw smaller than `cardW`.
+ */
+export function throwSpread(n: number, room: number, cardW: number) {
+  const w = Math.min(cardW, room / (1 + Math.max(0, n - 1) * THROW_SHOWN));
+  return { w, step: n > 1 ? Math.min(w * 0.44, (room - w) / (n - 1)) : 0 };
+}
+
+/**
+ * A seat's `n` backs thrown in the second deal (PID-452): how wide they draw
+ * and where each lies, spread to be counted. Upright phones lay East's and
+ * West's down a column beside their stack, from under the seat to above your
+ * hand, and North's and yours in a row between those columns. Landscape
+ * phones keep Classic's cross; tablets lay them as `pileSpot`.
+ */
+export function throwPile(L: TableLayout, rel: RelativePosition, n: number) {
+  const cardW = pileCardW(L);
+  const sideways = rel === 'east' || rel === 'west';
+  const upright = L.profile === 'phone-portrait';
+  if (!upright && !L.front)
+    return { w: cardW, spots: Array.from({ length: n }, (_, i) => pileSpot(L, rel, i, n)) };
+  const column = (top: number, bottom: number, y: number, reversed: boolean) => {
+    const { w, step } = throwSpread(n, bottom - top, cardW);
+    const span = w + (n - 1) * step;
+    const first = clamp(y - span / 2, top, bottom - span) + w / 2;
+    const ys = Array.from({ length: n }, (_, i) => first + (reversed ? n - 1 - i : i) * step);
+    return { w, ys };
+  };
+  const row = (room: number, x: number) => {
+    const { w, step } = throwSpread(n, room, cardW);
+    return { w, xs: Array.from({ length: n }, (_, i) => x + (i - (n - 1) / 2) * step) };
+  };
+  if (L.front) {
+    const at = L.front[rel];
+    if (!sideways) {
+      const { w, xs } = row(cardW * FRONT_PILE_SPAN, at.x);
+      return { w, spots: xs.map((x) => ({ x, y: at.y })) };
+    }
+    const band = L.band ?? { top: -Infinity, bottom: Infinity };
+    const { w, ys } = column(band.top, band.bottom, at.y, rel === 'east');
+    return { w, spots: ys.map((y) => ({ x: at.x, y })) };
+  }
+  // A side column's outer edge, TRICK_GAP in from its stack.
+  const outer = (edge: number) => sideStackInner(L.cardW, edge) + TRICK_GAP;
+  if (sideways) {
+    // TRICK_GAP / 2 under its seat, and above a lifted card of yours.
+    const top = L.trick.cy - (L.cardW * L.trick.pileScale) / 2 - TRICK_GAP / 2;
+    const bottom = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5) - TRICK_GAP / 2;
+    const { w, ys } = column(top, bottom, L.trick.cy, false);
+    const x =
+      rel === 'west'
+        ? outer(L.insets.left) + (w * CARD_RATIO) / 2
+        : L.width - outer(L.insets.right) - (w * CARD_RATIO) / 2;
+    return { w, spots: ys.map((y) => ({ x, y })) };
+  }
+  // Short of the side columns at their widest.
+  const half =
+    L.width / 2 -
+    outer(Math.max(L.insets.left, L.insets.right)) -
+    cardW * CARD_RATIO -
+    TRICK_GAP / 2;
+  const { w, xs } = row(2 * half, L.trick.cx);
+  const y = playedCardTarget(L, rel, 0, 1).y;
+  return { w, spots: xs.map((x) => ({ x, y })) };
+}
+
 /**
  * Landscape phones: card `i` of `n` lying sideways down East's or West's
  * column, `step` apart at most, centred on `y` as far as the column's band

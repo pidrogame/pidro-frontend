@@ -1,16 +1,16 @@
 /**
  * The second deal, frame by frame (`useSecondDealPresentation` plays them),
  * at Classic's pace: each player in turn from the dealer's left throws down
- * to their trumps in one swoop, the piles hold to be counted and clear, the
- * dealer gives each player their cards one at a time, then takes the rest
- * and, once down to six, throws too (PID-306; a server that does not count
- * the dealer's throw leaves it unseen). Pure: built only from the server's
- * counts and hands.
+ * to their trumps in one swoop, the piles hold to be counted, the dealer
+ * gives each player their cards one at a time, a pile lying until its
+ * player's first card comes (PID-452), then takes the rest and, once down
+ * to six, throws too (PID-306; a server that does not count the dealer's
+ * throw leaves it unseen). Pure: built only from the server's counts and hands.
  */
 import type { Card } from '@/types/game';
 import type { RelativePosition } from './layout';
 import type { TableCard, TableModel } from './tableModel';
-import { SECOND_DEAL_PACK, secondDealTiming } from './animationTiming';
+import { SECOND_DEAL_PACK, secondDealHoldMs, secondDealTiming } from './animationTiming';
 
 export const CLOCKWISE: RelativePosition[] = ['north', 'east', 'south', 'west'];
 export const BEFORE = new Set(['bidding', 'declaring', 'discarding']);
@@ -38,6 +38,11 @@ export type Frame = SecondDealShow & {
   drawn: Counts;
   /** Backs in each opponent's hand. */
   hand: Counts;
+  /**
+   * What each seat drew, from its refill on; the dealer, the rest of the
+   * pack they took, once down to six (PID-452).
+   */
+  drew: Counts;
   /** How long this frame holds before the next. */
   ms: number;
   /** The dealer has taken the pack and thrown down to six: their pile shows. */
@@ -92,6 +97,7 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
   const thrown: Counts = {};
   const out: Counts = {};
   const given: Counts = {};
+  const drew: Counts = {};
   for (const rel of CLOCKWISE) {
     if (!model.seats[rel]) continue;
     hand[rel] = DEALT;
@@ -106,6 +112,7 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
       thrown: { ...thrown },
       out: { ...out },
       drawn: { ...given },
+      drew: { ...drew },
       pack,
       taken,
       ms,
@@ -118,15 +125,18 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
     thrown[rel] = DEALT - (kept[rel] ?? DEALT);
     out[rel] = thrown[rel];
     hand[rel] = kept[rel] ?? DEALT;
-    push(index === players.length - 1 ? t.holdMs : t.throwGapMs);
+    // The piles lie to be counted while the dealer takes up the pack.
+    push(index === players.length - 1 ? secondDealHoldMs(t) + t.packMs : t.throwGapMs);
   });
-  // The piles clear.
-  for (const rel of players) thrown[rel] = 0;
-  push(t.packMs);
-  // The dealer gives each player their cards, one at a time.
+  // The dealer gives each player their cards, one at a time. A player's pile
+  // lies until their first card comes, or until the dealer passes them.
   const receiving = players.filter((rel) => (drawn[rel] ?? 0) > 0);
-  receiving.forEach((rel, index) => {
+  players.forEach((rel) => {
+    if (hand[rel] == null) return;
+    thrown[rel] = 0;
+    drew[rel] = drawn[rel] ?? 0;
     const n = drawn[rel] ?? 0;
+    const index = receiving.indexOf(rel);
     for (let k = 0; k < n; k++) {
       hand[rel] = (hand[rel] ?? 0) + 1;
       given[rel] = (given[rel] ?? 0) + 1;
@@ -143,9 +153,45 @@ export function makePlan(model: TableModel, held: TableCard[] | null): Plan | nu
   pack = 0;
   push(t.robMs);
   if (players.some((rel) => model.seats[rel]?.discarded != null)) {
-    frames.push({ ...frames[frames.length - 1], taken: 0, dealerThrew: true, ms: t.dealerHoldMs });
+    const last = frames[frames.length - 1];
+    frames.push({
+      ...last,
+      taken: 0,
+      drew: { ...last.drew, [dealer]: rest },
+      dealerThrew: true,
+      ms: t.dealerHoldMs,
+    });
   }
   return { frames, yourThrown, yourDrawn };
+}
+
+/**
+ * What each seat drew once the second deal is done (PID-452): the dealer,
+ * the rest of the pack they took up. Null without every player's count.
+ */
+export function drewCounts(model: TableModel): Counts | null {
+  const dealer = model.dealerRelative;
+  if (!dealer) return null;
+  const drew: Counts = {};
+  let dealt = 0;
+  for (const rel of CLOCKWISE) {
+    const seat = model.seats[rel];
+    if (!seat || rel === dealer) continue;
+    const n = seat.secondDeal?.drawn;
+    if (n == null) return null;
+    drew[rel] = n;
+    dealt += n;
+  }
+  drew[dealer] = Math.max(0, SECOND_DEAL_PACK - dealt);
+  return drew;
+}
+
+/** What each seat drew at `frame`: the dealer's only once they are down to six, so the pool never leaks. */
+export function drewAt(frame: Frame, model: TableModel): Counts {
+  const dealer = model.dealerRelative;
+  if (!dealer || model.seats[dealer]?.discarded != null) return frame.drew;
+  const { [dealer]: _picking, ...rest } = frame.drew;
+  return rest;
 }
 
 /**

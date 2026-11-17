@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'bun:test';
-import { dealerThrow, makePlan, showAt } from '../../src/game/canvas/secondDealPlan.ts';
+import {
+  dealerThrow,
+  drewAt,
+  drewCounts,
+  makePlan,
+  showAt,
+} from '../../src/game/canvas/secondDealPlan.ts';
 import { secondDealDurationMs, secondDealTiming } from '../../src/game/canvas/animationTiming.ts';
 
 const seat = (kept, drawn, cardCount, discarded) => ({
@@ -62,17 +68,54 @@ describe('the second deal at Classic’s pace', () => {
     expect(beats.every((frame) => frame.hand.west === 9)).toBe(true);
   });
 
-  it('holds the piles to count, then clears them before the refill', () => {
-    expect(beats[3].ms).toBe(secondDealTiming.holdMs);
-    expect(beats[4].thrown).toEqual({ north: 0, east: 0, south: 0, west: 0 });
-    expect(beats[4].pack).toBe(16);
+  // PID-452: when each pile was thrown, cleared and given its first card.
+  const at = (test) => {
+    let ms = 0;
+    for (const frame of beats) {
+      if (test(frame)) return ms;
+      ms += frame.ms;
+    }
+    return null;
+  };
+  it('keeps each pile until its player’s first card comes, and never less than 3 s', () => {
+    for (const rel of ['north', 'east', 'south']) {
+      const thrown = at((frame) => frame.thrown[rel] > 0);
+      const cleared = at((frame) => frame.out[rel] > 0 && frame.thrown[rel] === 0);
+      expect(cleared, rel).toBe(at((frame) => frame.drawn[rel] > 0));
+      expect(cleared - thrown, rel).toBeGreaterThanOrEqual(3_000);
+    }
+    // The last thrower's pile lies the longest it must: the hold and the pack taken up.
+    expect(beats[3].ms).toBe(secondDealTiming.holdMs + secondDealTiming.packMs);
+    // Then the dealer's left gets a card and their pile goes; the others' still lie.
+    expect(beats[4].thrown).toEqual({ north: 0, east: 6, south: 7, west: 0 });
+  });
+
+  it('never holds the piles less than 3 s, however the timing is tuned', () => {
+    const quick = { ...secondDealTiming, holdMs: 500, packMs: 0 };
+    Object.assign(secondDealTiming, quick);
+    try {
+      const fast = makePlan(model, held).frames;
+      expect(fast[3].ms).toBe(3_000);
+    } finally {
+      Object.assign(secondDealTiming, { holdMs: 3_000, packMs: 500 });
+    }
+  });
+
+  // With count help the table says what each drew, from their refill on.
+  it('counts what each player drew from their first card, and never the dealer’s here', () => {
+    const first = (rel) => beats.findIndex((frame) => frame.drawn[rel] > 0);
+    expect(beats[first('north') - 1].drew).toEqual({});
+    expect(beats[first('north')].drew).toEqual({ north: 5 });
+    expect(beats[first('east')].drew).toEqual({ north: 5, east: 3 });
+    expect(beats.at(-1).drew).toEqual({ north: 5, east: 3, south: 4 });
+    expect(drewCounts(model)).toEqual({ north: 5, east: 3, south: 4, west: 4 });
   });
 
   // PID-394: the pack lies beside the dealer from the first throw; the dealer
   // takes the four left after the twelve dealt, which slide to them.
   it('keeps the pack beside the dealer through the throws, counts it down, and has the dealer take the rest', () => {
-    expect(beats.slice(0, 5).map((frame) => frame.pack)).toEqual([16, 16, 16, 16, 16]);
-    expect(beats.slice(5, -1).map((frame) => frame.pack)).toEqual([
+    expect(beats.slice(0, 4).map((frame) => frame.pack)).toEqual([16, 16, 16, 16]);
+    expect(beats.slice(4, -1).map((frame) => frame.pack)).toEqual([
       15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4,
     ]);
     expect(beats.slice(0, -1).every((frame) => !frame.taken)).toBe(true);
@@ -80,7 +123,7 @@ describe('the second deal at Classic’s pace', () => {
   });
 
   it('deals one card at a time, player by player, and the dealer takes the rest', () => {
-    const order = beats.slice(5, -1).map((frame, i, all) => {
+    const order = beats.slice(4, -1).map((frame, i, all) => {
       const before = i === 0 ? {} : all[i - 1].drawn;
       return Object.keys(frame.drawn).find((rel) => frame.drawn[rel] !== (before[rel] ?? 0));
     });
@@ -159,6 +202,26 @@ describe('the second deal from a server that counts every throw (PID-306)', () =
     const dealers = showAt(plan.frames.at(-1), model, null);
     expect(dealers.thrown).toEqual({ north: 0, east: 0, south: 0, west: 6 });
     expect(dealers.faces).toEqual({});
+  });
+
+  // PID-452: the pool never leaks; the dealer's count comes once they are down to six.
+  it('counts what the dealer took only once they have thrown', () => {
+    expect(plan.frames.at(-2).drew).toEqual({ north: 5, east: 3, south: 4 });
+    expect(plan.frames.at(-1).drew).toEqual({ north: 5, east: 3, south: 4, west: 4 });
+    expect(drewAt(plan.frames.at(-1), model)).toEqual({ north: 5, east: 3, south: 4, west: 4 });
+    // Still picking: the table waits on this frame, and says nothing of the dealer's.
+    const picking = { ...model, seats: { ...model.seats, west: seat(null, null, 9) } };
+    expect(drewAt(plan.frames.at(-1), picking)).toEqual({ north: 5, east: 3, south: 4 });
+  });
+
+  it('counts +0 for a player who drew nothing, their pile lying until the dealer passes them', () => {
+    // East kept seven: nothing to draw. North (the dealer's left) is given five first.
+    const kept7 = { ...model, seats: { ...model.seats, east: seat(7, 0, 7, 2) } };
+    const frames = makePlan(kept7, held).frames;
+    const southFirst = frames.findIndex((frame) => frame.drawn.south > 0);
+    expect(frames[southFirst - 1].thrown.east).toBe(2);
+    expect(frames[southFirst].thrown.east).toBe(0);
+    expect(frames[southFirst].drew).toEqual({ north: 5, east: 0, south: 4 });
   });
 });
 

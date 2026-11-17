@@ -60,18 +60,18 @@ export function dealAnimationDurationMs(cardCount: number): number {
 
 // The second deal at Classic's pace (from a recording of it): after trump,
 // each player in turn from the dealer's left throws their non-trumps face
-// down in front of them; the piles stay long enough to count; they clear;
-// the dealer gives each player their cards one at a time; the dealer takes
-// the rest unseen. One object so the fixture's tuner can change it live;
+// down in front of them; the piles stay long enough to count; the dealer
+// gives each player their cards one at a time, each pile lying until its
+// player's first card comes (PID-452); the dealer takes the rest unseen. One object so the fixture's tuner can change it live;
 // the server's second_deal_transition_delay_ms holds play for as long.
 export const secondDealTiming = {
   /** Before the first throw. */
   startMs: 400,
   /** Between one player's throw and the next. */
   throwGapMs: 550,
-  /** The piles on the felt, to count, after the last throw. */
+  /** The piles on the felt, to count, after the last throw: never under THROW_HOLD_LEAST_MS. */
   holdMs: 3_000,
-  /** The piles clear. */
+  /** The dealer takes up the pack to deal, the piles still lying. */
   packMs: 500,
   /** Between one dealt card and the next. */
   cardMs: 230,
@@ -92,12 +92,18 @@ export function resetSecondDealTiming() {
   Object.assign(secondDealTiming, SECOND_DEAL_DEFAULTS);
 }
 
+/** A thrown pile lies at least this long, to be counted (PID-452). */
+export const THROW_HOLD_LEAST_MS = 3_000;
+/** How long the piles hold after the last throw. */
+export const secondDealHoldMs = (timing: SecondDealTiming = secondDealTiming) =>
+  Math.max(timing.holdMs, THROW_HOLD_LEAST_MS);
+
 /** How long the whole second deal plays, for `n` cards dealt. */
 export function secondDealDurationMs(dealt: number, timing: SecondDealTiming = secondDealTiming) {
   return (
     timing.startMs +
     2 * timing.throwGapMs +
-    timing.holdMs +
+    secondDealHoldMs(timing) +
     timing.packMs +
     dealt * timing.cardMs +
     2 * timing.seatGapMs +

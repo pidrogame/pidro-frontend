@@ -125,6 +125,8 @@ export type TableModel = {
   pack?: number;
   /** The second deal playing out (`useSecondDealPresentation`). */
   secondDealShow?: SecondDealShow;
+  /** With count help: what each seat drew in the second deal, until the first card (PID-452). */
+  drew?: Partial<Record<RelativePosition, number>>;
   /** Trumps killed over six, face up for everyone, by the seat that killed them (PID-306). */
   killed?: Partial<Record<RelativePosition, Card[]>>;
   /** A settled hand laid down (`useLayDownPresentation`, PID-366). */

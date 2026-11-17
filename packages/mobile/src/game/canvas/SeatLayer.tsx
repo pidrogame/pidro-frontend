@@ -61,9 +61,12 @@ import {
   packLayers,
   PACK_STEP,
   northFanStep,
+  northFanWidth,
+  handRight,
   sideStackStep,
   pileCardW,
   pileSpot,
+  throwPile,
   seatNameGap,
   sideBackWidth,
   sideSeatTop,
@@ -74,9 +77,11 @@ import {
   sideStacks,
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
+  TRICK_GAP,
   type RelativePosition,
 } from './layout';
 import { viewerOf } from './HandResult';
+import { DREW_CHIP_H, DrewChip } from './DrewChip';
 import { TABLE_HEADER, useTableSize } from './TableChrome';
 import type { TableSeat } from './tableModel';
 import {
@@ -186,6 +191,8 @@ type Props = {
   secondDeal?: SecondDealShow;
   /** Killed trumps, face up in front of the seat that killed them (PID-306). */
   killed?: Partial<Record<RelativePosition, Card[]>>;
+  /** With count help: what each seat drew, on the corner of its hand (PID-452). */
+  drew?: Partial<Record<RelativePosition, number>>;
   /** A settled hand laid down, face up in front of its holder (PID-366). */
   layDown?: LayDownShow;
   /** How every hand holds its cards. */
@@ -214,6 +221,7 @@ export function SeatLayer({
   pack: packCount = 0,
   secondDeal,
   killed,
+  drew,
   layDown,
   held = HELD_STYLE,
   bid,
@@ -416,6 +424,7 @@ export function SeatLayer({
         const laid = layDown?.rel === rel && layDown.step !== 'done' ? layDown : null;
         if (!seats[rel] || (thrown === 0 && kills.length === 0 && !laid)) return null;
         const foldingHand = !secondDeal && folded > 0;
+        const throwing = foldingHand ? null : throwPile(L, rel, thrown);
         const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
         // Landscape phones throw from just inside the hand, never from behind
         // North's backs or a side stack (PID-307).
@@ -503,17 +512,17 @@ export function SeatLayer({
                 }
                 from={from}
                 // Cold hands fold where they were held; only second-deal throws cross the felt.
-                at={foldingHand ? undefined : (i) => pileSpot(L, rel, i, thrown)}
+                at={throwing ? (i) => throwing.spots[i] : undefined}
                 square={!!L.front}
                 cardW={
-                  foldingHand
-                    ? (rel === 'south'
+                  throwing
+                    ? throwing.w
+                    : (rel === 'south'
                         ? L.cardW * L.trick.pileScale
                         : rel === 'north'
                           ? northBackWidth(L.cardW, compactNorth(L))
                           : // Narrower on landscape phones, to fit the stack's column.
                             sideBackW * (L.front ? 0.85 : 1)) * 0.82
-                    : pileCardW(L)
                 }
               />
             ) : null}
@@ -788,6 +797,36 @@ export function SeatLayer({
             </View>
           </View>
         );
+      })}
+      {REL.map((rel) => {
+        const count = drew?.[rel];
+        const n = seats[rel]?.cardCount ?? 0;
+        if (count == null || !seats[rel] || n === 0) return null;
+        // On the corner of the backs toward the table, clear of the seat's name and badges.
+        const northBackH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
+        const stackTop =
+          sideStackCy - (sideBackW + (n - 1) * sideStackStep(L.cardW, n, sideReach)) / 2;
+        const at =
+          rel === 'north'
+            ? {
+                // Landscape North's seat sits right of its fan: the chip takes the left corner.
+                x:
+                  width / 2 -
+                  northShift +
+                  ((portrait ? 1 : -1) * northFanWidth(L.cardW, n, compactNorth(L))) / 2,
+                y: northBackTop + northBackH,
+              }
+            : rel === 'south'
+              ? { x: handRight(L, n), y: L.hand.cy - L.cardH / 2 }
+              : {
+                  // On the stack's inner corner, short of the pile's column beside it.
+                  x:
+                    rel === 'west'
+                      ? sideStackInner(L.cardW, insets.left) - TRICK_GAP
+                      : width - sideStackInner(L.cardW, insets.right) + TRICK_GAP,
+                  y: stackTop + DREW_CHIP_H / 2,
+                };
+        return <DrewChip key={`drew-${rel}`} testID={`drew-${rel}`} count={count} {...at} />;
       })}
     </View>
   );

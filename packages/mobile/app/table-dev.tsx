@@ -687,6 +687,8 @@ const DRAW_YOU_POOL: Card[] = [
 const DRAW_YOU_KEEP: Card[] = DRAW_YOU_POOL.slice(0, 5).concat([{ rank: 12, suit: 'clubs' }]);
 /** `kill=1`: East keeps seven trumps and kills the queen over six, face up for everyone. */
 const DRAW_COUNTS_KILL = { ...DRAW_COUNTS, east: { kept: 7, drawn: 0 } } as const;
+/** `nine=1`: East held no trumps, throws all nine and draws six (PID-452). */
+const DRAW_COUNTS_NINE = { ...DRAW_COUNTS, east: { kept: 0, drawn: 6 } } as const;
 const DRAW_KILLED = { east: [spade(12)] };
 const DRAW_FIRST_TRICK = [
   { player: 'north', card: spade(13) },
@@ -857,6 +859,7 @@ function TableDevHarness() {
     hand?: string;
     you?: string;
     kill?: string;
+    nine?: string;
     end?: string;
     sweep?: string;
     pace?: string;
@@ -972,6 +975,8 @@ function TableDevHarness() {
             youDeal={params.you === 'deal'}
             dealer={params.dealer === 'north' || params.dealer === 'east' ? params.dealer : 'west'}
             kill={params.kill === '1'}
+            nine={params.nine === '1'}
+            countHelp={params.count === 'on'}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -2039,7 +2044,8 @@ function RolePreview({
  * play (the second deal and the dealer's pick done), and play waits for the
  * table to play the second deal out. Then it deals again. West deals;
  * `dealer=north|east` another seat (PID-394), `you=deal` you. `kill=1` has
- * East kill a trump over six. Every throw is counted, the
+ * East kill a trump over six, `nine=1` throw all nine (PID-452); `count=on`
+ * shows what each drew. Every throw is counted, the
  * dealer's once play starts (PID-306). Tune opens the second deal's timings; the link takes them too
  * (`holdMs=3000&cardMs=230`…).
  */
@@ -2049,16 +2055,26 @@ function DrawCountPreview({
   youDeal,
   dealer: otherDealer,
   kill,
+  nine,
+  countHelp,
 }: {
   room: Room;
   held: HeldStyle;
   youDeal: boolean;
   dealer: 'north' | 'east' | 'west';
   kill: boolean;
+  nine: boolean;
+  countHelp: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
-  const counts = youDeal ? DRAW_COUNTS_YOU_DEAL : kill ? DRAW_COUNTS_KILL : DRAW_COUNTS;
+  const counts = youDeal
+    ? DRAW_COUNTS_YOU_DEAL
+    : kill
+      ? DRAW_COUNTS_KILL
+      : nine
+        ? DRAW_COUNTS_NINE
+        : DRAW_COUNTS;
   const dealer: Position = youDeal ? 'south' : otherDealer;
   const dealt = (['north', 'east', 'south', 'west'] as const)
     .filter((position) => position !== dealer)
@@ -2155,6 +2171,7 @@ function DrawCountPreview({
       [play + 4500, playing('north', 4)],
     ];
     store.reset();
+    useSettingsStore.setState({ countHelp });
     store.initFromRoom({ room, youPlayerId: 'p-south' });
     store.setRole('player');
     store.setYouPosition('south');
@@ -2184,7 +2201,7 @@ function DrawCountPreview({
     // Hold on the finished trick, then deal again.
     timers.push(setTimeout(() => setRun((n) => n + 1), play + 7_000));
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, room, youDeal, kill, counts, dealer, dealt]);
+  }, [Table, run, room, youDeal, kill, counts, dealer, dealt, countHelp]);
 
   return (
     <View style={{ flex: 1 }}>
