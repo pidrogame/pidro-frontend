@@ -1360,6 +1360,17 @@ function RolePreview({
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [invitationHeight, setInvitationHeight] = useState(0);
+  // A flaky notice goes through the real queue: it leaves after its time, or at a tap.
+  const {
+    notice: flakyNotice,
+    addNotice: addFlakyNotice,
+    dismissNotice: dismissFlakyNotice,
+  } = useTableNotices('FLAKY');
+  useEffect(() => {
+    // Once the table can show it, so its clock starts on screen.
+    const notice = FLAKY_NOTICES[feedback ?? ''];
+    if (Table && notice) addFlakyNotice(notice);
+  }, [Table, addFlakyNotice, feedback]);
   const tableRoom = status
     ? STATUS_ROOMS[status]
     : teamsHand
@@ -1997,7 +2008,8 @@ function RolePreview({
           topDock={invitation ? invitationHeight : 0}
           loading={loading}
           talkFixture={talk}
-          notice={FLAKY_NOTICES[feedback ?? '']}
+          notice={flakyNotice}
+          onDismissNotice={dismissFlakyNotice}
           guest={talkGuest}
           // The account sheet is the game screen's; here the link only shows.
           onSaveGuest={talkGuest ? () => undefined : undefined}
