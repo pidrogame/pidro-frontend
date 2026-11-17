@@ -29,13 +29,23 @@ export function yourTurnKey(model: TableModel): string | null {
   return yourTurn(model) ? model.phase : null;
 }
 
-/** The newest bid or pass to show on a seat. Bulk catch-up plays the last one once. */
-export function bidSound(
+/** Bids that show together, as when the deal ends, sound this far apart, in order. */
+export const BID_SOUND_GAP_MS = 300;
+
+/**
+ * One sound for every bid or pass that just showed on a seat (PID-434). The
+ * first bids a table sees are heard only while the hand is bid: opened later,
+ * the seats no longer show them.
+ */
+export function bidSounds(
   previous: ServerBid[] | null | undefined,
-  next: ServerBid[] | null | undefined
-): 'bid' | 'pass' | null {
-  if (!next || next.length <= (previous?.length ?? 0)) return null;
-  return next[next.length - 1].amount === 'pass' ? 'pass' : 'bid';
+  next: ServerBid[] | null | undefined,
+  phase: TableModel['phase']
+): ('bid' | 'pass')[] {
+  if (!previous && phase !== 'bidding') return [];
+  return (next ?? [])
+    .slice(previous?.length ?? 0)
+    .map((bid) => (bid.amount === 'pass' ? 'pass' : 'bid'));
 }
 
 /** The cards the table has heard: those on the felt, and those of this trick that went back to a hand. */

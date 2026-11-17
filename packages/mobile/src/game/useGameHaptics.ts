@@ -13,8 +13,9 @@ import type { ServerBid } from '@/types/game';
 import { getTableHapticEvents } from './hapticTransitions';
 import { play } from './sounds';
 import {
+  BID_SOUND_GAP_MS,
   TURN_REMINDER_MS,
-  bidSound,
+  bidSounds,
   yourPlayTurnStarted,
   yourTurnKey,
 } from '@/features/game/sounds';
@@ -135,11 +136,19 @@ export function useTableHaptics(model: TableModel, bids?: ServerBid[]) {
     previousModel.current = model;
   }, [model, reducedMotion]);
 
+  const phase = model.phase;
   useEffect(() => {
-    const sound = bidSound(previousBids.current, bids);
+    const sounds = bidSounds(previousBids.current, bids, phase);
     previousBids.current = bids;
-    if (sound) play(sound);
-  }, [bids]);
+    // Each bid that showed sounds; several shown at once sound a beat apart.
+    sounds.forEach((sound, index) => {
+      const timer = setTimeout(() => {
+        timers.current.delete(timer);
+        play(sound);
+      }, index * BID_SOUND_GAP_MS);
+      timers.current.add(timer);
+    });
+  }, [bids, phase]);
 
   const turnKey = yourTurnKey(model);
   useEffect(() => {

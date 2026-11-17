@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test';
 import {
   SHUFFLE_COVERS_MS,
   TURN_REMINDER_MS,
-  bidSound,
+  bidSounds as bidSoundsIn,
   cardPlayed,
   cardsHeard,
   cutSoundKey,
@@ -82,22 +82,41 @@ describe('your turn', () => {
 
 describe('bids and passes', () => {
   const bid = (position, amount) => ({ position, amount });
+  const round = [bid('west', 'pass'), bid('north', 7), bid('east', 9)];
+  const bidSounds = (previous, next) => bidSoundsIn(previous, next, 'bidding');
 
   it('plays the one that just showed', () => {
-    expect(bidSound([], [bid('north', 6)])).toBe('bid');
-    expect(bidSound([bid('north', 6)], [bid('north', 6), bid('east', 'pass')])).toBe('pass');
+    expect(bidSounds([], [bid('north', 6)])).toEqual(['bid']);
+    expect(bidSounds([bid('north', 6)], [bid('north', 6), bid('east', 'pass')])).toEqual(['pass']);
   });
 
-  it('plays the last once when the deal ends and several show together', () => {
-    expect(bidSound(undefined, [bid('north', 6), bid('east', 7), bid('south', 'pass')])).toBe(
-      'pass'
-    );
+  it('plays a bid directly after a pass', () => {
+    expect(bidSounds(round.slice(0, 1), round.slice(0, 2))).toEqual(['bid']);
+  });
+
+  it('plays each of two bids that arrive in one update, in order', () => {
+    expect(bidSounds(round.slice(0, 1), round)).toEqual(['bid', 'bid']);
+    expect(bidSounds([], round.slice(0, 2))).toEqual(['pass', 'bid']);
+  });
+
+  it('plays every bid made during the deal once, when the deal ends and they show', () => {
+    // While the deal plays the seats show no bids (bidsShown), however many came.
+    expect(bidSounds(undefined, undefined)).toEqual([]);
+    expect(bidSounds(undefined, round)).toEqual(['pass', 'bid', 'bid']);
+    expect(bidSounds(round, round)).toEqual([]);
+  });
+
+  it('stays silent when the table opens after bidding, with the hand’s bids already made', () => {
+    expect(bidSoundsIn(undefined, round, 'playing')).toEqual([]);
+    expect(bidSoundsIn(undefined, round, 'declaring')).toEqual([]);
+    // The last bid ends the bidding in the same update: still heard.
+    expect(bidSoundsIn(round.slice(0, 2), round, 'declaring')).toEqual(['bid']);
   });
 
   it('stays silent when nothing new shows, or a new hand clears the bids', () => {
-    expect(bidSound([bid('north', 6)], [bid('north', 6)])).toBeNull();
-    expect(bidSound([bid('north', 6), bid('east', 7)], [bid('north', 'pass')])).toBeNull();
-    expect(bidSound([bid('north', 6)], undefined)).toBeNull();
+    expect(bidSounds([bid('north', 6)], [bid('north', 6)])).toEqual([]);
+    expect(bidSounds([bid('north', 6), bid('east', 7)], [bid('north', 'pass')])).toEqual([]);
+    expect(bidSounds([bid('north', 6)], undefined)).toEqual([]);
   });
 });
 
