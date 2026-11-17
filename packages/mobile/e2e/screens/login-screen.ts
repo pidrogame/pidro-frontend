@@ -7,7 +7,7 @@ export class LoginScreen extends Screen {
   }
 
   get identifier() {
-    return this.field('Email or username');
+    return this.field('Username or email');
   }
 
   get forgotPassword() {

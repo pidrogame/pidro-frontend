@@ -7,7 +7,7 @@ export class ForgotPasswordScreen extends Screen {
   }
 
   get identifier() {
-    return this.field('Email or username');
+    return this.field('Username or email');
   }
 
   async requestLink() {

@@ -5276,8 +5276,10 @@ async function assertSingleSubmit(page, submitField, endpoint, expectedPayload, 
 
 async function assertAuthFormInteractions(page, name, viewport) {
   if (name === 'login') {
-    const identifier = page.getByLabel('Email or username', { exact: true });
+    const identifier = page.getByLabel('Username or email', { exact: true });
     const password = page.getByLabel('Password', { exact: true });
+    // Sign in sends the install, so a password only the old Pidro knows finds that account.
+    await page.evaluate(() => localStorage.setItem('install-id:v1', 'ui-install'));
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByText('Enter your email or username.', { exact: true }).waitFor();
     await page.getByText('Enter your password.', { exact: true }).waitFor();
@@ -5295,7 +5297,13 @@ async function assertAuthFormInteractions(page, name, viewport) {
       page,
       password,
       '/api/v1/auth/login',
-      { username: 'Player', password: passwordValue, age_band: '18_plus', terms_version: '1' },
+      {
+        username: 'Player',
+        password: passwordValue,
+        age_band: '18_plus',
+        terms_version: '1',
+        install_id: 'ui-install',
+      },
       name,
       viewport
     );

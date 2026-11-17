@@ -1,7 +1,11 @@
-import type { Page } from '@playwright/test';
+import type { Page, Response } from '@playwright/test';
 import { Screen } from './screen';
 
 type NewAccount = { username: string | null; email: string | null } | null;
+
+// Signed out, the form asks Sign in's call (PID-455); signed in, it verifies as before.
+const verifyAnswer = (response: Response) =>
+  /\/api\/v1\/(classic\/verify|auth\/login)$/.test(new URL(response.url()).pathname);
 
 export class ClaimClassicScreen extends Screen {
   /** The Classic login the last verify offered the new account (`new_account`), if any. */
@@ -32,11 +36,9 @@ export class ClaimClassicScreen extends Screen {
     }
     await this.field('Username or email').fill(login);
     await this.field('Password').fill(password);
-    const answered = this.page.waitForResponse((response) =>
-      response.url().includes('/api/v1/classic/verify')
-    );
+    const answered = this.page.waitForResponse(verifyAnswer);
     this.offered = answered.then(async (response) =>
-      response.ok() ? ((await response.json()).data.classic.new_account ?? null) : null
+      response.ok() ? ((await response.json()).data.classic?.new_account ?? null) : null
     );
     await this.button('Find my account').click();
     return answered;
@@ -45,9 +47,7 @@ export class ClaimClassicScreen extends Screen {
   /** Tries another password for the login already typed, as a player retrying would. */
   async retryPassword(password: string) {
     await this.field('Password').fill(password);
-    const answered = this.page.waitForResponse((response) =>
-      response.url().includes('/api/v1/classic/verify')
-    );
+    const answered = this.page.waitForResponse(verifyAnswer);
     await this.button('Find my account').click();
     return answered;
   }

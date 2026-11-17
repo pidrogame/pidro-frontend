@@ -806,6 +806,16 @@ PID-293 grammar cases: `classic-conflict-fresh` (nobody, password), `classic-con
 `classic-conflict` (saved account), plus Swedish `locale-sv-classic-already-claimed`.
 They check the lines, the links, exactly one wood "Sign in" (none for the saved account)
 and that no text, link or button overlaps another.
+
+`moved`, `moved-apple` and `moved-facebook` (PID-455) are what Sign in shows for the old
+password of an account already moved, signed out, verified as ThunderThor88 and moved on
+3 November: "That's your old password" over the Classic card and "You moved this account to
+the new Pidro on 3 November…" ending "…and chose a new password then.", "…and sign in with
+Apple." or "…with Facebook." A password owner gets the wood "Try again" (back to Sign in,
+name kept, cursor in the empty password) and "Forgot it? Email me a link" under the window,
+into Forgot password with the name filled in; an Apple or Facebook owner gets only that
+provider's button. Header back is Try again. The date is the language's own ("den 3 november");
+for Swedish use `/ui-dev?state=claim-classic&fixture=moved&locale=sv`.
 "Yes, that's me" opens details only when the claim needs something typed; otherwise
 it claims directly. Header back goes details → preview → method, or login → method.
 For Swedish use `/ui-dev?state=claim-classic&fixture=password&locale=sv`.
@@ -832,6 +842,8 @@ a phone-landscape and a tablet layout.
 | ----------------------------------------- | --------------------------------------------------------- | ----------------------- |
 | `/login?fixture=providers`                | Sign in with Apple and Facebook forced on                 | `auth-window`           |
 | `/login?email=a@b.co&known=1`             | Sign in after Create account hit an address in use        | `auth-window`           |
+| `/login?fixture=mismatch`                 | Sign in: "That name and password don't match" (PID-455)   | `auth-window`           |
+| `/login?email=ThunderThor88&focus=password&fixture=providers` | Back from "That's your old password" | `auth-window` |
 | `/register?fixture=providers`             | Pidro account: providers and the email step               | `auth-window`           |
 | `/register?fixture=password`              | Create a password                                         | `auth-window`           |
 | `/register?fixture=name`                  | Pick your name                                            | `auth-window`           |

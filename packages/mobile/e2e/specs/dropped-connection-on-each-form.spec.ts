@@ -66,7 +66,8 @@ test('a dropped connection on each form is readable, leaves no spinner and keeps
   });
 
   await test.step('claim Classic', async () => {
-    await drop('classic/verify');
+    // Signed out, the form asks Sign in's call (PID-455).
+    await drop('auth/login');
     await page.goto('/claim-classic');
     const screen = new ClaimClassicScreen(page);
     await screen.text('How do you sign in to Pidro today?').waitFor();
@@ -77,6 +78,6 @@ test('a dropped connection on each form is readable, leaves no spinner and keeps
     await expectRecoverable(screen, screen.button('Find my account'), [
       [screen.field('Username or email'), player.classicLogin],
     ]);
-    await page.unroute('**/api/v1/classic/verify');
+    await page.unroute('**/api/v1/auth/login');
   });
 });

@@ -13,7 +13,7 @@ test('a player signs in with a wrong password, then with email, then with their 
   await page.goto('/login');
 
   await login.signIn(player.email, 'wrong-password');
-  await expect(login.text(/incorrect|invalid/i)).toBeVisible();
+  await expect(login.text('That name and password don’t match.')).toBeVisible();
 
   await login.signIn(player.email, player.password);
   await expect(new HomeScreen(page).root).toBeVisible();
