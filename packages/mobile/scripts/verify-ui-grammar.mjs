@@ -1256,6 +1256,8 @@ const allCases = [
     'talk',
     // PID-420: bots in the other three seats: no field or faces, the quiet line instead.
     'talk-bots',
+    // PID-457: the host's bots offer is due, two seats open, the talk's field still in view.
+    'talk-offer',
   ].map((fixture) => ({
     name: `new-table-${fixture}`,
     path: `/ui-dev?state=new-table&fixture=${fixture}`,

@@ -271,6 +271,22 @@ export function waitingFooter(room: Room, canManage: boolean, readyCount: number
 }
 
 /**
+ * PID-457: the line over the host's Start now with bots, or null for no offer. The server's
+ * `bots_offer_in_ms` counts from when it arrived (`elapsedMs` since); null never offers. A
+ * seat held for a friend is not open, so held seats alone offer nothing.
+ */
+export function botsOffer(
+  room: Room,
+  you: string,
+  offerInMs: number | null | undefined,
+  elapsedMs: number
+): string | null {
+  if (!you || room.host_id !== you || offerInMs == null || elapsedMs < offerInMs) return null;
+  const open = room.seats?.filter((seat) => !seat.player && !seat.held_for).length ?? 0;
+  return open >= 1 && open <= 3 ? t(`new_table.bots_open_${open as 1 | 2 | 3}`) : null;
+}
+
+/**
  * Who sat down or left between two snapshots of the room, as the quiet lines of the
  * waiting room's talk (PID-418). People only: a bot is the host's choice, not news.
  * `mute` is who goes unannounced: you, and whoever the host removed.

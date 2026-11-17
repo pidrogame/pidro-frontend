@@ -77,9 +77,14 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
   // `talk*` (PID-418): `talk-opened` before anyone came, `talk-full` all four ready,
   // `talk-typing` the field focused, `talk-guest` / `talk-teen` who cannot type,
   // `talk-filtered` refuses what is typed; `talk-bots` (PID-420) has bots in the other three
-  // seats, so nobody reads talk until a seat opens.
+  // seats, so nobody reads talk until a seat opens. `talk-offer*` (PID-457): the bots offer is
+  // due, with two seats open (the board), `-one` (Maija held), `-three` (the host alone),
+  // `-error` (the fill fails) and `-guest` (Kalle, not the host, is offered nothing).
   const talking = fixture.startsWith('talk');
   const bots = fixture === 'talk-bots';
+  const offer = fixture.startsWith('talk-offer');
+  const alone = fixture === 'talk-offer-three';
+  const [countdown, setCountdown] = useState(offer ? { bots_offer_in_ms: 0 } : undefined);
   const [ready, setReady] = useState<Position[]>(
     fixture === 'talk-full'
       ? ['east', 'west', 'south']
@@ -88,9 +93,13 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
         : ['east', 'west', 'south']
   );
   const [lines, setLines] = useState<Said[]>(
-    fixture === 'talk-full' ? FULL_TALK : talking && fixture !== 'talk-opened' && !bots ? TALK : []
+    fixture === 'talk-full'
+      ? FULL_TALK
+      : talking && fixture !== 'talk-opened' && !bots && !alone
+        ? TALK
+        : []
   );
-  const kalleAway = fixture === 'talk-opened';
+  const kalleAway = fixture === 'talk-opened' || alone;
   const [share, setShare] = useState(false);
   const live = fixture.startsWith('live-');
   const louisiana = fixture.endsWith('louisiana');
@@ -164,9 +173,15 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
               ][seat_index],
             }
           : null,
-      held_for: position === 'south' && !full && fixture !== 'declined' ? friends[0] : null,
+      held_for:
+        position === 'south' &&
+        !full &&
+        fixture !== 'declined' &&
+        (!offer || fixture === 'talk-offer-one')
+          ? friends[0]
+          : null,
       password: position === 'west' && fixture !== 'ready' && !talking,
-      ...(talking && position === 'west' && { min_games: 100 }),
+      ...(talking && !offer && position === 'west' && { min_games: 100 }),
       // `live-bots`: Gun sits West; Stig has left the club since the catalogue loaded.
       ...(fixture === 'live-bots' &&
         position === 'west' && {
@@ -229,8 +244,32 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
         }}
         fixtureFriends={friends}
         fixtureBots={BOT_CATALOGUE}
-        youPlayerId={fixture === 'guest' ? 'kalle' : 'host'}
-        canManage={fixture !== 'guest'}
+        youPlayerId={fixture === 'guest' || fixture === 'talk-offer-guest' ? 'kalle' : 'host'}
+        canManage={fixture !== 'guest' && fixture !== 'talk-offer-guest'}
+        botsCountdown={countdown}
+        // The fixture's server: a bot in each open seat, then the host's ready, as the app asks.
+        onStartWithBots={async () => {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+          if (fixture === 'talk-offer-error') throw new Error('offline');
+          const open = room.seats?.filter((seat) => !seat.player && !seat.held_for) ?? [];
+          setRoom((current) => ({
+            ...current,
+            positions: {
+              ...current.positions!,
+              ...Object.fromEntries(open.map((seat) => [seat.position, `bot_${seat.position}`])),
+            },
+            seats: current.seats?.map((seat) =>
+              open.includes(seat)
+                ? applySeat(seat, {
+                    type: 'ai',
+                    persona: ['antti', 'gun', 'jocke'][seat.seat_index - 1],
+                  })
+                : seat
+            ),
+          }));
+          setCountdown(undefined);
+          setReady((current) => [...current, ...open.map((seat) => seat.position!), 'north']);
+        }}
         onLeave={() => {}}
         onSubmit={() => setOpened(true)}
         onOpenInvite={() => setShare(true)}
@@ -244,7 +283,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
                 typing:
                   fixture === 'talk-guest' ? 'guest' : fixture === 'talk-teen' ? null : 'type',
                 heard:
-                  fixture === 'talk-opened' || bots
+                  fixture === 'talk-opened' || bots || alone
                     ? []
                     : fixture === 'talk-full'
                       ? [

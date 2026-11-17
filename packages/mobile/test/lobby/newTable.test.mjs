@@ -4,6 +4,7 @@ import {
   assignedFriendIds,
   botChoices,
   botLine,
+  botsOffer,
   chooseFriend,
   chooseSeat,
   createFailure,
@@ -633,6 +634,57 @@ it('says who sat down or left, never a bot, you, or whoever the host removed', (
       'Kalle lämnade bordet',
       'Maija satte sig vid bordet',
     ]);
+  } finally {
+    setLocale('en');
+  }
+});
+
+// PID-457: after the server's wait, the host alone is offered bots for the open seats.
+it('offers the host bots once the countdown has run, counting open seats and never held ones', () => {
+  const vacant = { occupant_type: 'vacant', status: null, user_id: null, held_for: null };
+  const person = (user_id) => ({ ...vacant, occupant_type: 'human', status: 'connected', user_id });
+  const snapshot = (seats, bots_offer_in_ms) => ({
+    room_id: 'r1',
+    ready_epoch: 3,
+    snapshot_revision: 9,
+    status: 'waiting',
+    positions: Object.fromEntries(Object.entries(seats).map(([at, seat]) => [at, seat.user_id])),
+    seats,
+    ready_players: [],
+    bots_offer_in_ms,
+  });
+  const table = (seats) => roomWithReadiness({ code: 'TEST', host_id: 'host' }, snapshot(seats));
+  const kalle = table({
+    north: person('host'),
+    east: person('kalle'),
+    south: vacant,
+    west: vacant,
+  });
+  // The wait is counted from the value's arrival: a millisecond short offers nothing.
+  expect(botsOffer(kalle, 'host', 120000, 119999)).toBeNull();
+  expect(botsOffer(kalle, 'host', 120000, 120000)).toBe('Two seats are still open.');
+  // Off, an older server, or someone who is not the host: never.
+  expect(botsOffer(kalle, 'host', null, 1e9)).toBeNull();
+  expect(botsOffer(kalle, 'host', undefined, 1e9)).toBeNull();
+  expect(botsOffer(kalle, 'kalle', 0, 1e9)).toBeNull();
+  expect(botsOffer({ ...kalle, host_id: undefined }, '', 0, 1e9)).toBeNull();
+  const alone = table({ north: person('host'), east: vacant, south: vacant, west: vacant });
+  expect(botsOffer(alone, 'host', 0, 0)).toBe('Three seats are still open.');
+  // Maija's seat is hers: one seat is open, and once a bot sits there, none.
+  const held = {
+    ...vacant,
+    held_for: { user_id: 'maija', display_name: 'Maija', avatar_url: null },
+  };
+  const bot = { ...vacant, occupant_type: 'bot', status: 'connected', user_id: 'bot_west' };
+  const withMaija = { north: person('host'), east: person('kalle'), south: held };
+  expect(botsOffer(table({ ...withMaija, west: vacant }), 'host', 0, 5)).toBe(
+    'One seat is still open.'
+  );
+  expect(botsOffer(table({ ...withMaija, west: bot }), 'host', 0, 5)).toBeNull();
+  try {
+    setLocale('sv');
+    expect(botsOffer(kalle, 'host', 0, 0)).toBe('Två platser är fortfarande lediga.');
+    expect(botsOffer(alone, 'host', 0, 0)).toBe('Tre platser är fortfarande lediga.');
   } finally {
     setLocale('en');
   }

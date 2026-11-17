@@ -39,6 +39,7 @@ import { assignedRoomPlayerIds } from '@/features/invites/hostControls';
 import {
   assignedFriendIds,
   botChoices,
+  botsOffer,
   chooseFriend,
   chooseSeat,
   defaultSeats,
@@ -125,6 +126,10 @@ interface Props {
   talk?: WaitingTalk;
   /** Fixtures: the field focused, the seats folded. */
   initialTyping?: boolean;
+  /** PID-457: the snapshot carrying `bots_offer_in_ms`, a new object each time one arrives. */
+  botsCountdown?: { bots_offer_in_ms?: number | null };
+  /** The host's one tap: bots in the open seats, then the host's ready. */
+  onStartWithBots?: () => Promise<void>;
 }
 
 /** The draft and the server room share their furniture, never their state. */
@@ -159,6 +164,8 @@ export function NewTableScreen({
   onDismissDeclined,
   talk,
   initialTyping = false,
+  botsCountdown,
+  onStartWithBots,
 }: Props) {
   const { t } = useTranslation();
   const catalogue = useBotCatalogueStore((state) => state.profiles);
@@ -501,6 +508,37 @@ export function NewTableScreen({
       setReadyBusy(false);
     }
   };
+  // PID-457: a timer runs for `bots_offer_in_ms` from each snapshot's arrival; once it has run,
+  // the offer is due. Anything changed at the table brings a new snapshot and starts it again.
+  const offerIn = botsCountdown?.bots_offer_in_ms;
+  const [ranDown, setRanDown] = useState<object>();
+  useEffect(() => {
+    if (offerIn == null) return;
+    const timer = setTimeout(() => setRanDown(botsCountdown), offerIn);
+    return () => clearTimeout(timer);
+  }, [botsCountdown, offerIn]);
+  const offer =
+    room && editable && offerIn != null
+      ? botsOffer(room, you, offerIn, ranDown === botsCountdown ? offerIn : 0)
+      : null;
+  // The fill and then the host's ready, one confirm; a refusal stays inline and so does the offer.
+  // It says nothing once the offer has gone: the table changed, or I'm ready took its place.
+  const [botsError, setBotsError] = useState<string>();
+  const startWithBots = async () => {
+    if (!onStartWithBots || readyBusyRef.current || controlsBusy) return;
+    readyBusyRef.current = true;
+    setReadyBusy(true);
+    setReadyError(null);
+    setBotsError(undefined);
+    try {
+      await onStartWithBots();
+    } catch (caught) {
+      setBotsError(localizedError(caught, 'new_table.bots_error'));
+    } finally {
+      readyBusyRef.current = false;
+      setReadyBusy(false);
+    }
+  };
   const row = (position: Position, index: number) => (
     <SeatRow
       key={position}
@@ -593,7 +631,8 @@ export function NewTableScreen({
   );
   const align = phoneLandscape ? 'left' : 'center';
   const readyAction = !isSpectator && !!footer?.ready && !!onReady;
-  const footerCard = (compact || phoneLandscape) && !!room && !!declinedCard && !readyAction;
+  const footerCard =
+    (compact || phoneLandscape) && !!room && !!declinedCard && !readyAction && !offer;
   const joining = joiningName && (
     <PidroText role="metadata" align={align} accessibilityLiveRegion="polite">
       {t('table.joining', { name: joiningName })}
@@ -617,6 +656,36 @@ export function NewTableScreen({
       disabled={readyDisabled || isYouReady || readyBusy}
       onPress={() => void confirmReady()}
     />
+  ) : offer ? (
+    // A small or sideways phone keeps the seats and the field: the buttons get smaller (sideways
+    // in today's column beside the talk), and the help line yields.
+    <View testID="bots-offer" style={[styles.offer, phoneLandscape && styles.offerTight]}>
+      <PidroText role="label" align="center" accessibilityLiveRegion="polite">
+        {offer}
+      </PidroText>
+      <BevelButton
+        testID="start-with-bots"
+        label={t('new_table.start_with_bots')}
+        size={phoneLandscape ? 'sm' : compact ? 'md' : 'lg'}
+        fullWidth
+        loading={readyBusy}
+        disabled={readyBusy || controlsBusy}
+        onPress={() => void startWithBots()}
+      />
+      <BevelButton
+        label={t('new_table.share')}
+        material="glass"
+        size={phoneLandscape ? 'sm' : compact ? 'md' : 'lg'}
+        fullWidth
+        disabled={controlsBusy}
+        onPress={onOpenInvite}
+      />
+      {!compact && !phoneLandscape && (
+        <PidroText role="metadata" tone="soft" align="center">
+          {t('new_table.bots_help')}
+        </PidroText>
+      )}
+    </View>
   ) : footerCard ? (
     declinedCard
   ) : !isSpectator && editable && !full ? (
@@ -636,14 +705,17 @@ export function NewTableScreen({
     </PidroText>
   );
   const failureLine =
-    error || readyError || (!selected && pickerError) ? (
+    error || readyError || (!selected && pickerError) || (offer && botsError) ? (
       <PidroText
         testID="waiting-error"
         role="metadata"
         tone="danger"
         align={align}
         accessibilityRole="alert">
-        {error || (readyError ? localizedError(readyError, 'game.ready_failed') : pickerError)}
+        {error ||
+          (readyError
+            ? localizedError(readyError, 'game.ready_failed')
+            : (!selected && pickerError) || botsError)}
       </PidroText>
     ) : null;
   // Typing gets the field (and the faces once it is focused); a guest or a 13 to 17 the faces alone.
@@ -980,5 +1052,7 @@ const styles = StyleSheet.create({
   footerEnd: { alignItems: 'flex-end' },
   stretch: { alignSelf: 'stretch' },
   action: { width: 300 },
+  offer: { alignSelf: 'stretch', gap: 8 },
+  offerTight: { gap: 4 },
   confirm: { gap: 12 },
 });

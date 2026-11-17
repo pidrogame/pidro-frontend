@@ -760,6 +760,7 @@ export default function GameScreen() {
         const updated = await action();
         const generation = ++roomRequestGenerationRef.current;
         if (requestedCode) applyRoomSnapshot(requestedCode, generation, updated);
+        return updated;
       } catch (caught) {
         if (!rethrow) {
           handleSeatEvent({ error: caught, key: 'table.actionError', variant: 'error' });
@@ -997,6 +998,27 @@ export default function GameScreen() {
             await runRoomControl(() => lobbyApi.setSeat(room.code, position, seat), true);
         }}
         onKickPlayer={handleKickPlayer}
+        botsCountdown={readiness ?? undefined}
+        onStartWithBots={async () => {
+          if (!canManage) return;
+          const filled = await runRoomControl(() => lobbyApi.fillWithBots(room.code), true);
+          // A seat held for a friend keeps the table waiting, and the host's ready with it.
+          if (!filled || Object.values(filled.positions ?? {}).filter(Boolean).length < 4) return;
+          // The fill's new epoch reaches the store over the channel, maybe after its answer;
+          // a stale refusal brings the snapshot along, so the second try sends it.
+          const ready = () => {
+            const current = useGameStore.getState().readiness;
+            if (!current)
+              return Promise.reject(new Error('Reconnect before confirming readiness.'));
+            return pushGameAction('ready', {
+              room_id: current.room_id,
+              ready_epoch: current.ready_epoch,
+            });
+          };
+          await actionTap('ready', ready).catch((error: { reason?: unknown }) =>
+            error?.reason === 'stale_readiness' ? ready() : Promise.reject(error)
+          );
+        }}
         notice={notice}
         onDismissNotice={dismissNotice}
         declined={declined?.roomCode === code && room.host_id === youPlayerId ? declined : null}
