@@ -144,3 +144,19 @@ Exit 0: the card landed where one tap puts it. Exit 1: it hangs over the hand.
 Exit 2: the control failed or the play was not drawn under the finger; the run
 proves nothing, so rerun it or tune `HOLD_MS`/`PRESS_MS`. Release work, like
 every flow here; run it with one Android phone check by hand.
+
+## Android's Back at the table (PID-458)
+
+A browser cannot press Android's Back, and the orb has no emulator, so this is
+checked by hand on an Android phone at release, with the button and with the
+back gesture. Each press must do exactly this:
+
+- Mid-hand, nothing open: "Leave table?" opens. "Stay at table" or Back again
+  closes it and you are still seated; "Leave table" takes you to the lobby (or
+  Home for a solo game) and a bot takes the seat.
+- Settings, a seat's sheet, the talk or the rules open: Back closes that only.
+- Waiting table: with the talk's field focused (seats folded), Back unfolds the
+  seats; the next Back asks "Leave table?".
+- Game over: Back goes Home without asking.
+- Watching a table: Back returns to the lobby without asking.
+- Claim Classic opened from the game-over sheet: Back closes it, not the table.
