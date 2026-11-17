@@ -340,3 +340,57 @@ describe('the Sound setting', () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+describe('a sound played again', () => {
+  it('rewinds before it plays: on iOS the seek is async, and play() at the end stays silent', () => {
+    const result = Bun.spawnSync(
+      [
+        process.execPath,
+        '--loader',
+        '.wav:file',
+        '-e',
+        `
+        import { mock } from 'bun:test';
+        import assert from 'node:assert/strict';
+        globalThis.__DEV__ = false;
+        const calls = [];
+        let rewound;
+        mock.module('react-native', () => ({
+          AppState: { currentState: 'active' },
+          Platform: { OS: 'ios' },
+        }));
+        mock.module('expo-audio', () => ({
+          setAudioModeAsync: async () => {},
+          createAudioPlayer: () => ({
+            currentTime: 0,
+            seekTo(seconds) {
+              calls.push('seek');
+              return new Promise((resolve) => (rewound = () => {
+                this.currentTime = seconds;
+                resolve();
+              }));
+            },
+            play() {
+              calls.push(this.currentTime ? 'play at the end' : 'play');
+              this.currentTime = 1;
+            },
+          }),
+        }));
+        mock.module('./src/stores/settings.ts', () => ({
+          useSettingsStore: { getState: () => ({ soundEnabled: true }) },
+        }));
+        const { play } = await import('./src/game/sounds.ts');
+        play('bid');
+        // The bid sound has finished and rests at its end; the next bid comes.
+        play('bid');
+        rewound?.();
+        await new Promise((resolve) => setTimeout(resolve));
+        assert.deepEqual(calls.filter((call) => call !== 'seek'), ['play', 'play']);
+        `,
+      ],
+      { cwd: new URL('../..', import.meta.url).pathname, stdout: 'pipe', stderr: 'pipe' }
+    );
+    expect(result.stderr.toString()).toBe('');
+    expect(result.exitCode).toBe(0);
+  });
+});

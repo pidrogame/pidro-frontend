@@ -63,8 +63,11 @@ export function play(name: SoundName) {
     shuffledAt = Date.now();
   }
   try {
-    void player.seekTo(0).catch(() => {});
-    player.play();
+    // A player rests where its last play ended, and on iOS the seek runs apart
+    // from play(): played beside it, it can start at the end and stay silent.
+    const rewound = player.currentTime > 0 ? player.seekTo(0) : null;
+    if (rewound) void rewound.then(() => player.play()).catch(() => {});
+    else player.play();
   } catch {
     return;
   }
