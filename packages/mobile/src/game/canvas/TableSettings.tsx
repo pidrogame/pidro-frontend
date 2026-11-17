@@ -13,6 +13,7 @@ import { headerTop } from './TableChrome';
 import { TableUtilityWindow } from './TableUtilityWindow';
 import { useTranslation } from '@/i18n';
 import { GameProblemReport } from './GameProblemReport';
+import { LeaveQuestion } from './LeaveQuestion';
 
 export function TableSettings({
   onLeave,
@@ -75,17 +76,7 @@ export function TableSettings({
         wide={landscape && panel === 'settings'}
         onClose={close}>
         {panel === 'leave' ? (
-          <>
-            <PidroText tone="soft">{t('game.leave_description')}</PidroText>
-            <BevelButton material="glass" label={t('game.stay')} fullWidth onPress={close} />
-            <BevelButton
-              material="glass"
-              tone="danger"
-              label={t('game.leave')}
-              fullWidth
-              onPress={leave}
-            />
-          </>
+          <LeaveQuestion onStay={close} onLeave={leave} />
         ) : (
           <View style={[styles.columns, landscape && styles.landscape]}>
             <View style={[styles.column, landscape && styles.half]}>

@@ -9,7 +9,13 @@ import type { WaitingRoomEvent } from '@/channels/gameRoomEvents';
 import { useLobbyChannel } from '@/channels/hooks/useLobbyChannel';
 import { createCoalescedCallback } from '@/channels/gameRoomEvents';
 import { View, Text, TouchableOpacity, StatusBar, StyleSheet } from 'react-native';
-import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import {
+  Redirect,
+  useFocusEffect,
+  useIsFocused,
+  useLocalSearchParams,
+  useRouter,
+} from 'expo-router';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLobbyStore } from '@/stores/lobby';
@@ -50,6 +56,10 @@ import { claimDailyGuestSavePrompt } from '@/features/auth/guestSavePrompt';
 import { tableInvitation } from '@/features/invites/tableInvitation';
 import { readingTimeMs } from '@/features/game/readingTime';
 import { typingFor } from '@/features/game/talk';
+import { tableBack } from '@/features/game/tableBack';
+import { LeaveQuestion } from '@/game/canvas/LeaveQuestion';
+import { TableUtilityWindow } from '@/game/canvas/TableUtilityWindow';
+import { useHardwareBack } from '@/hooks/useFlowBack';
 import { t, useTranslation } from '@/i18n';
 import { useSeatDecisions } from '@pidro/shared';
 import { TableSeatDecision, useTableNotices } from '@/components/game/TableFeedback';
@@ -165,6 +175,47 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+/**
+ * Android's Back at the table or the waiting table (PID-458): one stray press
+ * must not cost a seat, so a player is asked first, with the settings panel's
+ * own question. Mounted only while that screen shows.
+ */
+function LeaveOnBack({
+  watching,
+  over,
+  onLeave,
+  onHome,
+}: {
+  watching: boolean;
+  over: boolean;
+  onLeave: () => void;
+  onHome: () => void;
+}) {
+  useTranslation();
+  const [asking, setAsking] = useState(false);
+  // A screen pushed over the table, such as Claim Classic, has its own Back.
+  useHardwareBack(useIsFocused(), () => {
+    const back = tableBack({ watching, over });
+    if (back === 'ask') setAsking(true);
+    else if (back === 'home') onHome();
+    else onLeave();
+  });
+  return (
+    <TableUtilityWindow
+      title={t('game.leave_question')}
+      open={asking}
+      onClose={() => setAsking(false)}>
+      <LeaveQuestion
+        onStay={() => setAsking(false)}
+        onLeave={() => {
+          setAsking(false);
+          onLeave();
+        }}
+      />
+    </TableUtilityWindow>
+  );
+}
 
 /**
  * Full-screen game view for Pidro
@@ -897,6 +948,16 @@ export default function GameScreen() {
             onHeight={setInvitationHeight}
           />
         ) : null}
+        <LeaveOnBack
+          watching={role === 'spectator'}
+          over={
+            serverPhase === 'complete' ||
+            serverPhase === 'game_over' ||
+            (serverPhase as string) === 'finished'
+          }
+          onLeave={() => handleLeaveGame()}
+          onHome={() => handleLeaveGame('/home')}
+        />
       </View>
     );
   }
@@ -904,6 +965,13 @@ export default function GameScreen() {
   const waitingRoom = readiness ? roomWithReadiness(room, readiness) : room;
   return (
     <>
+      {/* Before the screen: the newest Back listener is heard first, so the talk's fold (PID-420) is. */}
+      <LeaveOnBack
+        watching={role === 'spectator'}
+        over={false}
+        onLeave={() => handleLeaveGame()}
+        onHome={() => handleLeaveGame('/home')}
+      />
       <NewTableScreen
         room={{
           ...waitingRoom,

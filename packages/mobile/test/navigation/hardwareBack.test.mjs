@@ -1,7 +1,8 @@
 import { expect, mock, test } from 'bun:test';
 
 // PID-420: the waiting room's folded talk takes Android's back as the header's back does.
-test('Android back unfolds the talk, then leaves', async () => {
+// PID-458: only then does the table's own back ask before you leave.
+test('Android back unfolds the talk, then asks before leaving', async () => {
   if (!process.env.HARDWARE_BACK_CHILD) {
     const child = Bun.spawnSync([process.execPath, 'test', import.meta.path], {
       env: { ...process.env, HARDWARE_BACK_CHILD: '1' },
@@ -43,18 +44,27 @@ test('Android back unfolds the talk, then leaves', async () => {
     useHardwareBack(typing, unfold);
     return null;
   }
+  // As the game route's LeaveOnBack wires it, before the screen: a fresh callback every render.
+  const asked = [];
+  function Table({ version }) {
+    useHardwareBack(true, () => asked.push(version));
+    return null;
+  }
   const root = createRoot(document.getElementById('root'));
-  await act(async () => root.render(h(Room)));
+  const render = (version) => root.render(h('div', null, h(Table, { version }), h(Room)));
+  await act(async () => render(1));
   expect(folded).toBe(true);
-  // Folded: back is handled here and unfolds; the route never sees it, so you stay seated.
-  let handled;
+  // The channel re-renders the route while you type; its listener must not jump ahead.
+  await act(async () => render(2));
+  // Folded: back is handled here and unfolds; the table never sees it, so nothing asks.
   await act(async () => {
-    handled = back();
+    expect(back()).toBe(true);
   });
-  expect(handled).toBe(true);
   expect(folded).toBe(false);
-  // Unfolded: nothing here handles it, so the route's own back leaves the table.
-  expect(back()).toBe(false);
-  expect(listeners).toHaveLength(0);
+  expect(asked).toEqual([]);
+  // Unfolded: the table asks, with what it says now.
+  expect(back()).toBe(true);
+  expect(asked).toEqual([2]);
   await act(async () => root.unmount());
+  expect(listeners).toHaveLength(0);
 });

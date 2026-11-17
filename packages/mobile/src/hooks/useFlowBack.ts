@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useEffectEvent } from 'react';
 import { BackHandler, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/stores/auth';
@@ -14,17 +14,20 @@ export function useFlowBack() {
 }
 
 /**
- * Routes Android's hardware back through a screen's own steps. While
- * `enabled`, the press runs `onBack` instead of leaving the route.
+ * Routes Android's hardware back (and the back gesture) through a screen's own
+ * steps. While `enabled`, the press runs `onBack` instead of leaving the route.
+ * The newest listener hears it first, so it subscribes again only when
+ * `enabled` changes: a re-render must not jump ahead of a later screen step.
  */
 export function useHardwareBack(enabled: boolean, onBack: () => void) {
+  const back = useEffectEvent(onBack);
   useEffect(() => {
     // Only Android has the button; the web shim logs an error if asked.
     if (!enabled || Platform.OS !== 'android') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      onBack();
+      back();
       return true;
     });
     return () => subscription.remove();
-  }, [enabled, onBack]);
+  }, [enabled]);
 }
