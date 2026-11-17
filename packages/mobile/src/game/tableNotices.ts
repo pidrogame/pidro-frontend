@@ -9,6 +9,7 @@ import {
   type Suit,
 } from '@pidro/shared';
 import type { Card } from '@/types/game';
+import { readingTimeMs } from '@/features/game/readingTime';
 
 export type TableNotice = {
   variant: 'warning' | 'success' | 'error';
@@ -23,6 +24,28 @@ export type TableNotice = {
   message?: string;
 };
 export type QueuedTableNotice = TableNotice & { roomCode: string };
+
+/** However short its words, a notice stays this long. */
+const NOTICE_MIN_MS = 6000;
+/** Something the table did for you, played or passed while you could not, stays longer. */
+const DONE_FOR_YOU_MIN_MS = 8000;
+
+/**
+ * How long the first notice of a room's queue stays unless tapped: its full
+ * reading time however many wait behind it. The queue keeps at most two
+ * waiting (enqueueTableNotice), so the newest is never more than two reads late.
+ */
+export function noticeHoldMs([notice]: readonly TableNotice[]): number {
+  const code = errorPayload(notice.error);
+  const doneForYou =
+    notice.autoTurn?.scope === 'you' ||
+    notice.away !== undefined ||
+    (notice.error !== undefined && (code.error_code ?? code.reason) === 'already_played_for_you');
+  return Math.max(
+    readingTimeMs(tableNoticeText(notice)),
+    doneForYou ? DONE_FOR_YOU_MIN_MS : NOTICE_MIN_MS
+  );
+}
 
 /** What the band says about an action the server did not take. */
 export function refusalNotice(error: unknown): TableNotice {

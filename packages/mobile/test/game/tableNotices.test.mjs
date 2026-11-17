@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'bun:test';
-import { enqueueTableNotice, refusalNotice, tableNoticeText } from '../../src/game/tableNotices.ts';
+import {
+  enqueueTableNotice,
+  noticeHoldMs,
+  refusalNotice,
+  tableNoticeText,
+} from '../../src/game/tableNotices.ts';
 import { setLocale, t } from '@pidro/shared';
 
 const notice = (message, variant = 'warning') => ({ message, variant });
@@ -112,5 +117,87 @@ describe('table notice queue', () => {
     const newRoom = enqueueTableNotice(oldRoom, notice('New room', 'success'), 'NEW');
 
     expect(newRoom).toEqual([{ message: 'New room', variant: 'success', roomCode: 'NEW' }]);
+  });
+});
+
+describe('how long a notice stays (PID-427)', () => {
+  const lost = {
+    key: 'game.notice_disconnected',
+    seat: { name: 'Margaretha Lindqvist' },
+    variant: 'warning',
+  };
+  const back = { key: 'game.notice_back', seat: { name: 'Nora' }, variant: 'success' };
+  const autoCard = {
+    variant: 'warning',
+    autoTurn: { scope: 'you', action: { type: 'play_card', card: { rank: 5, suit: 'clubs' } } },
+  };
+  // Six cards played while you were away, and you are out: the longest table notice.
+  const awayOut = {
+    variant: 'warning',
+    away: { cards: [10, 14, 5, 13, 12, 11].map((rank) => ({ rank, suit: 'spades' })), out: true },
+  };
+  const inLocale = (locale, check) => {
+    try {
+      setLocale(locale);
+      check();
+    } finally {
+      setLocale('en');
+    }
+  };
+
+  it('keeps a short notice up six seconds', () => {
+    inLocale('en', () => {
+      expect(tableNoticeText(refusalNotice({ reason: 'too_late' }))).toHaveLength(29);
+      expect(noticeHoldMs([refusalNotice({ reason: 'too_late' })])).toBe(6000);
+    });
+    inLocale('sv', () => expect(noticeHoldMs([refusalNotice({ reason: 'too_late' })])).toBe(6000));
+  });
+
+  it('keeps a long one up 2 s plus 90 ms a letter', () => {
+    inLocale('en', () => {
+      // "Margaretha Lindqvist lost connection. A bot is playing for now."
+      expect(tableNoticeText(lost)).toHaveLength(63);
+      expect(noticeHoldMs([lost])).toBe(2000 + 63 * 90);
+    });
+    inLocale('sv', () => {
+      // "Margaretha Lindqvist tappade anslutningen. En bot spelar tills vidare."
+      expect(tableNoticeText(lost)).toHaveLength(70);
+      expect(noticeHoldMs([lost])).toBe(2000 + 70 * 90);
+    });
+  });
+
+  it('gives a notice its full time when others wait behind it', () => {
+    for (const locale of ['en', 'sv'])
+      inLocale(locale, () => {
+        const queue = [back, lost, autoCard].reduce(
+          (current, notice) => enqueueTableNotice(current, notice, 'ROOM'),
+          []
+        );
+        expect(queue).toHaveLength(3);
+        expect(noticeHoldMs(queue)).toBe(6000);
+        expect(noticeHoldMs(queue.slice(1))).toBe(noticeHoldMs([lost]));
+      });
+  });
+
+  it('keeps what was done for you up at least eight seconds', () => {
+    inLocale('en', () => {
+      expect(tableNoticeText(autoCard)).toBe('Time ran out — we played 5♣ for you');
+      expect(noticeHoldMs([autoCard])).toBe(8000);
+      const lateCard = { variant: 'warning', error: { error_code: 'already_played_for_you' } };
+      expect(noticeHoldMs([lateCard])).toBe(8000);
+      // Played for someone else: an ordinary notice, its reading time.
+      const forRoom = { ...autoCard, autoTurn: { ...autoCard.autoTurn, scope: 'room' } };
+      expect(tableNoticeText(forRoom)).toBe('Time ran out, so 5♣ was played automatically.');
+      expect(noticeHoldMs([forRoom])).toBe(2000 + 45 * 90);
+      expect(tableNoticeText(awayOut)).toHaveLength(90);
+      expect(noticeHoldMs([awayOut, back])).toBe(2000 + 90 * 90);
+    });
+    inLocale('sv', () => {
+      expect(noticeHoldMs([autoCard])).toBe(8000);
+      expect(tableNoticeText(awayOut)).toBe(
+        'Medan du var borta spelades 10♠, A♠, 5♠, K♠, Q♠ och J♠ åt dig, du är ute den här given.'
+      );
+      expect(noticeHoldMs([awayOut, back])).toBe(2000 + 87 * 90);
+    });
   });
 });

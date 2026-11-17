@@ -3,13 +3,13 @@ import { readingTimeMs } from '../../src/features/game/readingTime';
 
 describe('table message reading time', () => {
   it('gives every message a moment to be noticed', () => {
-    expect(readingTimeMs('')).toBe(1500);
+    expect(readingTimeMs('')).toBe(2000);
   });
 
   it('grows with every character a reader has to get through', () => {
-    expect(readingTimeMs('Nora is back.')).toBe(1500 + 13 * 60);
+    expect(readingTimeMs('Nora is back.')).toBe(2000 + 13 * 90);
     expect(readingTimeMs('Your cards and the rest of the deck. Keeping the best six.')).toBe(
-      1500 + 58 * 60
+      2000 + 58 * 90
     );
   });
 

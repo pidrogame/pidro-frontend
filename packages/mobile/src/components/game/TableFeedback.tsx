@@ -12,9 +12,9 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { useSeatDecisions } from '@pidro/shared';
 import { TABLE_HEADER, useTableReserves } from '@/game/canvas/TableChrome';
-import { readingTimeMs } from '@/features/game/readingTime';
 import {
   enqueueTableNotice,
+  noticeHoldMs,
   tableNoticeText,
   type QueuedTableNotice,
   type TableNotice,
@@ -25,9 +25,6 @@ import { PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { isStillCapture } from '@/utils/stillCapture';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
-
-/** How long a notice lingers when nothing newer is waiting behind it. */
-const NOTICE_LINGER_MS = 4500;
 
 export function useTableNotices(roomCode: string) {
   const [notices, setNotices] = useState<QueuedTableNotice[]>([]);
@@ -40,19 +37,14 @@ export function useTableNotices(roomCode: string) {
   const dismissNotice = useCallback(() => setNotices((current) => current.slice(1)), []);
   const clearNotices = useCallback(() => setNotices([]), []);
   const notice = notices[0]?.roomCode === roomCode ? notices[0] : null;
-  const waiting = notices.length > 1;
   const shown = useRef<{ notice: QueuedTableNotice; at: number } | null>(null);
   useEffect(() => {
     // UI grammar holds the notice it caught; a tap still closes it.
     if (!notice || isStillCapture()) return;
     if (shown.current?.notice !== notice) shown.current = { notice, at: Date.now() };
-    // Every notice gets its reading time; after that a newer one takes its place
-    // rather than waiting out the linger.
-    const read = readingTimeMs(tableNoticeText(notice));
-    const hold = waiting ? read : Math.max(read, NOTICE_LINGER_MS);
-    const timer = setTimeout(dismissNotice, shown.current.at + hold - Date.now());
+    const timer = setTimeout(dismissNotice, shown.current.at + noticeHoldMs(notices) - Date.now());
     return () => clearTimeout(timer);
-  }, [notice, waiting, dismissNotice]);
+  }, [notice, notices, dismissNotice]);
   return { notice, addNotice, dismissNotice, clearNotices };
 }
 
