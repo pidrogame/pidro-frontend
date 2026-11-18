@@ -218,6 +218,8 @@ export function useCardSprites({
   const keyToSlot = useRef<Map<string, number>>(new Map());
   const targets = useRef<Map<number, string>>(new Map());
   const retirementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  /** A new laid card's flight, by slot: it starts once the card is drawn (PID-469). */
+  const departures = useRef<Map<number, () => void>>(new Map());
   const cutSounds = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cutSoundSequence = useRef<string | null>(null);
   const cutSequenceKey = useRef<string | null>(null);
@@ -646,6 +648,7 @@ export function useCardSprites({
         sl = allocate();
         if (sl < 0) continue;
         keyToSlot.current.set(d.key, sl);
+        departures.current.delete(sl);
         const comesFromSeat = d.kind === 'played' || d.kind === 'cut';
         const startX = cutCard
           ? d.ox
@@ -762,17 +765,25 @@ export function useCardSprites({
       } else if (d.laidAt !== undefined && (isNew || slots[sl]?.kind === 'hand')) {
         // A laid card leaves its seat, or your hand where it stood, as its
         // sound plays, and lands where the table counts it (PID-469).
+        const { tx, ty, trot, tscale, topacity, laidAt } = d;
+        const at = sl;
         const lay = { duration: LAY_DOWN_FLIGHT_MS, easing: Easing.out(Easing.cubic) };
-        sx[sl].value = withDelay(d.laidAt, withTiming(d.tx, lay));
-        sy[sl].value = withDelay(d.laidAt, withTiming(d.ty, lay));
-        srot[sl].value = withDelay(d.laidAt, withTiming(d.trot, lay));
-        sscale[sl].value = withDelay(d.laidAt, withTiming(d.tscale, lay));
-        // Anyone else's shows as it leaves their seat, as a played card does.
-        if (isNew && d.laidAt > 0) {
-          sop[sl].value = 0;
-          sop[sl].value = withDelay(d.laidAt, withTiming(d.topacity, { duration: 0 }));
-        } else sop[sl].value = d.topacity;
+        const leave = () => {
+          if (departures.current.get(at) === leave) departures.current.delete(at);
+          sx[at].value = withDelay(laidAt, withTiming(tx, lay));
+          sy[at].value = withDelay(laidAt, withTiming(ty, lay));
+          srot[at].value = withDelay(laidAt, withTiming(trot, lay));
+          sscale[at].value = withDelay(laidAt, withTiming(tscale, lay));
+          // Anyone else's shows as it leaves their seat, as a played card does.
+          if (isNew && laidAt > 0)
+            sop[at].value = withDelay(laidAt, withTiming(topacity, { duration: 0 }));
+        };
+        sop[sl].value = isNew && laidAt > 0 ? 0 : topacity;
         flight[sl].value = 1;
+        // Anyone else's is a new sprite, which a phone draws a while after
+        // its values change: it waits at the seat until it is drawn.
+        if (isNew) departures.current.set(sl, leave);
+        else leave();
       } else if (d.kind === 'cut' && model.phase === 'dealer_selection') {
         // A dealer snapshot can re-render while this sequence is in flight
         // (notably React Strict Mode and when the dealer field arrives). Keep
@@ -1204,6 +1215,7 @@ export function useCardSprites({
                 : undefined
             }
             pressed={spress[i]}
+            onDrawn={departures.current.get(i)}
             sampling={
               art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
             }
@@ -1309,6 +1321,7 @@ function CardSprite({
   lights,
   cast,
   pressed,
+  onDrawn,
   sampling,
 }: {
   img: SkImage | null;
@@ -1342,6 +1355,8 @@ function CardSprite({
     rot: SharedValue<number>;
   };
   pressed: SharedValue<number>;
+  /** Called a frame after this sprite is first drawn with it. */
+  onDrawn?: () => void;
   sampling?: { B: number; C: number };
 }) {
   const sweep = useDerivedValue(() =>
@@ -1397,6 +1412,13 @@ function CardSprite({
       flashing ? flashGlow.value : 0
     )
   );
+  // After the mappers above start, and after the canvas records this sprite:
+  // its first frame shows it where it is, not where it will be (PID-469).
+  useEffect(() => {
+    if (!onDrawn) return;
+    const frame = requestAnimationFrame(onDrawn);
+    return () => cancelAnimationFrame(frame);
+  }, [onDrawn]);
   const r = Math.min(10, w * 0.12);
   // Only these cards ever glow; for the rest the glow is never drawn at all.
   const glows = winner || leading || flashing;
