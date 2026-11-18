@@ -170,7 +170,9 @@ export function SettingsScreen({
                 ))}
               </View>
               <PidroText role="metadata" tone="muted">
-                {t('settings.paceHint')} {t('settings.paceSolo')}
+                {pace === 'own'
+                  ? `${t('settings.paceHint')} ${t('settings.paceSolo')}`
+                  : t('settings.paceQuickHint')}
               </PidroText>
             </Surface>
           </View>

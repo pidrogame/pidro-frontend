@@ -27,6 +27,8 @@ export const en = {
     "The game waits for you. No timers, nothing plays itself.",
   "settings.paceSolo": "When you play with bots only.",
   "settings.paceTableQuick": "With other people, this table plays Quick.",
+  "settings.paceQuickHint":
+    "The next hand starts without a tap. When everyone else is out this hand, the rest is played at once.",
   "game.continue_hand": "Continue",
   "game.tap_to_continue": "Tap to continue",
   "shell.league": "League",
@@ -253,6 +255,8 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
     "Spelet väntar på dig. Ingen tidspress, inget spelas automatiskt.",
   "settings.paceSolo": "När du bara spelar med bottar.",
   "settings.paceTableQuick": "Med andra spelare går bordet i snabbt tempo.",
+  "settings.paceQuickHint":
+    "Nästa giv börjar utan att du trycker. När alla andra är ute den här given spelas resten direkt.",
   "game.continue_hand": "Fortsätt",
   "game.tap_to_continue": "Tryck för att fortsätta",
   "shell.league": "Liga",

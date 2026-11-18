@@ -159,12 +159,20 @@ export function TableSettings({
                     />
                   ))}
                 </View>
-                <PidroText role="metadata" tone="muted">
-                  {t('settings.paceHint')}
-                </PidroText>
-                <PidroText role="metadata" tone="muted">
-                  {t(isSolo ? 'settings.paceSolo' : 'settings.paceTableQuick')}
-                </PidroText>
+                {pace === 'own' ? (
+                  <>
+                    <PidroText role="metadata" tone="muted">
+                      {t('settings.paceHint')}
+                    </PidroText>
+                    <PidroText role="metadata" tone="muted">
+                      {t(isSolo ? 'settings.paceSolo' : 'settings.paceTableQuick')}
+                    </PidroText>
+                  </>
+                ) : (
+                  <PidroText role="metadata" tone="muted">
+                    {t('settings.paceQuickHint')}
+                  </PidroText>
+                )}
               </View>
               <View style={styles.exit}>
                 {!isSpectator && (
