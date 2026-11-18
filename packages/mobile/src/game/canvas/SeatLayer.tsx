@@ -20,6 +20,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {
   Image,
+  PixelRatio,
   Platform,
   StyleSheet,
   View,
@@ -101,7 +102,7 @@ import type { LayDownShow } from './useLayDownPresentation';
 import { bakedShadow } from './bakedBlur';
 import { t, useTranslation } from '@/i18n';
 import type { Card } from '@/types/game';
-import { getCardImage } from '@/utils/cardImages';
+import { faceImage } from './cardTextures';
 
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -469,6 +470,10 @@ export function SeatLayer({
                         : width - insets.right - sideBackW * 0.7,
                     y: sideStackCy,
                   };
+        // Faces in the canvas's art for them (PID-467): yours by your hand's size.
+        const facePx =
+          (rel === 'south' ? L.cardW * handScale(L.profile) : L.cardW * L.trick.pileScale) *
+          PixelRatio.get();
         return (
           <Fragment key={`thrown-${rel}`}>
             {laid ? (
@@ -490,6 +495,7 @@ export function SeatLayer({
                 gather={laid.step === 'gather'}
                 cardW={pileCardW(L)}
                 square={!!L.front}
+                facePx={facePx}
               />
             ) : null}
             {kills.length > 0 ? (
@@ -502,12 +508,14 @@ export function SeatLayer({
                 at={(i) => pileSpot(L, rel, i, kills.length)}
                 cardW={pileCardW(L)}
                 square={!!L.front}
+                facePx={facePx}
               />
             ) : null}
             {thrown > 0 ? (
               <ThrownPile
                 rel={rel}
                 faces={foldingHand ? undefined : secondDeal?.faces?.[rel]}
+                facePx={facePx}
                 count={thrown}
                 folded={foldingHand}
                 animate={!foldingHand || folding.includes(rel)}
@@ -1042,6 +1050,7 @@ function ThrownPile({
   animate = true,
   fromStep = 0,
   faces,
+  facePx = 0,
   testID,
   square = false,
 }: {
@@ -1051,6 +1060,8 @@ function ThrownPile({
   square?: boolean;
   /** Face up: the thrower's own, or killed trumps (PID-306). */
   faces?: Card[];
+  /** The size in device px the canvas draws these faces at, for their art. */
+  facePx?: number;
   testID?: string;
   from: { x: number; y: number };
   at?: (i: number) => { x: number; y: number };
@@ -1103,7 +1114,7 @@ function ThrownPile({
             duration={folded ? FOLD_FLIGHT_MS : SECOND_DEAL_FLIGHT_MS}
             moving={moving}
             folded={folded}
-            card={faces?.[i]}
+            face={faces?.[i] && faceImage(faces[i], facePx)}
           />
         );
       })}
@@ -1122,9 +1133,9 @@ function ThrownBack({
   duration,
   moving,
   folded,
-  card,
+  face,
 }: {
-  card?: Card;
+  face?: ImageSourcePropType;
   duration: number;
   moving: boolean;
   folded: boolean;
@@ -1150,10 +1161,10 @@ function ThrownBack({
   }));
   return (
     <Animated.View style={[{ position: 'absolute', width: w, height: h }, motion]}>
-      {card ? (
+      {face ? (
         <Image
           testID="thrown-face"
-          source={getCardImage(card)}
+          source={face}
           accessibilityIgnoresInvertColors
           style={{ width: w, height: h, borderRadius: BACK_RADIUS }}
         />
@@ -1182,6 +1193,7 @@ function LaidFan({
   gather,
   cardW,
   square,
+  facePx,
 }: {
   rel: RelativePosition;
   cards: Card[];
@@ -1193,6 +1205,7 @@ function LaidFan({
   gather: boolean;
   cardW: number;
   square: boolean;
+  facePx: number;
 }) {
   const n = cards.length;
   return (
@@ -1205,7 +1218,7 @@ function LaidFan({
       {cards.map((card, i) => (
         <LaidCard
           key={`${card.suit}_${card.rank}`}
-          card={card}
+          face={faceImage(card, facePx)}
           from={from(i, n)}
           fromScale={fromScale}
           flip={flip}
@@ -1234,7 +1247,7 @@ function laidPile(L: TableLayout, rel: RelativePosition) {
 }
 
 function LaidCard({
-  card,
+  face,
   from,
   fromScale,
   flip,
@@ -1245,7 +1258,7 @@ function LaidCard({
   gather,
   w,
 }: {
-  card: Card;
+  face: ImageSourcePropType;
   from: { x: number; y: number };
   fromScale: number;
   flip: boolean;
@@ -1294,7 +1307,7 @@ function LaidCard({
     <Animated.View style={[{ position: 'absolute', width: w, height: h }, motion]}>
       <Image
         testID="thrown-face"
-        source={getCardImage(card)}
+        source={face}
         accessibilityIgnoresInvertColors
         style={{ width: w, height: h, borderRadius: BACK_RADIUS }}
       />

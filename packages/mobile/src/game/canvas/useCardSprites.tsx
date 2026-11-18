@@ -17,6 +17,7 @@
  *   • reflow    — layout change tweens sprites to new slots (falls out of the effect)
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { PixelRatio } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
 import { Group, Image, RoundedRect, type SkImage } from '@shopify/react-native-skia';
 import {
@@ -57,7 +58,7 @@ import {
   packSpot,
 } from './layout';
 import type { TableCard, TableModel } from './tableModel';
-import type { CardKey, CardTextures } from './cardTextures';
+import { largeFaceSampling, type CardKey, type CardTextures } from './cardTextures';
 import { cardKey } from './cardKey';
 import {
   CUT_CARD_STAGGER_MS,
@@ -151,6 +152,8 @@ type SlotInfo = {
   key: string;
   textureKey: CardKey;
   kind: 'hand' | 'cut' | 'played';
+  /** In your hand, or played from it: drawn by your hand's size (PID-467). */
+  yours: boolean;
   z: number;
   legal: boolean;
   blocked: boolean;
@@ -640,6 +643,7 @@ export function useCardSprites({
         key: d.key,
         textureKey: d.textureKey,
         kind: d.kind,
+        yours: d.kind === 'hand' || !!d.ownPlay,
         z: d.z,
         legal: d.legal,
         blocked: d.blocked,
@@ -1077,6 +1081,11 @@ export function useCardSprites({
   }, [cardW, cardH]);
 
   const nodes = useMemo(() => {
+    // Each face's art and sampling, from where it rests at its largest (PID-467).
+    const px = PixelRatio.get();
+    const art = [cardW * L.trick.pileScale, cardW * handScale].map((w) =>
+      largeFaceSampling(!!textures?.large, w * px)
+    );
     const ordered = slots
       .map((s, i) => ({ s, i }))
       .filter((x): x is { s: NonNullable<SlotInfo>; i: number } => x.s !== null)
@@ -1086,7 +1095,11 @@ export function useCardSprites({
         {ordered.map(({ s, i }) => (
           <CardSprite
             key={i}
-            img={textures?.get(s.textureKey) ?? null}
+            // Today's face until the larger one decodes, or if it failed to.
+            img={
+              (art[+s.yours] && textures?.get(s.textureKey, true)) ||
+              (textures?.get(s.textureKey) ?? null)
+            }
             x={sx[i]}
             y={sy[i]}
             scale={sscale[i]}
@@ -1109,13 +1122,15 @@ export function useCardSprites({
             flashGlow={flashGlow}
             previewed={s.previewed}
             lights={lights}
-            sampling={L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined}
+            sampling={
+              art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
+            }
           />
         ))}
       </>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots, textures, cardW, cardH, L, lights]);
+  }, [slots, textures, cardW, cardH, handScale, L, lights]);
 
   const renderedPlayedCardCount = slots.reduce(
     (count, slot) => count + (slot?.kind === 'played' ? 1 : 0),
@@ -1334,8 +1349,9 @@ function CardSprite({
 
 const CARD_SHADOW = 'rgba(2, 14, 28, 0.38)';
 /**
- * Tablets draw the 168px card art up to 300px wide (PID-453): a Catmull-Rom
- * cubic keeps its edges crisper than Skia's bilinear default. Phones keep it.
+ * Tablets that draw today's 168px art (PID-453) keep a Catmull-Rom cubic,
+ * crisper than Skia's bilinear default; phones keep that default. The larger
+ * art picks its own (`largeFaceSampling`).
  */
 const TABLET_SAMPLING = { B: 0, C: 0.5 };
 

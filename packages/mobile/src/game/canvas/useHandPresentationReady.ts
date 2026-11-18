@@ -79,7 +79,14 @@ export function useHandPresentationReady(
     presentation.hasHand,
   ]);
 
-  const facesReady = hand.length > 0 && hand.every((card) => textures.get(card.textureKey) != null);
+  // Where the larger faces load (PID-467), your hand waits for them too.
+  const facesReady =
+    hand.length > 0 &&
+    hand.every(
+      (card) =>
+        textures.get(card.textureKey) != null &&
+        (!textures.large || textures.get(card.textureKey, true) != null)
+    );
   return (
     !active ||
     (presentation.active === active &&
