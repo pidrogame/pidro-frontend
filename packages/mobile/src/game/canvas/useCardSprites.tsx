@@ -205,6 +205,11 @@ export function useCardSprites({
   const collection = Array.from({ length: MAX }, () => useSharedValue(0));
   /** How far a shaded card's shade has come in: upright piles fade it in (PID-381). */
   const sshade = Array.from({ length: MAX }, () => useSharedValue(0));
+  /**
+   * 1 while a finger holds the card up: it lies over every other card. Set on
+   * the UI thread, so a card's place never waits for React (PID-461).
+   */
+  const spress = Array.from({ length: MAX }, () => useSharedValue(0));
   /* eslint-enable react-hooks/rules-of-hooks */
 
   const [slots, setSlots] = useState<SlotInfo[]>(() => Array(MAX).fill(null));
@@ -1072,6 +1077,7 @@ export function useCardSprites({
         }
         pressSlot.value = t.slot;
         pressKey.value = t.key;
+        spress[t.slot].value = 1;
         sy[t.slot].value = withTiming(t.y - t.h * PRESS_LIFT, { duration: PRESS_LIFT_MS });
         sscale[t.slot].value = withTiming(t.scale * 1.06, { duration: PRESS_LIFT_MS });
       })
@@ -1088,8 +1094,13 @@ export function useCardSprites({
         pressSlot.value = -1;
         // A played card flies from where it is; if the play never happens
         // (not your turn after all, or the table is still settling), it
-        // drops back into the hand.
+        // drops back into the hand. It stays on top until then: by then a
+        // played card's own place lies over the pile.
         settle(slot, success ? PRESS_UNPLAYED_MS : 0);
+        spress[slot].value = withDelay(
+          success ? PRESS_UNPLAYED_MS : 0,
+          withTiming(0, { duration: 0 })
+        );
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playByKey, blockedTap]);
@@ -1192,9 +1203,7 @@ export function useCardSprites({
                 ? { x: sx[s.caster], y: sy[s.caster], scale: sscale[s.caster], rot: srot[s.caster] }
                 : undefined
             }
-            z={s.z}
-            // A playable card of yours held up by a finger, larger than it rests.
-            pressedOver={s.kind === 'hand' && s.legal ? handScale * 1.06 : 0}
+            pressed={spress[i]}
             sampling={
               art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
             }
@@ -1229,6 +1238,8 @@ export function useCardSprites({
                 key: slot.key,
                 kind: slot.kind,
                 z: slot.z,
+                // Skia's order: the pressed card on top, then the cards as listed.
+                drawZ: spress[i].value * 1000 + slot.z,
                 pressed: pressSlot.value === i,
                 x: sx[i].value,
                 y: sy[i].value,
@@ -1297,8 +1308,7 @@ function CardSprite({
   previewed,
   lights,
   cast,
-  z,
-  pressedOver,
+  pressed,
   sampling,
 }: {
   img: SkImage | null;
@@ -1331,9 +1341,7 @@ function CardSprite({
     scale: SharedValue<number>;
     rot: SharedValue<number>;
   };
-  z: number;
-  /** Past this scale the card is under a finger: it lies over its neighbours. 0: never. */
-  pressedOver: number;
+  pressed: SharedValue<number>;
   sampling?: { B: number; C: number };
 }) {
   const sweep = useDerivedValue(() =>
@@ -1365,9 +1373,9 @@ function CardSprite({
     ];
   });
   const visible = useDerivedValue(() => opacity.value * (1 - sweep.value));
-  const pressed = useDerivedValue(() => (pressedOver > 0 && scale.value > pressedOver ? 1 : 0));
-  // Over the next card while pressed: that card casts nothing on it then.
-  const zIndex = useDerivedValue(() => z + 30 * pressed.value);
+  // Over every card while pressed, the next one casting nothing on it then.
+  // Otherwise each card lies where the cards are listed, in the same frame.
+  const zIndex = useDerivedValue(() => pressed.value);
   const castOpacity = useDerivedValue(() => Math.min(1, SUIT_SHADOW) * (1 - pressed.value));
   // The next card's place, turn and size as this card sees them, every frame.
   const castAt = useDerivedValue(() => {

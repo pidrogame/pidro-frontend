@@ -532,6 +532,8 @@ confirmation after rollback. `reply=ok-first` answers `ok` 300 ms before the sta
 that places the card, as the server sends them (PID-460: one flight, full colour).
 `history=on` starts with one trick taken, so every pile has an earlier card to shade
 (PID-381); with `count=on` your earlier 10♠ is a point card that stays lit.
+`table-play-over-pile` (PID-461) plays with both: in every frame before the state, your card
+lies over every other card, and each seat's card in flight over its own earlier ones.
 `reply=burst` puts opponent updates 80 ms apart;
 the left-card grammar case uses it to catch lights advancing during overlapping flights.
 `transition=0|80|1500|3000` varies the snapshot's hold;

@@ -1386,6 +1386,14 @@ const allCases = [
     testId: 'seat-north',
     playPosition: position,
   })),
+  // PID-461: the card you play lies over your earlier card, and every card over
+  // its seat's earlier ones, while the state that places it is still on its way.
+  {
+    name: 'table-play-over-pile',
+    path: '/table-dev?fixture=play-motion&autoplay=false&reply=ok-first&history=on',
+    testId: 'seat-north',
+    overPile: true,
+  },
   // PID-331: with the server's trick pause at 0, a finished trick stays put.
   {
     name: 'table-trick-stays',
@@ -5759,6 +5767,65 @@ async function assertPlayMotion(page, position, viewport) {
   assert.equal(hold.at(-1).lit, 'south', 'the server-selected leader did not light after the hold');
   // The hand's tricks stay on every table (PID-308).
   assert.equal(await page.getByTestId('rendered-played-card-count-4').count(), 1);
+}
+
+/**
+ * PID-461: in every frame from the tap until the server's state, the card you
+ * play is drawn over every other card on the table (`drawZ` is Skia's order);
+ * then every seat's card in flight over that seat's earlier cards.
+ */
+async function assertPlayOverPile(page) {
+  await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
+  await page.waitForTimeout(1500);
+  const before = JSON.parse(await page.getByTestId('play-presentation').getAttribute('aria-label'));
+  const target = before.hand[3];
+  await page.evaluate(() => {
+    const frames = [];
+    const t0 = performance.now();
+    const sample = () => {
+      frames.push(window.__pidroCardMotion());
+      if (performance.now() - t0 < 7000) requestAnimationFrame(sample);
+      else window.__pidroPileFrames = frames;
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.mouse.click(target.x - target.w / 2 + 10, target.y);
+  await page.waitForFunction(() => window.__pidroPileFrames, null, { timeout: 15_000 });
+  const frames = await page.evaluate(() => window.__pidroPileFrames);
+  const face = (key) => key.split('-').at(-1);
+  const order = (s) => s.drawZ;
+  let early = 0;
+  for (const sprites of frames) {
+    const yours = sprites.find((s) => face(s.key) === face(target.key));
+    if (yours?.kind !== 'played') continue;
+    if (yours.key.startsWith('trick-')) break;
+    early++;
+    for (const other of sprites.filter((s) => s !== yours))
+      assert.ok(
+        order(yours) > order(other),
+        `your played ${face(yours.key)} lay under ${other.key} before the state arrived`
+      );
+  }
+  assert.ok(early >= 3, `only ${early} frames before the state arrived`);
+  const seats = {};
+  for (const sprites of frames)
+    for (const rel of ['west', 'north', 'east']) {
+      const pile = sprites.filter((s) => s.kind === 'played' && s.key.includes(`-${rel}-`));
+      for (const flying of pile.filter((s) => s.flight < 0.999)) {
+        const earlier = pile.filter((s) => s !== flying && s.flight >= 0.999);
+        if (!earlier.length) continue;
+        seats[rel] = (seats[rel] ?? 0) + 1;
+        for (const card of earlier)
+          assert.ok(order(flying) > order(card), `${rel}'s card flew under its own ${card.key}`);
+      }
+    }
+  for (const rel of ['west', 'north', 'east'])
+    assert.ok(seats[rel] > 0, `${rel} played no card beside an earlier one`);
+  console.log(
+    `over pile: yours over every card in ${early} frames before the state; ${Object.entries(seats)
+      .map(([rel, n]) => `${rel} ${n}`)
+      .join(', ')} frames over their own`
+  );
 }
 
 /**
@@ -10948,6 +11015,7 @@ async function main() {
             await assertPlayMotion(page, testCase.playPosition, caseViewport);
           }
           if (testCase.trickStays) await assertTrickStays(page);
+          if (testCase.overPile) await assertPlayOverPile(page);
           if (testCase.sweepWinner) {
             await assertCardCollection(
               page,
