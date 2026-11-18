@@ -168,6 +168,8 @@ export const en = {
   "auth.have_account": "I have an account",
   "auth.have_account_detail": "From the old Pidro or the new one",
   "auth.create_free": "Create a free account",
+  "auth.welcome_back": "Welcome back",
+  "auth.not_you": "Not you? Use another account",
   "auth.solo_failed": "We could not start your solo table. Try again.",
   "auth.sheet_save_title": "Save your player",
   "auth.sheet_save_body": "Keep your name, games and progress on every device.",
@@ -436,6 +438,8 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.have_account": "Jag har ett konto",
   "auth.have_account_detail": "Från gamla Pidro eller nya",
   "auth.create_free": "Skapa ett gratis konto",
+  "auth.welcome_back": "Välkommen tillbaka",
+  "auth.not_you": "Inte du? Använd ett annat konto",
   "auth.solo_failed": "Vi kunde inte starta ditt solobord. Försök igen.",
   "auth.sheet_save_title": "Spara din spelare",
   "auth.sheet_save_body":

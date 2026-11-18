@@ -1,37 +1,50 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Redirect, useRouter, type Href } from 'expo-router';
+import { Redirect, useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { useNetworkState } from 'expo-network';
 import type { InvitePreview } from '@pidro/shared';
 import { captureAnalytics } from '@/analytics/PostHogAnalytics';
 import { adsApi } from '@/api/ads';
 import { invitesApi } from '@/api/invites';
+import { AuthProviderButtons } from '@/components/auth/AuthProviderButtons';
+import { useProviderSignIn } from '@/components/auth/useProviderSignIn';
 import { LogoGlow } from '@/components/home/LogoGlow';
+import { FACES } from '@/components/ui/Avatar';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
 import { PidroLogo } from '@/components/ui/PidroLogo';
+import { PlayerAvatar } from '@/components/ui/PlayerAvatar';
 import { PidroText } from '@/components/ui/PidroText';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
 import { PidroBevel, PidroColors, PidroFonts, PidroLayout, PidroSpacing } from '@/design/tokens';
+import type { FirstScreen } from '@/features/auth/firstScreen';
+import { forgetPlayer, readFirstScreen } from '@/features/auth/knownPlayer';
+import type { SocialProviderAvailability } from '@/features/auth/socialCredentials';
+import { getSocialProviderAvailability } from '@/features/auth/socialProviders';
 import { createSoloRoom } from '@/features/game/solo';
 import { useAuth } from '@/hooks/useAuth';
 import { classifyInviteState } from '@/features/invites/joinFlow';
 import { authenticatedEntryDestination } from '@/navigation/initialRoute';
 import { gameRoute } from '@/navigation/gameRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
+import { useAuthStore } from '@/stores/auth';
 import { useLobbyStore } from '@/stores/lobby';
 import { usePendingInviteStore } from '@/stores/pendingInvite';
 import { useTranslation } from '@/i18n';
 import { apiErrorInfo } from '@/utils/apiErrors';
 import { Background } from '@/components/ui/Background';
 
-type LaunchState = 'idle' | 'creatingGuest' | 'creatingRoom' | 'roomFailed' | 'joiningInvite';
+type LaunchState =
+  'idle' | 'creatingGuest' | 'creatingRoom' | 'roomFailed' | 'joiningInvite' | 'signingIn';
 
 export default function WelcomeScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const params = useLocalSearchParams<{ fixture?: string }>();
+  // Apple and Facebook exist only on a device; the fixture shows their buttons anywhere.
+  const fixtureProviders = __DEV__ && params.fixture === 'providers';
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
   const compactLandscape = landscape && height < PidroLayout.compactHeight;
@@ -42,11 +55,33 @@ export default function WelcomeScreen() {
   const ageBand = useAgeGateStore((state) => state.ageBand);
   const clearPendingInvite = usePendingInviteStore((state) => state.clearPendingInvite);
   const upsertLobbyRoom = useLobbyStore((state) => state.upsertLobbyRoom);
-  const { isAuthenticated, user, continueAsGuest, error: authError, clearError } = useAuth();
+  const {
+    isAuthenticated,
+    user,
+    continueAsGuest,
+    signInWithProvider,
+    isLoading,
+    error: authError,
+    clearError,
+  } = useAuth();
+  const providerSignIn = useProviderSignIn(signInWithProvider);
+  const [screen, setScreen] = useState<FirstScreen | null>(null);
+  const [providers, setProviders] = useState<SocialProviderAvailability | null>(null);
   const [launchState, setLaunchState] = useState<LaunchState>('idle');
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
   const launchBusy = launchState === 'creatingGuest' || launchState === 'creatingRoom';
+  const doorsDisabled = offline || launchBusy || isLoading;
+
+  // A phone someone signed in on greets them by name (PID-456).
+  useEffect(() => {
+    let active = true;
+    void readFirstScreen().then((next) => active && setScreen(next));
+    void getSocialProviderAvailability().then((next) => active && setProviders(next));
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!pendingInvite) return;
@@ -124,6 +159,15 @@ export default function WelcomeScreen() {
     user,
   ]);
 
+  const signInDirectly = async (method: 'apple' | 'facebook') => {
+    if (doorsDisabled) return;
+    captureAnalytics('account_entry_tapped', { known: true });
+    // Signed in, useProviderSignIn takes them on; the Redirect below must not as well.
+    setLaunchState('signingIn');
+    await providerSignIn.start(method);
+    if (useAuthStore.getState().status !== 'authenticated') setLaunchState('idle');
+  };
+
   if (isAuthenticated && launchState === 'idle') {
     return (
       <Background>
@@ -134,6 +178,18 @@ export default function WelcomeScreen() {
     );
   }
 
+  // Until the phone has said whom it knows, and whether it offers their provider, the
+  // logo's room is all there is: no Sign in that turns into Apple a moment later.
+  const waitsForProviders =
+    screen?.kind === 'known' && screen.player.method !== 'password' && !fixtureProviders;
+  if (!screen || (waitsForProviders && !providers)) return <Background />;
+
+  const known = screen.kind === 'known' ? screen.player : null;
+  // Apple or Facebook signs in directly where this phone offers it; elsewhere, Sign in.
+  const provider =
+    known && known.method !== 'password' && (fixtureProviders || providers?.[known.method])
+      ? known.method
+      : null;
   const currentPreview =
     pendingInvite && invitePreview?.code === pendingInvite.code ? invitePreview : null;
   const inviter = currentPreview?.host || t('auth.friend');
@@ -196,33 +252,81 @@ export default function WelcomeScreen() {
             </Surface>
           ) : null}
 
-          {authError || launchError ? (
+          {authError || launchError || providerSignIn.notice ? (
             <Surface variant="subtle" style={styles.error} accessibilityRole="alert">
               <PidroText role="metadata" tone="danger" align="center">
-                {launchError ? t('auth.solo_failed') : authError}
+                {launchError ? t('auth.solo_failed') : (authError ?? providerSignIn.notice)}
               </PidroText>
             </Surface>
           ) : null}
 
-          {/* One door for every account, old or new: Sign in finds either (PID-455). */}
-          <BevelButton
-            testID="welcome-have-account"
-            accessibilityLabel={`${t('auth.have_account')}. ${t('auth.have_account_detail')}.`}
-            material="wood"
-            size="md"
-            fullWidth
-            disabled={offline || launchBusy}
-            onPress={() => {
-              captureAnalytics('account_entry_tapped');
-              router.push('/(auth)/login');
-            }}>
-            <DoorLabel
-              title={t('auth.have_account')}
-              detail={t('auth.have_account_detail')}
-              wood
-              tablet={tablet}
+          {known ? (
+            <View testID="welcome-known" style={styles.known}>
+              <PlayerAvatar
+                uri={known.avatarUrl}
+                fallbackSource={FACES[known.face ?? 'a']}
+                size={tablet ? 72 : 60}
+                accessibilityLabel={t('social.profile_picture')}
+              />
+              <View style={styles.knownCopy}>
+                <PidroText role="body" tone="soft">
+                  {t('auth.welcome_back')}
+                </PidroText>
+                <PidroText role="title" numberOfLines={1} style={tablet && styles.knownNameTablet}>
+                  {known.name}
+                </PidroText>
+              </View>
+            </View>
+          ) : null}
+
+          {provider ? (
+            <AuthProviderButtons
+              only={provider}
+              showEmail={false}
+              availability={
+                fixtureProviders ? { apple: true, facebook: true } : (providers ?? undefined)
+              }
+              onApple={() => void signInDirectly('apple')}
+              onFacebook={() => void signInDirectly('facebook')}
             />
-          </BevelButton>
+          ) : known ? (
+            <BevelButton
+              testID="welcome-have-account"
+              accessibilityLabel={t('auth.sign_in')}
+              material="wood"
+              size="md"
+              fullWidth
+              disabled={doorsDisabled}
+              onPress={() => {
+                captureAnalytics('account_entry_tapped', { known: true });
+                router.push({
+                  pathname: '/(auth)/login',
+                  params: { email: known.name, focus: 'password' },
+                });
+              }}>
+              <DoorLabel title={t('auth.sign_in')} wood tablet={tablet} />
+            </BevelButton>
+          ) : (
+            // One door for every account, old or new: Sign in finds either (PID-455).
+            <BevelButton
+              testID="welcome-have-account"
+              accessibilityLabel={`${t('auth.have_account')}. ${t('auth.have_account_detail')}.`}
+              material="wood"
+              size="md"
+              fullWidth
+              disabled={doorsDisabled}
+              onPress={() => {
+                captureAnalytics('account_entry_tapped');
+                router.push('/(auth)/login');
+              }}>
+              <DoorLabel
+                title={t('auth.have_account')}
+                detail={t('auth.have_account_detail')}
+                wood
+                tablet={tablet}
+              />
+            </BevelButton>
+          )}
           <BevelButton
             testID="welcome-quick-game"
             accessibilityLabel={`${t('auth.quick')}. ${t('auth.quick_detail')}.`}
@@ -230,27 +334,41 @@ export default function WelcomeScreen() {
             material="glass"
             size="md"
             fullWidth
-            disabled={offline || launchBusy}
+            disabled={doorsDisabled}
             onPress={launch}>
             <DoorLabel
               title={t('auth.quick')}
-              detail={launchBusy ? null : t('auth.quick_detail')}
+              detail={t('auth.quick_detail')}
+              busy={launchBusy}
               tablet={tablet}
             />
           </BevelButton>
 
-          <View style={styles.newHere}>
-            <PidroText role="body" tone="soft">
-              {t('auth.new_here')}
-            </PidroText>
+          {known ? (
             <TextLink
-              label={t('auth.create_free')}
+              label={t('auth.not_you')}
               size={tablet ? 16 : 15}
-              disabled={offline || launchBusy}
-              style={styles.newHereLink}
-              onPress={() => router.push('/(auth)/register')}
+              disabled={doorsDisabled}
+              testID="welcome-not-you"
+              onPress={() => {
+                setScreen({ kind: 'new' });
+                void forgetPlayer();
+              }}
             />
-          </View>
+          ) : (
+            <View style={styles.newHere}>
+              <PidroText role="body" tone="soft">
+                {t('auth.new_here')}
+              </PidroText>
+              <TextLink
+                label={t('auth.create_free')}
+                size={tablet ? 16 : 15}
+                disabled={doorsDisabled}
+                style={styles.newHereLink}
+                onPress={() => router.push('/(auth)/register')}
+              />
+            </View>
+          )}
         </View>
       </View>
     </ScreenShell>
@@ -261,11 +379,13 @@ export default function WelcomeScreen() {
 function DoorLabel({
   title,
   detail,
+  busy = false,
   wood = false,
   tablet,
 }: {
   title: string;
-  detail: string | null;
+  detail?: string;
+  busy?: boolean;
   wood?: boolean;
   tablet: boolean;
 }) {
@@ -277,16 +397,16 @@ function DoorLabel({
         style={[wood ? styles.woodTitle : styles.glassTitle, tablet && styles.titleTablet]}>
         {title}
       </PidroText>
-      {detail ? (
+      {busy ? (
+        <ActivityIndicator color={wood ? PidroBevel.textGold : PidroColors.text} />
+      ) : detail ? (
         <PidroText
           align="center"
           maxFontSizeMultiplier={1.3}
           style={[styles.detail, wood && styles.woodDetail, tablet && styles.detailTablet]}>
           {detail}
         </PidroText>
-      ) : (
-        <ActivityIndicator color={wood ? PidroBevel.textGold : PidroColors.text} />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -336,7 +456,8 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   actionsLandscape: { width: 330 },
-  actionsTablet: { maxWidth: 480, gap: PidroSpacing.lg },
+  // The greeting, a provider's button and the capped doors share one edge.
+  actionsTablet: { maxWidth: 380, gap: PidroSpacing.lg },
   inviteCard: {
     minHeight: 64,
     padding: PidroSpacing.sm,
@@ -384,6 +505,9 @@ const styles = StyleSheet.create({
   },
   woodDetail: { color: PidroColors.textOnWood },
   detailTablet: { fontSize: 17, lineHeight: 22 },
+  known: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.sm },
+  knownCopy: { flex: 1, minWidth: 0 },
+  knownNameTablet: { fontSize: 26, lineHeight: 32 },
   newHere: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PidroText } from '@/components/ui/PidroText';
 import { Surface } from '@/components/ui/Surface';
 import { PidroSpacing } from '@/design/tokens';
+import { forgetPlayer } from '@/features/auth/knownPlayer';
 import { unregisterPush } from '@/features/push/push';
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useAuthStore } from '@/stores/auth';
@@ -103,6 +104,8 @@ export function AccountSection() {
         setBusy(true);
         try {
           await deleteAccount();
+          // A deleted account cannot sign in again: the phone forgets it too.
+          await forgetPlayer();
           setPendingSignOut(true);
         } catch (deleteFailure) {
           setDeleteError(deleteFailure);

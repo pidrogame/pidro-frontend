@@ -20,6 +20,8 @@ export const STORAGE_KEYS = {
   guestCreationToken: 'guest-creation-token:v1',
   pendingInvite: 'pending-invite-storage',
   pendingFriendLink: 'pending-friend-link-storage',
+  // Who last signed in, for "Welcome back": kept apart from auth-storage so sign-out leaves it.
+  knownPlayer: 'known-player:v1',
   // A news post the player has seen is `news-seen:<post id>`; the welcome is the first.
   welcomeSeen: 'news-seen:welcome',
 } as const;

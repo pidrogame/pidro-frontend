@@ -34,6 +34,7 @@ import { getInstallId } from '@/features/invites/installId';
 import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
 import { classicVerification, takePendingClassicClaim } from '@/features/auth/classicFound';
 import { signInOutcome } from '@/features/auth/signInOutcome';
+import { rememberPlayer } from '@/features/auth/knownPlayer';
 import { useProviderSignIn } from '@/components/auth/useProviderSignIn';
 import { useAuth } from '@/hooks/useAuth';
 import { take } from '@/features/auth/pendingClassicVerification';
@@ -428,6 +429,7 @@ export default function ClaimClassicScreen() {
         return;
       }
       setSession({ accessToken: answer.session.token, user: answer.session.user });
+      void rememberPlayer(answer.session.user, 'password');
       router.replace(
         authenticatedEntryDestination(
           usePendingInviteStore.getState().pendingInvite,
@@ -575,6 +577,8 @@ export default function ClaimClassicScreen() {
       }
       const claimed = useAuthStore.getState().user;
       if (!claimed) return;
+      // Claimed signed out or as a guest, the old account's way in is now this one's.
+      if (method && (!user || user.guest)) void rememberPlayer(claimed, method);
       captureAnalytics('claim_succeeded', { method });
       const pendingInvite = usePendingInviteStore.getState().pendingInvite;
       const destination = authenticatedEntryDestination(

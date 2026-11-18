@@ -1016,6 +1016,20 @@ const allCases = [
     testId: 'welcome-window',
     pendingInvite: true,
   },
+  // PID-456: a phone someone signed in on greets them, by each way of signing in.
+  ...[
+    ['welcome-known', 'en', 'password', 'ThunderThor88'],
+    ['welcome-known-sv', 'sv', 'password', 'ThunderThor88'],
+    ['welcome-known-long', 'en', 'password', 'Bartholomew_Wolfgang'],
+    ['welcome-known-apple', 'en', 'apple', 'ThunderThor88'],
+    ['welcome-known-facebook', 'en', 'facebook', 'ThunderThor88'],
+  ].map(([name, locale, method, playerName]) => ({
+    name,
+    path: method === 'password' ? '/welcome' : '/welcome?fixture=providers',
+    testId: 'welcome-window',
+    locale,
+    knownPlayer: { name: playerName, avatarUrl: null, face: 'b', method },
+  })),
   { name: 'login', path: '/(auth)/login?fixture=providers', testId: 'auth-window' },
   { name: 'register', path: '/(auth)/register?fixture=providers', testId: 'auth-window' },
   {
@@ -3212,15 +3226,34 @@ const TABLE_MESSAGES = {
 // Each Classic step has one job, with the same default forward button.
 async function assertClassicLogin(page, testCase, viewport) {
   // PID-454: one door for every account, old or new, and no Classic plaque.
-  if (testCase.path === '/welcome') {
+  if (testCase.path.startsWith('/welcome')) {
     const sv = testCase.locale === 'sv';
+    const method = testCase.knownPlayer?.method;
     const door = page.getByRole('button', {
-      name: sv
-        ? 'Jag har ett konto. Från gamla Pidro eller nya.'
-        : 'I have an account. From the old Pidro or the new one.',
+      name: !method
+        ? sv
+          ? 'Jag har ett konto. Från gamla Pidro eller nya.'
+          : 'I have an account. From the old Pidro or the new one.'
+        : method === 'password'
+          ? sv
+            ? 'Logga in'
+            : 'Sign in'
+          : `Continue with ${method === 'apple' ? 'Apple' : 'Facebook'}`,
       exact: true,
     });
     await door.waitFor();
+    if (method) {
+      // The greeting names the player; a long name never pushes the door off.
+      await page.getByText(testCase.knownPlayer.name, { exact: true }).waitFor();
+      await page
+        .getByRole('link', {
+          name: sv ? 'Inte du? Använd ett annat konto' : 'Not you? Use another account',
+          exact: true,
+        })
+        .waitFor();
+      const box = await door.boundingBox();
+      assert.ok(box && box.y + box.height <= viewport.height, `${testCase.name}: door on screen`);
+    }
     const screen = page.getByTestId('welcome-screen');
     assert.doesNotMatch(
       await screen.innerText(),
@@ -10152,8 +10185,11 @@ async function main() {
             welcomeSeen,
             photoLocale,
             homeTick,
+            knownPlayer,
           }) => {
             globalThis.localStorage.setItem('age-gate-storage', ageGate);
+            if (knownPlayer) globalThis.localStorage.setItem('known-player:v1', knownPlayer);
+            else globalThis.localStorage.removeItem('known-player:v1');
             if (!homeTick) globalThis.localStorage.removeItem('league-home:v1:ui-grammar-user');
             // Marcel's welcome covers every screen until it is seen; only its own cases want it.
             if (welcomeSeen) globalThis.localStorage.setItem('news-seen:welcome', '1');
@@ -10191,6 +10227,7 @@ async function main() {
             pendingInvite: testCase.pendingInvite === true,
             welcomeSeen: !testCase.welcomeUnseen,
             homeTick: Boolean(testCase.homeTick),
+            knownPlayer: testCase.knownPlayer ? JSON.stringify(testCase.knownPlayer) : null,
             photoLocale:
               testCase.photo ||
               testCase.popup ||

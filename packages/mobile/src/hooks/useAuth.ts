@@ -11,6 +11,7 @@ import { invitePlatform } from '@/features/invites/platform';
 import type { SocialCredentialResult } from '@/features/auth/socialCredentials';
 import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
 import type { AuthProvider, PasswordLoginResponse, ProviderLoginResponse } from '@/api/auth';
+import { rememberPlayer } from '@/features/auth/knownPlayer';
 import { guestSaveFailure, runGuestSave, type GuestSaveResult } from '@/features/auth/saveGuest';
 import { storedAgeTerms } from '@/features/onboarding/ageTerms';
 import { queueLinkedFriend } from '@/stores/friends';
@@ -68,6 +69,7 @@ export function useAuth() {
             accessToken: answer.session.token,
             user: answer.session.user,
           });
+          void rememberPlayer(answer.session.user, 'password');
         }
         return answer;
       } catch (e) {
@@ -120,6 +122,7 @@ export function useAuth() {
             accessToken: outcome.session.token,
             user: outcome.session.user,
           });
+          void rememberPlayer(outcome.session.user, provider);
           queueLinkedFriend(outcome.session.linked_friend);
         }
         return outcome;
@@ -165,6 +168,7 @@ export function useAuth() {
           ...pendingFriendSlug(),
         });
         setSession({ accessToken: response.token, user: response.user });
+        void rememberPlayer(response.user, 'password');
         queueLinkedFriend(response.linked_friend);
         return { ok: true };
       } catch (e) {
@@ -209,6 +213,7 @@ export function useAuth() {
           getSession: useAuthStore.getState,
           install: (response) => {
             setSession({ accessToken: response.token, user: response.user });
+            void rememberPlayer(response.user, 'password');
             queueLinkedFriend(response.linked_friend);
           },
           setSessionPreservation: (preserve) =>
@@ -292,6 +297,7 @@ export function useAuth() {
         setError(null);
         const response = await authApi.resetPassword(token, password);
         setSession({ accessToken: response.token, user: response.user });
+        void rememberPlayer(response.user, 'password');
         return true;
       } catch (e) {
         setError({ cause: e, key: 'auth.reset_failed' });

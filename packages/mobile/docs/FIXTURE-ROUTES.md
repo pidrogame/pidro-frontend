@@ -1544,3 +1544,21 @@ UI_CASES=ad-sheet-offer-en,ad-sheet-loading-en,ad-sheet-dismissed-en,ad-sheet-un
   UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
+
+## First screen (PID-454, PID-456)
+
+`/welcome` has two doors, **I have an account** (to Sign in, old or new) and **Quick
+game**, and the **Create a free account** link. A phone someone signed in on keeps one
+record, `known-player:v1` in local storage (name, picture, sign-in method; no password or
+token), and greets them instead: their picture, "Welcome back", **Sign in** with the name
+filled in, Quick game and **Not you? Use another account**. With the method `apple` or
+`facebook` the door is that provider's button; `/welcome?fixture=providers` forces those
+buttons on in the browser. Grammar cases `welcome-known`, `welcome-known-sv`,
+`welcome-known-long` (a 20-character name), `welcome-known-apple` and
+`welcome-known-facebook` seed the record; `welcome-invite` covers the invited guest.
+
+```sh
+UI_CASES=welcome,welcome-sv,welcome-invite,welcome-known,welcome-known-sv,welcome-known-long,welcome-known-apple,welcome-known-facebook \
+  UI_VIEWPORTS=portrait,android-portrait,small-portrait,landscape,tablet-portrait \
+  MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
+```
