@@ -84,6 +84,8 @@ export interface ReadinessSnapshot {
    * null when off, nothing could be filled, or the room is not waiting. Older servers leave it out.
    */
   bots_offer_in_ms?: number | null;
+  /** PID-439: why a finished table waits again, the host's reopen or a player leaving. Older servers leave it out. */
+  reopened_by?: 'host' | 'leave' | null;
 }
 
 /**

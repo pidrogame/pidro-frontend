@@ -152,6 +152,12 @@ export function createLobbyApi(api: ApiClient) {
       const response = await api.post<GetRoomResponse>(`/api/v1/rooms/${code}/fill-with-bots`);
       return normalizeRoom(response.data?.data?.room ?? response.data?.room);
     },
+
+    /** Host only, at game over (PID-439): the table waits again with everyone still seated. */
+    reopenRoom: async (code: string): Promise<Room> => {
+      const response = await api.post<GetRoomResponse>(`/api/v1/rooms/${code}/reopen`);
+      return normalizeRoom(response.data?.data?.room ?? response.data?.room);
+    },
   };
 }
 

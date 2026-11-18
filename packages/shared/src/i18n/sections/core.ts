@@ -85,6 +85,7 @@ export const en = {
   'table.actionError':
     'The server did not accept that change. Refresh and try again.',
   'table.reopened': 'A player left. Invite someone or add a bot.',
+  'table.reopenedByHost': '%{name} is changing the seats.',
   'table.rematch.tableNotFull':
     'A seat is empty. A rematch needs all four seats taken.',
   'table.rematch.tableChanged':
@@ -212,6 +213,7 @@ export const sv: Record<keyof typeof en, string> = {
     'Servern godtog inte ändringen. Uppdatera och försök igen.',
   'table.reopened':
     'En spelare lämnade bordet. Bjud in någon eller lägg till en bot.',
+  'table.reopenedByHost': '%{name} ändrar platserna vid bordet.',
   'table.rematch.tableNotFull':
     'En plats är tom. Alla fyra platser måste vara upptagna för en returmatch.',
   'table.rematch.tableChanged':
