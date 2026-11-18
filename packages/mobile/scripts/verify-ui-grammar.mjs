@@ -5279,7 +5279,10 @@ async function assertAuthFormInteractions(page, name, viewport) {
     const identifier = page.getByLabel('Username or email', { exact: true });
     const password = page.getByLabel('Password', { exact: true });
     // Sign in sends the install, so a password only the old Pidro knows finds that account.
-    await page.evaluate(() => localStorage.setItem('install-id:v1', 'ui-install'));
+    // A stored id that is not a v4 UUID is replaced, so the seeded one has to be one.
+    await page.evaluate(() =>
+      localStorage.setItem('install-id:v1', '00000000-0000-4000-8000-000000000455')
+    );
     await page.getByRole('button', { name: 'Sign in', exact: true }).click();
     await page.getByText('Enter your email or username.', { exact: true }).waitFor();
     await page.getByText('Enter your password.', { exact: true }).waitFor();
@@ -5302,7 +5305,7 @@ async function assertAuthFormInteractions(page, name, viewport) {
         password: passwordValue,
         age_band: '18_plus',
         terms_version: '1',
-        install_id: 'ui-install',
+        install_id: '00000000-0000-4000-8000-000000000455',
       },
       name,
       viewport
