@@ -3211,23 +3211,28 @@ const TABLE_MESSAGES = {
 
 // Each Classic step has one job, with the same default forward button.
 async function assertClassicLogin(page, testCase, viewport) {
+  // PID-454: one door for every account, old or new, and no Classic plaque.
   if (testCase.path === '/welcome') {
     const sv = testCase.locale === 'sv';
-    const plaque = page.getByRole('button', {
+    const door = page.getByRole('button', {
       name: sv
-        ? 'Spelar du redan Pidro? Ta med ditt namn och dina spel.'
-        : 'Already play Pidro? Bring your name and games.',
+        ? 'Jag har ett konto. Från gamla Pidro eller nya.'
+        : 'I have an account. From the old Pidro or the new one.',
       exact: true,
     });
-    await plaque.waitFor();
+    await door.waitFor();
+    const screen = page.getByTestId('welcome-screen');
+    assert.doesNotMatch(
+      await screen.innerText(),
+      /Classic|Already play Pidro|Spelar du redan Pidro|Play online|Spela online/,
+      `${testCase.name}: the old doors`
+    );
     const fullScreenFit =
       !testCase.pendingInvite &&
-      ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(viewport.name);
-    await assertAccountSurfaceFits(
-      fullScreenFit ? page.getByTestId('welcome-screen') : plaque,
-      testCase.name,
-      viewport
-    );
+      ['portrait', 'small-portrait', 'android-portrait', 'landscape', 'tablet-portrait'].includes(
+        viewport.name
+      );
+    await assertAccountSurfaceFits(fullScreenFit ? screen : door, testCase.name, viewport);
     return;
   }
   if (testCase.path === '/(auth)/forgot-password') {
@@ -5413,7 +5418,7 @@ async function assertWelcomeGuestInteractions(page, name, viewport) {
   });
 
   const submit = page.getByRole('button', {
-    name: 'Quick game. You and three bots. No sign-up.',
+    name: 'Quick game. You and three bots, no sign-up.',
     exact: true,
   });
   await submit.click();

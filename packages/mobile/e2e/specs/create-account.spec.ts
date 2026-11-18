@@ -14,7 +14,7 @@ test('a new player creates an account, stays signed in, and signs out @responsiv
 }) => {
   const register = new RegisterScreen(page);
   await page.goto('/');
-  await new WelcomeWindow(page).playOnline.click({ timeout: 30_000 });
+  await new WelcomeWindow(page).createAccount.click({ timeout: 30_000 });
   await expect(register.root).toBeVisible();
 
   // Bad input is caught before anything is sent.

@@ -1,7 +1,6 @@
 import { test, expect } from '../fixtures';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
 import { ProfileScreen } from '../screens/profile-screen';
-import { WelcomeWindow } from '../screens/welcome-window';
 
 // What Classic kept: an old total (frozen in 2016) and a counter used since.
 const accounts = [
@@ -12,8 +11,8 @@ const accounts = [
 
 for (const { kind, title, games } of accounts) {
   test(`a Classic account with ${title} shows ${games} games played`, async ({ page, player }) => {
-    await page.goto('/');
-    await new WelcomeWindow(page).classicPlaque.click({ timeout: 30_000 });
+    // The old-account flow's own screens; Sign in leads here when it finds one.
+    await page.goto('/claim-classic');
     const claim = new ClaimClassicScreen(page);
     await claim.verify(`${kind}-${player.id}`, player.classicPassword);
     await expect(claim.found).toBeVisible();

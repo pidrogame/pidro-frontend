@@ -1,15 +1,14 @@
 import { test, expect } from '../fixtures';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
 import { ClassicForgotScreen } from '../screens/classic-forgot-screen';
-import { WelcomeWindow } from '../screens/welcome-window';
 
 // PID-312: a player with an emailed code may type it into the password box.
 test('after two wrong passwords for one login, the claim offers to email a code @responsive', async ({
   page,
   player,
 }) => {
-  await page.goto('/');
-  await new WelcomeWindow(page).classicPlaque.click({ timeout: 30_000 });
+  // The old-account flow's own screens; Sign in leads here when it finds one.
+  await page.goto('/claim-classic');
   const claim = new ClaimClassicScreen(page);
   const offer = claim.text(/We can email you a code/);
   const emailCode = claim.root.getByRole('link', { name: 'Email me a code', exact: true });

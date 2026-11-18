@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
 import { JoinInviteScreen } from '../screens/join-invite-screen';
+import { LoginScreen } from '../screens/login-screen';
 import { WelcomeWindow } from '../screens/welcome-window';
 import { inviteToTable } from '../support/api';
 import { newPlayer } from '../support/player';
@@ -11,9 +12,9 @@ test('an invite survives a Classic claim and ends at that table', async ({ page,
   const welcome = new WelcomeWindow(page);
   await expect(welcome.root.getByText('saved you a seat')).toBeVisible({ timeout: 30_000 });
 
-  await welcome.classicPlaque.click();
+  await welcome.haveAccount.click();
+  await new LoginScreen(page).signIn(player.classicLogin, player.classicPassword);
   const claim = new ClaimClassicScreen(page);
-  await claim.verify(player.classicLogin, player.classicPassword);
   await expect(claim.found).toBeVisible();
   await claim.confirmIdentity();
   await claim.createAccountAndClaim({

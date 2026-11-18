@@ -17,11 +17,10 @@ test('a Classic player claims their account from the first launch @responsive', 
     if (request.url().includes('/api/v1/classic/claim')) claims += 1;
   });
   await page.goto('/');
-  await new WelcomeWindow(page).classicPlaque.click({ timeout: 30_000 });
+  // One door for every account: Sign in finds the old one and asks "Is this you?" (PID-454).
+  await new WelcomeWindow(page).haveAccount.click({ timeout: 30_000 });
+  await new LoginScreen(page).signIn(player.classicLogin, player.classicPassword);
   const claim = new ClaimClassicScreen(page);
-  await expect(claim.root).toBeVisible();
-
-  await claim.verify(player.classicLogin, player.classicPassword);
   await expect(claim.found).toBeVisible();
   await expect(claim.root.locator('input')).toHaveCount(0);
   await expect(claim.button('Save and play')).toHaveCount(0);

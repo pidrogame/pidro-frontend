@@ -3,7 +3,6 @@ import { AuthSheet } from '../screens/auth-sheet';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
 import { HomeScreen } from '../screens/home-screen';
 import { ProfileScreen } from '../screens/profile-screen';
-import { WelcomeWindow } from '../screens/welcome-window';
 import { guest } from '../support/api';
 import { RESERVED_CLASSIC_NAME } from '../support/player';
 import { startSignedIn } from '../support/session';
@@ -16,11 +15,7 @@ test('every way into the Classic claim opens it in front', async ({ page, player
     await expect(sheet.root).toBeHidden();
   }
 
-  // Welcome, before there is a player.
-  await page.goto('/');
-  await new WelcomeWindow(page).classicPlaque.click({ timeout: 30_000 });
-  await opensInFront();
-
+  // Welcome has no entry of its own since PID-454: its Sign in leads here when it finds one.
   await startSignedIn(page, await guest(player));
 
   // A guest's Home.

@@ -14,7 +14,7 @@ export const ANALYTICS_EVENTS = [
   'guest_created',
   'hand_started',
   'orientation_changed',
-  'classic_entry_tapped',
+  'account_entry_tapped',
   'guest_chosen',
   'claim_started',
   'claim_succeeded',

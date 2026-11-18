@@ -25,7 +25,7 @@ test("PID-247: signing up through someone's link sends them a friend request the
     { slug: bertil.user.share_slug, displayName: bertilPlayer.name, receivedAt: Date.now() }
   );
   await page.goto('/');
-  await new WelcomeWindow(page).playOnline.click({ timeout: 30_000 });
+  await new WelcomeWindow(page).createAccount.click({ timeout: 30_000 });
   const registered = page.waitForResponse(
     (response) => new URL(response.url()).pathname === '/api/v1/auth/register'
   );

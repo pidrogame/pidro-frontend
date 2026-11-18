@@ -6,15 +6,15 @@ export class WelcomeWindow extends Screen {
     super(page, 'welcome-window');
   }
 
+  get haveAccount() {
+    return this.root.getByTestId('welcome-have-account');
+  }
+
   get quickGame() {
     return this.root.getByTestId('welcome-quick-game');
   }
 
-  get playOnline() {
-    return this.root.getByTestId('welcome-play-online');
-  }
-
-  get classicPlaque() {
-    return this.text(/Already play Pidro\?/i);
+  get createAccount() {
+    return this.root.getByRole('link', { name: 'Create a free account', exact: true });
   }
 }

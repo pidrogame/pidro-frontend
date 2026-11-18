@@ -1,7 +1,6 @@
 import { test, expect } from '../fixtures';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
 import { ProfileScreen } from '../screens/profile-screen';
-import { WelcomeWindow } from '../screens/welcome-window';
 import { profile } from '../support/api';
 import { sessionOf } from '../support/session';
 
@@ -9,8 +8,8 @@ test('a Classic account with no username claims by its email and shows the first
   page,
   player,
 }) => {
-  await page.goto('/');
-  await new WelcomeWindow(page).classicPlaque.click({ timeout: 30_000 });
+  // The old-account flow's own screens; Sign in leads here when it finds one.
+  await page.goto('/claim-classic');
   const claim = new ClaimClassicScreen(page);
   await claim.verify(`nameless-${player.id}@classic.example`, player.classicPassword);
   await expect(claim.found).toBeVisible();

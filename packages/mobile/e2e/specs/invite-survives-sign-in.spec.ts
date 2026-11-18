@@ -12,7 +12,7 @@ test('an invite survives sign in and ends at that table', async ({ page, player 
   const welcome = new WelcomeWindow(page);
   await expect(welcome.root.getByText('saved you a seat')).toBeVisible({ timeout: 30_000 });
 
-  await welcome.root.getByRole('link', { name: 'Sign in' }).click();
+  await welcome.haveAccount.click();
   await new LoginScreen(page).signIn(player.email, player.password);
   await new JoinInviteScreen(page).joinTable();
   await page.waitForURL(`**/game/${room}`);

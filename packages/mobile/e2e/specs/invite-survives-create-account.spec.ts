@@ -11,7 +11,7 @@ test('an invite survives create account and ends at that table', async ({ page, 
   const welcome = new WelcomeWindow(page);
   await expect(welcome.root.getByText('saved you a seat')).toBeVisible({ timeout: 30_000 });
 
-  await welcome.playOnline.click();
+  await welcome.createAccount.click();
   await new RegisterScreen(page).createAccount(player);
   await new JoinInviteScreen(page).joinTable();
   await page.waitForURL(`**/game/${room}`);

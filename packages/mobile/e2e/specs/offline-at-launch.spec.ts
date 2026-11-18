@@ -13,7 +13,7 @@ test('offline, Welcome says so and holds the buttons, and plays on once back onl
   await context.setOffline(true);
   await expect(welcome.text("You're offline. Connect to play.")).toBeVisible();
   await expect(welcome.quickGame).toBeDisabled();
-  await expect(welcome.playOnline).toBeDisabled();
+  await expect(welcome.haveAccount).toBeDisabled();
 
   await context.setOffline(false);
   await expect(welcome.text("You're offline. Connect to play.")).toBeHidden();

@@ -253,6 +253,8 @@ export const UI_VIEWPORTS = [
     cases: [
       ...statusSeatCases,
       ...teamCases,
+      'welcome',
+      'welcome-sv',
       'table-small-west-deals',
       'table-small-north-bid',
       'table-small-your-turn',

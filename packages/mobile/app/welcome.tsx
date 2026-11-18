@@ -1,21 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { Redirect, useRouter, type Href } from 'expo-router';
 import { useNetworkState } from 'expo-network';
 import type { InvitePreview } from '@pidro/shared';
 import { captureAnalytics } from '@/analytics/PostHogAnalytics';
 import { adsApi } from '@/api/ads';
 import { invitesApi } from '@/api/invites';
-import { ClassicPlaque } from '@/components/home/ClassicPlaque';
 import { LogoGlow } from '@/components/home/LogoGlow';
 import { BevelButton } from '@/components/ui/BevelButton';
-import { HomeTileButton, type HomeTileSize } from '@/components/ui/HomeTileButton';
 import { Icon } from '@/components/ui/Icon';
 import { PidroLogo } from '@/components/ui/PidroLogo';
 import { PidroText } from '@/components/ui/PidroText';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
-import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
+import { TextLink } from '@/components/ui/TextLink';
+import { PidroBevel, PidroColors, PidroFonts, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { createSoloRoom } from '@/features/game/solo';
 import { useAuth } from '@/hooks/useAuth';
 import { classifyInviteState } from '@/features/invites/joinFlow';
@@ -37,7 +36,6 @@ export default function WelcomeScreen() {
   const landscape = width > height;
   const compactLandscape = landscape && height < PidroLayout.compactHeight;
   const tablet = Math.min(width, height) >= 700;
-  const tileSize: HomeTileSize = tablet ? 'tablet' : compactLandscape ? 'landscape' : 'phone';
   const network = useNetworkState();
   const offline = network.isConnected === false || network.isInternetReachable === false;
   const pendingInvite = usePendingInviteStore((state) => state.pendingInvite);
@@ -206,69 +204,90 @@ export default function WelcomeScreen() {
             </Surface>
           ) : null}
 
-          <View style={[styles.tiles, tablet && styles.tilesTablet]}>
-            <HomeTileButton
-              material="wood"
-              icon={
-                <Icon
-                  name="bot"
-                  size={tablet ? 40 : compactLandscape ? 28 : 30}
-                  color={PidroBevel.textGold}
-                />
-              }
-              title={t('auth.quick')}
-              subtitle={t('auth.bots')}
-              status={t('auth.no_signup')}
-              size={tileSize}
-              disabled={offline}
-              loading={launchBusy}
-              onPress={launch}
-              testID="welcome-quick-game"
-            />
-            <HomeTileButton
-              material="glass"
-              icon={
-                <Icon
-                  name="friends"
-                  size={tablet ? 40 : compactLandscape ? 28 : 30}
-                  color={PidroColors.iconOnGlass}
-                />
-              }
-              title={t('auth.online')}
-              subtitle={t('auth.real_players')}
-              status={t('auth.needs_account')}
-              size={tileSize}
-              disabled={offline || launchBusy}
-              onPress={() => router.push('/(auth)/register')}
-              testID="welcome-play-online"
-            />
-          </View>
-
-          <ClassicPlaque
+          {/* One door for every account, old or new: Sign in finds either (PID-455). */}
+          <BevelButton
+            testID="welcome-have-account"
+            accessibilityLabel={`${t('auth.have_account')}. ${t('auth.have_account_detail')}.`}
+            material="wood"
+            size="md"
+            fullWidth
             disabled={offline || launchBusy}
             onPress={() => {
-              captureAnalytics('classic_entry_tapped');
-              router.push('/(auth)/claim-classic');
-            }}
-          />
+              captureAnalytics('account_entry_tapped');
+              router.push('/(auth)/login');
+            }}>
+            <DoorLabel
+              title={t('auth.have_account')}
+              detail={t('auth.have_account_detail')}
+              wood
+              tablet={tablet}
+            />
+          </BevelButton>
+          <BevelButton
+            testID="welcome-quick-game"
+            accessibilityLabel={`${t('auth.quick')}. ${t('auth.quick_detail')}.`}
+            accessibilityState={{ busy: launchBusy }}
+            material="glass"
+            size="md"
+            fullWidth
+            disabled={offline || launchBusy}
+            onPress={launch}>
+            <DoorLabel
+              title={t('auth.quick')}
+              detail={launchBusy ? null : t('auth.quick_detail')}
+              tablet={tablet}
+            />
+          </BevelButton>
 
-          <View style={[styles.accountLinks, (offline || launchBusy) && styles.disabled]}>
-            <PidroText role="metadata" tone="cyan">
-              {t('auth.have_account')}
+          <View style={styles.newHere}>
+            <PidroText role="body" tone="soft">
+              {t('auth.new_here')}
             </PidroText>
-            <Pressable
-              accessibilityRole="link"
+            <TextLink
+              label={t('auth.create_free')}
+              size={tablet ? 16 : 15}
               disabled={offline || launchBusy}
-              onPress={() => router.push('/(auth)/login')}
-              style={styles.accountLink}>
-              <PidroText role="metadata" tone="cyan" style={styles.signIn}>
-                {t('auth.sign_in')}
-              </PidroText>
-            </Pressable>
+              style={styles.newHereLink}
+              onPress={() => router.push('/(auth)/register')}
+            />
           </View>
         </View>
       </View>
     </ScreenShell>
+  );
+}
+
+/** A door's name, and under it what it leads to; a spinner stands in while it opens. */
+function DoorLabel({
+  title,
+  detail,
+  wood = false,
+  tablet,
+}: {
+  title: string;
+  detail: string | null;
+  wood?: boolean;
+  tablet: boolean;
+}) {
+  return (
+    <View style={styles.door}>
+      <PidroText
+        align="center"
+        maxFontSizeMultiplier={1.3}
+        style={[wood ? styles.woodTitle : styles.glassTitle, tablet && styles.titleTablet]}>
+        {title}
+      </PidroText>
+      {detail ? (
+        <PidroText
+          align="center"
+          maxFontSizeMultiplier={1.3}
+          style={[styles.detail, wood && styles.woodDetail, tablet && styles.detailTablet]}>
+          {detail}
+        </PidroText>
+      ) : (
+        <ActivityIndicator color={wood ? PidroBevel.textGold : PidroColors.text} />
+      )}
+    </View>
   );
 }
 
@@ -318,8 +337,6 @@ const styles = StyleSheet.create({
   },
   actionsLandscape: { width: 330 },
   actionsTablet: { maxWidth: 480, gap: PidroSpacing.lg },
-  tiles: { width: '100%', flexDirection: 'row', gap: PidroSpacing.sm },
-  tilesTablet: { gap: PidroSpacing.md },
   inviteCard: {
     minHeight: 64,
     padding: PidroSpacing.sm,
@@ -338,17 +355,40 @@ const styles = StyleSheet.create({
   inviteCopy: { flex: 1, minWidth: 0 },
   offline: { padding: PidroSpacing.sm, borderColor: PidroColors.gold },
   error: { padding: PidroSpacing.sm },
-  accountLinks: {
+  door: { alignItems: 'center', gap: 2 },
+  woodTitle: {
+    fontFamily: PidroFonts.display,
+    fontWeight: '400',
+    fontSize: 25,
+    lineHeight: 33,
+    color: PidroBevel.textGold,
+    ...PidroBevel.labelShadow,
+    transform: [{ translateY: -1 }],
+  },
+  glassTitle: {
+    fontFamily: PidroFonts.ui,
+    fontWeight: '900',
+    fontSize: 20,
+    lineHeight: 26,
+    color: PidroColors.text,
+    ...PidroBevel.glassLabelShadow,
+    transform: [{ translateY: -0.5 }],
+  },
+  titleTablet: { fontSize: 28, lineHeight: 36 },
+  detail: {
+    fontFamily: PidroFonts.ui,
+    fontWeight: '700',
+    fontSize: 15,
+    lineHeight: 20,
+    color: PidroColors.text,
+  },
+  woodDetail: { color: PidroColors.textOnWood },
+  detailTablet: { fontSize: 17, lineHeight: 22 },
+  newHere: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: PidroSpacing.xxs,
   },
-  accountLink: {
-    minHeight: PidroLayout.touchTarget,
-    justifyContent: 'center',
-    paddingHorizontal: PidroSpacing.sm,
-  },
-  signIn: { fontWeight: '800' },
-  disabled: { opacity: 0.5 },
+  newHereLink: { paddingHorizontal: 6 },
 });

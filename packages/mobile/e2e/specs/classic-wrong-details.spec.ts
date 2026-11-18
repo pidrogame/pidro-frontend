@@ -1,13 +1,12 @@
 import { test, expect } from '../fixtures';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
-import { WelcomeWindow } from '../screens/welcome-window';
 
 test('someone who mistypes their Classic details is told and can try again', async ({
   page,
   player,
 }) => {
-  await page.goto('/');
-  await new WelcomeWindow(page).classicPlaque.click({ timeout: 30_000 });
+  // The old-account flow's own screens; Sign in leads here when it finds one.
+  await page.goto('/claim-classic');
   const claim = new ClaimClassicScreen(page);
   await expect(claim.root).toBeVisible();
 
