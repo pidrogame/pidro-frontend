@@ -109,7 +109,14 @@ import {
   type TalkPlace,
 } from '@/components/game/TableTalk';
 import { TalkSheet } from '@/components/game/TalkSheet';
-import { talker, talkTable, typingFor, unreadBy, type Said } from '@/features/game/talk';
+import {
+  talker,
+  talkTable,
+  typingFor,
+  unreadBy,
+  type Clearance,
+  type Said,
+} from '@/features/game/talk';
 import { useTableTalk, type TalkFixture } from '@/game/useTableTalk';
 
 type Props = {
@@ -819,6 +826,12 @@ export function GameCanvasTable({
   const bubbleTop = layout.tight
     ? row.top + TIGHT_SOUTH_GAP + (yourSize - TALK_ROW) / 2
     : row.bottom - 4 - yours.name.lineHeight - yours.status.lineHeight - (yourSize + TALK_ROW) / 2;
+  const speechBox = {
+    x: width - insets.right - PidroSpacing.sm - TALK_ROW,
+    y: bubbleTop,
+    width: TALK_ROW,
+    height: TALK_ROW,
+  };
   const talkRoom = upright
     ? width -
       insets.right -
@@ -876,12 +889,18 @@ export function GameCanvasTable({
     players.flatMap((player) => {
       const landed = talk.landed[player.absolutePosition];
       if (!landed) return [];
-      const draw = (at: ComponentProps<typeof TalkLanding>['at'], ring: number) => (
+      const draw = (
+        at: ComponentProps<typeof TalkLanding>['at'],
+        ring: number,
+        clear?: Clearance
+      ) => (
         <TalkLanding
           key={landed.key}
           landed={landed}
           at={at}
           ring={ring}
+          // Upright, talk's own bubble at the right end of your seat row is in the way too.
+          clear={clear && (upright ? { ...clear, boxes: [...clear.boxes, speechBox] } : clear)}
           name={who(landed).name}
           rise={player.isYou ? 60 : 12}
           // Upright, yours rises once the offer's tail has folded back (PID-396).

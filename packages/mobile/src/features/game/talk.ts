@@ -217,6 +217,93 @@ export function tailFit(room: number, widths: Record<TailSize, number>): TailSiz
   return TAIL_SIZES.find((size) => widths[size] <= room) ?? null;
 }
 
+/** Where a seat's talk lands against its avatar ring. */
+export type SaidAt = 'aboveStart' | 'aboveEnd' | 'besideStart' | 'besideEnd' | 'below';
+
+/** A box at the table, in the seat layer's points. */
+export interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * What a landing keeps clear of (PID-471): every other seat's face, name, plate
+ * and line, and every card, as `boxes`; its own seat's name and line as `own`,
+ * which it may start past; and where it goes instead, in turn, when its
+ * longest word will not fit where it would land.
+ */
+export interface Clearance {
+  ring: Box;
+  own: Box | null;
+  boxes: Box[];
+  instead: SaidAt[];
+}
+
+/**
+ * A landing against its ring: above or below it, the bubble starts `tailIn`
+ * before the ring's middle, `lift` off it; beside it, `beside` off its side,
+ * `top` down. It is at most `widest` wide, stops `clear` short of a box, and a
+ * face's bubble needs `least` to hold its emoji.
+ */
+export const LANDING = {
+  widest: 150,
+  least: 44,
+  tailIn: 22,
+  lift: 8,
+  beside: 10,
+  top: 2,
+  clear: 6,
+};
+
+/**
+ * How wide a landing at `at` may be (PID-471), `tall` points tall: from where
+ * it starts toward the first box in the rows it fills, short of it by `clear`.
+ * Where its own name and line reach past that start, it starts `push` further
+ * out, past them.
+ */
+export function landingRoom(
+  at: SaidAt,
+  { ring, own, boxes }: Pick<Clearance, 'ring' | 'own' | 'boxes'>,
+  tall: number
+): { room: number; push: number } {
+  const mid = ring.x + ring.width / 2;
+  const above = ring.y - LANDING.lift - tall;
+  const [start, ahead, top] = {
+    aboveStart: [mid - LANDING.tailIn, 1, above],
+    aboveEnd: [mid + LANDING.tailIn, -1, above],
+    below: [mid - LANDING.tailIn, 1, ring.y + ring.height + LANDING.lift],
+    besideEnd: [ring.x + ring.width + LANDING.beside, 1, ring.y + LANDING.top],
+    besideStart: [ring.x - LANDING.beside, -1, ring.y + LANDING.top],
+  }[at];
+  const inRows = (box: Box) => box.y < top + tall && box.y + box.height > top;
+  // How far a box's far and near edges lie ahead of `from`.
+  const far = (box: Box, from: number) => (ahead > 0 ? box.x + box.width - from : from - box.x);
+  const near = (box: Box, from: number) => (ahead > 0 ? box.x - from : from - box.x - box.width);
+  const push =
+    own && inRows(own) && near(own, start) < 0 ? Math.max(0, far(own, start) + LANDING.clear) : 0;
+  const from = start + ahead * push;
+  const room = boxes.reduce(
+    (most, box) =>
+      !inRows(box) || far(box, from) <= 0
+        ? most
+        : Math.min(most, Math.max(0, near(box, from) - LANDING.clear)),
+    LANDING.widest
+  );
+  return { room, push };
+}
+
+/**
+ * Where a landing goes (PID-471): the first place whose room holds its longest
+ * `word`, so no word is cut. Where none does, null: it keeps the place and
+ * width it always had, since a bubble over a plate's corner is the smaller
+ * fault than a word cut in two.
+ */
+export function landingPlace<P extends { room: number }>(places: readonly P[], word: number) {
+  return places.find((place) => place.room >= word) ?? null;
+}
+
 /** A word in two lines, broken at the space nearest its middle: "Nice / trick!". */
 export function twoLines(text: string): string {
   const spaces = [...text.matchAll(/ /g)].map((match) => match.index);

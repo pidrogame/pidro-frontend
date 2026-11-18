@@ -26,6 +26,8 @@ import {
   View,
   type ImageSourcePropType,
   type ImageStyle,
+  type LayoutChangeEvent,
+  type LayoutRectangle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -41,6 +43,7 @@ import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tok
 import { avatarLabel, avatarParts } from '@/features/avatar';
 import { lineFit, seatLine, seatPlate, type SeatLine } from '@/features/game/seatLine';
 import { whosePoints } from '@/features/game/points';
+import type { Box, Clearance, SaidAt } from '@/features/game/talk';
 import {
   AVATAR_SIZE,
   compactNorth,
@@ -193,11 +196,18 @@ type Props = {
   held?: HeldStyle;
   bid?: { seat: RelativePosition | undefined; amount: number };
   /** What each seat just said (PID-114), drawn where its ring is. */
-  said?: Partial<Record<RelativePosition, (at: SaidAt, ring: number) => ReactNode>>;
+  said?: Partial<
+    Record<RelativePosition, (at: SaidAt, ring: number, clear?: Clearance) => ReactNode>
+  >;
 };
 
-/** Where a seat's talk lands against its avatar ring. */
-export type SaidAt = 'aboveStart' | 'aboveEnd' | 'besideStart' | 'besideEnd' | 'below';
+/** A box grown by `dx` each side and `dy` above and below. */
+const grow = (box: Box, dx: number, dy: number): Box => ({
+  x: box.x - dx,
+  y: box.y - dy,
+  width: box.width + 2 * dx,
+  height: box.height + 2 * dy,
+});
 
 export function SeatLayer({
   seats,
@@ -224,6 +234,7 @@ export function SeatLayer({
   const out = REL.map((rel) => !!seats[rel]?.out);
   const viewer = viewerOf(seats);
   const [previousOut, setPreviousOut] = useState(out);
+  const [frames, setFrames] = useState<Record<string, LayoutRectangle>>({});
   const [folding, setFolding] = useState<RelativePosition[]>([]);
   if (out.some((cold, i) => cold !== previousOut[i])) {
     setPreviousOut(out);
@@ -410,6 +421,128 @@ export function SeatLayer({
         ? { x: L.hand.cx, y: L.hand.cy }
         : { x: sideEdge(dealer), y: sideStackCy };
 
+  const shown = (rel: RelativePosition, data: TableSeat) => {
+    const line = quiet ? null : seatLine(data, statusByRel?.[rel], firstHand);
+    // A spectator sees North–South as the first team.
+    const team = whosePoints(data.absolutePosition, viewer).column;
+    const seat = quiet
+      ? {
+          ...avatarFor(data, false, null, undefined, team),
+          level: null,
+          turn: null,
+          plate: null,
+        }
+      : {
+          ...avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team, nudge),
+          ...(!levels && { level: null }),
+        };
+    // Your tight seat's line alone, under your avatar: your turn, or a short line when it has one.
+    const tightLine =
+      seat.plate === 'turn' && seat.status !== line?.text ? seat.status : (line?.short ?? null);
+    return { line, team, seat, tightLine };
+  };
+  // What talk keeps clear of (PID-471), in this layer's points: each seat's ring, with its
+  // turn light or dealer chip, and its name and line on their plate, from their own layouts.
+  // Always measured, so a table that turns talk on later already knows where its seats are.
+  const frame =
+    (key: string) =>
+    ({ nativeEvent: { layout } }: LayoutChangeEvent) =>
+      setFrames((was) =>
+        was[key] && (['x', 'y', 'width', 'height'] as const).every((k) => was[key][k] === layout[k])
+          ? was
+          : { ...was, [key]: layout }
+      );
+  const drawn = (rel: RelativePosition) => {
+    const data = seats[rel];
+    const [place, avatarAt, ringAt] = ['place', 'avatar', 'ring'].map((k) => frames[`${k}-${rel}`]);
+    if (!data || !place || !avatarAt || !ringAt) return null;
+    const { seat, tightLine } = shown(rel, data);
+    // Upright, North's and the side seats' views glide to their tops (PID-470): their frames start at 0.
+    const glided = !portrait
+      ? 0
+      : rel === 'north'
+        ? northSeatTop
+        : rel === 'east' || rel === 'west'
+          ? sideSeatPos.top
+          : 0;
+    const x = place.x + avatarAt.x;
+    const y = glided + place.y + avatarAt.y;
+    const halo = Math.max(
+      seat.turn && parts.turn ? parts.turn.radius + parts.turn.stroke - size / 2 : 0,
+      seat.dealer && parts.dealer ? -parts.dealer.left : 0
+    );
+    const ring = { x: x + ringAt.x, y: y + ringAt.y, width: size, height: size };
+    // Your tight seat drops its name and line when it has nothing to say: their last frame stays.
+    const copyAt =
+      tight && rel === 'south' && data.isYou && tightLine == null ? null : frames[`copy-${rel}`];
+    const edge = seat.plate ? PLATE_REACH : 0;
+    return {
+      ring,
+      lit: grow(ring, halo, halo),
+      copy:
+        copyAt && grow({ ...copyAt, x: x + copyAt.x, y: y + copyAt.y }, edge, seat.plate ? 6 : 0),
+    };
+  };
+  // The cards: North's fan, the side stacks, your hand, the trick and the dealer's pack.
+  const cards: Box[] = [
+    ...(northBacks > 0
+      ? [
+          (() => {
+            const fan = northFanWidth(L.cardW, northBacks, compactNorth(L));
+            const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
+            // The outer backs tilt out past the fan's width.
+            return grow(
+              { x: width / 2 - northShift - fan / 2, y: northBackTop, width: fan, height: backH },
+              backH / 5,
+              4
+            );
+          })(),
+        ]
+      : []),
+    ...(['west', 'east'] as const).flatMap((rel) => {
+      const n = seats[rel]?.out ? 0 : (seats[rel]?.cardCount ?? 0);
+      if (n === 0) return [];
+      const backsW = sideBackW * (110 / 78);
+      const edge = (rel === 'east' ? insets.right : insets.left) || -Math.min(L.cardW * 0.28, 18);
+      const tall = sideBackW + (n - 1) * sideStackStep(L.cardW, n, sideReach);
+      return [
+        grow(
+          {
+            x: rel === 'west' ? edge : width - edge - backsW,
+            y: sideStackCy - tall / 2,
+            width: backsW,
+            height: tall,
+          },
+          4,
+          4
+        ),
+      ];
+    }),
+    { x: 0, y: southRow(L).bottom, width, height },
+    grow(
+      { x: L.trick.cx, y: L.trick.cy, width: 0, height: 0 },
+      L.trick.r + (L.cardW * L.trick.pileScale) / 2,
+      L.trick.r + (L.cardH * L.trick.pileScale) / 2
+    ),
+    ...(packCount > 0 || taken > 0
+      ? [grow({ x: from.x, y: from.y, width: 0, height: 0 }, packBackW, packBackW)]
+      : []),
+    // The screen's sides, inside the safe area.
+    { x: -width, y: -height, width: width + insets.left, height: 3 * height },
+    { x: width - insets.right, y: -height, width, height: 3 * height },
+  ];
+  // Upright only: landscape and its seats keep the places they had.
+  const clearance = (rel: RelativePosition, instead: SaidAt[]): Clearance | undefined => {
+    const own = portrait ? drawn(rel) : null;
+    if (!own) return undefined;
+    const boxes = [...cards];
+    for (const other of REL) {
+      const them = other === rel ? null : drawn(other);
+      if (them) boxes.push(them.lit, ...(them.copy ? [them.copy] : []));
+    }
+    return { ring: own.ring, own: own.copy ?? null, boxes, instead };
+  };
+
   return (
     <View style={[StyleSheet.absoluteFill, quiet && styles.quiet]} pointerEvents="box-none">
       {seats.south && !seats.south.isYou ? (
@@ -543,20 +676,7 @@ export function SeatLayer({
       {REL.map((rel) => {
         const data = seats[rel];
         if (!data) return null;
-        const line = quiet ? null : seatLine(data, statusByRel?.[rel], firstHand);
-        // A spectator sees North–South as the first team.
-        const team = whosePoints(data.absolutePosition, viewer).column;
-        const seat = quiet
-          ? {
-              ...avatarFor(data, false, null, undefined, team),
-              level: null,
-              turn: null,
-              plate: null,
-            }
-          : {
-              ...avatarFor(data, dealerRel === rel, line, turnByRel?.[rel], team, nudge),
-              ...(!levels && { level: null }),
-            };
+        const { line, team, seat, tightLine } = shown(rel, data);
         const holds = !quiet && bid?.seat === rel ? bid.amount : null;
         // What the seat says aloud, its winning bid included.
         const spoken = { ...seat, bid: holds };
@@ -571,6 +691,7 @@ export function SeatLayer({
             testID={`seat-${rel}`}
             size={size}
             seat
+            onCopyLayout={frame(`copy-${rel}`)}
             label={labelSide}
             bid={holds != null ? { amount: holds, tone: team } : null}
             dealerTrail={dealerTrail}
@@ -611,10 +732,7 @@ export function SeatLayer({
               data.isYou && {
                 label: 'below' as const,
                 name: null,
-                status:
-                  seat.plate === 'turn' && seat.status !== line?.text
-                    ? seat.status
-                    : (line?.short ?? null),
+                status: tightLine,
                 accessibilityLabel: avatarLabel({ ...spoken, level: null }),
               })}
             {...(!portrait &&
@@ -667,26 +785,29 @@ export function SeatLayer({
         const talk = said?.[rel];
         // What the seat said lands at its ring, never over the cards or the
         // trick: side seats above, North and you beside it, landscape North below.
-        const landing = talk
-          ? talk(
-              rel === 'east'
-                ? 'aboveEnd'
-                : rel === 'west' || (rel === 'south' && !portrait)
-                  ? 'aboveStart'
-                  : rel === 'north' && !portrait
-                    ? 'below'
-                    : rel === 'north' && tight
-                      ? 'besideStart'
-                      : 'besideEnd',
-              size
-            )
-          : null;
+        // Where it lands first, then where it goes when its longest word will not fit there,
+        // short of every seat and card (PID-471): side seats above their rings, then beside
+        // them toward the trick; North and you beside, then the other side; landscape North below.
+        const places: SaidAt[] =
+          rel === 'east'
+            ? ['aboveEnd', 'besideStart']
+            : rel === 'west'
+              ? ['aboveStart', 'besideEnd']
+              : !portrait
+                ? [rel === 'north' ? 'below' : 'aboveStart']
+                : rel === 'north' && tight
+                  ? ['besideStart', 'below']
+                  : rel === 'north'
+                    ? ['besideEnd', 'besideStart']
+                    : ['besideEnd', 'besideStart', 'aboveStart'];
+        const landing = talk ? talk(places[0], size, clearance(rel, places.slice(1))) : null;
         // Always this wrapper, so a landing never remounts the avatar.
         const avatar = (
-          <View pointerEvents="box-none">
+          <View pointerEvents="box-none" onLayout={frame(`avatar-${rel}`)}>
             {still}
             <View
               pointerEvents="none"
+              onLayout={frame(`ring-${rel}`)}
               style={[
                 styles.ring,
                 { width: size, height: size },
@@ -711,6 +832,7 @@ export function SeatLayer({
             <View
               key={rel}
               pointerEvents="box-none"
+              onLayout={frame(`place-${rel}`)}
               style={{
                 position: 'absolute',
                 left: 0,
@@ -728,6 +850,7 @@ export function SeatLayer({
             <View
               key={rel}
               pointerEvents="box-none"
+              onLayout={frame(`place-${rel}`)}
               style={
                 portrait
                   ? {
@@ -780,6 +903,7 @@ export function SeatLayer({
                 style={[StyleSheet.absoluteFill, glide.northSeat]}>
                 <View
                   pointerEvents="box-none"
+                  onLayout={frame(`place-${rel}`)}
                   style={
                     tight
                       ? { position: 'absolute', top: 0, left: tightNorthLeft }
@@ -827,7 +951,10 @@ export function SeatLayer({
             <Animated.View
               pointerEvents="box-none"
               style={[StyleSheet.absoluteFill, glide.sideSeat]}>
-              <View style={[{ position: 'absolute' }, seatPos]} pointerEvents="box-none">
+              <View
+                style={[{ position: 'absolute' }, seatPos]}
+                pointerEvents="box-none"
+                onLayout={frame(`place-${rel}`)}>
                 {avatar}
               </View>
             </Animated.View>

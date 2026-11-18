@@ -128,6 +128,8 @@ export interface PlayerAvatarProps {
    */
   seat?: boolean;
   plate?: 'turn' | 'out' | null;
+  /** Where the name and line lie, inside the avatar's box: talk keeps clear of them (PID-471). */
+  onCopyLayout?: (e: LayoutChangeEvent) => void;
   /** At the table the name says the team: `us` is you and your partner. */
   nameTone?: 'default' | 'us' | 'them';
   statusTone?: 'default' | 'now' | 'quiet' | 'high' | 'warning' | 'danger';
@@ -177,6 +179,7 @@ export function PlayerAvatar({
   label = 'below',
   seat = false,
   plate = null,
+  onCopyLayout,
   nameTone = 'default',
   statusTone = 'default',
   accessibilityLabel,
@@ -514,6 +517,7 @@ export function PlayerAvatar({
       {avatar}
       {hasLabel ? (
         <View
+          onLayout={onCopyLayout}
           style={[
             styles.copy,
             below

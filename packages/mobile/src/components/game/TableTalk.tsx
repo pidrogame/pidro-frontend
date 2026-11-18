@@ -36,17 +36,21 @@ import {
 import { OFFER_MS, type Offer } from '@/features/game/offers';
 import {
   isCoin,
+  LANDING,
+  landingPlace,
+  landingRoom,
   TALK_EMOJI,
   TAIL_SIZES,
   tailFit,
   talkKey,
   twoLines,
+  type Clearance,
   type Landed,
   type Said,
+  type SaidAt,
   type TailSize,
   type TalkItem,
 } from '@/features/game/talk';
-import type { SaidAt } from '@/game/canvas/SeatLayer';
 import { t, useTranslation } from '@/i18n';
 
 /** The band's one row: a word, a coin and the speech button are all this tall. */
@@ -177,11 +181,14 @@ export function TalkLanding({
   ring,
   rise,
   wait = 0,
+  clear,
 }: {
   landed: Landed;
   name: string;
   /** Where, against the seat's avatar ring (SeatLayer picks). */
   at: SaidAt;
+  /** What it keeps clear of, and where else it may go (PID-471). */
+  clear?: Clearance;
   /** The avatar ring's size: a landing is placed in plain numbers from it. */
   ring: number;
   /** How far it travels in: yours comes up from the band. */
@@ -219,34 +226,102 @@ export function TalkLanding({
   });
   const text = talkText(landed);
   const face = isCoin(landed.item) ? landed.item : null;
+  // Its longest word, and how tall it stands once wrapped at each place: only ever taller, so it settles.
+  const [word, setWord] = useState<{ key: number; width: number } | null>(null);
+  const [tall, setTall] = useState<{ key: number } & Partial<Record<SaidAt | 'wide', number>>>({
+    key: landed.key,
+  });
+  const wordWidth = face ? 0 : word?.key === landed.key ? word.width : null;
+  // A place it has not stood at yet is judged at least as tall as it stands at its widest,
+  // which it first lays out at, unseen: no place is wider.
+  const widest = (tall.key === landed.key && tall.wide) || ONE_LINE;
+  const place = (clear && wordWidth != null
+    ? landingPlace(
+        [at, ...clear.instead].map((each) => ({
+          at: each,
+          ...landingRoom(
+            each,
+            clear,
+            Math.max((tall.key === landed.key && tall[each]) || 0, widest)
+          ),
+        })),
+        // A face needs its emoji whole, and its count beside it.
+        face
+          ? LANDING.least + (landed.count > 1 ? COUNT_WIDTH : 0)
+          : Math.ceil(wordWidth) + BUBBLE_EDGE
+      )
+    : null) ?? { at, room: LANDING.widest, push: 0 };
   return (
-    <Animated.View
-      testID="talk-landed"
-      accessible
-      accessibilityRole="text"
-      accessibilityLiveRegion="polite"
-      accessibilityLabel={t('talk.said', {
-        name,
-        text: landed.count > 1 ? `${text} ×${landed.count}` : text,
-      })}
-      exiting={reduceMotion ? undefined : FadeOut.duration(200)}
-      style={[styles.landing, styles[at], PLACE[at](ring), motion]}>
-      <View style={[styles.bubble, face && styles.faceBubble]}>
-        <View style={[styles.tail, TAIL[at]]} />
-        {face ? (
-          <Text style={styles.emoji} maxFontSizeMultiplier={1} importantForAccessibility="no">
-            {TALK_EMOJI[face]}
-            {landed.count > 1 ? <Text style={styles.times}> ×{landed.count}</Text> : null}
-          </Text>
-        ) : (
+    <>
+      <Animated.View
+        testID="talk-landed"
+        accessible
+        accessibilityRole="text"
+        accessibilityLiveRegion="polite"
+        accessibilityLabel={t('talk.said', {
+          name,
+          text: landed.count > 1 ? `${text} ×${landed.count}` : text,
+        })}
+        exiting={reduceMotion ? undefined : FadeOut.duration(200)}
+        style={[styles.landing, styles[place.at], PLACE[place.at](ring, place.push), motion]}>
+        <View
+          onLayout={({ nativeEvent }) => {
+            const laid = nativeEvent.layout.height;
+            // At its widest, its height there stands for every place too.
+            const keys = place.room >= LANDING.widest ? (['wide', place.at] as const) : [place.at];
+            setTall((was) => {
+              const now = was.key === landed.key ? was : { key: landed.key };
+              return keys.every((k) => (now[k] ?? 0) >= laid)
+                ? was
+                : {
+                    ...now,
+                    ...Object.fromEntries(keys.map((k) => [k, Math.max(now[k] ?? 0, laid)])),
+                  };
+            });
+          }}
+          style={[
+            styles.bubble,
+            { maxWidth: place.room },
+            face && styles.faceBubble,
+            // Unseen until its word is measured, so it never shows over a seat first.
+            clear && wordWidth == null && styles.unmeasured,
+          ]}>
+          <View style={[styles.tail, TAIL[place.at]]} />
+          {face ? (
+            <Text style={styles.emoji} maxFontSizeMultiplier={1} importantForAccessibility="no">
+              {TALK_EMOJI[face]}
+              {landed.count > 1 ? <Text style={styles.times}> ×{landed.count}</Text> : null}
+            </Text>
+          ) : (
+            <PidroText
+              style={[styles.word, landed.text ? styles.typed : null]}
+              numberOfLines={landed.text || place.room < LANDING.widest ? 4 : 2}>
+              {text}
+            </PidroText>
+          )}
+        </View>
+      </Animated.View>
+      {/* Beside the landing, not in it: what it says is said once. */}
+      {clear && !face ? (
+        <View
+          pointerEvents="none"
+          aria-hidden
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={styles.measure}>
           <PidroText
-            style={[styles.word, landed.text ? styles.typed : null]}
-            numberOfLines={landed.text ? 4 : 2}>
-            {text}
+            style={[styles.word, landed.text ? styles.typed : null, styles.measured]}
+            onLayout={({ nativeEvent }) => {
+              const width = nativeEvent.layout.width;
+              setWord((was) =>
+                was?.key === landed.key && was.width === width ? was : { key: landed.key, width }
+              );
+            }}>
+            {text.split(/\s+/).join('\n')}
           </PidroText>
-        )}
-      </View>
-    </Animated.View>
+        </View>
+      ) : null}
+    </>
   );
 }
 
@@ -510,15 +585,21 @@ function TalkTail({
   );
 }
 
-/** How far a landing sits from its ring. */
-const BESIDE = 10;
-const PLACE: Record<SaidAt, (ring: number) => ViewStyle> = {
-  aboveStart: (ring) => ({ bottom: ring + 8, left: ring / 2 - 22 }),
-  aboveEnd: (ring) => ({ bottom: ring + 8, right: ring / 2 - 22 }),
-  besideEnd: (ring) => ({ left: ring + BESIDE, top: 2 }),
-  besideStart: (ring) => ({ right: ring + BESIDE, top: 2 }),
-  below: (ring) => ({ top: ring + 8, left: ring / 2 - 22 }),
+/** How far a landing sits from its ring (`LANDING`). */
+const { tailIn, lift, beside, top } = LANDING;
+/** `push`: how much further out it starts, past its own name and line (PID-471). */
+const PLACE: Record<SaidAt, (ring: number, push: number) => ViewStyle> = {
+  aboveStart: (ring, push) => ({ bottom: ring + lift, left: ring / 2 - tailIn + push }),
+  aboveEnd: (ring, push) => ({ bottom: ring + lift, right: ring / 2 - tailIn + push }),
+  besideEnd: (ring, push) => ({ left: ring + beside + push, top }),
+  besideStart: (ring, push) => ({ right: ring + beside + push, top }),
+  below: (ring, push) => ({ top: ring + lift, left: ring / 2 - tailIn + push }),
 };
+/** A bubble's padding and edge either side of its words, and its height on one line. */
+const BUBBLE_EDGE = 2 * (11 + 1);
+const ONE_LINE = 21 + 2 * (7 + 1);
+/** What " ×3" adds beside a face. */
+const COUNT_WIDTH = 26;
 
 const TAIL: Record<SaidAt, ViewStyle> = {
   aboveStart: { bottom: -5, left: 17 },
@@ -736,7 +817,6 @@ const styles = StyleSheet.create({
   emoji: { fontSize: 20, lineHeight: 26 },
   times: { fontSize: 13, fontWeight: '800', color: PidroColors.leagueCardInk },
   bubble: {
-    maxWidth: 150,
     paddingHorizontal: 11,
     paddingVertical: 7,
     borderRadius: PidroRadii.tight,
@@ -753,7 +833,8 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   // A landing's box runs from the ring's middle (or its side) outward.
-  landing: { position: 'absolute', width: 150 },
+  landing: { position: 'absolute', width: LANDING.widest },
+  unmeasured: { opacity: 0 },
   aboveStart: { alignItems: 'flex-start' },
   aboveEnd: { alignItems: 'flex-end' },
   besideEnd: { alignItems: 'flex-start' },
