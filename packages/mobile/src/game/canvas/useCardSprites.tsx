@@ -48,6 +48,7 @@ import {
   handLift,
   handScale as handScaleFor,
   handStep,
+  handXs,
   playedCardTarget,
   trailSpot,
   trickOnCross,
@@ -130,13 +131,17 @@ const CUT_WINNER_READ_MS = 700;
 const cutRevealAt = (cuts: number) =>
   Math.max(0, cuts - 1) * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS + CUT_WINNER_PAUSE_MS;
 
-function handSlotFn(L: TableLayout, n: number) {
-  const step = handStep(L, n);
-  return (i: number) => {
-    const off = i - (n - 1) / 2;
-    // Straight row — no arc dip, no fan rotation (user preference).
-    return { x: L.hand.cx + off * step, y: L.hand.cy, rot: 0 };
-  };
+/**
+ * Your hand's places: a straight row, air where the suit changes (PID-461).
+ * Cards still arriving in deal order stand evenly until they are sorted.
+ */
+function handSlotFn(L: TableLayout, hand: TableCard[], dealing: boolean) {
+  const step = handStep(L, hand.length);
+  const xs = dealing
+    ? hand.map((_, i) => L.hand.cx + (i - (hand.length - 1) / 2) * step)
+    : handXs(L, hand);
+  // Straight row — no arc dip, no fan rotation (user preference).
+  return (i: number) => ({ x: xs[i], y: L.hand.cy, rot: 0 });
 }
 
 type HandTarget = {
@@ -264,7 +269,7 @@ export function useCardSprites({
     const prev = prevModel.current;
     const firstLoad = prev === null;
     const n = model.yourHand.length;
-    const handSlot = handSlotFn(L, n);
+    const handSlot = handSlotFn(L, model.yourHand, model.dealStage === 'dealing');
 
     // ── M3 diff triggers ────────────────────────────────────────────
     const prevHandLen = prev?.yourHand.length ?? 0;

@@ -1,7 +1,7 @@
 /**
- * Picking trump in the felt (PID-209): four suit buttons in one row, in the
- * order your hand is sorted (PID-461), so the hand you choose from stays in
- * view. Each shows its suit and how many trumps it would leave you. Pointing
+ * Picking trump in the felt (PID-209): four suit buttons in one row, in
+ * Classic's order, as your hand is sorted (PID-461), so the hand you choose
+ * from stays in view. Each shows its suit and how many trumps it would leave you. Pointing
  * at a suit (hover, or a finger still down) lifts the cards it would make
  * trump; one tap declares it.
  */
@@ -14,7 +14,7 @@ import { PidroColors, PidroRadii } from '@/design/tokens';
 import { trumpsIn } from '@/features/game/trump';
 import type { trumpPicker } from '@/game/canvas/layout';
 import type { Card, Suit } from '@/types/game';
-import { suitOrder } from '@/utils/cards';
+import { SUIT_ORDER } from '@/utils/cards';
 import { useTranslation } from '@/i18n';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
 
@@ -64,7 +64,7 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
         </PidroText>
       ) : null}
       <View style={[styles.row, { gap: frame.gap }]}>
-        {suitOrder(cards, null).map((suit) => {
+        {SUIT_ORDER.map((suit) => {
           const count = trumpsIn(cards, suit).length;
           const active = (chosen ?? preview) === suit;
           return (

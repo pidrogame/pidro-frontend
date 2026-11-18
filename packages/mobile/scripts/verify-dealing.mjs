@@ -13,16 +13,17 @@ const received = [
   'diamonds_6',
   'hearts_12',
 ];
+// Classic's order: hearts, diamonds, spades, clubs (PID-461).
 const sorted = [
-  'spades_14',
-  'spades_2',
   'hearts_12',
   'hearts_10',
   'hearts_3',
-  'clubs_13',
-  'clubs_8',
   'diamonds_11',
   'diamonds_6',
+  'spades_14',
+  'spades_2',
+  'clubs_13',
+  'clubs_8',
 ];
 // Explicit expectations, independent of the production clockwise helper.
 const orders = {

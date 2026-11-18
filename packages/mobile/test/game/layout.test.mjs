@@ -9,6 +9,7 @@ import {
   handLift,
   handPointsSize,
   handScale,
+  handXs,
   handStep,
   LANDSCAPE_SOUTH_LEFT,
   landscapeNameReach,
@@ -1155,6 +1156,65 @@ describe('landscape phones draw your hand the size of the table’s cards, besid
     const L = computeLayout(560, 340, { top: 0, bottom: 0, left: 48, right: 48 });
     expect(handStep(L, 9)).toBeLessThan(L.cardW * 0.72);
     expect(handLeft(L, 9)).toBeGreaterThanOrEqual(48 + 188 + 6);
+  });
+});
+
+// PID-461: air where your hand's suit changes, and between the trumps and
+// the rest. The hand keeps its width; every card still shows its whole rank
+// and small suit (the left 0.36 of the art); the air shrinks before that is
+// covered, never below 6pt.
+describe('your hand has air between its suits', () => {
+  const cards = (text) =>
+    text.split(' ').map((c) => ({
+      isTrump: c.endsWith('*'),
+      card: { suit: { h: 'hearts', d: 'diamonds', s: 'spades', c: 'clubs' }[c[0]] },
+    }));
+  for (const [width, height, gap] of [
+    [390, 844, [12.5, 13.5]],
+    [360, 780, [11, 13]],
+    [375, 667, [11.5, 13.5]],
+    [844, 390, [10, 13]],
+    [820, 1180, [25, 35]],
+    [1180, 820, [25, 35]],
+    [280, 653, [6, 12]],
+  ]) {
+    for (const [name, hand, breaks] of [
+      ['four suits', 'h h d d d s s c c', [2, 5, 7]],
+      // Hearts named: the 5♦ among the trumps, no air before it.
+      ['after trump', 'h* d* h* s s c', [3, 5]],
+    ]) {
+      it(`on ${width}×${height}, ${name}`, () => {
+        const L = computeLayout(width, height, { top: 20, bottom: 0, left: 0, right: 0 }, 61, 0);
+        const held = cards(hand);
+        const n = held.length;
+        const xs = handXs(L, held);
+        const step = handStep(L, n);
+        expect(xs[0]).toBeCloseTo(L.hand.cx - ((n - 1) / 2) * step);
+        expect(xs[n - 1]).toBeCloseTo(L.hand.cx + ((n - 1) / 2) * step);
+        const steps = xs.slice(1).map((x, i) => x - xs[i]);
+        const plain = steps.filter((_, i) => !breaks.includes(i + 1));
+        const air = steps.filter((_, i) => breaks.includes(i + 1));
+        expect(new Set(plain.map((d) => d.toFixed(6))).size).toBe(1);
+        for (const d of air) {
+          expect(d - plain[0]).toBeGreaterThanOrEqual(gap[0]);
+          expect(d - plain[0]).toBeLessThanOrEqual(gap[1]);
+        }
+        expect(plain[0]).toBeGreaterThanOrEqual(L.cardW * handScale(L.profile) * 0.38 - 0.01);
+      });
+    }
+  }
+
+  it('gives way to the ranks on the narrowest windows, to 6pt, and has none in one suit', () => {
+    // A Galaxy Fold's cover screen: less air, every rank still whole.
+    const fold = computeLayout(280, 653, { top: 20, bottom: 0, left: 0, right: 0 }, 61, 0);
+    const xf = handXs(fold, cards('h h d d d s s c c'));
+    expect(xf[2] - xf[1] - (xf[1] - xf[0])).toBeLessThan(fold.cardW * 0.21);
+    expect(xf[1] - xf[0]).toBeCloseTo(fold.cardW * 0.38);
+    const L = computeLayout(260, 600, { top: 20, bottom: 0, left: 0, right: 0 }, 61, 0);
+    const xs = handXs(L, cards('h h d d d s s c c'));
+    expect(xs[2] - xs[1] - (xs[1] - xs[0])).toBeCloseTo(6);
+    const one = handXs(L, cards('h h h h'));
+    expect(one[1] - one[0]).toBeCloseTo(handStep(L, 4));
   });
 });
 

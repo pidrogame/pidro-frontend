@@ -1,28 +1,26 @@
 import { expect, test } from 'bun:test';
-import { sortCards, suitOrder } from '../src/utils/cards';
+import { SUIT_ORDER, sortCards } from '../src/utils/cards';
 import type { Card, Suit } from '../src/types/game';
 
 const suits: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
 const red = (suit: Suit) => suit === 'hearts' || suit === 'diamonds';
 
-test('held suit groups alternate as far as possible, before and after every trump', () => {
+// PID-461: Classic's fixed order, whatever the hand holds and whatever is trump.
+test('side suits keep hearts, diamonds, spades, clubs, after every trump', () => {
+  expect(SUIT_ORDER).toEqual(['hearts', 'diamonds', 'spades', 'clubs']);
   for (const trump of [null, ...suits]) {
     for (let mask = 0; mask < 16; mask++) {
       const held = suits.filter((_, i) => mask & (1 << i));
+      // No fives, so a suit's cards are trump only when it is trump.
       const cards = held.flatMap((suit) => [9, 14, 3].map((rank) => ({ suit, rank })));
       const original = structuredClone(cards);
       const sorted = sortCards(cards, trump);
       expect(cards).toEqual(original);
-      expect(sorted).toHaveLength(cards.length);
-      const groups = sorted.filter((card, i) => i === 0 || card.suit !== sorted[i - 1].suit);
-      expect(new Set(groups.map((card) => card.suit)).size).toBe(held.length);
-      if (trump && held.includes(trump)) expect(groups[0].suit).toBe(trump);
-      const side = groups.filter((card) => card.suit !== trump);
-      const reds = side.filter((card) => red(card.suit)).length;
-      const blacks = side.length - reds;
-      const transitions = side.slice(1).filter((card, i) => red(card.suit) !== red(side[i].suit));
-      const maximum = Math.min(side.length - 1, 2 * Math.min(reds, blacks));
-      expect(transitions.length).toBe(Math.max(0, maximum));
+      const groups = sorted
+        .filter((card, i) => i === 0 || card.suit !== sorted[i - 1].suit)
+        .map((card) => card.suit);
+      const side = SUIT_ORDER.filter((suit) => held.includes(suit) && suit !== trump);
+      expect(groups).toEqual(trump && held.includes(trump) ? [trump, ...side] : side);
       for (const suit of held) {
         expect(sorted.filter((card) => card.suit === suit).map((card) => card.rank)).toEqual([14, 9, 3]);
       }
@@ -50,27 +48,20 @@ test('each trump keeps its five then the off-five together in descending trump r
   }
 });
 
-// PID-461: the trump picker shows the suits as the hand shows them before
-// trump is named, then the suits the hand lacks, red and black alternating on.
+// PID-461: Marcel's sheets, before trump is named, and a hand after it.
 const hand = (text: string): Card[] =>
   text.split(' ').map((c) => ({
     rank: ({ A: 14, K: 13, Q: 12, J: 11, T: 10 } as Record<string, number>)[c[0]] ?? Number(c[0]),
     suit: ({ s: 'spades', h: 'hearts', c: 'clubs', d: 'diamonds' } as Record<string, Suit>)[c[1]],
   }));
-for (const [name, cards, order] of [
-  ['all four suits', 'Kd 7s Ah Qc 9h 2c', ['spades', 'hearts', 'clubs', 'diamonds']],
-  // Marcel's beta hand: no clubs, so clubs comes last.
-  ['three, red majority', 'Ah Kh Jh Th Js Ts 8s Kd Qd', ['hearts', 'spades', 'diamonds', 'clubs']],
-  ['three, black majority', 'As 9s Qc 4c 8d', ['spades', 'diamonds', 'clubs', 'hearts']],
-  ['two of one colour', 'Kh 9h Jd 3d', ['hearts', 'diamonds', 'spades', 'clubs']],
-  ['one suit', 'Ac Kc 9c', ['clubs', 'hearts', 'spades', 'diamonds']],
-  // No hearts: the 5♦ is hearts' only trump, and hearts comes after the held suits.
-  ['hearts only as the other five', 'Jd 5d 8c 3c', ['clubs', 'diamonds', 'spades', 'hearts']],
-] as [string, string, Suit[]][]) {
-  test(`the picker's suits follow the hand: ${name}`, () => {
-    expect(suitOrder(hand(cards), null)).toEqual(order);
-    const sorted = sortCards(hand(cards), null);
-    const groups = sorted.filter((card, i) => i === 0 || card.suit !== sorted[i - 1].suit);
-    expect(groups.map((card) => card.suit)).toEqual(order.slice(0, groups.length));
+for (const [name, cards, trump, sorted] of [
+  ['your hand, no clubs', 'Js Kd Th Ah 8s Qd Jh Ts Kh', null, 'Ah Kh Jh Th Kd Qd Js Ts 8s'],
+  ['all four suits', '2c 9s 5h Jd 8c 6h 2s 2d 9d', null, '6h 5h Jd 9d 2d 9s 2s 8c 2c'],
+  ['no hearts', '5c 6d Ad 2c Qd 7d 6s 4d 5s', null, 'Ad Qd 7d 6d 4d 6s 5s 5c 2c'],
+  // Hearts named: its trumps, the 5♦ among them, then spades and clubs.
+  ['after trump', 'Kc 5d 2s Ah 3h Qs 9c Th 4c', 'hearts', 'Ah Th 5d 3h Qs 2s Kc 9c 4c'],
+] as [string, string, Suit | null, string][]) {
+  test(`sorts in Classic's order: ${name}`, () => {
+    expect(sortCards(hand(cards), trump)).toEqual(hand(sorted));
   });
 }

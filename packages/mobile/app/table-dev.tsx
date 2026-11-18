@@ -271,18 +271,22 @@ const TRUMP_HAND: Card[] = [
   { rank: 12, suit: 'clubs' },
   { rank: 2, suit: 'clubs' },
 ];
-/** `suits=no-clubs` (PID-461): Marcel's beta hand, hearts, spades, diamonds. */
-const NO_CLUBS_HAND: Card[] = [
-  heart(14),
-  heart(13),
-  heart(11),
-  heart(10),
-  spade(11),
-  spade(10),
-  spade(8),
-  { rank: 13, suit: 'diamonds' },
-  { rank: 12, suit: 'diamonds' },
-];
+const fixtureCard = (text: string): Card => ({
+  rank:
+    ({ A: 14, K: 13, Q: 12, J: 11, T: 10 } as Record<string, number>)[text[0]] ?? Number(text[0]),
+  suit: ({ h: 'hearts', d: 'diamonds', s: 'spades', c: 'clubs' } as const)[text[1] as 'h'],
+});
+/**
+ * `suits=` (PID-461): the hand you hold choosing trump, or playing with
+ * spades trump. `no-clubs`, `four` and `no-hearts` are Marcel's sheets;
+ * `trumps` holds spades, the 5♣ and two side suits.
+ */
+const SUIT_HANDS: Record<string, Card[]> = {
+  'no-clubs': 'Ah Kh Jh Th Js Ts 8s Kd Qd'.split(' ').map(fixtureCard),
+  four: '2c 9s 5h Jd 8c 6h 2s 2d 9d'.split(' ').map(fixtureCard),
+  'no-hearts': '5c 6d Ad 2c Qd 7d 6s 4d 5s'.split(' ').map(fixtureCard),
+  trumps: 'Kh 4s 7d Js 3h 5c Qd As 8h'.split(' ').map(fixtureCard),
+};
 const CLOCKWISE: Position[] = ['north', 'east', 'south', 'west'];
 // `character=stig` (PID-466): catalogue lines that end in a full stop, Gösta West and Stig
 // East, and a server guest name of 16 letters in your seat.
@@ -1096,7 +1100,7 @@ function TableDevHarness() {
                 : null
             }
             longNames={params.names === 'long'}
-            trumpHand={params.suits === 'no-clubs' ? NO_CLUBS_HAND : TRUMP_HAND}
+            suitHand={SUIT_HANDS[params.suits ?? '']}
             scoreHistory={fixture === 'scores'}
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
             loading={params.loading ? Number(params.loading) : undefined}
@@ -1373,7 +1377,7 @@ function RolePreview({
   status,
   bidder = 'east',
   turnSeat = null,
-  trumpHand = TRUMP_HAND,
+  suitHand,
   longNames = false,
   botTrick = false,
   trick,
@@ -1417,8 +1421,8 @@ function RolePreview({
    * `phase=declaring` it won the bid at 14 and chooses trump.
    */
   turnSeat?: Position | null;
-  /** What you hold choosing trump (`suits=no-clubs`). */
-  trumpHand?: Card[];
+  /** `suits=`: what you hold choosing trump, or playing. */
+  suitHand?: Card[];
   /** `names=long`: ironman3001 at West and a long North name. */
   longNames?: boolean;
   botTrick?: boolean;
@@ -1648,11 +1652,11 @@ function RolePreview({
                     ? []
                     : deal === 'cold'
                       ? DEAL_HAND
-                      : [
+                      : (suitHand ?? [
                           { rank: 14, suit: 'spades' },
                           { rank: 13, suit: 'hearts' },
                           ...(ruleSet === 'louisiana' ? [{ rank: 5, suit: 'clubs' as const }] : []),
-                        ],
+                        ]),
         },
       },
       current_trick:
@@ -1726,7 +1730,7 @@ function RolePreview({
           north: { hand: 9 },
           east: { hand: 9 },
           west: { hand: 9 },
-          south: { hand: trumpHand },
+          south: { hand: suitHand ?? TRUMP_HAND },
         },
       }),
     } as unknown as ServerGameState);
@@ -1834,7 +1838,7 @@ function RolePreview({
     botTurn,
     botHand,
     turnSeat,
-    trumpHand,
+    suitHand,
     tableRoom,
     scoreHistory,
     talk,

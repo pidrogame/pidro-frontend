@@ -52,58 +52,18 @@ function isSameColor(a: Suit, b: Suit): boolean {
   return aIsRed === bIsRed;
 }
 
-/** Where a hand's suit order starts, before it alternates red and black. */
-export const SUIT_ORDER: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
-
-const trumpOf = (trumpSuit: Suit | null | undefined) => (card: Card) =>
-  !!trumpSuit &&
-  (card.suit === trumpSuit || (card.rank === 5 && isSameColor(card.suit, trumpSuit)));
-
-function alternate(suits: Suit[], useRed: boolean): Suit[] {
-  const black = suits.filter((suit) => isSameColor(suit, 'spades'));
-  const red = suits.filter((suit) => isSameColor(suit, 'hearts'));
-  const order: Suit[] = [];
-  while (black.length || red.length) {
-    const next = (useRed ? red : black).shift() ?? (useRed ? black : red).shift();
-    if (next) order.push(next);
-    useRed = !useRed;
-  }
-  return order;
-}
-
 /**
- * The four suits as `sortCards` lays out this hand's side suits, and as the
- * trump picker shows them (PID-461): the suits it holds, red and black
- * alternating as far as they can, then those it does not hold, carrying the
- * alternation on.
+ * Classic's suit order (PID-461): hearts, diamonds, spades, clubs. The hand
+ * and the trump picker keep it whatever you hold; air in the hand, not
+ * alternating colours, tells two reds apart.
  */
-export function suitOrder(cards: Card[], trumpSuit: Suit | null | undefined): Suit[] {
-  const isTrump = trumpOf(trumpSuit);
-  const sideSuits = SUIT_ORDER.filter((suit) =>
-    cards.some((card) => card.suit === suit && !isTrump(card))
-  );
-  const red = sideSuits.filter((suit) => isSameColor(suit, 'hearts')).length;
-  const black = sideSuits.length - red;
-  // Start with the majority color, so a lone opposite suit separates its pair.
-  // Ties continue the alternation from trump, if the hand holds any.
-  const held = alternate(
-    sideSuits,
-    red > black ||
-      (red === black && !!trumpSuit && cards.some(isTrump) && isSameColor(trumpSuit, 'spades'))
-  );
-  const last = held[held.length - 1];
-  return [
-    ...held,
-    ...alternate(
-      SUIT_ORDER.filter((suit) => !held.includes(suit)),
-      !!last && isSameColor(last, 'spades')
-    ),
-  ];
-}
+export const SUIT_ORDER: Suit[] = ['hearts', 'diamonds', 'spades', 'clubs'];
 
+/** Trumps first, the other five among them; then the rest in SUIT_ORDER, high to low. */
 export function sortCards(cards: Card[], trumpSuit: Suit | null | undefined): Card[] {
-  const isTrump = trumpOf(trumpSuit);
-  const order = suitOrder(cards, trumpSuit);
+  const isTrump = (card: Card) =>
+    !!trumpSuit &&
+    (card.suit === trumpSuit || (card.rank === 5 && isSameColor(card.suit, trumpSuit)));
   const rank = (card: Card) =>
     card.rank === 1 ? 14 : isTrump(card) && card.rank === 5 && card.suit !== trumpSuit ? 4.5 : card.rank;
   return [...cards].sort((a, b) => {
@@ -113,8 +73,8 @@ export function sortCards(cards: Card[], trumpSuit: Suit | null | undefined): Ca
     if (!aIsTrump && bIsTrump) return 1;
     if (aIsTrump && bIsTrump) return rank(b) - rank(a);
 
-    const aSuitIndex = order.indexOf(a.suit);
-    const bSuitIndex = order.indexOf(b.suit);
+    const aSuitIndex = SUIT_ORDER.indexOf(a.suit);
+    const bSuitIndex = SUIT_ORDER.indexOf(b.suit);
     if (aSuitIndex !== bSuitIndex) return aSuitIndex - bSuitIndex;
 
     return rank(b) - rank(a);

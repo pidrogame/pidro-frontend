@@ -88,10 +88,11 @@ describe('deal order', () => {
       'hearts_12',
       'spades_14',
     ]);
+    // Classic's order: hearts, diamonds, spades, clubs (PID-461).
     expect(model.yourHand.map((card) => card.key)).toEqual([
+      'hearts_12',
       'spades_14',
       'spades_2',
-      'hearts_12',
       'clubs_8',
     ]);
     expect(model.dealtHand.map((card) => card.card)).toEqual(hand);

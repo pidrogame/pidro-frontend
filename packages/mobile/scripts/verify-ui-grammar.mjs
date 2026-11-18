@@ -8080,8 +8080,8 @@ async function assertCountHelp(page, testCase, viewport) {
 
 // PID-209: four suit buttons, clear of every seat and its cards, with each
 // suit's trumps counted (hearts and the 5♦ make four). PID-461: one row on
-// every device, in the order the hand is sorted (spades, hearts, clubs,
-// diamonds), each a thumb wide with a suit over 40pt and its count as a number.
+// every device, in Classic's order as the hand (hearts, diamonds, spades,
+// clubs), each a thumb wide with a suit over 40pt and its count as a number.
 async function assertTrumpPicker(page, testCase, box, viewport) {
   await assertAbovePlayerHand(page, testCase.name, box, viewport);
   const choices = await page.getByTestId('trump-picker').getByRole('button').all();
@@ -8108,16 +8108,16 @@ async function assertTrumpPicker(page, testCase, box, viewport) {
     boxes.sort((a, b) => a.x - b.x).map((b) => [b.label, b.text]),
     sv
       ? [
-          ['Spader, 2 trumf', '2'],
           ['Hjärter, 4 trumf', '4'],
-          ['Klöver, 2 trumf', '2'],
           ['Ruter, 2 trumf', '2'],
+          ['Spader, 2 trumf', '2'],
+          ['Klöver, 2 trumf', '2'],
         ]
       : [
-          ['Spades, 2 trumps', '2'],
           ['Hearts, 4 trumps', '4'],
-          ['Clubs, 2 trumps', '2'],
           ['Diamonds, 2 trumps', '2'],
+          ['Spades, 2 trumps', '2'],
+          ['Clubs, 2 trumps', '2'],
         ],
     `${testCase.name}: the suits in the hand's order, each counted, in ${viewport.name}`
   );
