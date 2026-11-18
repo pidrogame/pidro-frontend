@@ -9,7 +9,6 @@ export {
   extractGamePresentation,
   normalizeTurnTimer,
   PhoenixSocket,
-  shouldAutoSelectDealer,
   type PhoenixSocketOptions,
 } from './channels';
 export { type TokenGetter as ChannelTokenGetter } from './channels';

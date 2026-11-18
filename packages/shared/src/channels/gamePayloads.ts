@@ -4,7 +4,6 @@ import type {
   DealerRobPresentation,
   GamePresentation,
   GamePhase,
-  LegalAction,
   ServerGameState,
   ServerTurnTimerPayload,
 } from '../types/game';
@@ -161,17 +160,4 @@ export function extractGamePresentation(
 
   if (presentation.dealer_rob != null && !parseDealerRob(presentation.dealer_rob)) return null;
   return presentation as GamePresentation;
-}
-
-export function shouldAutoSelectDealer(
-  gameState: ServerGameState,
-  legalActions: LegalAction[],
-  position: Position | null,
-): boolean {
-  return (
-    position === 'north' &&
-    gameState.phase === 'dealer_selection' &&
-    !gameState.dealer_selection_cuts &&
-    legalActions.some((action) => action.type === 'select_dealer')
-  );
 }

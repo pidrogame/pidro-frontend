@@ -8,5 +8,4 @@ export {
   extractGamePresentation,
   extractGameState,
   normalizeTurnTimer,
-  shouldAutoSelectDealer,
 } from './gamePayloads';

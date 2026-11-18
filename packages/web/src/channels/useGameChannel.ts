@@ -10,7 +10,6 @@ import {
   extractGameState,
   lifecycleFromReply,
   normalizeTurnTimer,
-  shouldAutoSelectDealer,
   useGameStore,
 } from '@pidro/shared';
 import type { Channel } from 'phoenix';
@@ -135,31 +134,11 @@ export const useGameChannel = ({
       const channel = phoenixSocket.channel(topic);
       currentTopic = topic;
       let presences: Record<string, unknown> = {};
-      let dealerSelectionRequestKey: string | null = null;
       const isCurrentChannel = () => !disposed && globalGameChannel === channel;
       const onCurrent = <Payload>(event: string, handler: (payload: Payload) => void) =>
         channel.on(event, (payload) => {
           if (isCurrentChannel()) handler(payload as Payload);
         });
-
-      const maybeAutoSelectDealer = (
-        gameState: ServerGameState,
-        legalActions: LegalAction[],
-        position: Position | null,
-      ) => {
-        if (useGameStore.getState().role !== 'player') return;
-        if (!shouldAutoSelectDealer(gameState, legalActions, position)) return;
-
-        const handNumber =
-          typeof gameState.hand_number === 'number' ? gameState.hand_number : 'initial';
-        const key = `${roomCode}:${handNumber}`;
-        if (dealerSelectionRequestKey === key) return;
-
-        dealerSelectionRequestKey = key;
-        channel.push('select_dealer', {}).receive('error', (error: unknown) => {
-          console.debug('[GameChannel] Auto dealer selection skipped', error);
-        });
-      };
 
       channel
         .join()
@@ -191,9 +170,6 @@ export const useGameChannel = ({
           const legalActions = (response?.legal_actions as LegalAction[] | undefined) ?? [];
           setLegalActions(legalActions);
           setTurnTimer(normalizeTurnTimer(response?.turn_timer));
-          if (gameState) {
-            maybeAutoSelectDealer(gameState, legalActions, position ?? youPositionRef.current);
-          }
         })
         .receive('error', (resp) => {
           if (!isCurrentChannel()) return;
@@ -217,7 +193,6 @@ export const useGameChannel = ({
           const legalActions = (data?.legal_actions as LegalAction[] | undefined) ?? [];
           setServerState(gameState);
           setLegalActions(legalActions);
-          maybeAutoSelectDealer(gameState, legalActions, youPositionRef.current);
         }
       });
 

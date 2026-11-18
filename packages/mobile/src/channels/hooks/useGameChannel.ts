@@ -5,7 +5,6 @@ import {
   extractGamePresentation,
   extractGameState,
   normalizeTurnTimer,
-  shouldAutoSelectDealer,
   type ReadinessSnapshot,
   type SeatLifecycleSnapshot,
 } from '@pidro/shared';
@@ -271,7 +270,6 @@ export const useGameChannel = ({
       // Another room's talk is not this one's.
       if (roomTalk.topic !== topic) setRoomTalk({ ...NO_TALK, topic });
       let presences: Record<string, unknown> = {};
-      let dealerSelectionRequestKey: string | null = null;
       const isCurrentChannel = () => !disposed && globalGameChannel === channel;
       const observed = (state: ServerGameState) => {
         if (authStore.getState().user?.id !== channelOwner) return;
@@ -284,25 +282,6 @@ export const useGameChannel = ({
         channel.on(event, (payload) => {
           if (isCurrentChannel()) handler(payload as Payload);
         });
-
-      const maybeAutoSelectDealer = (
-        gameState: ServerGameState,
-        legalActions: LegalAction[],
-        position: Position | null
-      ) => {
-        if (useGameStore.getState().role !== 'player') return;
-        if (!shouldAutoSelectDealer(gameState, legalActions, position)) return;
-
-        const handNumber =
-          typeof gameState.hand_number === 'number' ? gameState.hand_number : 'initial';
-        const key = `${roomCode}:${handNumber}`;
-        if (dealerSelectionRequestKey === key) return;
-
-        dealerSelectionRequestKey = key;
-        void pushGameAction('select_dealer', {}).catch((error) => {
-          if (error?.reason === 'timeout') dealerSelectionRequestKey = null;
-        });
-      };
 
       channel
         .join()
@@ -364,10 +343,6 @@ export const useGameChannel = ({
             const legalActions = (response?.legal_actions as LegalAction[] | undefined) ?? [];
             setLegalActions(legalActions);
             setTurnTimer(normalizeTurnTimer(response?.turn_timer));
-
-            if (gameState) {
-              maybeAutoSelectDealer(gameState, legalActions, position ?? youPositionRef.current);
-            }
           });
           if (away) {
             onSeatEventRef.current?.({ away, variant: 'warning' });
@@ -428,7 +403,6 @@ export const useGameChannel = ({
             observed(gameState);
             setPresentation(extractGamePresentation(data));
             setLegalActions(legalActions);
-            maybeAutoSelectDealer(gameState, legalActions, youPositionRef.current);
           });
           const state = useGameStore.getState().serverState;
           if (state) pendingCard?.observe(state);

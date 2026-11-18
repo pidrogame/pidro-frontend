@@ -229,7 +229,6 @@ async function main() {
     // Occasionally take the bid on the first hand so both outcomes exercise;
     // otherwise pass when possible, else minimum bid.
     const bidActions = actions.filter((a) => a.type === 'bid').sort((a, b) => a.amount - b.amount);
-    if (first('select_dealer')) return ['select_dealer', {}];
     if (first('declare_trump')) {
       // pick the suit we hold most of
       const hand = state?.hands?.[state?.your_position] ?? state?.your_hand ?? [];
