@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { TRICK_SWEEP_ENABLED } from '../src/game/canvas/animationTiming.ts';
-import { cardSize, TRICK_GAP, TRUMP_MARK } from '../src/game/canvas/layout.ts';
+import { cardSize, TIGHT_AVATAR, TRICK_GAP, TRUMP_MARK } from '../src/game/canvas/layout.ts';
 import { partitionCases, verifyCoverage } from './ui-shards.mjs';
 import {
   assertAccountSurfaceFits,
@@ -1598,7 +1598,9 @@ const allCases = [
     path: '/table-dev?phase=playing&ticker=full&names=long&count=on',
     testId: 'ticker-line-bid-4-south',
     protectNorthSeat: true,
-    skipViewports: ['landscape', 'small-landscape', 'compact-landscape'],
+    // 360×640 is tight at every inset: tight phones leave the ticker out too
+    // (`showsTicker`); the seats' lines say the same (layout.test.mjs).
+    skipViewports: ['landscape', 'small-landscape', 'compact-landscape', 'compact-portrait'],
   },
   // PID-232: a 32-character name in every seat, North dealing, truncates
   // inside its seat, clear of the other seats and the hand.
@@ -1963,14 +1965,17 @@ const allCases = [
     path: '/table-dev?phase=playing&role=player&trick=bots&invitation=partner&safeArea=island',
     testId: 'table-invitation',
     invitation: 'Ostrobothnian · as Bertil’s partner',
-    skipViewports: ['landscape', 'compact-landscape'],
+    // No 360×640 phone has an island. There, under Android's bars, the card
+    // still covers East's and West's faces: open after PID-470.
+    skipViewports: ['landscape', 'compact-landscape', 'compact-portrait'],
   },
   ...['island-left', 'island-right'].map((safeArea) => ({
     name: `table-invitation-${safeArea}`,
     path: `/table-dev?phase=playing&role=player&trick=bots&invitation=rules&safeArea=${safeArea}`,
     testId: 'table-invitation',
     invitation: 'Ostrobothnian',
-    skipViewports: ['portrait'],
+    // As above: no 360×640 phone has an island on its side.
+    skipViewports: ['portrait', 'compact-portrait'],
     insets: safeArea === 'island-left' ? { left: 59, right: 0 } : { left: 0, right: 59 },
   })),
   // PID-209: you dealt and won the bid. The suits sit in the felt, none
@@ -2485,7 +2490,23 @@ async function assertTargetGeometry(page, testCase, viewport) {
       await assertTrumpPicker(page, testCase, box, viewport);
     }
     if (testCase.protectPlayerHand) {
-      await assertAbovePlayerHand(page, testCase.name, box, viewport, biddingClearance(viewport));
+      // PID-470: where the window cannot stand 18pt over your row without
+      // reaching North's seat (360×640 under Android's bars), it stands
+      // TRICK_GAP under North, over your face, no lower than your row's foot.
+      const upright = viewport.height > viewport.width;
+      const north = upright ? await visibleBox(page, page.getByTestId('seat-north')) : null;
+      const row = north ? await yourSeatRow(page) : null;
+      const northFoot = north ? north.y + north.height + TRICK_GAP : 0;
+      if (north && row.y - biddingClearance(viewport) - box.height < northFoot - 0.5) {
+        assert.ok(box.y >= northFoot - 0.5, `${testCase.name}: window stays under North`);
+        assert.ok(
+          box.y + box.height <= row.y + row.height + 0.5,
+          `${testCase.name}: window keeps above your row's foot: ${JSON.stringify({ box, row })}`
+        );
+        await assertSeatRowOverHand(page, testCase.name, viewport);
+      } else {
+        await assertAbovePlayerHand(page, testCase.name, box, viewport, biddingClearance(viewport));
+      }
       await assertBidGridLayout(page, viewport, testCase.locale);
     }
 
@@ -2583,7 +2604,10 @@ async function assertGameOver(page, testCase, viewport) {
   if (spec.headline) {
     await overlay.getByRole('heading', { name: spec.headline, exact: true }).waitFor();
   }
-  const small = viewport.name === 'small-portrait' && spec.smallPhone;
+  // 360×640 is a small phone too (PID-470): the same parts give way.
+  const small =
+    ['small-portrait', 'compact-portrait', 'compact-android'].includes(viewport.name) &&
+    spec.smallPhone;
   if (spec.eyebrow && !small?.noText) {
     await overlay.getByText(spec.eyebrow, { exact: true }).waitFor();
   }
@@ -6825,6 +6849,9 @@ async function assertTeams(page, testCase) {
   if (!testCase.teams) return;
   const seen = {};
   const onPlate = {};
+  // A tight phone's own seat is its face and short line alone (PID-304); a
+  // spectator's South keeps its name (PID-470).
+  const nameless = testCase.teams === 'player' && (await tightTable(page)) ? 'south' : null;
   for (const position of ['north', 'east', 'south', 'west']) {
     const seat = page.getByTestId(`seat-${position}`).first();
     const { names, nameShadows, plateInk, lights, lit } = await seat.evaluate((root) => {
@@ -6848,7 +6875,11 @@ async function assertTeams(page, testCase) {
       };
     });
     assert.equal(lights, 0, `${testCase.name}: seat-${position} has a team light`);
-    assert.equal(names.length, 1, `${testCase.name}: seat-${position} has one name`);
+    assert.equal(
+      names.length,
+      position === nameless ? 0 : 1,
+      `${testCase.name}: seat-${position} has ${position === nameless ? 'no' : 'one'} name`
+    );
     // Dark ink on the lit plate has no shadow; light text on the felt keeps one.
     if (lit)
       assert.deepEqual(
@@ -6856,7 +6887,7 @@ async function assertTeams(page, testCase) {
         ['none'],
         `${testCase.name}: seat-${position}'s lit plate has no text shadow`
       );
-    else
+    else if (position !== nameless)
       assert.notEqual(
         nameShadows[0],
         'none',
@@ -6876,6 +6907,7 @@ async function assertTeams(page, testCase) {
     east: tone('east', TEAM_THEM, TEAM_THEM_ON_LIGHT),
     west: tone('west', TEAM_THEM, TEAM_THEM_ON_LIGHT),
   };
+  if (nameless) expected[nameless] = undefined;
   assert.deepEqual(seen, expected, `${testCase.name}: names in their team's colour`);
   const labels = testCase.teams === 'spectator' ? ['N/S', 'E/W'] : ['US', 'THEM'];
   const label = (text) =>
@@ -7246,9 +7278,16 @@ async function assertSmallTable(page, testCase, viewport) {
   hand.push({ ...hand[0], y: rest.y, height: Math.max(...hand.map((h) => h.height)) });
   const others = [...cards, { ...union(hand), label: 'your hand' }];
   const rels = Object.keys(seats);
+  // A tight North's name runs over East's column, short of what East draws (PID-470).
+  const drawn = { ...seats };
+  if (await tightTable(page))
+    for (const rel of ['east', 'west']) drawn[rel] = await seatInk(page, rel);
   for (const [i, a] of rels.entries()) {
     for (const b of rels.slice(i + 1)) {
-      assert.ok(apart(seats[a], seats[b]), `${testCase.name}: seat-${a} overlaps seat-${b}`);
+      assert.ok(
+        apart(drawn[a], drawn[b]),
+        `${testCase.name}: seat-${a} overlaps seat-${b}: ${JSON.stringify([drawn[a], drawn[b]])}`
+      );
     }
     for (const other of others) {
       assert.ok(
@@ -8202,17 +8241,26 @@ const biddingClearance = (viewport) => (viewport.height > viewport.width ? 18 : 
  * badges on it; the turn light's soft glow is not a thing to keep off.
  */
 async function yourSeatRow(page) {
-  const seat = page.getByTestId('seat-south').first();
+  return seatInk(page, 'south');
+}
+
+/**
+ * What a seat draws, as yourSeatRow: an upright side seat's box is its whole
+ * column, though its face and words sit in the middle of it.
+ */
+async function seatInk(page, rel) {
+  const seat = page.getByTestId(`seat-${rel}`).first();
   await seat.waitFor({ state: 'visible', timeout: 20_000 });
   await getStableBox(seat, page);
-  return seat.evaluate((node) => {
+  // Your seat counts its whole box; a side seat only what it draws.
+  return seat.evaluate((node, whole) => {
     const boxes = [node, ...node.querySelectorAll('*')]
       .filter((part) => {
         const style = getComputedStyle(part);
         if (style.visibility === 'hidden' || style.opacity === '0') return false;
         if (style.backgroundImage.includes('radial-gradient(')) return false;
+        if (part === node) return whole;
         return (
-          part === node ||
           part.childElementCount === 0 ||
           part.tagName === 'svg' ||
           style.backgroundColor !== 'rgba(0, 0, 0, 0)'
@@ -8228,7 +8276,7 @@ async function yourSeatRow(page) {
       width: Math.max(...boxes.map((b) => b.x + b.width)) - x,
       height: Math.max(...boxes.map((b) => b.y + b.height)) - y,
     };
-  });
+  }, rel === 'south');
 }
 
 /**
@@ -8393,6 +8441,12 @@ async function assertSideStacksInsideCutouts(page, testCase, viewport) {
   }
 }
 
+/** PID-304: a tight table draws North's avatar at TIGHT_AVATAR, its name beside it. */
+async function tightTable(page) {
+  const north = page.getByTestId('seat-north').first().locator(':scope > div').first();
+  return (await getStableBox(north, page)).width <= TIGHT_AVATAR + 0.5;
+}
+
 async function assertSeatPlacement(page, viewport) {
   const entries = await Promise.all(
     ['north', 'east', 'south', 'west'].map(async (position) => {
@@ -8408,11 +8462,17 @@ async function assertSeatPlacement(page, viewport) {
   const horizontalCenter = viewport.width / 2;
   const portrait = viewport.height >= viewport.width;
 
+  // Upright, North's and your avatar stand on the table's axis; a tight
+  // North's name runs right of it (PID-304).
   const centeredPositions = portrait ? ['north', 'south'] : [];
   for (const position of centeredPositions) {
-    if (Math.abs(centerX(seats[position]) - horizontalCenter) > 2) {
+    const avatar = await getStableBox(
+      page.getByTestId(`seat-${position}`).first().locator(':scope > div').first(),
+      page
+    );
+    if (Math.abs(centerX(avatar) - horizontalCenter) > 2) {
       throw new Error(
-        `seat-${position} is not horizontally centered: ${JSON.stringify(seats[position])}`
+        `seat-${position}'s avatar is not horizontally centered: ${JSON.stringify(avatar)}`
       );
     }
   }
@@ -8508,6 +8568,9 @@ async function assertNamesFit(page, viewport, northNameMin = 0) {
   }
   const apart = (a, b) =>
     a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+  // A tight North's name runs over East's column, short of what East draws (PID-470).
+  if (await tightTable(page))
+    for (const rel of ['east', 'west']) seats[rel] = await seatInk(page, rel);
   const positions = Object.keys(seats);
   for (const [i, a] of positions.entries()) {
     for (const b of positions.slice(i + 1)) {
@@ -10234,6 +10297,7 @@ async function main() {
         if (
           viewport.cases &&
           !viewport.cases.includes(testCase.name) &&
+          !(viewport.tableCases && testCase.path.startsWith('/table-dev')) &&
           !(testCase.locale && ['compact-portrait', 'tablet-portrait'].includes(viewport.name))
         )
           return false;
@@ -10851,7 +10915,11 @@ async function main() {
             const chips = await page
               .locator('[data-testid^="seat-"][data-testid$="-level"]')
               .count();
-            if (testCase.levels) assert.ok(chips > 0, `${testCase.name}: seats show their level`);
+            // A tight table's seats are the avatar and its words, no level (PID-304).
+            if (testCase.levels && (await tightTable(page)))
+              assert.equal(chips, 0, `${testCase.name}: tight seats show no level`);
+            else if (testCase.levels)
+              assert.ok(chips > 0, `${testCase.name}: seats show their level`);
             else assert.equal(chips, 0, `${testCase.name}: no level chips during a hand`);
           }
           if (testCase.verifyCatchUp) {

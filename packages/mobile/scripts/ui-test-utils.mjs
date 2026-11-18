@@ -274,10 +274,13 @@ export const UI_VIEWPORTS = [
       ...talkCases,
     ],
   },
+  // The smallest phones we support upright (PID-470): every table screen,
+  // `tableCases`, and these besides.
   {
     name: 'compact-portrait',
     width: 360,
     height: 640,
+    tableCases: true,
     cases: [
       'table-teams-en',
       'table-teams-sv',
@@ -294,6 +297,26 @@ export const UI_VIEWPORTS = [
       'table-takes-the-rest',
       'locale-sv-table-count-help',
       'locale-sv-table-takes-the-rest',
+    ],
+  },
+  // The same phone under Android's three-button bar (PID-470): the bid window
+  // keeps clear of North, a spectator sees South's name, and North's long name
+  // stops short of East's seat where East rises beside it.
+  {
+    name: 'compact-android',
+    width: 360,
+    height: 640,
+    safeArea: 'android',
+    cases: [
+      'table-playing',
+      'table-long-names',
+      'table-small-west-deals',
+      'table-small-your-turn',
+      'table-bidding',
+      'table-bid-round',
+      'table-dealer-selection',
+      'table-teams-spectator',
+      'table-game-over-loss',
     ],
   },
   { name: 'landscape', width: 844, height: 390 },
