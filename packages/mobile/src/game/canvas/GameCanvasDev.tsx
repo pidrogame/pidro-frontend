@@ -158,6 +158,28 @@ const OPP_PLAYS_THEIR_POINTS: { player: Position; card: Card }[] = [
   { player: 'east', card: { suit: 'spades', rank: 2 } },
 ];
 
+// `history=on`: one trick already taken, so every seat's pile has an earlier
+// card (PID-381); your 10 of trump is a point card for `count=on`.
+const EARLIER_TRICKS: {
+  cards: { player: Position; card: Card }[];
+  winner: Position;
+  points: number;
+  two_of_trump: null;
+}[] = [
+  {
+    cards: [
+      { player: 'south', card: { suit: 'spades', rank: 10 } },
+      { player: 'west', card: { suit: 'diamonds', rank: 3 } },
+      { player: 'north', card: { suit: 'clubs', rank: 9 } },
+      { player: 'east', card: { suit: 'hearts', rank: 6 } },
+    ],
+    winner: 'south',
+    points: 1,
+    two_of_trump: null,
+  },
+];
+const NO_TRICKS: typeof EARLIER_TRICKS = [];
+
 /** Which of your cards autoplay leads, and how the others answer, per `signals=`. */
 const SIGNAL_TRICKS: Record<string, { lead: number; plays: { player: Position; card: Card }[] }> = {
   pidro: { lead: 0, plays: OPP_PLAYS_PIDRO },
@@ -370,7 +392,8 @@ export default function GameCanvasDev({
   phase = 'playing',
   lifecycle,
 }: GameCanvasDevProps) {
-  const { bots } = useLocalSearchParams<{ bots?: string }>();
+  const { bots, history } = useLocalSearchParams<{ bots?: string; history?: string }>();
+  const earlier = history === 'on' ? EARLIER_TRICKS : NO_TRICKS;
   const { locale } = useTranslation();
   const textures = useCardTextures();
   const insets = useSafeAreaInsets();
@@ -387,7 +410,7 @@ export default function GameCanvasDev({
       points: number;
       two_of_trump: { position: Position; points: number } | null;
     }[]
-  >([]);
+  >(earlier);
   const [trump, setTrump] = useState<Suit | null>(null);
   const [turn, setTurn] = useState<RelativePosition>('south');
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -498,7 +521,7 @@ export default function GameCanvasDev({
           playing.current = false;
           setHand(INITIAL_HAND);
           setTrick([]);
-          setTricks([]);
+          setTricks(earlier);
           setTurn('south');
           setTransitionTimer(null);
           setCycle((value) => value + 1);
@@ -529,6 +552,7 @@ export default function GameCanvasDev({
         after(delay + 2100, () => {
           setTrick([]);
           setTricks([
+            ...earlier,
             { cards: plays, winner: sweep ?? SEATS[cycle % 4], points: 1, two_of_trump: null },
           ]);
           // The winner went cold: the server skips it, then broadcasts a new timer.
@@ -550,7 +574,10 @@ export default function GameCanvasDev({
           });
         });
         if (autoplay !== 'false') after(delay + 3100 + transitionMs, reset);
-        return new Promise<boolean>((resolve) => after(delay, () => resolve(true)));
+        // `reply=ok-first`: the server's `ok` comes 300 ms before its state, as two messages.
+        return new Promise<boolean>((resolve) =>
+          after(reply === 'ok-first' ? delay - 300 : delay, () => resolve(true))
+        );
       }
       const trickCards = [
         { player: 'south' as Position, card },
@@ -574,7 +601,7 @@ export default function GameCanvasDev({
         setTurn('north');
       });
     },
-    [after, signals, motionFixture, reply, sweep, cycle, autoplay, transitionMs]
+    [after, signals, motionFixture, reply, sweep, cycle, autoplay, transitionMs, earlier]
   );
 
   const players = useMemo(

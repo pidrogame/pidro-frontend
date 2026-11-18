@@ -507,7 +507,11 @@ Replies take 800 ms; the fourth card completes the trick and the server-selected
 leader differs from its winner. `autoplay=false` leaves the hand for real taps;
 `play=right|left|middle` fixes the loop's card. `reply=fast|reject|early-reject|timeout|late`
 exercises confirmation during flight, rejection after/before landing, no reply and
-confirmation after rollback. `reply=burst` puts opponent updates 80 ms apart;
+confirmation after rollback. `reply=ok-first` answers `ok` 300 ms before the state
+that places the card, as the server sends them (PID-460: one flight, full colour).
+`history=on` starts with one trick taken, so every pile has an earlier card to shade
+(PID-381); with `count=on` your earlier 10♠ is a point card that stays lit.
+`reply=burst` puts opponent updates 80 ms apart;
 the left-card grammar case uses it to catch lights advancing during overlapping flights.
 `transition=0|80|1500|3000` varies the snapshot's hold;
 the cancelled/new turn-timer events follow separately. Grammar cases
