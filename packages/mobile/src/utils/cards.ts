@@ -17,6 +17,7 @@ export {
   getPidroPoints,
   formatSuitLabel,
   sortCards,
+  SUIT_ORDER,
 } from '@pidro/shared';
 
 export const SUIT_COLORS: Record<Suit, string> = {

@@ -52,7 +52,8 @@ function isSameColor(a: Suit, b: Suit): boolean {
   return aIsRed === bIsRed;
 }
 
-const SUIT_ORDER: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
+/** The suits as a hand is sorted before trump is named. */
+export const SUIT_ORDER: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
 
 export function sortCards(cards: Card[], trumpSuit: Suit | null | undefined): Card[] {
   const isTrump = (card: Card) =>
