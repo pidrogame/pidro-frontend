@@ -44,6 +44,7 @@ it('keeps the hand log open across turns and hands, but closes it on leaving the
     PressableFX: ({ onPress, children }) => h('button', { onClick: onPress }, children),
   }));
   mock.module('../../src/components/game/HandHistory.tsx', () => ({ HandHistory: () => null }));
+  mock.module('../../src/components/game/SuitTile.tsx', () => ({ SuitTile: () => null }));
   mock.module('../../src/game/canvas/HandResult.tsx', () => ({
     SCORE_COUNT: { delayMs: 0, ms: 0 },
   }));
