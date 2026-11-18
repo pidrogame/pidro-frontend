@@ -285,7 +285,11 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { zIndex: 100, backgroundColor: PidroColors.panelStrong },
+  // The panel is 96% opaque; on Android the screen under the note showed through it.
+  backdrop: {
+    zIndex: 100,
+    backgroundColor: Platform.OS === 'android' ? PidroColors.feltBottom : PidroColors.panelStrong,
+  },
   safe: { flex: 1 },
   safeTablet: { justifyContent: 'center' },
   column: {
