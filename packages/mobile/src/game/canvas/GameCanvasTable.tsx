@@ -846,12 +846,13 @@ export function GameCanvasTable({
   );
 
   // While you type the table shrinks to fit above the composer, like a stream beside its chat.
-  // Your hand may slide under it: you cannot play while typing, and your turn closes the box.
-  // A tight phone's seats are already the smallest tap targets, so its table keeps its size.
+  // Your seat row and hand may slide under it: you cannot play while typing, and your turn
+  // closes the box. A tight phone's seats are already the smallest tap targets, so its table
+  // keeps its size.
   const [dock, setDock] = useState<number | null>(null);
   const fit =
     talk.sheet === 'typing' && dock != null && height > width && !layout.tight
-      ? Math.min(1, (dock - insets.top) / (layout.hand.cy - layout.cardH / 2 - insets.top))
+      ? Math.min(1, (dock - insets.top) / (southRow(layout).top - insets.top))
       : 1;
   const reduceMotion = useReducedMotion();
   const fitted = useSharedValue(1);

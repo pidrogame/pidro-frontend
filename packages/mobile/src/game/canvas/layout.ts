@@ -1220,12 +1220,46 @@ export function computeLayout(
       (tightSeats ? TIGHT_AVATAR : NORTH_SEAT_STACK[tabletPortrait ? 'tablet' : 'phone']);
     return { handY, northBottom, band: Math.max(0, row.top - northBottom) };
   };
-  const fitR = (band: number, scale: number) => band / 2 - (cardH * scale) / 2 - 8;
+  // The circle's radius in `half` a band, its played cards `scale` of a card.
+  const fitR = (half: number, scale: number) => half - (cardH * scale) / 2 - 8;
   // A lifted card of yours stays under your seat row: the band has no lift to clear.
   const roomy = portraitBand(false);
-  const tight = portrait && !tabletPortrait && fitR(roomy.band, COMPACT_PILE_SCALE) < MIN_COMFORT_R;
+  const tight =
+    portrait && !tabletPortrait && fitR(roomy.band / 2, COMPACT_PILE_SCALE) < MIN_COMFORT_R;
   const { handY: portraitHandY, northBottom, band } = portraitBand(tight);
-  const compact = profile === 'phone-portrait' && fitR(band, PHONE_PILE_SCALE) < usualR;
+  // Upright phones shrink their played cards only as far as keeps them
+  // TRICK_GAP from the trump mark, in `half` a band below the trick's line.
+  const phonePile = (half: number) =>
+    clamp(
+      (half - 8 - (cardW * TRUMP_MARK) / 2 - TRICK_GAP) / cardH,
+      COMPACT_PILE_SCALE,
+      PHONE_PILE_SCALE
+    );
+  const stackLeast = sideBackWidth(cardW) * (1 + 5 * SIDE_STACK_LEAST);
+  // The trick sits mid-band. On tight phones North's name runs right of its
+  // avatar, over East's column, so the line comes down until East's seat,
+  // which hangs from it over its played cards, is TRICK_GAP under North's
+  // (PID-464: your seat row over the hand took that from a 360×640 phone).
+  // phonePile is linear between its clamps, so that line solves directly. It
+  // comes only as far as the seat can follow over its least stack. The circle
+  // below closes and its played cards shrink, at their least nearer the mark.
+  const seatDrop = 2 * TRICK_GAP + TIGHT_SIDE_SEAT;
+  const lean = cardW / (2 * cardH);
+  const trickDown = tight
+    ? Math.max(
+        band / 2,
+        Math.min(
+          clamp(
+            (seatDrop + lean * (band - 8 - (cardW * TRUMP_MARK) / 2 - TRICK_GAP)) / (1 + lean),
+            seatDrop + (cardW * COMPACT_PILE_SCALE) / 2,
+            seatDrop + (cardW * PHONE_PILE_SCALE) / 2
+          ),
+          band - TRICK_GAP - stackLeast + (cardW * COMPACT_PILE_SCALE) / 2
+        )
+      )
+    : band / 2;
+  const below = band - trickDown;
+  const compact = profile === 'phone-portrait' && fitR(below, PHONE_PILE_SCALE) < usualR;
   const handH = cardH * handScale(profile);
   // Landscape phones lay the table out as Classic does, one card size
   // (PID-305, PID-307): each hand along its edge, and the played cards on a
@@ -1287,26 +1321,18 @@ export function computeLayout(
   const trickCy = tablet
     ? (tabletBand.top + tabletBand.bottom) / 2
     : portrait
-      ? northBottom + band / 2
+      ? northBottom + trickDown
       : crossY - rise;
   // Upright phones close the circle in before their played cards shrink, and
   // shrink them only to keep TRICK_GAP from the trump mark, as landscape does.
-  const pileScale = tablet
-    ? tabletPlayed / cardH
-    : portrait
-      ? clamp(
-          (band / 2 - 8 - (cardW * TRUMP_MARK) / 2 - TRICK_GAP) / cardH,
-          COMPACT_PILE_SCALE,
-          PHONE_PILE_SCALE
-        )
-      : 1;
+  const pileScale = tablet ? tabletPlayed / cardH : portrait ? phonePile(below) : 1;
   const trickR = tablet
     ? Math.max(
         32,
         Math.min(Math.max(usualR, tabletPlayed / 2 + markClear), tabletHalf - tabletPlayed / 2)
       )
     : compact
-      ? Math.max(32, Math.min(usualR, fitR(band, pileScale)))
+      ? Math.max(32, Math.min(usualR, fitR(below, pileScale)))
       : twoRows
         ? reach
         : usualR;
@@ -1346,12 +1372,12 @@ export function computeLayout(
   // beside it would not leave room for) stays TRICK_GAP above the
   // top edge of its played cards, which hang down from the line beside it.
   // Its backs hang below it in the edge column, TRICK_GAP clear of your
-  // seat row, your pack and talk's bubble at its ends. A full stack short of room closes up to SIDE_STACK_LEAST;
-  // only past that does the seat rise, as little as it must.
+  // seat row, your pack and talk's bubble at its ends. A full stack short of
+  // room closes up to SIDE_STACK_LEAST; only past that does the seat rise, as
+  // little as it must.
   const upright = profile === 'phone-portrait';
   const sideSize = sideAvatar({ tight, profile });
   const sideBelow = (tight ? TIGHT_SIDE_SEAT : NORTH_SEAT_STACK.phone) - sideSize / 2 + TRICK_GAP;
-  const stackLeast = sideBackWidth(cardW) * (1 + 5 * SIDE_STACK_LEAST);
   const sideLow = Math.min(trickCy, trickCy - (cardW * pileScale) / 2 - sideBelow);
   const sideSeat = sideLow - Math.max(0, sideLow + sideBelow + stackLeast - stackBottom);
   const stackReach = Math.min(sideStackReach(cardW), stackBottom - sideSeat - sideBelow);

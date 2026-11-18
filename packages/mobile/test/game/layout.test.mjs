@@ -1004,8 +1004,10 @@ describe('upright phones seat East and West low beside the trick', () => {
     [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }],
     [440, 956, { top: 62, bottom: 34, left: 0, right: 0 }],
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [360, 640, { top: 24, bottom: 24, left: 0, right: 0 }],
+    [360, 640, { top: 0, bottom: 21, left: 0, right: 59 }],
   ]) {
-    it(`on ${width}×${height}`, () => {
+    it(`on ${width}×${height} ${JSON.stringify(insets)}`, () => {
       const tableTop = insets.top + 60;
       const L = computeLayout(width, height, insets, 60);
       expect(L.bottom).toBe(height - insets.bottom);
@@ -1033,6 +1035,14 @@ describe('upright phones seat East and West low beside the trick', () => {
       expect(top + maxHeight).toBeLessThanOrEqual(southRow(L).top - TRICK_GAP + 0.01);
       // Six backs still count.
       expect(sideStackStep(L.cardW, 6, maxHeight)).toBeGreaterThanOrEqual(backW * 0.3 - 0.01);
+      // Tight North's name runs right over East's column (PID-464): East's seat
+      // stays TRICK_GAP under it, or as near as its backs closed to their least allow.
+      if (L.tight) {
+        const least = sideStackStep(L.cardW, 6, maxHeight) < backW * 0.3 + 0.01;
+        expect(seatTop - northSeatBottom(L, tableTop)).toBeGreaterThanOrEqual(
+          least ? 0 : TRICK_GAP - 0.01
+        );
+      }
     });
   }
 
