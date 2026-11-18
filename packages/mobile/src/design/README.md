@@ -159,7 +159,9 @@ enters and leaves above the tab pill. Sheet: `/ui-dev?state=components`.
   Weight 400 only; it brings its own character.
 - **Nunito** (`PidroFonts.ui`): everything else, via `PidroText` roles
   (display/title/label/body/metadata, and `eyebrow` for a section's name above its
-  rows). Never invent a size/weight outside the roles.
+  rows). Never invent a size/weight outside the roles. Android draws each weight from
+  its own static file, so Nunito goes through `PidroText` or `Input`; a raw `Text` or
+  `TextInput` takes its style through `staticNunito`.
 
 ## Gradients and shadows (New Architecture)
 

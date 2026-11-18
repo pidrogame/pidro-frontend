@@ -46,6 +46,16 @@ export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
     Nunito: require('../assets/fonts/Nunito-VariableFont_wght.ttf'),
     BreeSerif: require('../assets/fonts/BreeSerif-Regular.ttf'),
+    // Android takes each weight from its own static file (src/features/nunito.ts).
+    ...(Platform.OS === 'android'
+      ? {
+          'Nunito-Medium': require('../assets/fonts/Nunito-Medium.ttf'),
+          'Nunito-SemiBold': require('../assets/fonts/Nunito-SemiBold.ttf'),
+          'Nunito-Bold': require('../assets/fonts/Nunito-Bold.ttf'),
+          'Nunito-ExtraBold': require('../assets/fonts/Nunito-ExtraBold.ttf'),
+          'Nunito-Black': require('../assets/fonts/Nunito-Black.ttf'),
+        }
+      : {}),
   });
   const authHydrated = useAuthStore((state) => state.hydrated);
   const authStatus = useAuthStore((state) => state.status);

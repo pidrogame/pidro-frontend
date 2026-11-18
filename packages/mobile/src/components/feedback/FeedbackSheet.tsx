@@ -28,7 +28,7 @@ import { BevelButton } from '@/components/ui/BevelButton';
 import { DismissButton } from '@/components/ui/DismissButton';
 import { Icon } from '@/components/ui/Icon';
 import { Input } from '@/components/ui/Input';
-import { PidroText } from '@/components/ui/PidroText';
+import { PidroText, staticNunito } from '@/components/ui/PidroText';
 import { TextLink } from '@/components/ui/TextLink';
 import {
   PidroBevel,
@@ -339,12 +339,12 @@ export function FeedbackSheet({ open, onClose, chip = false, post, fixture }: Pr
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           maxFontSizeMultiplier={1.6}
-          style={[
+          style={staticNunito([
             styles.ink,
             (small || landscape) && styles.inkSmall,
             tablet && styles.inkTablet,
             Platform.OS === 'web' && styles.inkWeb,
-          ]}
+          ])}
         />
       </Animated.View>
       <Animated.View pointerEvents="none" style={[styles.note, styles.back, back]} />

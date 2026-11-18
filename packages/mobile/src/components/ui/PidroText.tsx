@@ -1,6 +1,25 @@
-import { Text, type TextProps, type TextStyle, StyleSheet } from 'react-native';
-import { PidroColors, PidroType } from '@/design/tokens';
+import {
+  Platform,
+  Text,
+  type StyleProp,
+  type TextProps,
+  type TextStyle,
+  StyleSheet,
+} from 'react-native';
+import { PidroColors, PidroFonts, PidroType } from '@/design/tokens';
+import { nunitoFamily } from '@/features/nunito';
 import { useLocale } from '@/i18n';
+
+const ANDROID = Platform.OS === 'android';
+
+/** On Android, Nunito's final weight picks its static family and the weight itself stays normal. */
+export function staticNunito(style: StyleProp<TextStyle>): StyleProp<TextStyle> {
+  if (!ANDROID) return style;
+  const flat = StyleSheet.flatten(style);
+  return flat?.fontFamily === PidroFonts.ui
+    ? { ...flat, fontFamily: nunitoFamily(Platform.OS, flat.fontWeight), fontWeight: 'normal' }
+    : flat;
+}
 
 export type PidroTextRole =
   'score' | 'display' | 'title' | 'label' | 'body' | 'metadata' | 'eyebrow';
@@ -25,7 +44,13 @@ export function PidroText({
     <Text
       accessibilityLanguage={locale}
       maxFontSizeMultiplier={maxFontSizeMultiplier ?? (role === 'body' ? 1.8 : 1.5)}
-      style={[styles.base, styles[role], styles[tone], align ? { textAlign: align } : null, style]}
+      style={staticNunito([
+        styles.base,
+        styles[role],
+        styles[tone],
+        align ? { textAlign: align } : null,
+        style,
+      ])}
       {...props}
     />
   );

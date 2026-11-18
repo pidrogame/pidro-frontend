@@ -6,7 +6,7 @@ import { cn } from '@/utils/cn';
 import { PidroColors, PidroLayout, PidroSpacing, PidroType } from '@/design/tokens';
 import { gradientBg } from './Bevel';
 import { Icon } from './Icon';
-import { PidroText } from './PidroText';
+import { PidroText, staticNunito } from './PidroText';
 import { PressableFX } from './PressableFX';
 
 export interface InputProps extends TextInputProps {
@@ -76,7 +76,11 @@ export const Input = forwardRef<TextInput, InputProps>(
           <TextInput
             ref={ref}
             className={cn('min-w-0 flex-1', className)}
-            style={[styles.input, compact && { minHeight: 44, paddingVertical: 8 }, style]}
+            style={staticNunito([
+              styles.input,
+              compact && { minHeight: 44, paddingVertical: 8 },
+              style,
+            ])}
             placeholderTextColor="rgba(148, 211, 255, 0.7)"
             selectionColor={PidroColors.cyan}
             accessibilityLabel={accessibilityLabel ?? label}
