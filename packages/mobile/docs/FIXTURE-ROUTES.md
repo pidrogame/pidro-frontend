@@ -143,6 +143,10 @@ turn: tapping your card says nothing, the card shakes and settles and his shine
 lights once (a still capture holds it lit). `out-tap&out=you&botTurn=north`: you
 are out, and a tap on your folded cards does nothing at all. Each notice goes
 through the real queue (PID-427): it leaves after `noticeHoldMs`, and a tap closes it.
+PID-462: `/table-dev?phase=declaring&feedback=late-tap&noticeAt=5000` queues the
+notice 5 s after the table shows; tap a suit before then and the dev table's
+refusal (it has no channel) is an action notice that covers it. The covered
+notice's time waits, so it still gets its full time once the refusal goes.
 `table-flaky-{offline,auto-card,auto-pass,auto-bid,late-card,late-tap,away-one,away-out,early-tap,out-tap,spectator}-{en,sv}`
 checks the band, no scrolling, and all four spectators' hands at 390×844, 375×667,
 844×390 and 768×1024; the tap cases tap a card and sample its position every

@@ -847,6 +847,7 @@ function TableDevHarness() {
     role?: string;
     playerName?: string;
     notice?: string;
+    noticeAt?: string;
     names?: string;
     safeArea?: string;
     pass?: string;
@@ -1009,6 +1010,7 @@ function TableDevHarness() {
             role={params.role === 'spectator' ? 'spectator' : 'player'}
             phase={phase}
             feedback={fixture?.startsWith('flaky-') ? fixture.slice(6) : params.feedback}
+            noticeAt={Number(params.noticeAt) || 0}
             canPass={params.pass !== 'disabled'}
             deal={params.deal}
             dealer={fixture === 'talk-deal-bidding' ? 'south' : params.dealer}
@@ -1301,6 +1303,7 @@ function RolePreview({
   role,
   phase,
   feedback,
+  noticeAt,
   canPass,
   deal,
   dealer,
@@ -1336,6 +1339,8 @@ function RolePreview({
   role: 'player' | 'spectator';
   phase: string;
   feedback?: string;
+  /** `noticeAt=3000`: the flaky notice arrives 3 s after the table shows (PID-462). */
+  noticeAt?: number;
   canPass: boolean;
   deal?: string;
   dealer?: string;
@@ -1394,8 +1399,14 @@ function RolePreview({
   useEffect(() => {
     // Once the table can show it, so its clock starts on screen.
     const notice = FLAKY_NOTICES[feedback ?? ''];
-    if (Table && notice) addFlakyNotice(notice);
-  }, [Table, addFlakyNotice, feedback]);
+    if (!Table || !notice) return;
+    if (!noticeAt) return addFlakyNotice(notice);
+    const timer = setTimeout(() => {
+      console.log('[TableDev] flaky notice arrives');
+      addFlakyNotice(notice);
+    }, noticeAt);
+    return () => clearTimeout(timer);
+  }, [Table, addFlakyNotice, feedback, noticeAt]);
   const tableRoom = status
     ? STATUS_ROOMS[status]
     : teamsHand
