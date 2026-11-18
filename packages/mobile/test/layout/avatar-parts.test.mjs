@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
-import { avatarLabel, avatarParts, chipFor, lineBox, nameType } from '../../src/features/avatar';
+import { avatarLabel, avatarParts, chipFor, lineBox, nameType, plateReach } from '../../src/features/avatar';
 
 describe('avatar parts by size', () => {
   it('matches the profile avatar on the board', () => {
@@ -125,6 +125,20 @@ describe('avatar parts by size', () => {
     expect(lineBox(36)).toBe(37);
     expect(lineBox(36.2, 38)).toBe(38);
     expect(lineBox(36.2, 37.9)).toBeNull();
+  });
+
+  it('keeps a side seat’s plate a few points off the screen’s edge', () => {
+    // A 94pt column at 360 wide: the lines get 94 − 2 × 13.5 = 67.
+    const column = 94;
+    const room = column - 2 * 13.5;
+    const air = (copy) => (column - copy - 2 * plateReach(13.5, room, copy, 4)) / 2;
+    // "Playing…" in a 63pt box took the column but 2pt each side; now 4.
+    expect(plateReach(13.5, room, 63, 4)).toBe(11.5);
+    expect(air(63)).toBe(4);
+    expect(air(room)).toBe(4);
+    // A plate with air to spare keeps its whole reach.
+    expect(plateReach(13.5, room, room - 8, 4)).toBe(13.5);
+    expect(plateReach(13.5, room, 40, 4)).toBe(13.5);
   });
 
   it('is the ring alone at 24', () => {

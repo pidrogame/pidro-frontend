@@ -7,6 +7,7 @@ import {
   useWindowDimensions,
   View,
   type ImageSourcePropType,
+  type LayoutChangeEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -22,13 +23,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { DealerChip } from '@/components/game/DealerChip';
-import { withSuits } from '@/components/game/SuitTile';
+import { SuitText } from '@/components/game/SuitTile';
 import { Avatar } from '@/components/ui/Avatar';
 import { BotPersonaFace } from '@/components/ui/BotPersonaFace';
 import { gradientBg } from '@/components/ui/Bevel';
 import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
-import { PidroBevel, PidroColors, PidroFonts } from '@/design/tokens';
+import { PidroBevel, PidroColors, PidroFonts, PidroSpacing } from '@/design/tokens';
 import { isStillCapture } from '@/utils/stillCapture';
 import { formatNumber, useTranslation } from '@/i18n';
 import {
@@ -38,6 +39,7 @@ import {
   fitStatus,
   lineBox,
   nameType,
+  plateReach,
   type AvatarAway,
   type AvatarKind,
   type AvatarPin,
@@ -248,6 +250,18 @@ export function PlayerAvatar({
   const nameWidth = name ? widths[nameKey(shownName, name)] : undefined;
   const nameBox =
     nameWidth != null && nameRoomShown != null ? lineBox(nameWidth, nameRoomShown) : null;
+  // Under the avatar the plate keeps clear of the screen's edge (PID-466): a seat's room is its
+  // column less a reach each side, so a copy as wide as its room would take the column whole.
+  const reach =
+    label === 'below' && fit
+      ? plateReach(
+          PLATE_REACH,
+          fit.room,
+          // A line or a name not yet measured, or cut short, fills the room.
+          Math.max(line == null ? 0 : (lineBoxWidth ?? fit.room), name ? (nameBox ?? fit.room) : 0),
+          PidroSpacing.xxs
+        )
+      : null;
   const unseen = seat
     ? [
         ...[status, fit?.short]
@@ -517,7 +531,11 @@ export function PlayerAvatar({
               <View
                 testID={testID ? `${testID}-plate` : undefined}
                 pointerEvents="none"
-                style={[styles.plate, PLATE_EDGE[label], PLATES[plate]]}
+                style={[
+                  styles.plate,
+                  reach != null ? { left: -reach, right: -reach } : PLATE_EDGE[label],
+                  PLATES[plate],
+                ]}
               />
             ) : null}
             {named ? (
@@ -546,15 +564,14 @@ export function PlayerAvatar({
             <RNAnimated.View
               style={[{ transformOrigin: SWELL_ORIGIN[label], maxWidth: '100%' }, acted.swell]}>
               {/* A status alone (your tight seat) has a fixed slot above the chat band. */}
-              <PidroText
+              <SuitText
                 numberOfLines={1}
                 maxFontSizeMultiplier={named ? undefined : 1}
-                style={[
-                  statusType,
-                  lineBoxWidth != null ? { minWidth: lineBoxWidth } : seat && styles.cutLine,
-                ]}>
-                {line ? withSuits(line, suitSize) : ' '}
-              </PidroText>
+                text={line ?? ' '}
+                fontSize={suitSize}
+                style={statusType}
+                box={lineBoxWidth != null ? { minWidth: lineBoxWidth } : seat && styles.cutLine}
+              />
               {unseen.length > 0 ? (
                 <View
                   pointerEvents="none"
@@ -562,25 +579,34 @@ export function PlayerAvatar({
                   importantForAccessibility="no-hide-descendants"
                   style={styles.measure}>
                   <View style={styles.measureRoom}>
-                    {unseen.map(({ key, text, type }) => (
-                      <PidroText
-                        key={`${key}:${fontScale}`}
-                        numberOfLines={1}
-                        maxFontSizeMultiplier={!type && !named ? 1 : undefined}
-                        style={type ? [styles.name, type] : statusType}
-                        onLayout={(e) => {
-                          const width = e.nativeEvent.layout.width;
-                          setLaid((was) => ({
-                            scale: fontScale,
-                            widths: {
-                              ...(was.scale === fontScale ? was.widths : {}),
-                              [key]: width,
-                            },
-                          }));
-                        }}>
-                        {type ? text : withSuits(text, suitSize)}
-                      </PidroText>
-                    ))}
+                    {unseen.map(({ key, text, type }) => {
+                      const onLayout = (e: LayoutChangeEvent) => {
+                        const width = e.nativeEvent.layout.width;
+                        setLaid((was) => ({
+                          scale: fontScale,
+                          widths: { ...(was.scale === fontScale ? was.widths : {}), [key]: width },
+                        }));
+                      };
+                      return type ? (
+                        <PidroText
+                          key={`${key}:${fontScale}`}
+                          numberOfLines={1}
+                          style={[styles.name, type]}
+                          onLayout={onLayout}>
+                          {text}
+                        </PidroText>
+                      ) : (
+                        <SuitText
+                          key={`${key}:${fontScale}`}
+                          numberOfLines={1}
+                          maxFontSizeMultiplier={named ? undefined : 1}
+                          text={text}
+                          fontSize={suitSize}
+                          style={statusType}
+                          onLayout={onLayout}
+                        />
+                      );
+                    })}
                   </View>
                 </View>
               ) : null}

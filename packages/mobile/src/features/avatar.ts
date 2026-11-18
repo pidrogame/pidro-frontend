@@ -177,6 +177,15 @@ export const lineBox = (width: number, room = Infinity) => {
 };
 
 /**
+ * How far a plate reaches past its lines, at most `reach`, so it keeps `air`
+ * inside what its seat gives it: the lines' `room` and a full reach each side
+ * (PID-466). Lines as wide as their room, beside the screen's edge, get a plate
+ * that reaches a little less, never one that touches the edge.
+ */
+export const plateReach = (reach: number, room: number, copy: number, air: number) =>
+  Math.min(reach, (room - copy) / 2 + reach - air);
+
+/**
  * The status a label shows (PID-466): its line where its box fits `fit.room`,
  * else `fit.short`, each as wide as the device laid it out (`widthOf`):
  * measured, never estimated, so it holds in whatever face the phone draws.
