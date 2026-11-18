@@ -1,5 +1,7 @@
 import { Platform } from 'react-native';
 
+let Sentry: typeof import('@sentry/react-native') | null = null;
+
 /**
  * Crash reporting. Inert until EXPO_PUBLIC_SENTRY_DSN is set, so nothing
  * changes for builds and CI until a Sentry project exists.
@@ -16,10 +18,16 @@ export function initSentry() {
 
   // Lazy require so the native SDK never executes on web or without a DSN.
   // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const Sentry = require('@sentry/react-native') as typeof import('@sentry/react-native');
+  Sentry = require('@sentry/react-native') as typeof import('@sentry/react-native');
   Sentry.init({
     dsn,
     enableAutoSessionTracking: true,
     tracesSampleRate: 0.2,
   });
+}
+
+/** A failure the app lives through: logged, and sent when crash reporting is on. */
+export function reportFailure(context: string, error: unknown) {
+  console.warn(`[${context}]`, error);
+  Sentry?.captureException(error, { tags: { context } });
 }

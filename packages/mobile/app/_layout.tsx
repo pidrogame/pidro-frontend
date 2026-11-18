@@ -1,8 +1,8 @@
 import '../global.css';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
-import { useFonts } from 'expo-font';
+import * as Font from 'expo-font';
 import { Stack } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
@@ -11,7 +11,7 @@ import { useReducedMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AnalyticsProvider, AnalyticsTracker } from '../src/analytics/PostHogAnalytics';
 import { initRealtime } from '../src/bootstrap/realtime';
-import { initSentry } from '../src/bootstrap/sentry';
+import { initSentry, reportFailure } from '../src/bootstrap/sentry';
 import { canAccessProtectedRoutes } from '../src/navigation/initialRoute';
 import { useAuthStore } from '../src/stores/auth';
 import { useAgeGateStore } from '../src/stores/ageGate';
@@ -26,6 +26,7 @@ import { configurePurchases, syncPurchasesOnce } from '../src/features/premium/p
 import { refreshPremium } from '../src/features/premium/premium';
 import { usePurchaserIdentity } from '../src/features/premium/usePurchaserIdentity';
 import { listenForPush, registerPushIfGranted } from '../src/features/push/push';
+import { settleFonts } from '../src/features/fonts';
 
 initSentry();
 configurePurchases();
@@ -36,6 +37,21 @@ void syncPurchasesOnce().then((synced) => {
 void SplashScreen.preventAutoHideAsync().catch(console.warn);
 void SystemUI.setBackgroundColorAsync(PidroColors.feltBottom).catch(console.warn);
 
+const FONTS = {
+  Nunito: require('../assets/fonts/Nunito-VariableFont_wght.ttf'),
+  BreeSerif: require('../assets/fonts/BreeSerif-Regular.ttf'),
+  // Android takes each weight from its own static file (src/features/nunito.ts).
+  ...(Platform.OS === 'android'
+    ? {
+        'Nunito-Medium': require('../assets/fonts/Nunito-Medium.ttf'),
+        'Nunito-SemiBold': require('../assets/fonts/Nunito-SemiBold.ttf'),
+        'Nunito-Bold': require('../assets/fonts/Nunito-Bold.ttf'),
+        'Nunito-ExtraBold': require('../assets/fonts/Nunito-ExtraBold.ttf'),
+        'Nunito-Black': require('../assets/fonts/Nunito-Black.ttf'),
+      }
+    : {}),
+};
+
 function hideSplash() {
   void SplashScreen.hideAsync().catch(console.warn);
 }
@@ -43,20 +59,22 @@ function hideSplash() {
 export default function RootLayout() {
   const startupUpdate = useStartupUpdate();
   const localeReady = useLocaleBootstrap();
-  const [fontsLoaded, fontError] = useFonts({
-    Nunito: require('../assets/fonts/Nunito-VariableFont_wght.ttf'),
-    BreeSerif: require('../assets/fonts/BreeSerif-Regular.ttf'),
-    // Android takes each weight from its own static file (src/features/nunito.ts).
-    ...(Platform.OS === 'android'
-      ? {
-          'Nunito-Medium': require('../assets/fonts/Nunito-Medium.ttf'),
-          'Nunito-SemiBold': require('../assets/fonts/Nunito-SemiBold.ttf'),
-          'Nunito-Bold': require('../assets/fonts/Nunito-Bold.ttf'),
-          'Nunito-ExtraBold': require('../assets/fonts/Nunito-ExtraBold.ttf'),
-          'Nunito-Black': require('../assets/fonts/Nunito-Black.ttf'),
-        }
-      : {}),
-  });
+  const [fontsLoaded, fontError] = Font.useFonts(FONTS);
+  // A font that fails costs its face, not the app: it starts once the rest have settled.
+  const [fontsSettled, setFontsSettled] = useState(false);
+  useEffect(() => {
+    if (!fontError) return;
+    reportFailure('Fonts', fontError);
+    let active = true;
+    void settleFonts(FONTS, Font).then((failed) => {
+      failed.forEach((error) => reportFailure('Fonts', error));
+      if (active) setFontsSettled(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, [fontError]);
+  const fontsReady = fontsLoaded || fontsSettled;
   const authHydrated = useAuthStore((state) => state.hydrated);
   const authStatus = useAuthStore((state) => state.status);
   const user = useAuthStore((state) => state.user);
@@ -77,7 +95,7 @@ export default function RootLayout() {
   }, []);
   usePurchaserIdentity();
 
-  const ready = fontsLoaded && authHydrated && ageGateHydrated && localeReady;
+  const ready = fontsReady && authHydrated && ageGateHydrated && localeReady;
   const routerMounted = ready && !startupUpdate.waiting && !startupUpdate.updating;
   const userId = user?.id;
   // Taps open their link once the Stack below is mounted.
@@ -86,8 +104,6 @@ export default function RootLayout() {
   useEffect(() => {
     if (userId) void registerPushIfGranted(userId);
   }, [userId]);
-
-  if (fontError) throw fontError;
 
   return (
     // Keep the native felt mounted through hydration and overlay dismissal.
@@ -100,7 +116,7 @@ export default function RootLayout() {
       ) : null}
       {/* On Android every screen is opaque over it once ready: kept loaded, not painted. */}
       <Background hidden={Platform.OS === 'android' && ready && !startupUpdate.waiting}>
-        {fontsLoaded && localeReady && startupUpdate.updating ? (
+        {fontsReady && localeReady && startupUpdate.updating ? (
           <View style={styles.content} onLayout={hideSplash}>
             <UpdatingScreen progress={startupUpdate.progress} />
           </View>
