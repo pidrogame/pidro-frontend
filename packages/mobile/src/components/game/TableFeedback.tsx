@@ -26,6 +26,12 @@ import { isStillCapture } from '@/utils/stillCapture';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 
+/**
+ * A notice's time runs only while a TableFeedback shows it. One that another
+ * covers, or that waits for the table to be drawn, keeps what it has left (PID-462).
+ */
+const timeLeft = new WeakMap<TableNotice, number>();
+
 export function useTableNotices(roomCode: string) {
   const [notices, setNotices] = useState<QueuedTableNotice[]>([]);
   const addNotice = useCallback(
@@ -34,17 +40,13 @@ export function useTableNotices(roomCode: string) {
     },
     [roomCode]
   );
-  const dismissNotice = useCallback(() => setNotices((current) => current.slice(1)), []);
   const clearNotices = useCallback(() => setNotices([]), []);
   const notice = notices[0]?.roomCode === roomCode ? notices[0] : null;
-  const shown = useRef<{ notice: QueuedTableNotice; at: number } | null>(null);
-  useEffect(() => {
-    // UI grammar holds the notice it caught; a tap still closes it.
-    if (!notice || isStillCapture()) return;
-    if (shown.current?.notice !== notice) shown.current = { notice, at: Date.now() };
-    const timer = setTimeout(dismissNotice, shown.current.at + noticeHoldMs(notices) - Date.now());
-    return () => clearTimeout(timer);
-  }, [notice, notices, dismissNotice]);
+  // Closes this notice only: a tap as its time runs out must not close the next one too.
+  const dismissNotice = useCallback(
+    () => setNotices((current) => (current[0] === notice ? current.slice(1) : current)),
+    [notice]
+  );
   return { notice, addNotice, dismissNotice, clearNotices };
 }
 
@@ -158,6 +160,21 @@ export function TableFeedback({
   const { landscape, noticeSlot } = useTableReserves();
 
   useEffect(() => {
+    // UI grammar holds the notice it caught; a tap still closes it.
+    if (!notice || !onDismiss || isStillCapture()) return;
+    const start = Date.now();
+    const hold = timeLeft.get(notice) ?? noticeHoldMs([notice]);
+    const timer = setTimeout(onDismiss, hold);
+    return () => {
+      clearTimeout(timer);
+      timeLeft.set(notice, hold - (Date.now() - start));
+    };
+  }, [notice, onDismiss]);
+  // A tap closes the notice the finger went down on, even if that one ran out
+  // before it lifted. A screen reader's click has no press-in and closes this one.
+  const pressed = useRef<(() => void) | undefined>(undefined);
+
+  useEffect(() => {
     if (!notice || Platform.OS !== 'ios') return;
     AccessibilityInfo.announceForAccessibilityWithOptions(message, { queue: true });
   }, [notice, message]);
@@ -177,7 +194,11 @@ export function TableFeedback({
           accessibilityLiveRegion="polite"
           aria-live="polite"
           aria-atomic
-          onPress={onDismiss}
+          onPressIn={() => (pressed.current = onDismiss)}
+          onPress={() => {
+            (pressed.current ?? onDismiss)?.();
+            pressed.current = undefined;
+          }}
           style={[
             {
               width: noticeWidth,
