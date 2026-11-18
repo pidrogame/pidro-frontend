@@ -35,6 +35,7 @@ import { isStillCapture } from '@/utils/stillCapture';
 import type { ServerHandSummary } from '@pidro/shared';
 import type { Suit } from '@/types/game';
 import { SUIT_SYMBOLS } from '@/utils/cards';
+import { SuitTile } from '@/components/game/SuitTile';
 import { HandHistory } from '@/components/game/HandHistory';
 import { handLogEntries, type HandLogEntry, type HandLogGroup } from '@/game/handLog';
 import { ActionTicker, type TickerRestingLine } from './ActionTicker';
@@ -311,21 +312,7 @@ export function Scoreboard({
                       {formatNumber(bid.amount)}
                     </PidroText>
                     {bid.trump ? (
-                      <PidroText
-                        testID="score-bid-trump"
-                        style={[
-                          styles.value,
-                          styles.suit,
-                          {
-                            color:
-                              bid.trump === 'hearts' || bid.trump === 'diamonds'
-                                ? PidroColors.suitRedOnFelt
-                                : PidroColors.text,
-                          },
-                        ]}
-                        maxFontSizeMultiplier={1}>
-                        {SUIT_SYMBOLS[bid.trump]}
-                      </PidroText>
+                      <SuitTile testID="score-bid-trump" suit={bid.trump} fontSize={20} />
                     ) : null}
                   </View>
                 </View>
@@ -394,7 +381,6 @@ const styles = StyleSheet.create({
   col: { alignItems: 'center', minWidth: 52 },
   bidCol: { minWidth: 44 },
   bidRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  suit: { fontFamily: PidroFonts.ui, fontSize: 20 },
   glow: {
     ...StyleSheet.absoluteFill,
     borderRadius: PidroRadii.tight,

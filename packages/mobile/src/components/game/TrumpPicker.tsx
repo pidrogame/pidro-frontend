@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
+import { SUIT_IMAGES } from '@/components/game/SuitTile';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { PidroColors, PidroRadii } from '@/design/tokens';
@@ -16,13 +17,6 @@ import type { Card, Suit } from '@/types/game';
 import { SUIT_ORDER } from '@/utils/cards';
 import { useTranslation } from '@/i18n';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
-
-const SUIT_IMAGES = {
-  hearts: require('~/assets/images/heart.png'),
-  diamonds: require('~/assets/images/diamond.png'),
-  clubs: require('~/assets/images/club.png'),
-  spades: require('~/assets/images/spade.png'),
-};
 
 type Props = {
   cards: Card[];
