@@ -38,6 +38,7 @@ import type { Card, Suit } from '@/types/game';
 import { trumpsIn } from '@/features/game/trump';
 import { catchUpPace } from '@/features/game/catchUp';
 import { retarget } from '@/features/game/heldCard';
+import { cardUnder } from '@/features/game/handTap';
 import { isStillCapture } from '@/utils/stillCapture';
 import { playSelectionHaptic } from '@/utils/haptics';
 import { cutSoundKey, shuffleAtMs } from '@/features/game/sounds';
@@ -381,7 +382,8 @@ export function useCardSprites({
         key: tc.key,
         textureKey: tc.textureKey,
         kind: 'hand',
-        z: i + (lifted ? 30 : 0),
+        // Raised or not, each card lies over the one before it, so none hides a rank (PID-461).
+        z: i,
         delayOrder: i,
         tx: s.x,
         ty: (lifted ? s.y - handLift(L) : s.y) + held.dy,
@@ -935,13 +937,11 @@ export function useCardSprites({
         });
     }
 
-    // Only a card that lies over this one casts on it: a lifted card lies over the next.
     for (const d of desired) {
       const sl = keyToSlot.current.get(d.key);
       const caster = d.castBy ? keyToSlot.current.get(d.castBy) : undefined;
-      if (sl === undefined || caster === undefined || !nextSlots[sl] || !nextSlots[caster])
-        continue;
-      if (nextSlots[caster]!.z > nextSlots[sl]!.z) nextSlots[sl]!.caster = caster;
+      if (sl !== undefined && caster !== undefined && nextSlots[sl] && nextSlots[caster])
+        nextSlots[sl]!.caster = caster;
     }
 
     handTargets.value = ht;
@@ -1033,15 +1033,6 @@ export function useCardSprites({
   }, []);
 
   const gesture = useMemo(() => {
-    const hit = (px: number, py: number): HandTarget | null => {
-      'worklet';
-      const ts = handTargets.value;
-      for (let i = ts.length - 1; i >= 0; i--) {
-        const t = ts[i];
-        if (Math.abs(px - t.x) < t.w / 2 + 6 && Math.abs(py - t.y) < t.h / 2 + 6) return t;
-      }
-      return null;
-    };
     const target = (slot: number): HandTarget | null => {
       'worklet';
       const ts = handTargets.value;
@@ -1067,17 +1058,16 @@ export function useCardSprites({
       .onBegin((e) => {
         'worklet';
         blockedPress.value = null;
-        const t = hit(e.x, e.y);
-        if (!t) {
-          const ts = blockedTargets.value;
-          for (let i = ts.length - 1; i >= 0; i--) {
-            const b = ts[i];
-            if (Math.abs(e.x - b.x) < b.w / 2 + 6 && Math.abs(e.y - b.y) < b.h / 2 + 6) {
-              blockedPress.value = b.code;
-              pressKey.value = b.key;
-              break;
-            }
-          }
+        const t = cardUnder<HandTarget & { code?: DiagnosticCode }>(
+          handTargets.value,
+          blockedTargets.value,
+          e.x,
+          e.y
+        );
+        if (!t) return;
+        if (t.code) {
+          blockedPress.value = t.code;
+          pressKey.value = t.key;
           return;
         }
         pressSlot.value = t.slot;
@@ -1165,7 +1155,8 @@ export function useCardSprites({
       .filter((x): x is { s: NonNullable<SlotInfo>; i: number } => x.s !== null)
       .sort((a, b) => a.s.z - b.s.z);
     return (
-      <>
+      // One group, so a pressed card's zIndex lifts it over its neighbours: Skia orders by zIndex only within a group.
+      <Group>
         {ordered.map(({ s, i }) => (
           <CardSprite
             key={i}
@@ -1201,12 +1192,15 @@ export function useCardSprites({
                 ? { x: sx[s.caster], y: sy[s.caster], scale: sscale[s.caster], rot: srot[s.caster] }
                 : undefined
             }
+            z={s.z}
+            // A playable card of yours held up by a finger, larger than it rests.
+            pressedOver={s.kind === 'hand' && s.legal ? handScale * 1.06 : 0}
             sampling={
               art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
             }
           />
         ))}
-      </>
+      </Group>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slots, textures, cardW, cardH, handScale, L, lights]);
@@ -1234,6 +1228,7 @@ export function useCardSprites({
               {
                 key: slot.key,
                 kind: slot.kind,
+                z: slot.z,
                 pressed: pressSlot.value === i,
                 x: sx[i].value,
                 y: sy[i].value,
@@ -1302,6 +1297,8 @@ function CardSprite({
   previewed,
   lights,
   cast,
+  z,
+  pressedOver,
   sampling,
 }: {
   img: SkImage | null;
@@ -1334,6 +1331,9 @@ function CardSprite({
     scale: SharedValue<number>;
     rot: SharedValue<number>;
   };
+  z: number;
+  /** Past this scale the card is under a finger: it lies over its neighbours. 0: never. */
+  pressedOver: number;
   sampling?: { B: number; C: number };
 }) {
   const sweep = useDerivedValue(() =>
@@ -1365,6 +1365,10 @@ function CardSprite({
     ];
   });
   const visible = useDerivedValue(() => opacity.value * (1 - sweep.value));
+  const pressed = useDerivedValue(() => (pressedOver > 0 && scale.value > pressedOver ? 1 : 0));
+  // Over the next card while pressed: that card casts nothing on it then.
+  const zIndex = useDerivedValue(() => z + 30 * pressed.value);
+  const castOpacity = useDerivedValue(() => Math.min(1, SUIT_SHADOW) * (1 - pressed.value));
   // The next card's place, turn and size as this card sees them, every frame.
   const castAt = useDerivedValue(() => {
     if (!cast) return [];
@@ -1389,7 +1393,7 @@ function CardSprite({
   // Only these cards ever glow; for the rest the glow is never drawn at all.
   const glows = winner || leading || flashing;
   return (
-    <Group transform={transform} opacity={visible}>
+    <Group transform={transform} opacity={visible} zIndex={zIndex}>
       {glows && lights.glow && <Baked blur={lights.glow} opacity={winnerOpacity} />}
       {/* Soft drop shadow grounds the card on the felt. */}
       {lights.shadow && <Baked blur={lights.shadow} />}
@@ -1419,7 +1423,7 @@ function CardSprite({
             w * FACE_CORNER,
             w * FACE_CORNER
           )}>
-          <Group transform={castAt} opacity={Math.min(1, SUIT_SHADOW)}>
+          <Group transform={castAt} opacity={castOpacity}>
             <Baked blur={lights.suit} />
           </Group>
         </Group>

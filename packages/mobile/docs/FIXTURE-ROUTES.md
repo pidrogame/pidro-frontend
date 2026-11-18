@@ -296,7 +296,7 @@ UI_SHOT_DIR=/tmp/pidro-locales node scripts/verify-ui-grammar.mjs
 | `dealer_selection` | Skia table, dealer cut cards                                       | `seat-north`            |
 | `playing`          | Skia table + trick overlay                                         | `seat-north`            |
 | `bidding`          | Bidding window                                                     | `bidding-window`        |
-| `declaring`        | You dealt: trump picker in felt; `suits=no-clubs`, `four` or `no-hearts` holds Marcel's PID-461 sheets; `phase=playing&suits=trumps` spades, the 5♣ and two side suits | `trump-picker`          |
+| `declaring`        | You dealt: trump picker in felt; `suits=no-clubs`, `four` or `no-hearts` holds Marcel's PID-461 sheets; `phase=playing&suits=trumps` spades, the 5♣ and two side suits, and `legal=As.Js.5c` the cards you may play | `trump-picker`          |
 | `second_deal`      | Dealer's private hand selection                                    | `hand-selection-window` |
 | `game_over`        | Game over: win reveal or loss                                      | `game-over-window`      |
 

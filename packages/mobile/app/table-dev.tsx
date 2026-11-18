@@ -914,6 +914,7 @@ function TableDevHarness() {
     bidder?: Position;
     hand?: string;
     suits?: string;
+    legal?: string;
     you?: string;
     kill?: string;
     nine?: string;
@@ -1101,6 +1102,7 @@ function TableDevHarness() {
             }
             longNames={params.names === 'long'}
             suitHand={SUIT_HANDS[params.suits ?? '']}
+            legalPlays={params.legal}
             scoreHistory={fixture === 'scores'}
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
             loading={params.loading ? Number(params.loading) : undefined}
@@ -1378,6 +1380,7 @@ function RolePreview({
   bidder = 'east',
   turnSeat = null,
   suitHand,
+  legalPlays,
   longNames = false,
   botTrick = false,
   trick,
@@ -1423,6 +1426,8 @@ function RolePreview({
   turnSeat?: Position | null;
   /** `suits=`: what you hold choosing trump, or playing. */
   suitHand?: Card[];
+  /** `legal=As.Js.5c` (PID-461): the cards you may play, written as in `SUIT_HANDS`. */
+  legalPlays?: string;
   /** `names=long`: ironman3001 at West and a long North name. */
   longNames?: boolean;
   botTrick?: boolean;
@@ -1775,22 +1780,26 @@ function RolePreview({
             ? dealerPosition === 'south' && role === 'player'
               ? [{ type: 'select_hand' as const, cards: [] }]
               : []
-            : ruleSet === 'louisiana'
-              ? [
-                  { type: 'play_card', card: { rank: 13, suit: 'hearts' } },
-                  { type: 'play_card', card: { rank: 5, suit: 'clubs' } },
-                ]
-              : outPlayers || botTrick || details
-                ? (details
-                    ? DETAILS_HAND
-                    : botTrick
-                      ? (trick?.hand ?? BOT_TRICK_HAND)
-                      : OUT_HAND
-                  ).map((card) => ({
-                    type: 'play_card' as const,
-                    card,
-                  }))
-                : [{ type: 'play_card', card: { rank: 14, suit: 'spades' } }]
+            : legalPlays
+              ? legalPlays
+                  .split('.')
+                  .map((text) => ({ type: 'play_card' as const, card: fixtureCard(text) }))
+              : ruleSet === 'louisiana'
+                ? [
+                    { type: 'play_card', card: { rank: 13, suit: 'hearts' } },
+                    { type: 'play_card', card: { rank: 5, suit: 'clubs' } },
+                  ]
+                : outPlayers || botTrick || details
+                  ? (details
+                      ? DETAILS_HAND
+                      : botTrick
+                        ? (trick?.hand ?? BOT_TRICK_HAND)
+                        : OUT_HAND
+                    ).map((card) => ({
+                      type: 'play_card' as const,
+                      card,
+                    }))
+                  : [{ type: 'play_card', card: { rank: 14, suit: 'spades' } }]
     );
     if (previewPhase === 'playing') {
       store.setTurnTimer({
@@ -1839,6 +1848,7 @@ function RolePreview({
     botHand,
     turnSeat,
     suitHand,
+    legalPlays,
     tableRoom,
     scoreHistory,
     talk,
