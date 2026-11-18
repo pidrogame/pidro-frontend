@@ -80,7 +80,10 @@ hand's result, and the next hand dealt once it closes (the server sends the
 next hand with the one that ended; the table holds the ended hand meanwhile).
 `end=they-made|we-made|we-missed|they-missed`; **Tune** changes how long the
 result stays (`showMs=` in the link). The server's `hand_transition_delay_ms`
-must cover the result and the deal. `count=on` shows the PID-236 panel; without
+must cover the result and the deal. `last=west|north|east` (PID-473) has that seat play
+the hand's last card, its last back; grammar cases `table-hand-last-west|north|east` draw the
+canvas 250 ms late and check that its backs and pile add up to the same in every frame, with
+no back left at rest. `count=on` shows the PID-236 panel; without
 it the hand ends as Classic's did (PID-332): ours | theirs over the trump mark
 between the hand's cards, which clear halfway through `showMs`. `pace=own`
 waits for a tap. Grammar cases `table-hand-classic`
@@ -540,6 +543,8 @@ as its card comes onto the trick, as at a real table. `table-play-arrives`,
 canvas draws its cards' tree 250 ms late, as a busy phone does: each card new to the table
 shows first where it was sent and is seen in flight, its seat keeps its back until it shows,
 your card lies over your pile through the state, and no hand card darkens as the hand closes up.
+`table-play-unpressed` (PID-473) lets the loop play your card with no press, as the table
+does for you, under the same late draw: your card lies over your earlier one in every frame.
 `reply=burst` puts opponent updates 80 ms apart;
 the left-card grammar case uses it to catch lights advancing during overlapping flights.
 `transition=0|80|1500|3000` varies the snapshot's hold;

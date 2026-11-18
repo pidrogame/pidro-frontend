@@ -529,12 +529,33 @@ export function GameCanvasTable({
   // Under the result the hand is played out: no trick, no cards left in hand,
   // and with count help no cards on the table.
   const layDown = laying || holding ? laid.show : null;
+  // The hand's last cards were played after the table held here: each seat
+  // holds that many fewer, and its backs say so (PID-473).
+  const heldSeats = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(heldModel.seats).map(([rel, seat]) => {
+          const played = (ended?.tricks ?? []).flatMap((trick) =>
+            trick.cards.filter((play) => play.player === seat?.absolutePosition)
+          ).length;
+          const since = played - (heldModel.playedCards[rel as RelativePosition]?.length ?? 0);
+          return [
+            rel,
+            seat && since > 0 && seat.cardCount != null
+              ? { ...seat, cardCount: Math.max(0, seat.cardCount - since) }
+              : seat,
+          ];
+        })
+      ) as TableModel['seats'],
+    [heldModel, ended]
+  );
   const tableModel = useMemo(
     () =>
       laidDown(
         holding
           ? {
               ...heldModel,
+              seats: heldSeats,
               yourHand: [],
               currentTrick: {},
               playedCards: piles,
@@ -547,7 +568,7 @@ export function GameCanvasTable({
                 trumpSuit: null,
                 currentTurnRelative: null,
                 seats: Object.fromEntries(
-                  Object.entries(heldModel.seats).map(([rel, seat]) => [
+                  Object.entries(heldSeats).map(([rel, seat]) => [
                     rel,
                     seat && {
                       ...seat,
@@ -561,7 +582,7 @@ export function GameCanvasTable({
           : heldModel,
         layDown
       ),
-    [holding, heldModel, piles, classicEnd, layDown]
+    [holding, heldModel, heldSeats, piles, classicEnd, layDown]
   );
   // Catching up: what the server allows the dealer cut, and how late this phone is.
   const arrivedAt = controller.serverState ? arrivals.get(controller.serverState) : undefined;

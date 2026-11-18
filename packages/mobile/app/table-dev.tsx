@@ -931,6 +931,7 @@ function TableDevHarness() {
     nine?: string;
     end?: string;
     sweep?: string;
+    last?: string;
     pace?: string;
     invitation?: string;
     botTurn?: Position;
@@ -1028,6 +1029,11 @@ function TableDevHarness() {
             countHelp={params.count === 'on'}
             own={params.pace === 'own'}
             sweep={params.sweep === 'on' || params.sweep === 'held' ? params.sweep : undefined}
+            last={
+              params.last && CLOCKWISE.includes(params.last as Position)
+                ? (params.last as Position)
+                : 'south'
+            }
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -2392,7 +2398,8 @@ const HAND_ENDS: Record<HandEnd, { bidder: Position; bid: number; ns: number }> 
  * panel; off, Classic's end (PID-332). `pace=own` waits for a tap.
  * `sweep=on` (PID-364): the others are out of trumps and the server plays
  * Eli's (East) last four out, one a trick, 500 ms apart, before the result;
- * `sweep=held` stops after two.
+ * `sweep=held` stops after two. `last=west|north|east` (PID-473): that seat
+ * plays the hand's last card, its last back, instead of you.
  */
 function HandEndPreview({
   room,
@@ -2400,12 +2407,14 @@ function HandEndPreview({
   countHelp,
   own,
   sweep,
+  last: lastBy,
 }: {
   room: Room;
   result: HandEnd;
   countHelp: boolean;
   own: boolean;
   sweep?: 'on' | 'held';
+  last: Position;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
@@ -2465,11 +2474,15 @@ function HandEndPreview({
         ],
       },
     ];
-    const last = [
+    const lastTrick = [
       play('west', heart(5)),
       play('north', { rank: 5, suit: 'diamonds' }),
       play('east', heart(7)),
+      play('south', heart(11)),
     ];
+    // `last`: that seat's card ends the trick and the hand; the others are on the table.
+    const final = lastTrick.find((one) => one.player === lastBy)!;
+    const last = lastTrick.filter((one) => one !== final);
     // Eli's trumps, highest first, as the server plays a settled hand out.
     const swept = [heart(11), heart(7), heart(5), { rank: 5, suit: 'diamonds' } as Card].map(
       (card) => ({ winner: 'east', cards: [play('east', card)] })
@@ -2504,7 +2517,7 @@ function HandEndPreview({
       ],
       tricks: sweep
         ? [...earlier, ...swept]
-        : [...earlier, { winner: 'south', cards: [...last, play('south', heart(11))] }],
+        : [...earlier, { winner: 'south', cards: [...last, final] }],
     };
     const base = {
       variant: 'finnish',
@@ -2525,11 +2538,12 @@ function HandEndPreview({
           tricks: earlier,
           current_trick: last,
           players: {
-            north: { hand: 0 },
-            east: { hand: 0 },
-            west: { hand: 0 },
-            south: { hand: [heart(11)] },
+            north: { hand: lastBy === 'north' ? 1 : 0 },
+            east: { hand: lastBy === 'east' ? 1 : 0 },
+            west: { hand: lastBy === 'west' ? 1 : 0 },
+            south: { hand: lastBy === 'south' ? [heart(11)] : [] },
           },
+          ...(lastBy !== 'south' && { current_player: lastBy }),
         },
       ],
       [
@@ -2617,7 +2631,7 @@ function HandEndPreview({
         )
       );
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, room, result, countHelp, own, sweep]);
+  }, [Table, run, room, result, countHelp, own, sweep, lastBy]);
 
   return (
     <View style={{ flex: 1 }}>

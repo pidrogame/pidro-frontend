@@ -1418,6 +1418,25 @@ const allCases = [
     drawLag: 250,
     arrivals: 'shade',
   },
+  // PID-473: your card played with no finger on it, as the table does for you
+  // or once a press has let go, lies over your pile while the tree is late.
+  {
+    name: 'table-play-unpressed',
+    path: '/table-dev?fixture=play-motion&history=on&reply=landing',
+    testId: 'seat-north',
+    drawLag: 250,
+    arrivals: 'unpressed',
+  },
+  // PID-473: a hand's last card from another seat: its backs and pile add up
+  // to the same in every frame, and its last back goes as the card shows.
+  ...['west', 'north', 'east'].map((rel) => ({
+    name: `table-hand-last-${rel}`,
+    path: `/table-dev?deal=hand&end=we-made&last=${rel}&showMs=600000`,
+    testId: `seat-${rel}`,
+    drawLag: 250,
+    arrivals: 'backs',
+    lastBy: rel,
+  })),
   // PID-331: with the server's trick pause at 0, a finished trick stays put.
   {
     name: 'table-trick-stays',
@@ -5821,6 +5840,8 @@ async function assertPlayOverPile(page) {
   let early = 0;
   for (const sprites of frames) {
     const yours = sprites.find((s) => face(s.key) === face(target.key));
+    // Your card keeps the sprite it had in your hand: it is never one the canvas has not drawn.
+    assert.ok(yours?.shown !== false, `your ${face(target.key)} was hidden as a new card`);
     if (yours?.kind !== 'played') continue;
     if (yours.key.startsWith('trick-')) break;
     early++;
@@ -5975,6 +5996,89 @@ async function assertArrivals(page, mode) {
     report.push(`yours over your pile in ${over} frames`);
   }
   console.log(`arrivals (${mode}): ${report.join('; ')}`);
+}
+
+/**
+ * PID-473: the play-motion loop plays your card with no press, and the canvas
+ * draws its tree late: in every frame your card lies over your earlier card.
+ */
+async function assertUnpressedOverPile(page) {
+  await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
+  await page.evaluate(() => {
+    const frames = [];
+    const t0 = performance.now();
+    const sample = () => {
+      frames.push(window.__pidroCardMotion());
+      if (performance.now() - t0 < 4000) requestAnimationFrame(sample);
+      else window.__pidroUnpressed = frames;
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.waitForFunction(() => window.__pidroUnpressed, null, { timeout: 15_000 });
+  const frames = await page.evaluate(() => window.__pidroUnpressed);
+  const face = (key) => key.split('-').at(-1);
+  const yours = (s) => s.kind === 'played' && (s.key.includes('-south-') || s.key === face(s.key));
+  let over = 0;
+  for (const sprites of frames) {
+    const mine = sprites.filter(yours);
+    const playing = mine.find((s) => !s.key.startsWith('trick-0-'));
+    if (!playing) continue;
+    assert.ok(playing.shown !== false, `your ${face(playing.key)} was hidden as a new card`);
+    for (const earlier of mine.filter((s) => s !== playing))
+      assert.ok(
+        playing.drawZ > earlier.drawZ,
+        `your ${face(playing.key)} lay under your ${face(earlier.key)}`
+      );
+    over++;
+  }
+  assert.ok(over >= 10, `your card was on the table in only ${over} frames`);
+  console.log(`unpressed: your card over your pile in ${over} frames`);
+}
+
+/**
+ * PID-473: a hand's last card from `rel`. In every frame the seat's backs and
+ * the cards of its pile that show add up to the same, and at rest it has no back.
+ */
+async function assertBacksHold(page, rel) {
+  await page.evaluate((seat) => {
+    const frames = [];
+    const t0 = performance.now();
+    const sample = () => {
+      const drawn = globalThis.__pidroDrawn ?? [];
+      frames.push({
+        backs:
+          document.querySelector(`[data-testid="seat-${seat}-cards"]`)?.firstElementChild?.children
+            .length ?? 0,
+        pile: (window.__pidroCardMotion?.() ?? []).filter(
+          (s) =>
+            s.kind === 'played' &&
+            s.key.includes(`-${seat}-`) &&
+            drawn.includes(s.key) &&
+            s.shown !== false &&
+            s.opacity > 0.99
+        ).length,
+      });
+      if (performance.now() - t0 < 4000) requestAnimationFrame(sample);
+      else window.__pidroBacks = frames;
+    };
+    requestAnimationFrame(sample);
+  }, rel);
+  await page.waitForFunction(() => window.__pidroBacks, null, { timeout: 15_000 });
+  const frames = (await page.evaluate(() => window.__pidroBacks)).filter((f) => f.pile > 0);
+  assert.ok(frames.length > 30, `${rel}'s pile showed in only ${frames.length} frames`);
+  const dealt = frames[0].backs + frames[0].pile;
+  for (const f of frames)
+    assert.equal(
+      f.backs + f.pile,
+      dealt,
+      `${rel} showed ${f.backs} backs beside ${f.pile} cards, not ${dealt} cards in all`
+    );
+  assert.equal(
+    frames.at(-1).backs,
+    0,
+    `${rel} kept ${frames.at(-1).backs} backs after its last card`
+  );
+  console.log(`backs: ${rel} ${dealt} cards in all in ${frames.length} frames, none left`);
 }
 
 /** PID-473: your hand closes up after a play with no card's strip darkening. */
@@ -10571,7 +10675,7 @@ async function main() {
         // Timing, not layout: one phone is enough (PID-364).
         if (
           testCase.sweep === 'on' ||
-          testCase.arrivals ||
+          (testCase.arrivals && testCase.arrivals !== 'unpressed') ||
           (testCase.reducedMotion && testCase.flaky)
         )
           return viewport.name === 'portrait';
@@ -11237,7 +11341,9 @@ async function main() {
           }
           if (testCase.trickStays) await assertTrickStays(page);
           if (testCase.overPile) await assertPlayOverPile(page);
-          if (testCase.arrivals) await assertArrivals(page, testCase.arrivals);
+          if (testCase.arrivals === 'backs') await assertBacksHold(page, testCase.lastBy);
+          else if (testCase.arrivals === 'unpressed') await assertUnpressedOverPile(page);
+          else if (testCase.arrivals) await assertArrivals(page, testCase.arrivals);
           if (testCase.sweepWinner) {
             await assertCardCollection(
               page,

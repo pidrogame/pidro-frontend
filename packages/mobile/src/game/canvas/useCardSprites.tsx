@@ -230,6 +230,12 @@ export function useCardSprites({
    * the UI thread, so a card's place never waits for React (PID-461).
    */
   const spress = Array.from({ length: MAX }, () => useSharedValue(0));
+  /**
+   * Each card's place in the drawing order, set with its motion (PID-473): a
+   * busy phone draws the canvas's tree late, and a card flying from your hand
+   * must not lie under your pile in the meantime.
+   */
+  const sz = Array.from({ length: MAX }, () => useSharedValue(0));
   /* eslint-enable react-hooks/rules-of-hooks */
 
   const [slots, setSlots] = useState<SlotInfo[]>(() => Array(MAX).fill(null));
@@ -752,6 +758,7 @@ export function useCardSprites({
       const ownLanding = d.ownPlay && slots[sl]?.kind === 'hand';
       const lift = d.ownPlay ? PLAY_CARD_LIFT : OPPONENT_CARD_LIFT;
       const collectTo = isNew ? undefined : slots[sl]?.collectTo;
+      if (isNew || slots[sl]?.z !== d.z) sz[sl].value = d.z;
       nextSlots[sl] = {
         key: d.key,
         textureKey: d.textureKey,
@@ -1302,6 +1309,7 @@ export function useCardSprites({
                 : undefined
             }
             pressed={spress[i]}
+            z={sz[i]}
             onDrawn={() => depart(i, s.born)}
             sampling={
               art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
@@ -1334,11 +1342,13 @@ export function useCardSprites({
         slot
           ? [
               {
+                slot: i,
+                born: slot.born,
                 key: slot.key,
                 kind: slot.kind,
                 z: slot.z,
-                // Skia's order: the pressed card on top, then the cards as listed.
-                drawZ: spress[i].value * 1000 + slot.z,
+                // Skia's order: the pressed card on top, then by each card's place.
+                drawZ: spress[i].value * 1000 + sz[i].value,
                 pressed: pressSlot.value === i,
                 x: sx[i].value,
                 y: sy[i].value,
@@ -1410,6 +1420,7 @@ function CardSprite({
   lights,
   cast,
   pressed,
+  z,
   onDrawn,
   sampling,
 }: {
@@ -1439,6 +1450,7 @@ function CardSprite({
   /** The next card, where it starts another suit: its shadow deepens on this one. */
   cast?: Cast;
   pressed: SharedValue<number>;
+  z: SharedValue<number>;
   /** Called once, a frame after the canvas first draws this sprite. */
   onDrawn: () => void;
   sampling?: { B: number; C: number };
@@ -1476,8 +1488,8 @@ function CardSprite({
   const shown = useSharedValue(0);
   const visible = useDerivedValue(() => opacity.value * (1 - sweep.value) * shown.value);
   // Over every card while pressed, the next one casting nothing on it then.
-  // Otherwise each card lies where the cards are listed, in the same frame.
-  const zIndex = useDerivedValue(() => pressed.value);
+  // Otherwise each card lies at its place, in the frame its motion starts.
+  const zIndex = useDerivedValue(() => z.value + 1000 * pressed.value);
   const castOpacity = useDerivedValue(() => Math.min(1, SUIT_SHADOW) * (1 - pressed.value));
   const winnerOpacity = useDerivedValue(() =>
     Math.max(
