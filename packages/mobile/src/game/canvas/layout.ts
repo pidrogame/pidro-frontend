@@ -423,40 +423,34 @@ export function sideSeatTop(
 }
 
 /**
- * A trump button on a phone (PID-374): a 50pt suit, its 16pt name and the
- * 13pt count stacked, big enough for older eyes. Tablets draw it half as big
- * again.
+ * A trump button on a phone (PID-461): a 50pt suit over its 16pt count, big
+ * enough for older eyes. Where the row is narrow the suit is as large as the
+ * button's width leaves. Tablets draw it half as big again.
  */
-export const TRUMP_BUTTON = { width: 94, height: 108, suit: 50, name: 16, count: 13 } as const;
+export const TRUMP_BUTTON = { width: 94, height: 88, suit: 50, count: 16 } as const;
 const TRUMP_TABLET = 1.5;
 /** The least a button gives up its height to: its suit still larger than before PID-374. */
-const SHORT_TRUMP_BUTTON = 80;
+const SHORT_TRUMP_BUTTON = 64;
+/** Between a button's side and its suit, the border included. */
+const TRUMP_PAD = 4;
 const TRUMP_GAP = 8;
 /** "Pick trump" and the gap under it. */
 const TRUMP_CAPTION = 22;
 /** Between the picker and your hand: room for a previewed suit to rise, and air. */
 const TRUMP_HAND_GAP = 28;
 /**
- * The trump picker, in the trick circle: a 2×2 grid in portrait, one row of
- * four in landscape. Its buttons are only as wide as what stands beside it
- * leaves: upright, East's and West's name columns (SeatLayer's `sideColumn`);
- * on landscape phones whose side seats hang beside their stacks, those seats;
- * elsewhere the side stacks. Where the side seats come down beside it (small
- * phones, landscape), it sits below them instead of over their names, and the
- * buttons are as tall as the room above your hand allows, the suit giving up
- * height before the words. On tight phones short of room "Pick trump" yields
- * first (the buttons name each suit and its count), then the buttons lose
- * height, and on the very shortest (under ~600pt) the picker rises over the
- * side names' ends, never into North (PID-304). Upright tables never let it
- * reach your hand: it rises toward North first.
+ * The trump picker: the four suits in one row, in the order your hand is
+ * sorted before trump is named (PID-461). Its buttons are only as wide as
+ * East's and West's cards leave, or on landscape phones whose side seats
+ * hang beside their stacks, those seats. Upright it sits as close above your
+ * hand as a previewed suit's lift allows, below the side seats' names;
+ * landscape centres it on the trick, below the side seats. Never into North.
+ * Short of room, "Pick trump" yields first, then the buttons lose height.
  */
 export function trumpPicker(L: TableLayout, tableTop: number, headerBottom: number) {
   const portrait = L.profile.endsWith('portrait');
   const tablet = L.profile.startsWith('tablet');
   const scale = tablet ? TRUMP_TABLET : 1;
-  const columns = portrait ? 2 : 4;
-  const rows = 4 / columns;
-  const inner = L.width - L.insets.left - L.insets.right;
   const sideSeat = L.sideSeatWidth ?? SIDE_SEAT_WIDTH;
   const westInner =
     sideStackInner(L.cardW, L.insets.left) + (L.sidesUnder ? SIDE_SEAT_GAP + sideSeat : 0);
@@ -464,58 +458,55 @@ export function trumpPicker(L: TableLayout, tableTop: number, headerBottom: numb
     L.width -
     sideStackInner(L.cardW, L.insets.right) -
     (L.sidesUnder ? SIDE_SEAT_GAP + sideSeat : 0);
-  const between = portrait
-    ? inner - 2 * Math.min(tablet ? 150 : 112, (inner - (tablet ? 200 : 156)) / 2 - 8)
-    : 2 * (Math.min(L.trick.cx - westInner, eastInner - L.trick.cx) - TRICK_GAP);
+  const between = 2 * (Math.min(L.trick.cx - westInner, eastInner - L.trick.cx) - TRICK_GAP);
   const buttonWidth = Math.min(
     TRUMP_BUTTON.width * scale,
-    Math.floor((between - (columns - 1) * TRUMP_GAP) / columns)
+    Math.floor((between - 3 * TRUMP_GAP) / 4)
   );
-  const width = columns * buttonWidth + (columns - 1) * TRUMP_GAP;
-  const seat = sideAvatar(L);
-  const seatsBottom =
-    L.tight || !portrait
-      ? sideSeatTop(L, { tableTop, seatHeight: seat, headerBottom }) + seat + TRUMP_GAP
-      : 0;
-  const topFor = (height: number) => Math.max(L.trick.cy - height / 2, seatsBottom);
+  const width = 4 * buttonWidth + 3 * TRUMP_GAP;
+  // Upright side seats carry their name and line under the avatar.
+  const seat = portrait
+    ? L.tight
+      ? TIGHT_SIDE_SEAT
+      : NORTH_SEAT_STACK[tablet ? 'tablet' : 'phone']
+    : sideAvatar(L);
+  // Upright, below North's seat too: on short tablet windows the side seats
+  // sit higher than it.
+  const seatsBottom = Math.max(
+    sideSeatTop(L, { tableTop, seatHeight: seat, headerBottom }) + seat + TRUMP_GAP,
+    portrait ? northSeatBottom(L, tableTop) : 0
+  );
   const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
   const limit = handTop - TRUMP_HAND_GAP;
+  const topFor = (height: number) =>
+    portrait
+      ? Math.max(seatsBottom, limit - height)
+      : Math.max(L.trick.cy - height / 2, seatsBottom);
   const full = TRUMP_BUTTON.height * scale;
-  const grid = (button: number) => rows * button + (rows - 1) * TRUMP_GAP;
-  const fits = (h: number) => topFor(h) + h <= limit;
-  const caption = !L.tight || fits(TRUMP_CAPTION + grid(full));
-  const button = (room: number) =>
-    Math.floor((room - (caption ? TRUMP_CAPTION : 0) - (rows - 1) * TRUMP_GAP) / rows);
-  // As tall as it can be centred on the trick and below the side seats (on
-  // upright tables free of them, up to North's seat), and never shorter than
-  // SHORT_TRUMP_BUTTON unless even rising to North's seat leaves less.
-  const north = northSeatBottom(L, tableTop);
-  const under = button(
-    Math.min(limit - seatsBottom, portrait && !L.tight ? limit - north : 2 * (limit - L.trick.cy))
-  );
-  const risen = portrait ? button(limit - north) : Infinity;
-  const buttonHeight = Math.min(full, Math.max(under, Math.min(SHORT_TRUMP_BUTTON * scale, risen)));
-  const height = (caption ? TRUMP_CAPTION : 0) + grid(buttonHeight);
-  const text = (size: number) => ({ fontSize: size, lineHeight: Math.round(size * 1.3) });
-  // A tablet window too short for its own buttons takes a phone's words.
-  const words = buttonHeight < SHORT_TRUMP_BUTTON * scale ? 1 : scale;
-  const name = text(TRUMP_BUTTON.name * words);
-  const count = text(Math.round(TRUMP_BUTTON.count * words));
+  const caption = topFor(TRUMP_CAPTION + full) + TRUMP_CAPTION + full <= limit;
+  // Landscape: as tall as it can be centred on the trick.
+  const room =
+    (portrait ? limit - seatsBottom : Math.min(limit - seatsBottom, 2 * (limit - L.trick.cy))) -
+    (caption ? TRUMP_CAPTION : 0);
+  const buttonHeight = Math.min(full, Math.max(Math.floor(room), SHORT_TRUMP_BUTTON * scale));
+  const height = (caption ? TRUMP_CAPTION : 0) + buttonHeight;
+  const countSize = TRUMP_BUTTON.count * scale;
+  const count = { fontSize: countSize, lineHeight: Math.round(countSize * 1.3) };
   return {
-    columns,
     gap: TRUMP_GAP,
     caption,
     buttonWidth,
     buttonHeight,
-    // The suit takes what the button's border, the 2pt under it and both lines leave.
+    // The suit takes what the button's sides leave, and in height what its
+    // border, the 2pt under it and the count leave.
     suit: Math.min(
       TRUMP_BUTTON.suit * scale,
-      buttonHeight - 5 - name.lineHeight - count.lineHeight
+      buttonWidth - 2 * TRUMP_PAD,
+      buttonHeight - 5 - count.lineHeight
     ),
-    name,
     count,
     left: L.trick.cx - width / 2,
-    top: portrait ? Math.max(north, Math.min(topFor(height), limit - height)) : topFor(height),
+    top: topFor(height),
     width,
     height,
   };

@@ -1133,11 +1133,16 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
   for (const [width, height, insets] of [
     [360, 640, { top: 0, bottom: 0, left: 0, right: 0 }],
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 0, left: 0, right: 0 }],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }],
     [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
     [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [820, 1180, { top: 24, bottom: 20, left: 0, right: 0 }],
     [1024, 1366, { top: 24, bottom: 20, left: 0, right: 0 }],
+    // An iPad in Split View: the side seats sit higher than North's seat.
+    [678, 768, { top: 24, bottom: 20, left: 0, right: 0 }],
   ]) {
     it(`on ${width}×${height}`, () => {
       const portrait = height > width;
@@ -1146,61 +1151,52 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
       const L = computeLayout(width, height, insets, portrait ? HEADER : 0, portrait ? 0 : 0);
       const P = trumpPicker(L, tableTop, headerBottom);
       const bottom = P.top + P.height;
+      const tablet = L.profile.startsWith('tablet');
+      const scale = tablet ? 1.5 : 1;
 
-      // A 2×2 grid in portrait, one row in landscape (PID-374): untight
-      // phones' buttons 108pt tall with a 50pt suit, 80pt wide or more, and a
-      // tablet's half as big again; tight phones' 80pt or more.
-      expect(P.columns).toBe(portrait ? 2 : 4);
-      const scale = L.profile.startsWith('tablet') ? 1.5 : 1;
-      expect(Math.min(P.buttonWidth, P.buttonHeight)).toBeGreaterThanOrEqual(80);
+      // One row of four on every device (PID-461), each button its suit over
+      // its count: a 50pt suit where the button is wide enough, a tablet's
+      // half as big again; on the narrowest phones still far larger than the
+      // 32pt suit before PID-374, and a full thumb wide.
+      expect(P.width).toBe(4 * P.buttonWidth + 3 * P.gap);
       expect(P.buttonWidth).toBeLessThanOrEqual(TRUMP_BUTTON.width * scale);
-      if (!L.tight) {
-        expect(P.caption).toBe(true);
-        expect(P.buttonHeight).toBe(TRUMP_BUTTON.height * scale);
-        expect(P.suit).toBe(TRUMP_BUTTON.suit * scale);
-      }
-      // Landscape phones' side seats that hang beside their stacks keep a
-      // TRICK_GAP from the row, a long name filling their column included.
-      if (L.sidesUnder) {
-        const seat = SIDE_SEAT_GAP + (L.sideSeatWidth ?? SIDE_SEAT_WIDTH);
-        expect(P.left).toBeGreaterThanOrEqual(
-          sideStackInner(L.cardW, insets.left) + seat + TRICK_GAP
-        );
-        expect(P.left + P.width).toBeLessThanOrEqual(
-          width - sideStackInner(L.cardW, insets.right) - seat - TRICK_GAP
-        );
-      }
-      expect(P.width).toBe(P.columns * P.buttonWidth + (P.columns - 1) * P.gap);
+      expect(P.buttonWidth).toBeGreaterThanOrEqual(54);
+      expect(P.buttonHeight).toBe(TRUMP_BUTTON.height * scale);
+      // The suit and its count fit inside the button's border.
+      expect(P.suit + 8).toBeLessThanOrEqual(P.buttonWidth);
+      expect(P.suit + 5 + P.count.lineHeight).toBeLessThanOrEqual(P.buttonHeight);
+      expect(P.suit).toBeLessThanOrEqual(TRUMP_BUTTON.suit * scale);
+      expect(P.suit).toBeGreaterThan(40);
+      expect(P.count.fontSize).toBe(16 * scale);
+      // "Pick trump" yields only where the Split View window is short of room.
+      expect(P.caption).toBe(width !== 678);
 
-      // In the trick circle.
+      // Between East's and West's cards, and on landscape phones whose side
+      // seats hang beside their stacks, those seats, a long name included.
+      const seat = L.sidesUnder ? SIDE_SEAT_GAP + (L.sideSeatWidth ?? SIDE_SEAT_WIDTH) : 0;
+      expect(P.left).toBeGreaterThanOrEqual(
+        sideStackInner(L.cardW, insets.left) + seat + TRICK_GAP - 0.01
+      );
+      expect(P.left + P.width).toBeLessThanOrEqual(
+        width - sideStackInner(L.cardW, insets.right) - seat - TRICK_GAP + 0.01
+      );
       expect(P.left + P.width / 2).toBeCloseTo(L.trick.cx);
-      expect(Math.abs(P.top + P.height / 2 - L.trick.cy)).toBeLessThanOrEqual(L.trick.r);
 
-      // The header, North and your hand stay clear.
+      // The header, North and the side seats stay clear: upright, the row is
+      // under the side seats' names; landscape, under their avatars.
       expect(P.top).toBeGreaterThanOrEqual(portrait ? tableTop : headerBottom);
       if (portrait) expect(P.top).toBeGreaterThanOrEqual(northSeatBottom(L, tableTop));
-      // Your hand, its previewed trumps lifted, keeps a gap; on tight phones,
-      // under your seat's new room, a wider one (PID-304), "Pick trump" yielding.
+      const sideSeat = portrait ? (L.tight ? TIGHT_AVATAR + 4 + 18 + 18 : tablet ? 118 : 104) : 52;
+      expect(P.top).toBeGreaterThanOrEqual(
+        sideSeatTop(L, { tableTop, seatHeight: sideSeat, headerBottom }) + sideSeat
+      );
+
+      // Your hand, its previewed trumps lifted, keeps a gap. Upright, the
+      // row stands just that far above it; landscape centres it on the trick.
       const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
       expect(bottom).toBeLessThanOrEqual(handTop - handLift(L) - 8);
-      if (L.tight) expect(bottom).toBeLessThanOrEqual(handTop - 28);
-
-      // East and West: their stacks along the edges, their seats above them.
-      // Roomy portraits give the seats a column beside the picker; small
-      // phones and landscape bring them in, so the picker sits below them.
-      const stackReach = (sideStacks(L).backW * 110) / 78;
-      expect(P.left).toBeGreaterThanOrEqual(insets.left + stackReach);
-      expect(P.left + P.width).toBeLessThanOrEqual(width - insets.right - stackReach);
-      if (portrait && !L.tight) {
-        const tablet = L.profile.startsWith('tablet');
-        const column = Math.min(tablet ? 150 : 112, (width - (tablet ? 200 : 156)) / 2 - 8);
-        expect(P.left).toBeGreaterThanOrEqual(insets.left + column);
-      } else {
-        const seat = L.tight ? TIGHT_AVATAR : portrait ? 56 : 52;
-        expect(P.top).toBeGreaterThanOrEqual(
-          sideSeatTop(L, { tableTop, seatHeight: seat, headerBottom }) + seat
-        );
-      }
+      if (portrait) expect(bottom).toBeCloseTo(handTop - 28);
+      else expect(Math.abs(P.top + P.height / 2 - L.trick.cy)).toBeLessThanOrEqual(L.trick.r);
     });
   }
 });

@@ -1,16 +1,19 @@
 /**
- * Picking trump in the felt (PID-209): four suit buttons in the trick circle,
- * so the hand you choose from stays in view. Pointing at a suit (hover, or a
- * finger still down) lifts the cards it would make trump; one tap declares it.
+ * Picking trump in the felt (PID-209): four suit buttons in one row, in the
+ * order your hand is sorted (PID-461), so the hand you choose from stays in
+ * view. Each shows its suit and how many trumps it would leave you. Pointing
+ * at a suit (hover, or a finger still down) lifts the cards it would make
+ * trump; one tap declares it.
  */
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { PidroColors, PidroRadii } from '@/design/tokens';
-import { TRUMP_SUITS, trumpsIn } from '@/features/game/trump';
+import { trumpsIn } from '@/features/game/trump';
 import type { trumpPicker } from '@/game/canvas/layout';
 import type { Card, Suit } from '@/types/game';
+import { SUIT_ORDER } from '@/utils/cards';
 import { useTranslation } from '@/i18n';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
 
@@ -66,16 +69,15 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
           {t('game.choose_trump')}
         </PidroText>
       ) : null}
-      <View style={[styles.grid, { gap: frame.gap }]}>
-        {TRUMP_SUITS.map((suit) => {
-          const name = t(`game.${suit}`);
-          const count = t('game.trumps', { count: trumpsIn(cards, suit).length });
+      <View style={[styles.row, { gap: frame.gap }]}>
+        {SUIT_ORDER.map((suit) => {
+          const count = trumpsIn(cards, suit).length;
           const active = (chosen ?? preview) === suit;
           return (
             <PressableFX
               key={suit}
               accessibilityRole="button"
-              accessibilityLabel={`${name}, ${count}`}
+              accessibilityLabel={`${t(`game.${suit}`)}, ${t('game.trumps', { count })}`}
               accessibilityState={{ selected: chosen === suit, disabled: !!chosen }}
               disabled={!!chosen}
               onHoverIn={() => point(suit)}
@@ -97,21 +99,13 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
                 resizeMode="contain"
               />
               <PidroText
-                role="label"
-                align="center"
-                numberOfLines={1}
-                maxFontSizeMultiplier={1.2}
-                style={frame.name}>
-                {name}
-              </PidroText>
-              <PidroText
                 role="metadata"
                 tone={active ? 'gold' : 'soft'}
                 align="center"
                 numberOfLines={1}
                 maxFontSizeMultiplier={1.2}
                 style={frame.count}>
-                {chosen === suit ? t('game.declaring') : count}
+                {count}
               </PidroText>
             </PressableFX>
           );
@@ -128,10 +122,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  grid: {
+  row: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
   },
   suit: {
     alignItems: 'center',

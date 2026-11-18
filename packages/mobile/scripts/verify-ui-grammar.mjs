@@ -2292,14 +2292,12 @@ async function assertLocalization(page, testCase, viewport) {
   );
   assert.deepEqual(clipped, [], `${testCase.name}: clipped natural text in ${viewport.name}`);
   if (testCase.locale === 'sv') {
+    // The trump picker's suits speak Swedish in their labels (assertTrumpPicker).
     const expected = testCase.language
       ? 'Språk'
-      : testCase.name.endsWith('-trump')
-        ? // The shortest phones drop "Välj trumf" (PID-304); the suits still speak Swedish.
-          'Hjärter'
-        : testCase.name.endsWith('-hand-selection')
-          ? 'Välj din hand'
-          : null;
+      : testCase.name.endsWith('-hand-selection')
+        ? 'Välj din hand'
+        : null;
     if (expected) await page.getByText(expected, { exact: true }).waitFor();
   }
   if (testCase.language) {
@@ -7998,9 +7996,10 @@ async function assertCountHelp(page, testCase, viewport) {
   }
 }
 
-// PID-209: four suit buttons of 64pt or more, a grid in portrait and a row in
-// landscape, clear of every seat and its cards, with each suit's trumps
-// counted (hearts and the 5♦ make four).
+// PID-209: four suit buttons, clear of every seat and its cards, with each
+// suit's trumps counted (hearts and the 5♦ make four). PID-461: one row on
+// every device, in the order the hand is sorted (spades, hearts, clubs,
+// diamonds), each a thumb wide with a suit over 40pt and its count as a number.
 async function assertTrumpPicker(page, testCase, box, viewport) {
   await assertAbovePlayerHand(page, testCase.name, box, viewport);
   const choices = await page.getByTestId('trump-picker').getByRole('button').all();
@@ -8009,19 +8008,37 @@ async function assertTrumpPicker(page, testCase, box, viewport) {
   for (const choice of choices) {
     const choiceBox = await getStableBox(choice, page);
     assert.ok(
-      choiceBox.width >= 64 && choiceBox.height >= 64,
-      `${testCase.name}: a trump button under 64pt in ${viewport.name}`
+      choiceBox.width >= 54 && choiceBox.height >= 64,
+      `${testCase.name}: a trump button under 54×64pt in ${viewport.name}`
     );
-    boxes.push(choiceBox);
+    const suit = await getStableBox(choice.locator('img').first(), page);
+    assert.ok(suit.width > 40, `${testCase.name}: a suit under 40pt in ${viewport.name}`);
+    boxes.push({
+      ...choiceBox,
+      label: await choice.getAttribute('aria-label'),
+      text: (await choice.innerText()).trim(),
+    });
   }
   const rows = new Set(boxes.map((b) => Math.round(b.y))).size;
-  assert.equal(
-    rows,
-    viewport.height > viewport.width ? 2 : 1,
-    `${testCase.name}: trump buttons in ${rows} rows in ${viewport.name}`
+  assert.equal(rows, 1, `${testCase.name}: trump buttons in ${rows} rows in ${viewport.name}`);
+  const sv = testCase.locale === 'sv';
+  assert.deepEqual(
+    boxes.sort((a, b) => a.x - b.x).map((b) => [b.label, b.text]),
+    sv
+      ? [
+          ['Spader, 2 trumf', '2'],
+          ['Hjärter, 4 trumf', '4'],
+          ['Klöver, 2 trumf', '2'],
+          ['Ruter, 2 trumf', '2'],
+        ]
+      : [
+          ['Spades, 2 trumps', '2'],
+          ['Hearts, 4 trumps', '4'],
+          ['Clubs, 2 trumps', '2'],
+          ['Diamonds, 2 trumps', '2'],
+        ],
+    `${testCase.name}: the suits in the hand's order, each counted, in ${viewport.name}`
   );
-  const hearts = testCase.locale === 'sv' ? 'Hjärter, 4 trumf' : 'Hearts, 4 trumps';
-  await page.getByRole('button', { name: hearts, exact: true }).waitFor({ timeout: 10_000 });
   const others = {};
   for (const seat of ['north', 'east', 'west', 'south']) {
     others[`${seat} seat`] = page.getByTestId(`seat-${seat}`);

@@ -144,7 +144,6 @@ export const en = {
   "game.clubs": "Clubs",
   "game.spades": "Spades",
   "game.trumps": { one: "%{count} trump", other: "%{count} trumps" },
-  "game.declaring": "Declaring…",
   "game.bid_failed": "Bid not sent. Check your connection and try again.",
   "game.action_failed": "Action failed",
   "game.choose_hand": "Choose your hand",
@@ -709,7 +708,6 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "game.clubs": "Klöver",
   "game.spades": "Spader",
   "game.trumps": { one: "%{count} trumf", other: "%{count} trumf" },
-  "game.declaring": "Väljer…",
   "game.bid_failed":
     "Budet skickades inte. Kontrollera anslutningen och försök igen.",
   "game.action_failed": "Åtgärden misslyckades",
