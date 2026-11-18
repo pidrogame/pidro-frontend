@@ -19,6 +19,7 @@ it('renders reconnect status only offline and card backs at every spectator seat
     Text: view,
     Image: ({ source }) => h('img', { src: source.uri }),
     Platform: { OS: 'web' },
+    PixelRatio: { get: () => 2 },
     StyleSheet: { create: (x) => x, absoluteFill: {} },
   }));
   mock.module('react-native-reanimated', () => ({
@@ -51,6 +52,9 @@ it('renders reconnect status only offline and card backs at every spectator seat
   mock.module('../../src/game/canvas/bakedBlur.tsx', () => ({ bakedShadow: () => null }));
   mock.module('../../src/utils/cardImages.ts', () => ({
     getCardImage: () => ({ uri: 'card-back.png' }),
+  }));
+  mock.module('../../src/game/canvas/cardTextures.ts', () => ({
+    faceImage: () => ({ uri: 'card-face.png' }),
   }));
   const shared = await import('@pidro/shared');
   mock.module('../../src/i18n/index.ts', () => ({
