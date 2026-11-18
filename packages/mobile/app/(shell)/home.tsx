@@ -255,10 +255,15 @@ export default function HomeScreen() {
           })
         : t('social.start');
 
+  // Beside a guest's three buttons no phone has room for a name: they go above it.
+  const stacked = guest && !landscape && !tablet;
+
   // Drawn once on Android: only the rays turn on Home, and they repaint the window.
   const topBar = (
     <StillLayer bleed={20} style={styles.still}>
-      <View testID="home-header" style={[styles.topBar, tablet && styles.topBarTablet]}>
+      <View
+        testID="home-header"
+        style={[styles.topBar, tablet && styles.topBarTablet, stacked && styles.topBarStacked]}>
         <PressableFX
           accessibilityRole="button"
           accessibilityLabel={
@@ -267,7 +272,7 @@ export default function HomeScreen() {
               : t('social.open_profile')
           }
           onPress={() => router.push('/profile')}
-          style={styles.identity}>
+          style={[styles.identity, stacked && styles.identityStacked]}>
           <View>
             <PlayerAvatar
               uri={user?.avatar_url}
@@ -305,7 +310,7 @@ export default function HomeScreen() {
             ) : null}
           </View>
         </PressableFX>
-        <View style={styles.identityMeta}>
+        <View style={[styles.identityMeta, stacked && styles.buttonsStacked]}>
           {guest ? (
             <>
               <BevelButton
@@ -630,6 +635,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   topBarTablet: { gap: 14 },
+  topBarStacked: { flexDirection: 'column-reverse', alignItems: 'stretch' },
+  buttonsStacked: { alignSelf: 'flex-end' },
+  // A flex: 1 child of a column that sizes to its content gets no height of its own on native.
+  identityStacked: { flexBasis: 'auto' },
   waitingBadge: { position: 'absolute', top: 0, right: -PidroSpacing.xxs },
   newsDot: {
     position: 'absolute',
