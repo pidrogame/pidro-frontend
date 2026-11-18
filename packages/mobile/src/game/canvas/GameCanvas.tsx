@@ -53,12 +53,12 @@ type Props = {
   bottomReserve?: number;
   /** Picking trump: lift the cards this suit would make trump. */
   previewSuit?: Suit | null;
-  /** Cards on their way that do not show yet: their seats keep their backs (PID-473). */
-  onArriving?: (arriving: Arriving) => void;
+  /** Cards on their way that do not show yet, for the table counted: their seats keep their backs (PID-473). */
+  onArriving?: (seats: TableModel['seats'], arriving: Arriving) => void;
 };
 
 export default function GameCanvas({
-  model,
+  model: given,
   textures,
   onPlayCard,
   onBlockedPlay,
@@ -68,6 +68,14 @@ export default function GameCanvas({
   previewSuit = null,
   onArriving,
 }: Props) {
+  // Dev only (PID-473): `__pidroModelLagMs` gives the canvas each table that much later
+  // than the seats, as a busy phone can, so a check sees the seats before the canvas counts.
+  const modelLag = __DEV__ ? (globalThis as { __pidroModelLagMs?: number }).__pidroModelLagMs : 0;
+  const [lateModel, setLateModel] = useState(given);
+  useEffect(() => {
+    if (modelLag) setTimeout(() => setLateModel(given), modelLag);
+  }, [given, modelLag]);
+  const model = modelLag ? lateModel : given;
   const { width, height } = useTableSize();
   const insets = useSafeAreaInsets();
   const { top, bottom, left, right } = insets;

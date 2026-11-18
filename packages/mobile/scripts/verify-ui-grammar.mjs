@@ -1437,6 +1437,29 @@ const allCases = [
     arrivals: 'backs',
     lastBy: rel,
   })),
+  // PID-473: the canvas also takes each table 200 ms after the seats, as a busy
+  // phone can: a seat's backs wait for the canvas, for a hand's last card, a last
+  // trump that puts the seat out (its fold waits for the card), and a lay-down.
+  ...['west', 'north', 'east'].flatMap((rel) =>
+    ['', '&out=on'].map((out) => ({
+      name: `table-hand-last-${rel}${out ? '-out' : ''}-late`,
+      path: `/table-dev?deal=hand&end=we-made&last=${rel}${out}&showMs=600000`,
+      testId: `seat-${rel}`,
+      drawLag: 250,
+      modelLag: 200,
+      arrivals: 'backs',
+      lastBy: rel,
+    }))
+  ),
+  ...[1, 2].map((cards) => ({
+    name: `table-lay-down-${cards}-late`,
+    path: `/table-dev?fixture=lay-down&by=west&cards=${cards}`,
+    testId: 'seat-west',
+    drawLag: 250,
+    modelLag: 200,
+    arrivals: 'backs',
+    lastBy: 'west',
+  })),
   // PID-331: with the server's trick pause at 0, a finished trick stays put.
   {
     name: 'table-trick-stays',
@@ -6036,8 +6059,9 @@ async function assertUnpressedOverPile(page) {
 }
 
 /**
- * PID-473: a hand's last card from `rel`. In every frame the seat's backs and
- * the cards of its pile that show add up to the same, and at rest it has no back.
+ * PID-473: a hand's last card from `rel`, or its lay-down. In every frame the
+ * seat's backs, the cards it folded and the cards of its pile that show add up
+ * to the same, and at rest it has no back.
  */
 async function assertBacksHold(page, rel) {
   await page.evaluate((seat) => {
@@ -6049,6 +6073,7 @@ async function assertBacksHold(page, rel) {
         backs:
           document.querySelector(`[data-testid="seat-${seat}-cards"]`)?.firstElementChild?.children
             .length ?? 0,
+        folded: document.querySelector(`[data-testid="seat-${seat}-folded"]`)?.children.length ?? 0,
         pile: (window.__pidroCardMotion?.() ?? []).filter(
           (s) =>
             s.kind === 'played' &&
@@ -6066,19 +6091,29 @@ async function assertBacksHold(page, rel) {
   await page.waitForFunction(() => window.__pidroBacks, null, { timeout: 15_000 });
   const frames = (await page.evaluate(() => window.__pidroBacks)).filter((f) => f.pile > 0);
   assert.ok(frames.length > 30, `${rel}'s pile showed in only ${frames.length} frames`);
-  const dealt = frames[0].backs + frames[0].pile;
-  for (const f of frames)
-    assert.equal(
-      f.backs + f.pile,
-      dealt,
-      `${rel} showed ${f.backs} backs beside ${f.pile} cards, not ${dealt} cards in all`
+  // What it holds, at rest; counted from the frame the table first says so, past its first load.
+  const dealt = frames.at(-1).backs + frames.at(-1).folded + frames.at(-1).pile;
+  const from = frames.findIndex((f) => f.backs + f.folded + f.pile === dealt);
+  // A back may outlast its card's face by one frame, the seats' commit after the
+  // canvas's draw; it never leaves before the face shows.
+  let over = 0;
+  for (const f of frames.slice(from)) {
+    const all = f.backs + f.folded + f.pile;
+    over = all === dealt + 1 ? over + 1 : 0;
+    assert.ok(
+      all === dealt || over === 1,
+      `${rel} showed ${f.backs} backs and ${f.folded} folded beside ${f.pile} cards, not ${dealt} cards in all`
     );
+  }
   assert.equal(
     frames.at(-1).backs,
     0,
     `${rel} kept ${frames.at(-1).backs} backs after its last card`
   );
-  console.log(`backs: ${rel} ${dealt} cards in all in ${frames.length} frames, none left`);
+  const folds = frames.at(-1).folded;
+  console.log(
+    `backs: ${rel} ${dealt} cards in all in ${frames.length} frames, none left${folds ? `, ${folds} folded` : ''}`
+  );
 }
 
 /** PID-473: your hand closes up after a play with no card's strip darkening. */
@@ -10814,6 +10849,10 @@ async function main() {
           await page.addInitScript((ms) => {
             globalThis.__pidroDrawLagMs = ms;
           }, testCase.drawLag);
+        if (testCase.modelLag)
+          await page.addInitScript((ms) => {
+            globalThis.__pidroModelLagMs = ms;
+          }, testCase.modelLag);
         if (testCase.arrivals === 'shade') await page.clock.install();
         // From the first frame: Eli's line and the cards on the felt until the result (PID-364).
         if (testCase.sweep === 'on')

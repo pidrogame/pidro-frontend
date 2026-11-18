@@ -63,7 +63,7 @@ import { catchUpPace } from '@/features/game/catchUp';
 import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
-import { withArriving, type Arriving } from './useCardSprites';
+import { useSeatBacks, type Arriving } from './useCardSprites';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
 import {
   choosingTrumpLine,
@@ -361,15 +361,15 @@ function TimedSeatLayer({
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
   said: ComponentProps<typeof SeatLayer>['said'];
-  arrivingRef: RefObject<((arriving: Arriving) => void) | null>;
+  arrivingRef: RefObject<((seats: TableModel['seats'], arriving: Arriving) => void) | null>;
 }) {
-  const [arriving, setArriving] = useState<Arriving>({});
+  const [shown, onCounted] = useSeatBacks(seats);
   useLayoutEffect(() => {
-    arrivingRef.current = setArriving;
+    arrivingRef.current = onCounted;
     return () => {
       arrivingRef.current = null;
     };
-  }, [arrivingRef]);
+  }, [arrivingRef, onCounted]);
   const turnTimer = useGameStore((state) => state.turnTimer);
   const ownPace = useGameStore((state) => state.serverState?.pace === 'own');
   const timerProgress = useTurnTimerProgress(ownPace ? null : turnTimer);
@@ -387,7 +387,7 @@ function TimedSeatLayer({
 
   return (
     <SeatLayer
-      seats={withArriving(seats, arriving)}
+      seats={shown}
       dealerRel={dealerRel}
       dealing={dealing}
       topReserve={topReserve}
@@ -496,8 +496,13 @@ export function GameCanvasTable({
   const [cleared, setCleared] = useState<number | null>(null);
   // Cards on their way that the canvas does not show yet keep their backs (PID-473):
   // told to the seats alone, so the table does not render again for them.
-  const arrivingRef = useRef<((arriving: Arriving) => void) | null>(null);
-  const onArriving = useCallback((arriving: Arriving) => arrivingRef.current?.(arriving), []);
+  const arrivingRef = useRef<((seats: TableModel['seats'], arriving: Arriving) => void) | null>(
+    null
+  );
+  const onArriving = useCallback(
+    (seats: TableModel['seats'], arriving: Arriving) => arrivingRef.current?.(seats, arriving),
+    []
+  );
   // A rematch numbers its hands afresh.
   if (endedNumber == null && cleared != null) setCleared(null);
   useEffect(() => {

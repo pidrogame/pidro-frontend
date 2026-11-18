@@ -1034,6 +1034,7 @@ function TableDevHarness() {
                 ? (params.last as Position)
                 : 'south'
             }
+            out={params.out === 'on'}
           />
         </FixtureInsets>
       </SafeAreaProvider>
@@ -2399,7 +2400,8 @@ const HAND_ENDS: Record<HandEnd, { bidder: Position; bid: number; ns: number }> 
  * `sweep=on` (PID-364): the others are out of trumps and the server plays
  * Eli's (East) last four out, one a trick, 500 ms apart, before the result;
  * `sweep=held` stops after two. `last=west|north|east` (PID-473): that seat
- * plays the hand's last card, its last back, instead of you.
+ * plays the hand's last card, its last back, instead of you; with `out=on` it
+ * also holds a card it folds, and the state with its trump says it is out.
  */
 function HandEndPreview({
   room,
@@ -2408,6 +2410,7 @@ function HandEndPreview({
   own,
   sweep,
   last: lastBy,
+  out: goesOut = false,
 }: {
   room: Room;
   result: HandEnd;
@@ -2415,6 +2418,7 @@ function HandEndPreview({
   own: boolean;
   sweep?: 'on' | 'held';
   last: Position;
+  out?: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
   const [run, setRun] = useState(0);
@@ -2538,9 +2542,9 @@ function HandEndPreview({
           tricks: earlier,
           current_trick: last,
           players: {
-            north: { hand: lastBy === 'north' ? 1 : 0 },
-            east: { hand: lastBy === 'east' ? 1 : 0 },
-            west: { hand: lastBy === 'west' ? 1 : 0 },
+            north: { hand: lastBy === 'north' ? 1 + +goesOut : 0 },
+            east: { hand: lastBy === 'east' ? 1 + +goesOut : 0 },
+            west: { hand: lastBy === 'west' ? 1 + +goesOut : 0 },
             south: { hand: lastBy === 'south' ? [heart(11)] : [] },
           },
           ...(lastBy !== 'south' && { current_player: lastBy }),
@@ -2592,6 +2596,25 @@ function HandEndPreview({
     store.setYouPosition('south');
     store.setChannelStatus(true);
     store.setLegalActions([]);
+    // `out`: the state with the last card says its seat is out, a card folded; the next hand later.
+    if (goesOut)
+      frames.splice(
+        1,
+        1,
+        [
+          1000,
+          {
+            ...frames[0][1],
+            current_player: null,
+            current_trick: [...last, final],
+            players: {
+              ...(frames[0][1].players as Record<string, unknown>),
+              [lastBy]: { hand: 0, eliminated: true, folded_count: 1 },
+            },
+          },
+        ],
+        [2500, frames[1][1]]
+      );
     const played: [number, Record<string, unknown>][] = sweep
       ? [
           ...swept
@@ -2631,7 +2654,7 @@ function HandEndPreview({
         )
       );
     return () => timers.forEach(clearTimeout);
-  }, [Table, run, room, result, countHelp, own, sweep, lastBy]);
+  }, [Table, run, room, result, countHelp, own, sweep, lastBy, goesOut]);
 
   return (
     <View style={{ flex: 1 }}>

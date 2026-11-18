@@ -185,23 +185,88 @@ type Opts = {
   enabled: boolean;
   /** Picking trump: the suit under the finger, whose trumps lift in the hand. */
   previewSuit?: Suit | null;
-  /** Each seat's cards on their way that the canvas does not show yet: its backs wait for them. */
-  onArriving?: (arriving: Arriving) => void;
+  /**
+   * Each seat's cards on their way that the canvas does not show yet, for the
+   * table it has counted: its backs wait for them.
+   */
+  onArriving?: (seats: TableModel['seats'], arriving: Arriving) => void;
 };
 
 export type Arriving = Partial<Record<RelativePosition, number>>;
+type Seats = TableModel['seats'];
+type Counted = { seats: Seats; arriving: Arriving };
 
-/** A seat's backs, and the cards that have not yet shown themselves leaving them (PID-473). */
-export function withArriving(seats: TableModel['seats'], arriving: Arriving): TableModel['seats'] {
+/**
+ * A seat's backs, and the cards that have not yet shown themselves leaving
+ * them (PID-473). A seat that went out with such a card folds once it shows.
+ */
+export function withArriving(seats: Seats, arriving: Arriving): Seats {
   if (!Object.keys(arriving).length) return seats;
   return Object.fromEntries(
-    Object.entries(seats).map(([rel, seat]) => [
-      rel,
-      seat && arriving[rel as RelativePosition]
-        ? { ...seat, cardCount: (seat.cardCount ?? 0) + arriving[rel as RelativePosition]! }
-        : seat,
-    ])
-  ) as TableModel['seats'];
+    Object.entries(seats).map(([rel, seat]) => {
+      const n = arriving[rel as RelativePosition];
+      return [
+        rel,
+        seat && n
+          ? {
+              ...seat,
+              cardCount: (seat.cardCount ?? 0) + (seat.out ? seat.foldedCount : 0) + n,
+              out: false,
+              foldedCount: 0,
+            }
+          : seat,
+      ];
+    })
+  ) as Seats;
+}
+
+const backs = (seat: Seats[RelativePosition]) => (seat?.out ? 0 : (seat?.cardCount ?? 0));
+
+/** The seats as the canvas last counted them; a newer table loses no back and folds no seat. */
+function seatBacks(seats: Seats, counted: Counted): Seats {
+  const was = withArriving(counted.seats, counted.arriving);
+  if (counted.seats === seats) return was;
+  return Object.fromEntries(
+    Object.entries(seats).map(([rel, seat]) => {
+      const before = was[rel as RelativePosition];
+      return [
+        rel,
+        seat && before && backs(seat) < backs(before)
+          ? {
+              ...seat,
+              cardCount: before.cardCount,
+              out: before.out,
+              foldedCount: before.foldedCount,
+            }
+          : seat,
+      ];
+    })
+  ) as Seats;
+}
+
+const sameBacks = (a: Seats, b: Seats) =>
+  Object.keys({ ...a, ...b }).every((rel) => {
+    const [x, y] = [a[rel as RelativePosition], b[rel as RelativePosition]];
+    return (
+      x?.cardCount === y?.cardCount && !!x?.out === !!y?.out && x?.foldedCount === y?.foldedCount
+    );
+  });
+
+/**
+ * The seats with the backs the canvas counted (PID-473). A phone can show the
+ * seats of a new table before the canvas has taken it in, and only the canvas
+ * knows which cards still have to show: until it has counted, every seat keeps
+ * the backs it showed. Redraws only when the backs change.
+ */
+export function useSeatBacks(seats: Seats) {
+  const counted = useRef<Counted>({ seats, arriving: {} });
+  const [, redraw] = useState(0);
+  const onCounted = useCallback((of: Seats, arriving: Arriving) => {
+    const before = seatBacks(of, counted.current);
+    counted.current = { seats: of, arriving };
+    if (!sameBacks(before, seatBacks(of, counted.current))) redraw((n) => n + 1);
+  }, []);
+  return [seatBacks(seats, counted.current), onCounted] as const;
 }
 
 export function useCardSprites({
@@ -250,7 +315,8 @@ export function useCardSprites({
    */
   const departures = useRef<Map<number, () => void>>(new Map());
   const arriving = useRef<Map<number, { rel: RelativePosition; at: number }>>(new Map());
-  const arrivingSent = useRef('{}');
+  // A laid card from another seat leaves on the JS clock, so its back goes with it.
+  const laidTimers = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
   const onArrivingRef = useRef(onArriving);
   onArrivingRef.current = onArriving;
   const births = useRef(0);
@@ -284,6 +350,7 @@ export function useCardSprites({
     () => () => {
       retirementTimers.current.forEach(clearTimeout);
       retirementTimers.current.clear();
+      laidTimers.current.forEach(clearTimeout);
       cutSounds.current.forEach(clearTimeout);
       flight.forEach(cancelAnimation);
       collection.forEach(cancelAnimation);
@@ -305,13 +372,14 @@ export function useCardSprites({
   const cardH = L.cardH;
   const handScale = handScaleFor(L.profile);
 
-  const sendArriving = () => {
+  const sendArriving = (seats: TableModel['seats'] | undefined) => {
     const counts: Arriving = {};
     for (const { rel } of arriving.current.values()) counts[rel] = (counts[rel] ?? 0) + 1;
-    const sent = JSON.stringify(counts);
-    if (sent === arrivingSent.current) return;
-    arrivingSent.current = sent;
-    onArrivingRef.current?.(counts);
+    if (seats) onArrivingRef.current?.(seats, counts);
+  };
+  const unlay = (sl: number) => {
+    clearTimeout(laidTimers.current.get(sl));
+    laidTimers.current.delete(sl);
   };
   // The canvas has drawn this slot's new sprite: it shows, its motion starts,
   // and the back it leaves goes as it does, or as a laid card leaves (PID-473).
@@ -327,7 +395,7 @@ export function useCardSprites({
   const leave = (sl: number, leaving: { rel: RelativePosition; at: number } | undefined) => {
     if (!leaving || arriving.current.get(sl) !== leaving) return;
     arriving.current.delete(sl);
-    sendArriving();
+    sendArriving(prevModel.current?.seats);
   };
 
   useLayoutEffect(() => {
@@ -658,6 +726,7 @@ export function useCardSprites({
         cancelAnimation(collection[sl]);
         // Gone before it was drawn: it fades with the rest, never moves.
         departures.current.delete(sl);
+        unlay(sl);
         // SeatLayer takes over your folded cards as backs in the same frame.
         const folding = slots[sl]?.kind === 'hand' && model.seats.south?.out;
         const duration = folding ? 0 : 180;
@@ -713,11 +782,12 @@ export function useCardSprites({
         if (sl < 0) continue;
         keyToSlot.current.set(d.key, sl);
         departures.current.delete(sl);
+        unlay(sl);
         arriving.current.delete(sl);
         // Your own cards leave your hand as sprites; a spectator sees South's backs.
         const fromBacks = !d.ownPlay || !model.seats.south?.isYou;
         if (d.kind === 'played' && fromBacks && !firstLoad && d.rel)
-          arriving.current.set(sl, { rel: d.rel, at: d.laidAt ?? 0 });
+          arriving.current.set(sl, { rel: d.rel, at: reduceMotion ? 0 : (d.laidAt ?? 0) });
         const comesFromSeat = d.kind === 'played' || d.kind === 'cut';
         const startX = cutCard
           ? d.ox
@@ -841,21 +911,31 @@ export function useCardSprites({
           // sound plays, and lands where the table counts it (PID-469).
           const { tx, ty, trot, tscale, topacity, laidAt } = d;
           const lay = { duration: LAY_DOWN_FLIGHT_MS, easing: Easing.out(Easing.cubic) };
-          sx[sl].value = withDelay(laidAt, withTiming(tx, lay));
-          sy[sl].value = withDelay(laidAt, withTiming(ty, lay));
-          srot[sl].value = withDelay(laidAt, withTiming(trot, lay));
-          sscale[sl].value = withDelay(laidAt, withTiming(tscale, lay));
-          // Anyone else's shows as it leaves their seat, as a played card does.
+          const fly = (delay: number) => {
+            sx[sl].value = withDelay(delay, withTiming(tx, lay));
+            sy[sl].value = withDelay(delay, withTiming(ty, lay));
+            srot[sl].value = withDelay(delay, withTiming(trot, lay));
+            sscale[sl].value = withDelay(delay, withTiming(tscale, lay));
+          };
+          // Anyone else's shows as it leaves their seat, as a played card does,
+          // and its back goes in the same task (PID-473): a busy phone's JS is
+          // late to hear of a face the UI thread put up.
           if (isNew && laidAt > 0) {
             sop[sl].value = 0;
             const leaving = arriving.current.get(sl);
-            const gone = () => leave(at, leaving);
-            // Its back goes once its face is up, in that frame or the next, never before.
-            sop[sl].value = withDelay(
-              laidAt,
-              withTiming(topacity, { duration: 0 }, () => runOnJS(gone)())
+            laidTimers.current.set(
+              sl,
+              setTimeout(() => {
+                laidTimers.current.delete(sl);
+                fly(0);
+                sop[sl].value = topacity;
+                leave(sl, leaving);
+              }, laidAt)
             );
-          } else sop[sl].value = topacity;
+          } else {
+            fly(laidAt);
+            sop[sl].value = topacity;
+          }
           flight[sl].value = 1;
         } else if (d.kind === 'cut' && model.phase === 'dealer_selection') {
           // A dealer snapshot can re-render while this sequence is in flight
@@ -1047,7 +1127,7 @@ export function useCardSprites({
 
     for (const sl of arriving.current.keys())
       if (!nextSlots[sl] || !desiredKeys.has(nextSlots[sl]!.key)) arriving.current.delete(sl);
-    sendArriving();
+    sendArriving(model.seats);
     handTargets.value = ht;
     blockedTargets.value = bt;
     setSlots(nextSlots);

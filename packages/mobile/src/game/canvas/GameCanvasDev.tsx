@@ -11,7 +11,7 @@ import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameCanvas from './GameCanvas';
-import { withArriving, type Arriving } from './useCardSprites';
+import { useSeatBacks } from './useCardSprites';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
 import type { SeatLine } from '@/features/game/seatLine';
 import { TableSignals, scoreGlow, tablePidro } from './TableSignals';
@@ -459,7 +459,6 @@ export default function GameCanvasDev({
   const motionFixture = fixture === 'play-motion';
   const transitionMs =
     transition === '0' ? 0 : transition === '80' ? 80 : transition === '3000' ? 3000 : 1500;
-  const [arriving, setArriving] = useState<Arriving>({});
   const [cycle, setCycle] = useState(0);
   const [transitionTimer, setTransitionTimer] = useState<ActiveTurnTimer | null>(null);
   // `ticker=full`: three bids land after the table opens, so the ticker fills.
@@ -725,6 +724,7 @@ export default function GameCanvasDev({
   );
   const presentation = usePlayPresentation(serverModel, onPlayCard, transitionTimer);
   const model = motionFixture ? presentation.model : serverModel;
+  const [seatsShown, onCounted] = useSeatBacks(model.seats);
   const playCard = motionFixture ? presentation.playCard : onPlayCard;
   const isHandReady = useHandPresentationReady(model.yourHand, textures);
   // Own pace keeps the completed hand's number until Continue deals again.
@@ -808,14 +808,14 @@ export default function GameCanvasDev({
         onPlayCard={playCard}
         topReserve={topReserve}
         bottomReserve={bottomReserve}
-        onArriving={setArriving}
+        onArriving={onCounted}
       />
       {countHelp ? (
         <TableSignals model={model} topReserve={topReserve} bottomReserve={bottomReserve} />
       ) : null}
       <SeatLayer
         turnByRel={turnTimer}
-        seats={withArriving(model.seats, arriving)}
+        seats={seatsShown}
         dealerRel={phase === 'dealer_selection' ? null : dealer}
         topReserve={topReserve}
         bottomReserve={bottomReserve}
