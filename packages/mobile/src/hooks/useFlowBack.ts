@@ -13,6 +13,12 @@ export function useFlowBack() {
   }, [router, signedIn]);
 }
 
+// A browser has no Back button: in development `__pidroBack()` presses it, as BackHandler would.
+const webBack: (() => boolean)[] = [];
+if (Platform.OS === 'web' && __DEV__)
+  (globalThis as { __pidroBack?: () => boolean }).__pidroBack = () =>
+    [...webBack].reverse().some((listener) => listener());
+
 /**
  * Routes Android's hardware back (and the back gesture) through a screen's own
  * steps. While `enabled`, the press runs `onBack` instead of leaving the route.
@@ -22,12 +28,18 @@ export function useFlowBack() {
 export function useHardwareBack(enabled: boolean, onBack: () => void) {
   const back = useEffectEvent(onBack);
   useEffect(() => {
-    // Only Android has the button; the web shim logs an error if asked.
-    if (!enabled || Platform.OS !== 'android') return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+    if (!enabled) return;
+    const listener = () => {
       back();
       return true;
-    });
+    };
+    if (Platform.OS === 'web' && __DEV__) {
+      webBack.push(listener);
+      return () => void webBack.splice(webBack.indexOf(listener), 1);
+    }
+    // Only Android has the button; the web shim logs an error if asked.
+    if (Platform.OS !== 'android') return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', listener);
     return () => subscription.remove();
   }, [enabled]);
 }

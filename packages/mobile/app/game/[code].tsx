@@ -33,7 +33,15 @@ import { leagueGameLine } from '@/features/league';
 import { useAuthStore } from '@/stores/auth';
 import { lobbyApi } from '@/api/lobby';
 import { api } from '@/api/client';
-import { useCallback, useEffect, useId, useRef, useState, type ComponentType } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react';
 import type { Position, Room } from '@/types/lobby';
 import type { LegalAction, ServerGameState } from '@/types/game';
 import { GameJoinFailureScreen } from '@/components/game/GameJoinFailureScreen';
@@ -56,7 +64,7 @@ import { claimDailyGuestSavePrompt } from '@/features/auth/guestSavePrompt';
 import { tableInvitation } from '@/features/invites/tableInvitation';
 import { readingTimeMs } from '@/features/game/readingTime';
 import { typingFor } from '@/features/game/talk';
-import { tableBack } from '@/features/game/tableBack';
+import { tableBack, type TableScreen } from '@/features/game/tableBack';
 import { isReopenedTable } from '@/features/game/tableHelp';
 import { LeaveQuestion } from '@/game/canvas/LeaveQuestion';
 import { TableUtilityWindow } from '@/game/canvas/TableUtilityWindow';
@@ -178,26 +186,28 @@ const styles = StyleSheet.create({
 });
 
 /**
- * Android's Back at the table or the waiting table (PID-458): one stray press
- * must not cost a seat, so a player is asked first, with the settings panel's
- * own question. Mounted only while that screen shows.
+ * Android's Back on every screen of a game's route (PID-458, PID-463): one stray
+ * press must not cost a seat, so a player is asked first, with the settings
+ * panel's own question.
  */
 function LeaveOnBack({
-  watching,
-  over,
+  screen,
+  seated,
   onLeave,
   onHome,
 }: {
-  watching: boolean;
-  over: boolean;
+  screen: TableScreen;
+  seated: boolean;
   onLeave: () => void;
   onHome: () => void;
 }) {
   useTranslation();
   const [asking, setAsking] = useState(false);
+  const back = tableBack(screen, seated);
+  // The question outlives the screen under it, so it closes once that screen has no seat to lose.
+  if (asking && back !== 'ask') setAsking(false);
   // A screen pushed over the table, such as Claim Classic, has its own Back.
   useHardwareBack(useIsFocused(), () => {
-    const back = tableBack({ watching, over });
     if (back === 'ask') setAsking(true);
     else if (back === 'home') onHome();
     else onLeave();
@@ -786,8 +796,25 @@ export default function GameScreen() {
     [canManage, room, runRoomControl]
   );
 
+  // One Back first on every screen (PID-463), so a question asked while the table
+  // loads stays open when it arrives, and the waiting room's folded talk is heard first.
+  const withBack = (screen: TableScreen, content: ReactNode, onLeave = () => handleLeaveGame()) => (
+    <>
+      <LeaveOnBack
+        screen={screen}
+        seated={role !== 'spectator'}
+        onLeave={onLeave}
+        onHome={() => handleLeaveGame('/home')}
+      />
+      {content}
+    </>
+  );
+
   if (__DEV__ && (fixture === 'joining' || fixture === 'restoring' || fixture === 'loading')) {
-    return <GameLoadingScreen label={t(`game.${fixture}`)} />;
+    return withBack(
+      fixture === 'loading' ? 'table' : fixture,
+      <GameLoadingScreen label={t(`game.${fixture}`)} />
+    );
   }
 
   if (authHydrated && !accessToken) {
@@ -801,37 +828,44 @@ export default function GameScreen() {
   const terminalJoinFailure = terminalGameJoinFailure(lastError);
   if (terminalJoinFailure) {
     const destination = exitPath;
+    const exit = () => {
+      if (code) removeRoom(code);
+      router.dismissTo(destination);
+    };
 
-    return (
+    return withBack(
+      'join_failed',
       <GameJoinFailureScreen
         failure={terminalJoinFailure}
         exitLabel={destination === '/home' ? 'Back home' : 'Back to lobby'}
-        onExit={() => {
-          if (code) removeRoom(code);
-          router.dismissTo(destination);
-        }}
-      />
+        onExit={exit}
+      />,
+      exit
     );
   }
 
   if (away) {
-    return (
+    const exit = () => router.dismissTo(exitPath);
+    return withBack(
+      'away',
       <GameJoinFailureScreen
         failure="away"
         exitLabel={exitPath === '/home' ? 'Back home' : 'Back to lobby'}
-        onExit={() => router.dismissTo(exitPath)}
+        onExit={exit}
         onReturn={() => setAway(false)}
-      />
+      />,
+      exit
     );
   }
 
   if (!room && roomLookup?.roomCode !== code) {
-    return <GameLoadingScreen label={t('game.joining')} />;
+    return withBack('joining', <GameLoadingScreen label={t('game.joining')} />);
   }
 
   if (shouldRestoreServerState && authHydrated && accessToken) {
     if (restoreFailureCode === code) {
-      return (
+      return withBack(
+        'restore_failed',
         <Background>
           <View style={styles.tableLoadState}>
             <Surface
@@ -867,11 +901,12 @@ export default function GameScreen() {
       );
     }
 
-    return <GameLoadingScreen label={t('game.restoring')} />;
+    return withBack('restoring', <GameLoadingScreen label={t('game.restoring')} />);
   }
 
   if (!room) {
-    return (
+    return withBack(
+      'not_found',
       <Background>
         <SafeAreaView style={{ flex: 1 }}>
           <View className="flex-1 items-center justify-center p-4">
@@ -910,7 +945,12 @@ export default function GameScreen() {
   // A reconnect may miss both game completion and the host's leave. The
   // versioned waiting snapshot wins even if the cached game still says playing.
   if (!tableIsWaiting && (room.status === 'playing' || isInGamePhase)) {
-    return (
+    const over =
+      serverPhase === 'complete' ||
+      serverPhase === 'game_over' ||
+      (serverPhase as string) === 'finished';
+    return withBack(
+      over ? 'over' : 'table',
       <View className="flex-1">
         <SkiaGameTable
           room={room}
@@ -950,30 +990,14 @@ export default function GameScreen() {
             onHeight={setInvitationHeight}
           />
         ) : null}
-        <LeaveOnBack
-          watching={role === 'spectator'}
-          over={
-            serverPhase === 'complete' ||
-            serverPhase === 'game_over' ||
-            (serverPhase as string) === 'finished'
-          }
-          onLeave={() => handleLeaveGame()}
-          onHome={() => handleLeaveGame('/home')}
-        />
       </View>
     );
   }
 
   const waitingRoom = readiness ? roomWithReadiness(room, readiness) : room;
-  return (
+  return withBack(
+    'waiting',
     <>
-      {/* Before the screen: the newest Back listener is heard first, so the talk's fold (PID-420) is. */}
-      <LeaveOnBack
-        watching={role === 'spectator'}
-        over={false}
-        onLeave={() => handleLeaveGame()}
-        onHome={() => handleLeaveGame('/home')}
-      />
       <NewTableScreen
         room={{
           ...waitingRoom,
