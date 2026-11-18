@@ -1582,7 +1582,8 @@ const allCases = [
   ].map(([rel, cards, count, locale]) => ({
     name: `table-lay-down-${rel}-${cards}${count ? '-count' : ''}-${locale}`,
     path: `/table-dev?fixture=lay-down&by=${rel}&cards=${cards}${count ? '&count=on' : ''}&locale=${locale}`,
-    testId: `lay-down-${rel}`,
+    // The laid cards are canvas sprites (PID-469); assertLayDown reads them.
+    testId: `seat-${rel}`,
     layDown: { rel, cards, count, sv: locale === 'sv' },
   })),
   {
@@ -7916,17 +7917,37 @@ async function assertFoldGeometry(page, testCase, viewport) {
 async function assertLayDown(page, testCase, viewport) {
   if (!testCase.layDown) return;
   const { rel, cards, count, sv } = testCase.layDown;
-  const fan = page.getByTestId(`lay-down-${rel}`);
-  await fan.waitFor({ timeout: 30_000 });
+  // The laid cards are the table's own card sprites (PID-469), drawn from its textures.
+  const laid = () =>
+    page.evaluate(() =>
+      (window.__pidroCardMotion?.() ?? []).filter((s) => s.key.startsWith('trick-laid-'))
+    );
+  await page.waitForFunction(
+    (n) =>
+      (window.__pidroCardMotion?.() ?? []).filter((s) => s.key.startsWith('trick-laid-')).length ===
+      n,
+    cards,
+    { timeout: 30_000 }
+  );
   // Every card down.
   await page.waitForTimeout(700);
-  const faces = fan.getByTestId('thrown-face');
-  assert.equal(await faces.count(), cards, `${testCase.name}: ${cards} cards face up`);
+  const faces = await laid();
+  assert.equal(faces.length, cards, `${testCase.name}: ${cards} cards face up`);
+  assert.equal(
+    await page.getByTestId('thrown-face').count(),
+    0,
+    `${testCase.name}: no laid face drawn beside the canvas`
+  );
   const seats = [];
   for (const seat of ['north', 'east', 'south', 'west'])
     seats.push([seat, await getStableBox(page.getByTestId(`seat-${seat}`).first(), page)]);
-  for (const face of await faces.all()) {
-    const card = await getStableBox(face, page);
+  for (const face of faces) {
+    assert.equal(face.opacity, 1, `${testCase.name}: ${face.key} solid`);
+    const c = Math.abs(Math.cos(face.rotation));
+    const n = Math.abs(Math.sin(face.rotation));
+    const width = (face.width * c + face.height * n) * face.renderedScale;
+    const height = (face.width * n + face.height * c) * face.renderedScale;
+    const card = { x: face.x - width / 2, y: face.y - height / 2, width, height };
     assertInsideViewport(`${testCase.name} laid card`, card, viewport);
     for (const [seat, box] of seats)
       assert.ok(!overlaps(card, box), `${testCase.name}: a laid card clears ${seat}'s seat`);

@@ -90,6 +90,8 @@ import {
   TRICK_GATHER_CURVE,
   TRICK_SWEEP_CURVE,
   TRICK_SWEEP_SCALE,
+  LAY_DOWN_FLIGHT_MS,
+  layDownAt,
 } from './animationTiming';
 import { T } from './tokens';
 import { keptBlur, useKeptBlurs, type BakedBlur } from './bakedBlur';
@@ -332,6 +334,8 @@ export function useCardSprites({
       completed?: boolean;
       /** The next hand card, where it starts another suit. */
       castBy?: string;
+      /** A laid-down card (PID-469): when it leaves its seat, or your hand. */
+      laidAt?: number;
     };
     const desired: Desired[] = [];
     const preview = new Set<string>(
@@ -424,7 +428,27 @@ export function useCardSprites({
     // circle, the latest card in front and the earlier ones behind it (PID-381).
     const upright = L.profile === 'phone-portrait';
     REL.forEach((rel) => {
-      const cards = played[rel] ?? [];
+      // A settled hand's laid cards are the table's own (PID-469): drawn from
+      // its textures from their first frame, and keyed alike while they come
+      // down and under the result, so one card lies there throughout.
+      const down = model.layDown?.rel === rel ? model.layDown : null;
+      const laidKey = (key: CardKey) => `trick-laid-0-${rel}-${key}`;
+      const onTable = played[rel] ?? [];
+      const cards: TableCard[] = [
+        ...onTable.map((tc) =>
+          laid.has(tc.textureKey) ? { ...tc, key: laidKey(tc.textureKey) } : tc
+        ),
+        ...(down?.cards ?? [])
+          .filter((card) => !onTable.some((tc) => tc.textureKey === cardKey(card)))
+          .map((card) => ({
+            key: laidKey(cardKey(card)),
+            textureKey: cardKey(card),
+            card,
+            isTrump: true,
+            isLegalPlay: false,
+            isCurrentTrick: false,
+          })),
+      ];
       const onCross = trickOnCross(
         cards.map(trickNo),
         liveTrick,
@@ -436,18 +460,15 @@ export function useCardSprites({
       );
       const live = cards.filter((tc) => trickNo(tc) === onCross);
       const earlier = cards.filter((tc) => trickNo(tc) !== onCross);
-      // A settled hand's holder (PID-469): its pile makes room for the laid
-      // cards as they come down, its newest trick, bright, as SeatLayer lays
-      // them, until the result clears the hand.
-      const down = model.layDown?.rel === rel ? model.layDown : null;
       cards.forEach((tc, i) => {
         let target = playedCardTarget(L, rel, i, cards.length, live.length);
         const counted = model.countHelp && POINT_RANKS.has(tc.card.rank);
         const li = live.indexOf(tc);
         let shade = (!!L.front || upright) && !counted && (li < 0 || onCross !== liveTrick);
         let k = i;
+        // The holder's pile makes room for its laid cards, its newest trick, bright.
+        const j = down ? down.cards.findIndex((card) => cardKey(card) === tc.textureKey) : -1;
         if (down) {
-          const j = down.cards.findIndex((card) => cardKey(card) === tc.textureKey);
           if (j >= 0) k = down.played + j;
           target = laidPileTarget(L, rel, down.played, k, down.cards.length);
           shade = (!!L.front || upright) && !counted && k < down.played;
@@ -475,6 +496,7 @@ export function useCardSprites({
           topacity: 1,
           ownPlay: rel === 'south',
           completed: !tc.isCurrentTrick,
+          laidAt: down && j >= 0 ? layDownAt(j, down.cards.length) : undefined,
         });
       });
     });
@@ -563,9 +585,8 @@ export function useCardSprites({
 
         cancelAnimation(flight[sl]);
         cancelAnimation(collection[sl]);
-        // SeatLayer takes over your folded cards as backs in the same frame,
-        // and the cards you lay down (PID-366) as faces.
-        const folding = slots[sl]?.kind === 'hand' && (model.seats.south?.out || !!model.layDown);
+        // SeatLayer takes over your folded cards as backs in the same frame.
+        const folding = slots[sl]?.kind === 'hand' && model.seats.south?.out;
         const duration = folding ? 0 : 180;
         sop[sl].value = folding ? 0 : withTiming(0, { duration });
 
@@ -613,14 +634,12 @@ export function useCardSprites({
       let sl = keyToSlot.current.get(d.key);
       const isNew = sl === undefined;
       const dealCard = isDeal && d.kind === 'hand';
-      // Laid-down cards lie in the holder's pile already, drawn by SeatLayer: they appear there.
-      const laidCard = isNew && d.kind === 'played' && laid.has(d.textureKey);
       const cutCard = d.kind === 'cut' && animateCutSequence;
       if (sl === undefined) {
         sl = allocate();
         if (sl < 0) continue;
         keyToSlot.current.set(d.key, sl);
-        const comesFromSeat = (d.kind === 'played' && !laidCard) || d.kind === 'cut';
+        const comesFromSeat = d.kind === 'played' || d.kind === 'cut';
         const startX = cutCard
           ? d.ox
           : firstLoad
@@ -723,7 +742,6 @@ export function useCardSprites({
         );
       } else if (
         firstLoad ||
-        laidCard ||
         (d.kind === 'cut' && skipCutSequence) ||
         (reduceMotion && (d.kind === 'cut' || model.phase === 'playing'))
       ) {
@@ -734,6 +752,20 @@ export function useCardSprites({
         sop[sl].value = d.topacity;
         flight[sl].value = 1;
         if (ownLanding) playSelectionHaptic();
+      } else if (d.laidAt !== undefined && (isNew || slots[sl]?.kind === 'hand')) {
+        // A laid card leaves its seat, or your hand where it stood, as its
+        // sound plays, and lands where the table counts it (PID-469).
+        const lay = { duration: LAY_DOWN_FLIGHT_MS, easing: Easing.out(Easing.cubic) };
+        sx[sl].value = withDelay(d.laidAt, withTiming(d.tx, lay));
+        sy[sl].value = withDelay(d.laidAt, withTiming(d.ty, lay));
+        srot[sl].value = withDelay(d.laidAt, withTiming(d.trot, lay));
+        sscale[sl].value = withDelay(d.laidAt, withTiming(d.tscale, lay));
+        // Anyone else's shows as it leaves their seat, as a played card does.
+        if (isNew && d.laidAt > 0) {
+          sop[sl].value = 0;
+          sop[sl].value = withDelay(d.laidAt, withTiming(d.topacity, { duration: 0 }));
+        } else sop[sl].value = d.topacity;
+        flight[sl].value = 1;
       } else if (d.kind === 'cut' && model.phase === 'dealer_selection') {
         // A dealer snapshot can re-render while this sequence is in flight
         // (notably React Strict Mode and when the dealer field arrives). Keep

@@ -55,7 +55,6 @@ import {
   heldPose,
   handStep,
   handScale,
-  laidPileTarget,
   type HeldStyle,
   northFanTop,
   packSpot,
@@ -90,18 +89,14 @@ import {
   DEAL_PACKET_CARD_STAGGER_MS,
   DEAL_PACKET_TRAVEL_MS,
   FOLD_FLIGHT_MS,
-  LAY_DOWN_FLIGHT_MS,
-  layDownAt,
   SECOND_DEAL_FLIGHT_MS,
   SECOND_DEAL_SWOOP_STAGGER_MS,
 } from './animationTiming';
 import type { SecondDealShow } from './useSecondDealPresentation';
-import type { LayDownShow } from './useLayDownPresentation';
 import { bakedShadow } from './bakedBlur';
 import { t, useTranslation } from '@/i18n';
 import type { Card } from '@/types/game';
 import { faceImage } from './cardTextures';
-import { cardKey } from './cardKey';
 
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -194,8 +189,6 @@ type Props = {
   killed?: Partial<Record<RelativePosition, Card[]>>;
   /** With count help: what each seat drew, on the corner of its hand (PID-452). */
   drew?: Partial<Record<RelativePosition, number>>;
-  /** A settled hand laid down, face up in front of its holder (PID-366). */
-  layDown?: LayDownShow;
   /** How every hand holds its cards. */
   held?: HeldStyle;
   bid?: { seat: RelativePosition | undefined; amount: number };
@@ -223,7 +216,6 @@ export function SeatLayer({
   secondDeal,
   killed,
   drew,
-  layDown,
   held = HELD_STYLE,
   bid,
   said,
@@ -438,8 +430,7 @@ export function SeatLayer({
         const folded = seats[rel]?.foldedCount ?? 0;
         const thrown = secondDeal?.thrown[rel] ?? folded;
         const kills = killed?.[rel] ?? [];
-        const laid = layDown?.rel === rel && layDown.step === 'fan' ? layDown : null;
-        if (!seats[rel] || (thrown === 0 && kills.length === 0 && !laid)) return null;
+        if (!seats[rel] || (thrown === 0 && kills.length === 0)) return null;
         const foldingHand = !secondDeal && folded > 0;
         const throwing = foldingHand ? null : throwPile(L, rel, thrown);
         const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
@@ -484,30 +475,6 @@ export function SeatLayer({
           PixelRatio.get();
         return (
           <Fragment key={`thrown-${rel}`}>
-            {laid ? (
-              <LaidFan
-                key={`laid-${laid.hand}`}
-                rel={rel}
-                cards={laid.cards}
-                // Yours rise from your hand, face up, each from where it is held
-                // (PID-467); anyone else's turn over on the way.
-                from={(i, n) => {
-                  if (rel !== 'south') return { ...from, tilt: -25 };
-                  const pose = heldPose(held, cardKey(laid.cards[i]), i - (n - 1) / 2);
-                  return {
-                    x: L.hand.cx + (i - (n - 1) / 2) * handStep(L, n),
-                    y: L.hand.cy + pose.dy,
-                    tilt: pose.tilt,
-                  };
-                }}
-                fromScale={rel === 'south' ? handScale(L.profile) / L.trick.pileScale : 1}
-                flip={!seats[rel]?.isYou}
-                // The next of the holder's pile, where the table counts them (PID-469).
-                at={(i, n) => laidPileTarget(L, rel, laid.played, laid.played + i, n)}
-                cardW={L.cardW}
-                facePx={facePx}
-              />
-            ) : null}
             {kills.length > 0 ? (
               <ThrownPile
                 rel={rel}
@@ -1196,147 +1163,14 @@ function ThrownBack({
         <Image
           testID="thrown-face"
           source={face}
+          // Android fades an image in over 300 ms by default (PID-469).
+          fadeDuration={0}
           accessibilityIgnoresInvertColors
           style={{ width: w, height: h, borderRadius: BACK_RADIUS }}
         />
       ) : (
         <Back w={w} h={h} />
       )}
-    </Animated.View>
-  );
-}
-
-/**
- * A settled hand laid down (PID-366): face up, as the next cards of its
- * holder's pile, at a played card's size and lying as its played cards do
- * (PID-469). The cards come down one after another, turning face up on the
- * way (yours rise from your hand already face up), and hold; then the table's
- * own cards take their place, where they lie.
- */
-function LaidFan({
-  rel,
-  cards,
-  from,
-  fromScale,
-  flip,
-  at,
-  cardW,
-  facePx,
-}: {
-  rel: RelativePosition;
-  cards: Card[];
-  from: (i: number, n: number) => { x: number; y: number; tilt: number };
-  fromScale: number;
-  flip: boolean;
-  at: (i: number, n: number) => { x: number; y: number; rot: number; scale: number };
-  cardW: number;
-  facePx: number;
-}) {
-  const n = cards.length;
-  return (
-    <Animated.View
-      testID={`lay-down-${rel}`}
-      accessibilityElementsHidden
-      pointerEvents="none"
-      exiting={FadeOut.duration(SECOND_DEAL_FLIGHT_MS)}
-      style={StyleSheet.absoluteFill}>
-      {cards.map((card, i) => {
-        const to = at(i, n);
-        return (
-          <LaidCard
-            key={`${card.suit}_${card.rank}`}
-            face={faceImage(card, facePx)}
-            from={from(i, n)}
-            fromScale={fromScale}
-            flip={flip}
-            to={to}
-            delay={layDownAt(i, n)}
-            w={cardW * to.scale}
-          />
-        );
-      })}
-    </Animated.View>
-  );
-}
-
-function LaidCard({
-  face,
-  from,
-  fromScale,
-  flip,
-  to,
-  delay,
-  w,
-}: {
-  face: ImageSourcePropType;
-  from: { x: number; y: number; tilt: number };
-  fromScale: number;
-  flip: boolean;
-  to: { x: number; y: number; rot: number; scale: number };
-  delay: number;
-  w: number;
-}) {
-  const reducedMotion = useReducedMotion();
-  const h = w * (110 / 78);
-  const rot = (to.rot * 180) / Math.PI;
-  // Reduce Motion: down at once, without turning over.
-  const p = useSharedValue(reducedMotion ? 1 : 0);
-  useEffect(() => {
-    p.value = reducedMotion
-      ? 1
-      : withDelay(
-          delay,
-          withTiming(1, { duration: LAY_DOWN_FLIGHT_MS, easing: Easing.out(Easing.cubic) })
-        );
-  }, [delay, reducedMotion, p]);
-  const motion = useAnimatedStyle(() => {
-    const scale = fromScale + (1 - fromScale) * p.value;
-    // Edge-on halfway: the back gives way to the face.
-    const turn = flip ? Math.abs(1 - 2 * p.value) : 1;
-    return {
-      transform: [
-        { translateX: from.x + (to.x - from.x) * p.value - w / 2 },
-        { translateY: from.y + (to.y - from.y) * p.value - h / 2 },
-        { rotate: `${rot + from.tilt * (1 - p.value)}deg` },
-        { scaleX: scale * turn },
-        { scaleY: scale },
-      ],
-    };
-  });
-  const back = useAnimatedStyle(() => ({ opacity: p.value < 0.5 ? 1 : 0 }));
-  // The table's own card shadow (useCardSprites), so none appears as its card takes over.
-  const s = to.scale;
-  const shadow = bakedShadow(
-    { x: s, y: 4 * s, width: w, height: h, r: Math.min(10 * s, w * 0.12) },
-    5 * s,
-    CARD_SHADOW
-  );
-  return (
-    <Animated.View style={[{ position: 'absolute', width: w, height: h }, motion]}>
-      {shadow ? (
-        <Image
-          source={{ uri: shadow.uri }}
-          fadeDuration={0}
-          style={{
-            position: 'absolute',
-            left: shadow.x,
-            top: shadow.y,
-            width: shadow.width,
-            height: shadow.height,
-          }}
-        />
-      ) : null}
-      <Image
-        testID="thrown-face"
-        source={face}
-        accessibilityIgnoresInvertColors
-        style={{ width: w, height: h, borderRadius: BACK_RADIUS }}
-      />
-      {flip ? (
-        <Animated.View style={[StyleSheet.absoluteFill, back]}>
-          <Back w={w} h={h} />
-        </Animated.View>
-      ) : null}
     </Animated.View>
   );
 }
@@ -1449,8 +1283,6 @@ function Back({
 
 const BACK_RADIUS = 4;
 const BACK_SHADOW = 'rgba(0,0,0,0.55)';
-/** The table's card shadow (useCardSprites). */
-const CARD_SHADOW = 'rgba(2, 14, 28, 0.38)';
 
 const styles = StyleSheet.create({
   ring: { position: 'absolute', top: 0, zIndex: 30 },

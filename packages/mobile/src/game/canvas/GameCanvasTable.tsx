@@ -320,7 +320,6 @@ function TimedSeatLayer({
   secondDeal,
   killed,
   drew,
-  layDown,
   held,
   bid,
   said,
@@ -341,7 +340,6 @@ function TimedSeatLayer({
   secondDeal: ComponentProps<typeof SeatLayer>['secondDeal'];
   killed: ComponentProps<typeof SeatLayer>['killed'];
   drew: ComponentProps<typeof SeatLayer>['drew'];
-  layDown: ComponentProps<typeof SeatLayer>['layDown'];
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
   said: ComponentProps<typeof SeatLayer>['said'];
@@ -378,7 +376,6 @@ function TimedSeatLayer({
       secondDeal={secondDeal}
       killed={killed}
       drew={drew}
-      layDown={layDown}
       held={held}
       bid={bid}
       said={said}
@@ -964,7 +961,6 @@ export function GameCanvasTable({
             secondDeal={model.secondDealShow}
             killed={model.killed}
             drew={model.drew}
-            layDown={model.layDown}
             held={model.held}
             said={talking ? said : undefined}
             bid={
