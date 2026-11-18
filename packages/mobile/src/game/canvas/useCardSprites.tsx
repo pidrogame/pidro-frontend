@@ -1105,6 +1105,7 @@ export function useCardSprites({
             flashGlow={flashGlow}
             previewed={s.previewed}
             lights={lights}
+            sampling={L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined}
           />
         ))}
       </>
@@ -1202,6 +1203,7 @@ function CardSprite({
   flashGlow,
   previewed,
   lights,
+  sampling,
 }: {
   img: SkImage | null;
   x: SharedValue<number>;
@@ -1226,6 +1228,7 @@ function CardSprite({
   flashGlow: SharedValue<number>;
   previewed: boolean;
   lights: { glow: BakedBlur | null; shadow: BakedBlur | null };
+  sampling?: { B: number; C: number };
 }) {
   const sweep = useDerivedValue(() =>
     Math.max(0, (collection.value - TRICK_GATHER_PROGRESS) / (1 - TRICK_GATHER_PROGRESS))
@@ -1271,7 +1274,15 @@ function CardSprite({
       {/* Soft drop shadow grounds the card on the felt. */}
       {lights.shadow && <Baked blur={lights.shadow} />}
       {img ? (
-        <Image image={img} x={-w / 2} y={-h / 2} width={w} height={h} fit="cover" />
+        <Image
+          image={img}
+          x={-w / 2}
+          y={-h / 2}
+          width={w}
+          height={h}
+          fit="cover"
+          sampling={sampling}
+        />
       ) : (
         <RoundedRect x={-w / 2} y={-h / 2} width={w} height={h} r={r} color={T.cardFrame} />
       )}
@@ -1318,6 +1329,11 @@ function CardSprite({
 }
 
 const CARD_SHADOW = 'rgba(2, 14, 28, 0.38)';
+/**
+ * Tablets draw the 168px card art up to 300px wide (PID-453): a Catmull-Rom
+ * cubic keeps its edges crisper than Skia's bilinear default. Phones keep it.
+ */
+const TABLET_SAMPLING = { B: 0, C: 0.5 };
 
 function Baked({ blur, opacity }: { blur: BakedBlur; opacity?: SharedValue<number> }) {
   return (
