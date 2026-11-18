@@ -167,6 +167,8 @@ type SlotInfo = {
   previewed: boolean;
   /** The hand card that starts the next suit, or the side suits after the trumps: its slot. */
   caster?: number;
+  /** The first card of a suit after another: a cyan line on its left edge. */
+  starts?: boolean;
   lift: number;
   collectTo?: { x: number; y: number };
 } | null;
@@ -911,6 +913,7 @@ export function useCardSprites({
       const caster = d.castBy ? keyToSlot.current.get(d.castBy) : undefined;
       if (sl === undefined || caster === undefined || !nextSlots[sl] || !nextSlots[caster])
         continue;
+      nextSlots[caster]!.starts = true;
       if (nextSlots[caster]!.z > nextSlots[sl]!.z) nextSlots[sl]!.caster = caster;
     }
 
@@ -1171,6 +1174,7 @@ export function useCardSprites({
                 ? { x: sx[s.caster], y: sy[s.caster], scale: sscale[s.caster], rot: srot[s.caster] }
                 : undefined
             }
+            edge={s.starts ? SUIT_EDGE / handScale : 0}
             sampling={
               art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
             }
@@ -1272,6 +1276,7 @@ function CardSprite({
   previewed,
   lights,
   cast,
+  edge,
   sampling,
 }: {
   img: SkImage | null;
@@ -1304,6 +1309,8 @@ function CardSprite({
     scale: SharedValue<number>;
     rot: SharedValue<number>;
   };
+  /** The cyan line's width where this card starts a suit, in the card's own units; 0 for none. */
+  edge: number;
   sampling?: { B: number; C: number };
 }) {
   const sweep = useDerivedValue(() =>
@@ -1394,6 +1401,17 @@ function CardSprite({
           </Group>
         </Group>
       )}
+      {/* Where a suit starts, a thin line on this card's left edge, between its corners. */}
+      {edge > 0 && (
+        <RoundedRect
+          x={-w / 2 + w * FACE_INSET}
+          y={-h / 2 + h * FACE_INSET_Y + w * FACE_CORNER}
+          width={edge}
+          height={h * (1 - 2 * FACE_INSET_Y) - 2 * w * FACE_CORNER}
+          r={edge / 2}
+          color={SUIT_EDGE_COLOR}
+        />
+      )}
       {/* Unplayable cards darken; playable ones stay bright and lifted. */}
       {dimmed && (
         <RoundedRect
@@ -1441,8 +1459,11 @@ const CARD_SHADOW = 'rgba(2, 14, 28, 0.38)';
  * How deep the shadow is where your hand's suit changes (PID-461): the
  * baked shadow's opacity on the card it falls on. One number to tune.
  */
-const SUIT_SHADOW = 0.6;
+const SUIT_SHADOW = 1;
 const SUIT_SHADOW_COLOR = 'rgb(2, 14, 28)';
+/** The line on the edge of a suit's first card (PID-461): its width in points and colour. */
+const SUIT_EDGE = 2;
+const SUIT_EDGE_COLOR = T.cyan;
 /** The card art's face inside its image: an inset on each side and its corner, as shares of the width (and height). */
 const FACE_INSET = 16 / 336;
 const FACE_INSET_Y = 16 / 466;
