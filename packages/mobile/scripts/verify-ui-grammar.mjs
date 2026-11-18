@@ -8319,23 +8319,30 @@ const SAFE_AREA_BOTTOM = {
  */
 async function assertSeatRowOverHand(page, name, viewport) {
   const insetBottom = SAFE_AREA_BOTTOM[new URL(page.url()).searchParams.get('safeArea')] ?? 0;
-  const row = await yourSeatRow(page);
-  // Where the hand comes to rest: a dealt hand flies in from the pack first.
-  const measure = async () =>
-    JSON.stringify(
-      (await page.evaluate(() => window.__pidroCardMotion()))
-        .filter((sprite) => sprite.kind === 'hand')
-        .map(spriteBox)
-    );
-  let settled = await measure();
-  for (let i = 0; i < 25; i++) {
-    await page.waitForTimeout(200);
-    const next = await measure();
-    if (next === settled) break;
-    settled = next;
+  // Where the hand comes to rest, once the table holds it: the fixtures deal it
+  // a moment after the table shows, and a dealt hand flies in from the pack.
+  // Every card you hold drawn, and two readings 200ms apart the same.
+  const measure = () =>
+    page.evaluate(() => {
+      const deal = document.querySelector('[data-testid="deal-presentation"]');
+      return {
+        held: deal ? JSON.parse(deal.getAttribute('aria-label')).hand.length : null,
+        cards: window.__pidroCardMotion().filter((sprite) => sprite.kind === 'hand'),
+      };
+    });
+  let hand = null;
+  let last = '';
+  const until = Date.now() + 20_000;
+  while (!hand && Date.now() < until) {
+    const { held, cards } = await measure();
+    const boxes = JSON.stringify(cards.map(spriteBox));
+    if (cards.length && (held == null || cards.length === held) && boxes === last)
+      hand = JSON.parse(boxes);
+    else await page.waitForTimeout(200);
+    last = boxes;
   }
-  const hand = JSON.parse(settled);
-  if (!hand.length) throw new Error(`${name}: your hand is not measured in ${viewport.name}`);
+  if (!hand) throw new Error(`${name}: your hand is not measured in ${viewport.name}`);
+  const row = await yourSeatRow(page);
   // The row of cards at rest is where the hand lies; a card that may lift
   // (your turn, a suit pointed at) rises out of it, lifted now or not.
   const rest = await getStableBox(page.getByTestId('player-hand-top').first(), page);
