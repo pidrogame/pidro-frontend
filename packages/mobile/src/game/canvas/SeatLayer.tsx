@@ -585,14 +585,18 @@ export function SeatLayer({
               rel === 'south' && {
                 label: 'below' as const,
                 name: null,
-                status: seat.plate === 'turn' ? seat.status : (line?.short ?? null),
+                status:
+                  seat.plate === 'turn' && seat.status !== line?.text
+                    ? seat.status
+                    : (line?.short ?? null),
                 accessibilityLabel: avatarLabel({ ...spoken, level: null }),
               })}
             {...(!portrait &&
               (rel === 'south' || rel === 'north') &&
               line &&
               !textFits(seat.status ?? '', besideStatus, reach(rel)) && {
-                status: seat.status === line.text ? (line.short ?? null) : seat.status,
+                // "Your turn" has no short form: where it won't fit, the lit plate says it.
+                status: seat.status === line.text ? (line.short ?? null) : null,
                 accessibilityLabel: avatarLabel(spoken),
               })}
             /* A narrow upright side column says "High 14" or "Trump…" where the line won't fit; a lit plate also keeps on screen (PID-450). */

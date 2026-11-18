@@ -127,6 +127,8 @@ export const en = {
   "game.total": "Total %{number}",
   "game.score_accessibility":
     "%{usLabel} %{us}, %{themLabel} %{them}. Every hand.",
+  "game.score_bid_accessibility":
+    "%{usLabel} %{us}, %{themLabel} %{them}, %{bid}. Every hand.",
   "game.hand_points_accessibility": "%{usLabel} %{us}, %{themLabel} %{them}",
   "game.settings": "Table settings",
   "game.leave_question": "Leave table?",
@@ -690,6 +692,8 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "game.total": "Totalt %{number}",
   "game.score_accessibility":
     "%{usLabel} %{us}, %{themLabel} %{them}. Alla givar.",
+  "game.score_bid_accessibility":
+    "%{usLabel} %{us}, %{themLabel} %{them}, %{bid}. Alla givar.",
   "game.hand_points_accessibility": "%{usLabel} %{us}, %{themLabel} %{them}",
   "game.settings": "Bordsinställningar",
   "game.leave_question": "Lämna bordet?",

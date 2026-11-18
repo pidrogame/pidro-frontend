@@ -32,7 +32,6 @@ import { DealerSecondDeal } from '@/components/game/DealerSecondDeal';
 import { GameOverOverlay } from '@/components/game/GameOverOverlay';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
 import { canViewPlayer } from '@/features/friends';
-import { botLines } from '@pidro/shared';
 import { thinkingLine } from '@/features/game/tableVoice';
 import { pushGameAction, type ProgressionSummary } from '@/channels/hooks/useGameChannel';
 import { getRankLabel, SUIT_SYMBOLS } from '@/utils/cards';
@@ -169,13 +168,14 @@ function statusText(
     player.bot_persona,
     player.bot_profile
   );
-  // A catalogue line runs to 40 characters; where the seat swaps in its short line, it says
-  // the plain turn text instead (PID-405). The built-in lines always fit.
+  // A bot's own line can outrun its seat: a catalogue line runs to 40 characters, and at
+  // 14pt (PID-450) a built-in one outruns a narrow side seat too. Where the seat swaps in
+  // its short line, it says the plain turn text instead (PID-405).
   const now = (text: string, short?: string): SeatLine | null =>
     player.isCurrentTurn
       ? {
           text: thinking ?? text,
-          ...((short || botLines(player.bot_profile)) && { short: short ?? text }),
+          ...((short || thinking) && { short: short ?? text }),
           tone: 'now',
         }
       : null;

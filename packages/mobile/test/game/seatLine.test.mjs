@@ -129,6 +129,14 @@ describe('the plate under a seat (PID-450)', () => {
     expect(seatPlate(null, { onTurn: false, isYou: false })).toBeNull();
   });
 
+  it('keeps "Takes the rest" on your plate, where it says more than your turn (PID-364)', () => {
+    const rest = { text: 'Takes the rest', short: 'All yours', tone: 'now' };
+    expect(seatPlate(rest, { onTurn: true, isYou: true })).toEqual({
+      plate: 'turn',
+      text: 'Takes the rest',
+    });
+  });
+
   it('keeps the bidding winner off the plate while their bid is held', () => {
     expect(seatPlate({ text: 'Bid 9', tone: 'high' }, { onTurn: true, isYou: true })).toBeNull();
   });

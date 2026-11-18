@@ -439,12 +439,15 @@ const allCases = [
     ...[
       { name: '', seat: 'west', en: 'Let’s see…', sv: 'Ska vi se…' },
       { name: '-antti', seat: 'north', en: 'One moment…', sv: 'Ett ögonblick…' },
-      { name: '-jocke', seat: 'east', en: 'A trump…', sv: 'Trumf, månne…' },
-    ].map(({ name, seat, ...text }) => ({
+      // PID-450: at 14pt East's plate on an upright phone has no room for it in
+      // Swedish; the seat says the plain turn text, as a catalogue line does (PID-405).
+      { name: '-jocke', seat: 'east', en: 'A trump…', sv: 'Trumf, månne…', svUpright: 'Spelar…' },
+    ].map(({ name, seat, svUpright, ...text }) => ({
       name: `table-bot-thinking${name}-${locale}`,
       path: `/table-dev?fixture=bot-crew&botTurn=${seat}&locale=${locale}`,
       testId: `seat-${seat}`,
       thinkingText: text[locale],
+      ...(locale === 'sv' && svUpright && { uprightText: svUpright }),
       botVoice: true,
       locale,
     })),
@@ -2431,9 +2434,12 @@ async function assertBlockedTap(page, testCase) {
 }
 
 /** PID-364: Eli's seat line through the sweep, every frame until the result (or 1.5 s held). */
-async function assertSweep(page, testCase) {
+async function assertSweep(page, testCase, viewport) {
   if (!testCase.sweep) return;
-  const rest = testCase.locale === 'sv' ? 'Tar resten' : 'Takes the rest';
+  // PID-450: on an upright phone East's lit plate has no room for "Takes the rest" at
+  // 14pt; the seat says its short form all through the sweep instead.
+  const upright = viewport.width < 500 && viewport.height > viewport.width;
+  const rest = testCase.locale === 'sv' ? 'Tar resten' : upright ? 'All yours' : 'Takes the rest';
   await page.getByTestId('seat-east').getByText(rest, { exact: true }).waitFor({ timeout: 20_000 });
   let lines;
   if (testCase.sweep === 'on') {
@@ -6223,8 +6229,10 @@ async function assertTalkDeal(page, viewport) {
 /**
  * Upright phones (PID-393): the bubble sits in the bottom right corner, its
  * centre level with your avatar's. Expo web drops your seat's empty line,
- * lowering the avatar 14pt where the seat has nothing to say; a phone keeps it.
+ * lowering the avatar by that line (18pt since PID-450) where the seat has
+ * nothing to say; a phone keeps it.
  */
+const SEAT_STATUS_LINE = 18;
 async function assertBubble(box, you, viewport) {
   assert.ok(
     Math.abs(viewport.width - 12 - (box.x + box.width)) <= 1,
@@ -6232,7 +6240,7 @@ async function assertBubble(box, you, viewport) {
   );
   const avatar = you.y + Math.min(you.height, 56) / 2;
   assert.ok(
-    Math.abs(box.y + box.height / 2 - avatar) <= 15,
+    Math.abs(box.y + box.height / 2 - avatar) <= SEAT_STATUS_LINE + 1,
     `the bubble is level with your avatar: ${JSON.stringify({ box, you })}`
   );
 }
@@ -6627,9 +6635,14 @@ async function assertBotVoice(page, testCase, viewport) {
     await waitForScreenshotReady(page);
   } else {
     const beside = !!testCase.landscapeText && viewport.width > viewport.height;
+    const upright =
+      !!testCase.uprightText && viewport.width < 500 && viewport.height > viewport.width;
     const line = page
       .getByTestId(testCase.testId)
-      .getByText(beside ? testCase.landscapeText : testCase.thinkingText, { exact: true });
+      .getByText(
+        beside ? testCase.landscapeText : upright ? testCase.uprightText : testCase.thinkingText,
+        { exact: true }
+      );
     await line.waitFor();
     assertInsideViewport('thinking line', await getStableBox(line, page), viewport);
     assert.equal(
@@ -7159,6 +7172,7 @@ async function assertSmallTable(page, testCase, viewport) {
         right: badge.x + badge.width / 2 > avatar.x + avatar.width / 2,
         below: badge.y + badge.height / 2 > avatar.y + avatar.height / 2,
         size: badge.width,
+        face: avatar.width,
       };
     });
   assert.equal(await page.locator('[data-testid$="-dealer"]').count(), 1, 'one dealer chip');
@@ -7166,10 +7180,11 @@ async function assertSmallTable(page, testCase, viewport) {
   assert.ok(!d.right && d.below, `${testCase.name}: the dealer chip sits bottom left`);
   const b = await corner(`seat-${bidder}-bid`);
   assert.ok(b.right && !b.below, `${testCase.name}: the winning bid sits top right`);
+  // PID-450: the bid reads at arm's length, half the face (28 at 56), the bot badge as it was.
   const bot = await page.getByTestId('seat-east-bot').boundingBox();
   assert.ok(
-    Math.abs(b.size - bot.width) <= 0.5,
-    `${testCase.name}: bid ${b.size}pt, bot ${bot.width}pt`
+    Math.abs(b.size - b.face / 2) <= 1.5 && b.size > bot.width,
+    `${testCase.name}: bid ${b.size}pt on a ${b.face}pt face, bot ${bot.width}pt`
   );
   if (viewport.name !== 'compact-portrait') return;
   assert.equal(await page.getByTestId('last-trick').count(), 0, 'tight phones show no Last trick');
@@ -10798,7 +10813,7 @@ async function main() {
           await assertBotVoice(page, testCase, caseViewport);
           await assertTalk(page, testCase, caseViewport);
           await assertPlayLines(page, testCase, caseViewport);
-          await assertSweep(page, testCase);
+          await assertSweep(page, testCase, caseViewport);
           await assertTwoRows(page, testCase, caseViewport);
           await assertUpright(page, testCase, caseViewport);
           if (testCase.locale && testCase.path.includes('game_over')) {

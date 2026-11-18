@@ -40,7 +40,9 @@ export function seatPlate(
 ): { plate: 'turn' | 'out'; text: string | null } | null {
   if (line?.tone === 'out') return { plate: 'out', text: line.text };
   if (!onTurn || line?.tone === 'high') return null;
-  return { plate: 'turn', text: isYou ? t('game.your_turn') : (line?.text ?? null) };
+  // Taking the rest says so on your plate too (PID-364): the light already says whose turn.
+  const yours = line?.text === t('game.takes_rest') ? line.text : t('game.your_turn');
+  return { plate: 'turn', text: isYou ? yours : (line?.text ?? null) };
 }
 
 /** The bidding's winner choosing trump; "Trump…" where a narrow seat has no room for it. */

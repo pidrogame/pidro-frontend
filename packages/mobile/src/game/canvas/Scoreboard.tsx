@@ -247,13 +247,23 @@ export function Scoreboard({
       <StillLayer bleed={24}>
         <PressableFX
           accessibilityRole="button"
-          accessibilityLabel={[
-            t('game.score_accessibility', { usLabel, us, themLabel, them }),
-            bid && t('game.bid', { amount: bid.amount }),
-            bid?.trump && t('game.trump', { suit: SUIT_SYMBOLS[bid.trump] }),
-          ]
-            .filter(Boolean)
-            .join(' ')}
+          // The bid before "Every hand.", which says what a tap does.
+          accessibilityLabel={
+            bid
+              ? t('game.score_bid_accessibility', {
+                  usLabel,
+                  us,
+                  themLabel,
+                  them,
+                  bid: [
+                    t('game.bid', { amount: bid.amount }),
+                    bid.trump && t('game.trump', { suit: SUIT_SYMBOLS[bid.trump] }),
+                  ]
+                    .filter(Boolean)
+                    .join(', '),
+                })
+              : t('game.score_accessibility', { usLabel, us, themLabel, them })
+          }
           accessibilityState={{ expanded: isOpen }}
           onPress={() => setIsOpen((open) => !open)}
           style={[styles.plaque, gradientBg(PidroBevel.goldRimGradient)]}>
@@ -289,7 +299,7 @@ export function Scoreboard({
             {bid ? (
               <>
                 <View style={styles.divider} />
-                <View style={[styles.col, styles.bidCol]} testID="score-bid">
+                <View style={[styles.col, styles.bidCol]} testID="score-bid-cell">
                   <PidroText
                     role="metadata"
                     style={[styles.label, { color: PidroColors.goldLight }]}

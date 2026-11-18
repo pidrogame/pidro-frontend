@@ -628,9 +628,10 @@ export const NORTH_NAME_MIN = 80;
 const NORTH_SHIFT_MAX = 40;
 /**
  * Between North's fan and its seat. Landscape phones keep the dealer chip,
- * 9pt out on the avatar's corner and its rim, TRICK_GAP clear of the fan (PID-307).
+ * 12pt out on the avatar's corner since PID-450 and its rim, TRICK_GAP clear
+ * of the fan (PID-307).
  */
-const northSeatGap = (L: TableLayout) => (L.front ? TRICK_GAP + 10 : 16);
+const northSeatGap = (L: TableLayout) => (L.front ? TRICK_GAP + 13 : 16);
 /** What the menu leaves landscape North's name, its fan on the table's axis. */
 const northRoom = (L: TableLayout, insets: Insets, backs: number) =>
   L.width -
