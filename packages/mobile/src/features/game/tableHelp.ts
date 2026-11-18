@@ -13,6 +13,18 @@ export function isSoloTable(readiness: ReadinessSnapshot | null, you: Position |
   );
 }
 
+/**
+ * A finished table someone left: the server reopens it as waiting. A rematch
+ * passes through ready, everybody in, on its way to the next game; that is no
+ * reopening.
+ */
+export function isReopenedTable(
+  readiness: ReadinessSnapshot | null,
+  hasGameState: boolean
+): boolean {
+  return readiness?.status === 'waiting' && hasGameState;
+}
+
 /** The one player still holding trumps once the other three have gone cold. */
 export function loneTrumpHolder(
   players: Partial<Record<Position, ServerPlayerView>> | null | undefined

@@ -57,6 +57,7 @@ import { tableInvitation } from '@/features/invites/tableInvitation';
 import { readingTimeMs } from '@/features/game/readingTime';
 import { typingFor } from '@/features/game/talk';
 import { tableBack } from '@/features/game/tableBack';
+import { isReopenedTable } from '@/features/game/tableHelp';
 import { LeaveQuestion } from '@/game/canvas/LeaveQuestion';
 import { TableUtilityWindow } from '@/game/canvas/TableUtilityWindow';
 import { useHardwareBack } from '@/hooks/useFlowBack';
@@ -726,7 +727,7 @@ export default function GameScreen() {
   }, [handlePlayAgain]);
   const handleSoloPlayAgain = () => void adOffer.play(async () => playAgain.current());
   const rematch = rematchVote(readiness, youPositionAbs);
-  const tableReopened = tableIsWaiting && hasGameState;
+  const tableReopened = isReopenedTable(readiness, hasGameState);
   useEffect(() => {
     if (!tableReopened) return;
     // Notices still queued belong to the game that just ended.

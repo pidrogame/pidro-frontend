@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'bun:test';
-import { loneTrumpHolder, isSoloTable } from '../../src/features/game/tableHelp.ts';
+import {
+  loneTrumpHolder,
+  isReopenedTable,
+  isSoloTable,
+} from '../../src/features/game/tableHelp.ts';
 
 describe('out of trumps', () => {
   const cold = (eliminated) => ({ hand: 0, eliminated });
@@ -42,5 +46,15 @@ describe('table pace', () => {
     expect(isSoloTable({ seats: { ...seats, east: { occupant_type: 'human' } } }, 'south')).toBe(
       false
     );
+  });
+});
+
+describe('a finished table reopened (PID-442)', () => {
+  it('is a game behind a waiting table, never the ready a rematch passes through', () => {
+    expect(isReopenedTable({ status: 'waiting' }, true)).toBe(true);
+    expect(isReopenedTable({ status: 'ready' }, true)).toBe(false);
+    expect(isReopenedTable({ status: 'waiting' }, false)).toBe(false);
+    expect(isReopenedTable({ status: 'finished' }, true)).toBe(false);
+    expect(isReopenedTable(null, true)).toBe(false);
   });
 });
