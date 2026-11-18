@@ -637,8 +637,9 @@ const styles = StyleSheet.create({
   topBarTablet: { gap: 14 },
   topBarStacked: { flexDirection: 'column-reverse', alignItems: 'stretch' },
   buttonsStacked: { alignSelf: 'flex-end' },
-  // A flex: 1 child of a column that sizes to its content gets no height of its own on native.
-  identityStacked: { flexBasis: 'auto' },
+  // Its own height: on native, flex: 1 in a column that sizes to its content gives it none,
+  // and the buttons above were pushed up under the status bar.
+  identityStacked: { flex: 0 },
   waitingBadge: { position: 'absolute', top: 0, right: -PidroSpacing.xxs },
   newsDot: {
     position: 'absolute',
