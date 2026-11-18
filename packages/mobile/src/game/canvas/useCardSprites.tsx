@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { PixelRatio } from 'react-native';
 import { Gesture } from 'react-native-gesture-handler';
-import { Group, Image, RoundedRect, type SkImage } from '@shopify/react-native-skia';
+import { Group, Image, rect, RoundedRect, rrect, type SkImage } from '@shopify/react-native-skia';
 import {
   Easing,
   ReduceMotion,
@@ -48,7 +48,6 @@ import {
   handLift,
   handScale as handScaleFor,
   handStep,
-  handXs,
   laidPileTarget,
   playedCardTarget,
   trailSpot,
@@ -132,17 +131,13 @@ const CUT_WINNER_READ_MS = 700;
 const cutRevealAt = (cuts: number) =>
   Math.max(0, cuts - 1) * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS + CUT_WINNER_PAUSE_MS;
 
-/**
- * Your hand's places: a straight row, air where the suit changes (PID-461).
- * Cards still arriving in deal order stand evenly until they are sorted.
- */
-function handSlotFn(L: TableLayout, hand: TableCard[], dealing: boolean) {
-  const step = handStep(L, hand.length);
-  const xs = dealing
-    ? hand.map((_, i) => L.hand.cx + (i - (hand.length - 1) / 2) * step)
-    : handXs(L, hand);
-  // Straight row — no arc dip, no fan rotation (user preference).
-  return (i: number) => ({ x: xs[i], y: L.hand.cy, rot: 0 });
+function handSlotFn(L: TableLayout, n: number) {
+  const step = handStep(L, n);
+  return (i: number) => {
+    const off = i - (n - 1) / 2;
+    // Straight row — no arc dip, no fan rotation (user preference).
+    return { x: L.hand.cx + off * step, y: L.hand.cy, rot: 0 };
+  };
 }
 
 type HandTarget = {
@@ -170,6 +165,8 @@ type SlotInfo = {
   flashing: boolean;
   /** Would be trump under the suit being considered. */
   previewed: boolean;
+  /** The hand card that starts the next suit, or the side suits after the trumps: its slot. */
+  caster?: number;
   lift: number;
   collectTo?: { x: number; y: number };
 } | null;
@@ -270,7 +267,7 @@ export function useCardSprites({
     const prev = prevModel.current;
     const firstLoad = prev === null;
     const n = model.yourHand.length;
-    const handSlot = handSlotFn(L, model.yourHand, model.dealStage === 'dealing');
+    const handSlot = handSlotFn(L, n);
 
     // ── M3 diff triggers ────────────────────────────────────────────
     const prevHandLen = prev?.yourHand.length ?? 0;
@@ -335,6 +332,8 @@ export function useCardSprites({
       topacity: number;
       ownPlay?: boolean;
       completed?: boolean;
+      /** The next hand card, where it starts another suit. */
+      castBy?: string;
     };
     const desired: Desired[] = [];
     const preview = new Set<string>(
@@ -363,8 +362,12 @@ export function useCardSprites({
     // still lying there from the trick just taken (PID-307).
     const spotTaken = !!L.front && (played.south ?? []).some((tc) => trickNo(tc) === liveTrick);
 
+    // Where the suit changes, and between the trumps and the rest, the next
+    // card's shadow deepens on this one (PID-461); not while the deal is unsorted.
+    const group = (tc: TableCard) => (tc.isTrump ? 'trump' : tc.card.suit);
     model.yourHand.forEach((tc, i) => {
       const s = handSlot(i);
+      const next = model.yourHand[i + 1];
       const legal = model.canPlay && tc.isLegalPlay;
       const blocked = model.canPlay && !tc.isLegalPlay;
       const previewed = preview.has(tc.textureKey);
@@ -388,6 +391,8 @@ export function useCardSprites({
         blocked,
         previewed,
         topacity: 1,
+        castBy:
+          next && group(next) !== group(tc) && model.dealStage !== 'dealing' ? next.key : undefined,
       });
     });
     REL.forEach((rel, cutIndex) => {
@@ -900,6 +905,15 @@ export function useCardSprites({
         });
     }
 
+    // Only a card that lies over this one casts on it: a lifted card lies over the next.
+    for (const d of desired) {
+      const sl = keyToSlot.current.get(d.key);
+      const caster = d.castBy ? keyToSlot.current.get(d.castBy) : undefined;
+      if (sl === undefined || caster === undefined || !nextSlots[sl] || !nextSlots[caster])
+        continue;
+      if (nextSlots[caster]!.z > nextSlots[sl]!.z) nextSlots[sl]!.caster = caster;
+    }
+
     handTargets.value = ht;
     blockedTargets.value = bt;
     setSlots(nextSlots);
@@ -1095,6 +1109,18 @@ export function useCardSprites({
         5,
         CARD_SHADOW
       ),
+      // Where the suit changes (PID-461): softer, cast a little left of the card's face.
+      suit: keptBlur(
+        {
+          x: -cardW / 2 + cardW * FACE_INSET - 3,
+          y: -cardH / 2 + 2,
+          width: cardW * (1 - 2 * FACE_INSET),
+          height: cardH - 4,
+          r: cardW * FACE_CORNER,
+        },
+        9,
+        SUIT_SHADOW_COLOR
+      ),
     };
   }, [cardW, cardH]);
 
@@ -1140,6 +1166,11 @@ export function useCardSprites({
             flashGlow={flashGlow}
             previewed={s.previewed}
             lights={lights}
+            cast={
+              s.caster !== undefined
+                ? { x: sx[s.caster], y: sy[s.caster], scale: sscale[s.caster], rot: srot[s.caster] }
+                : undefined
+            }
             sampling={
               art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
             }
@@ -1240,6 +1271,7 @@ function CardSprite({
   flashGlow,
   previewed,
   lights,
+  cast,
   sampling,
 }: {
   img: SkImage | null;
@@ -1264,7 +1296,14 @@ function CardSprite({
   flashing: boolean;
   flashGlow: SharedValue<number>;
   previewed: boolean;
-  lights: { glow: BakedBlur | null; shadow: BakedBlur | null };
+  lights: { glow: BakedBlur | null; shadow: BakedBlur | null; suit: BakedBlur | null };
+  /** The next card, where it starts another suit: its shadow deepens on this one. */
+  cast?: {
+    x: SharedValue<number>;
+    y: SharedValue<number>;
+    scale: SharedValue<number>;
+    rot: SharedValue<number>;
+  };
   sampling?: { B: number; C: number };
 }) {
   const sweep = useDerivedValue(() =>
@@ -1296,6 +1335,20 @@ function CardSprite({
     ];
   });
   const visible = useDerivedValue(() => opacity.value * (1 - sweep.value));
+  // The next card's place, turn and size as this card sees them, every frame.
+  const castAt = useDerivedValue(() => {
+    if (!cast) return [];
+    const dx = cast.x.value - x.value;
+    const dy = cast.y.value - y.value;
+    const cos = Math.cos(rot.value);
+    const sin = Math.sin(rot.value);
+    return [
+      { translateX: (dx * cos + dy * sin) / scale.value },
+      { translateY: (dy * cos - dx * sin) / scale.value },
+      { rotate: cast.rot.value - rot.value },
+      { scale: cast.scale.value / scale.value },
+    ];
+  });
   const winnerOpacity = useDerivedValue(() =>
     Math.max(
       winner ? winnerReveal.value : leading ? leadGlow.value * 0.85 : 0,
@@ -1322,6 +1375,24 @@ function CardSprite({
         />
       ) : (
         <RoundedRect x={-w / 2} y={-h / 2} width={w} height={h} r={r} color={T.cardFrame} />
+      )}
+      {/* The next suit's first card shades this card's face, and nothing past it. */}
+      {cast && lights.suit && (
+        <Group
+          clip={rrect(
+            rect(
+              -w / 2 + w * FACE_INSET,
+              -h / 2 + h * FACE_INSET_Y,
+              w * (1 - 2 * FACE_INSET),
+              h * (1 - 2 * FACE_INSET_Y)
+            ),
+            w * FACE_CORNER,
+            w * FACE_CORNER
+          )}>
+          <Group transform={castAt} opacity={SUIT_SHADOW}>
+            <Baked blur={lights.suit} />
+          </Group>
+        </Group>
       )}
       {/* Unplayable cards darken; playable ones stay bright and lifted. */}
       {dimmed && (
@@ -1366,6 +1437,16 @@ function CardSprite({
 }
 
 const CARD_SHADOW = 'rgba(2, 14, 28, 0.38)';
+/**
+ * How deep the shadow is where your hand's suit changes (PID-461): the
+ * baked shadow's opacity on the card it falls on. One number to tune.
+ */
+const SUIT_SHADOW = 0.6;
+const SUIT_SHADOW_COLOR = 'rgb(2, 14, 28)';
+/** The card art's face inside its image: an inset on each side and its corner, as shares of the width (and height). */
+const FACE_INSET = 16 / 336;
+const FACE_INSET_Y = 16 / 466;
+const FACE_CORNER = 22 / 336;
 /**
  * Tablets that draw today's 168px art (PID-453) keep a Catmull-Rom cubic,
  * crisper than Skia's bilinear default; phones keep that default. The larger

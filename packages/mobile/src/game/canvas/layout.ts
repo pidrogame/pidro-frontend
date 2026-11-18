@@ -4,7 +4,7 @@
  *  2) computeLayout() — fluid positions within a profile (anchored regions + clamped card size).
  * Pure functions of (width, height, insets): recompute on resize or rotate, and tween to the new slots.
  */
-import type { RelativePosition, Suit } from '@/types/game';
+import type { RelativePosition } from '@/types/game';
 
 export type { RelativePosition };
 
@@ -1090,44 +1090,6 @@ const HAND_STEP = 0.72;
 export function handStep(L: TableLayout, n: number): number {
   const cardW = L.cardW * handScale(L.profile);
   return n > 1 ? Math.min(L.cardW * HAND_STEP, (L.hand.maxWidth - cardW) / (n - 1)) : 0;
-}
-
-/**
- * The least of a hand card that shows beside the next: its whole rank and
- * small suit (the left 0.36 of the art) and the slight tilt it is held at.
- */
-const HAND_SHOWN = 0.38;
-/** Air where your hand's suit changes (PID-461): 13pt on a 390pt phone. */
-const HAND_GAP = 0.21;
-const HAND_GAP_LEAST = 6;
-
-/**
- * Each card's x in your hand (PID-461): a row as wide as `handStep` makes
- * it, with air where the suit changes and between the trumps (the other
- * five among them) and the rest. The other cards close up to make that
- * room; the air shrinks before a card's rank and suit are covered, down to
- * HAND_GAP_LEAST.
- */
-export function handXs(
-  L: TableLayout,
-  hand: { isTrump: boolean; card: { suit: Suit } }[]
-): number[] {
-  const groups = hand.map((tc) => (tc.isTrump ? 'trump' : tc.card.suit));
-  const n = groups.length;
-  const step = handStep(L, n);
-  const breaks = groups.filter((group, i) => i > 0 && group !== groups[i - 1]).length;
-  const cardW = L.cardW * handScale(L.profile);
-  const gap = breaks
-    ? Math.max(
-        HAND_GAP_LEAST,
-        Math.min(cardW * HAND_GAP, ((step - cardW * HAND_SHOWN) * (n - 1)) / breaks)
-      )
-    : 0;
-  const close = n > 1 ? step - (breaks * gap) / (n - 1) : 0;
-  let x = L.hand.cx - ((n - 1) * step) / 2;
-  return groups.map((group, i) =>
-    i === 0 ? x : (x += close + (group !== groups[i - 1] ? gap : 0))
-  );
 }
 
 /**
