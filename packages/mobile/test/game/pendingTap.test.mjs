@@ -118,7 +118,8 @@ it('refuses explicitly, clears a moot revision, and never replays into the next 
   }
 });
 
-it('a reply before paint cannot lock every later tap', async () => {
+// PID-460: the server answers `ok` first and sends the state that places the card after it.
+it('a refusal before paint cannot lock every later tap; an ok keeps the card out until its state', async () => {
   if (!process.env.PENDING_TAP_CHILD) {
     const child = Bun.spawnSync([process.execPath, 'test', import.meta.path], {
       env: { ...process.env, PENDING_TAP_CHILD: '1' },
@@ -128,7 +129,7 @@ it('a reply before paint cannot lock every later tap', async () => {
     return;
   }
   const { JSDOM } = await import('jsdom');
-  const { act, createElement: h } = await import('react');
+  const { act, createElement: h, useState } = await import('react');
   const { createRoot } = await import('react-dom/client');
   const dom = new JSDOM('<div id="root"></div>');
   Object.assign(globalThis, {
@@ -138,53 +139,90 @@ it('a reply before paint cannot lock every later tap', async () => {
     requestAnimationFrame: (fn) => setTimeout(fn, 0),
     cancelAnimationFrame: clearTimeout,
   });
+  let sounds = 0;
   mock.module('react-native-reanimated', () => ({ useReducedMotion: () => true }));
-  mock.module('../../src/game/sounds.ts', () => ({ play: () => {} }));
+  mock.module('../../src/game/sounds.ts', () => ({ play: () => sounds++ }));
   const { usePlayPresentation } = await import('../../src/game/canvas/usePlayPresentation.ts');
   const { buildTableModel } = await import('../../src/game/canvas/tableModel.ts');
   const card = { rank: 14, suit: 'clubs' };
-  const source = buildTableModel({
-    phase: 'playing',
-    trumpSuit: 'clubs',
-    players: [],
-    yourHand: [card],
-    yourCardCount: 1,
-    currentTrick: [],
-    tricks: [],
-    legalActions: [{ type: 'play_card', card }],
-    currentTurnRelative: 'south',
-    canPlay: true,
-    getCardCountForPlayer: () => 1,
-  });
+  const refused = { rank: 12, suit: 'clubs' };
+  const next = { rank: 13, suit: 'clubs' };
+  const players = [{ absolutePosition: 'west', relativePosition: 'south', isYou: true }];
+  const table = (hand, turn, trick = []) =>
+    buildTableModel({
+      phase: 'playing',
+      trumpSuit: 'clubs',
+      players,
+      yourHand: hand,
+      yourCardCount: hand.length,
+      currentTrick: trick,
+      tricks: [],
+      legalActions: turn === 'south' ? hand.map((c) => ({ type: 'play_card', card: c })) : [],
+      currentTurnRelative: turn,
+      canPlay: turn === 'south',
+      getCardCountForPlayer: () => hand.length,
+    });
   let calls = 0;
-  let table;
-  let accepted = false;
+  let view;
+  let serve;
+  let reply;
   const send = () => {
     calls++;
-    return Promise.resolve(accepted);
+    return new Promise((resolve) => (reply = resolve));
   };
   function Hand() {
-    table = usePlayPresentation(source, send);
+    const [source, setSource] = useState(() => table([card, refused], 'south'));
+    serve = setSource;
+    view = usePlayPresentation(source, send);
     return null;
   }
+  const tap = (c) =>
+    act(async () => {
+      view.playCard(c);
+      await Promise.resolve();
+    });
+  const answer = (accepted) =>
+    act(async () => {
+      reply(accepted);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  const out = () =>
+    !view.model.yourHand.some((held) => held.card.rank === card.rank) &&
+    view.model.playedCards.south?.length === 1;
   const root = createRoot(document.getElementById('root'));
   try {
     await act(async () => root.render(h(Hand)));
-    for (const reply of [false, true]) {
-      accepted = reply;
-      calls = 0;
-      await act(async () => {
-        table.playCard(card);
-        await Promise.resolve();
-      });
-      expect(calls).toBe(1);
-      expect(table.model.yourHand).toHaveLength(1);
-      await act(async () => {
-        table.playCard(card);
-        await Promise.resolve();
-      });
-      expect(calls).toBe(2);
-    }
+    // Refused before paint: back in the hand, and the next tap is sent.
+    await act(async () => {
+      view.playCard(refused);
+      reply(false);
+      await Promise.resolve();
+    });
+    expect(calls).toBe(1);
+    expect(view.model.yourHand).toHaveLength(2);
+    await tap(refused);
+    expect(calls).toBe(2);
+    await answer(false);
+
+    // Accepted: `ok`, then the state 300 ms later. The card never goes back.
+    calls = 0;
+    sounds = 0;
+    await tap(card);
+    expect(out()).toBe(true);
+    await answer(true);
+    expect(out()).toBe(true);
+    await tap(card);
+    expect(calls).toBe(1);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 300)));
+    expect(out()).toBe(true);
+    await act(async () => serve(table([refused], 'east', [{ player: 'west', card }])));
+    expect(out()).toBe(true);
+    expect(view.model.playedCards.south[0].key).toStartWith('trick-0-');
+    expect(sounds).toBe(1);
+    // Your next turn takes the next tap.
+    await act(async () => serve(table([refused, next], 'south', [{ player: 'west', card }])));
+    await tap(next);
+    expect(calls).toBe(2);
   } finally {
     await act(async () => root.unmount());
     dom.window.close();

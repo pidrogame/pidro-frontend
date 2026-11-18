@@ -749,7 +749,11 @@ export const useGameChannel = ({
 };
 
 export function sendCard(card: Card): Promise<boolean> {
-  if (pendingCard) return pendingCard.promise;
+  // A card still on its way answers a tap on it again; another card was not sent.
+  if (pendingCard)
+    return sentCard?.card.rank === card.rank && sentCard.card.suit === card.suit
+      ? pendingCard.promise
+      : Promise.resolve(false);
   const { serverState, youPositionAbs, role, turnTimer } = useGameStore.getState();
   if (!serverState || !youPositionAbs || role !== 'player') return Promise.resolve(false);
   const attempt = pushAttempt('play_card');

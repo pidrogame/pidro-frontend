@@ -338,11 +338,15 @@ export function useCardSprites({
     );
 
     const played = model.playedCards;
-    const trickNo = (tc: TableCard) => Number(/^trick-(\d+)-/.exec(tc.key)?.[1] ?? -1);
+    const keyed = (tc: TableCard) => Number(/^trick-(\d+)-/.exec(tc.key)?.[1] ?? -1);
     const all = REL.flatMap((rel) => played[rel] ?? []);
-    const liveTrick = all.some((tc) => tc.isCurrentTrick)
-      ? Math.max(...all.filter((tc) => tc.isCurrentTrick).map(trickNo))
-      : Math.max(-1, ...all.map(trickNo));
+    const current = all.filter((tc) => tc.isCurrentTrick);
+    const liveTrick = current.some((tc) => keyed(tc) >= 0)
+      ? Math.max(...current.map(keyed))
+      : Math.max(-1, ...all.map(keyed)) + (current.length ? 1 : 0);
+    // The card you just tapped keeps its hand key until the server places it:
+    // it is the live trick's card, not one from an earlier trick (PID-460).
+    const trickNo = (tc: TableCard) => (tc.isCurrentTrick && keyed(tc) < 0 ? liveTrick : keyed(tc));
     // A card of yours lifts only into your empty spot, never onto your card
     // still lying there from the trick just taken (PID-307).
     const spotTaken = !!L.front && (played.south ?? []).some((tc) => trickNo(tc) === liveTrick);

@@ -187,12 +187,10 @@ export function usePlayPresentation(
         setPending({ ...next, rejected: true });
       };
       try {
+        // The server's `ok` comes before the state that puts the card on the table:
+        // the picture holds until a state takes it or the turn (optimisticPlay), or a refusal.
         Promise.resolve(send(card)).then((accepted) => {
           if (accepted === false) reject();
-          else if (accepted === true && pendingRef.current === next) {
-            pendingRef.current = null;
-            setPending(null);
-          }
         }, reject);
       } catch {
         reject();

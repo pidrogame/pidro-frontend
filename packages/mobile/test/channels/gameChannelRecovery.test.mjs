@@ -292,6 +292,11 @@ async function check(scenario) {
       expect(first.payload.turn_event_seq).toBe(77);
       await act(async () => first.reply.callbacks.timeout());
       expect(reconnects).toHaveLength(2);
+      // PID-460: while A♣ is on its way, a tap on it shares its answer; another card is not sent.
+      const pushed = pushes.length;
+      const again = sendCard(card);
+      expect(await sendCard({ rank: 12, suit: 'clubs' })).toBe(false);
+      expect(pushes).toHaveLength(pushed);
       const oldControl = pushGameAction('set_pace', { pace: 'normal' }).catch((e) => e.reason);
       const oldReply = pushes.at(-1).reply;
       joinRef = '2';
@@ -303,6 +308,7 @@ async function check(scenario) {
       expect(retry.payload.turn_event_seq).toBe(77);
       await act(async () => retry.reply.callbacks.ok({}));
       expect(await pending).toBe(true);
+      expect(await again).toBe(true);
       await act(async () => oldReply.callbacks.timeout());
       expect(await oldControl).toBe('timeout');
       expect(reconnects).toHaveLength(2);
