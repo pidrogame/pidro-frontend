@@ -14,7 +14,8 @@ import { NoticeCard } from '@/components/friends/NoticeCard';
 import { joinSeatInvitation } from '@/components/invites/SeatInvitations';
 import { PidroSpacing } from '@/design/tokens';
 import { tableInvitationLine } from '@/features/invites/tableInvitation';
-import { TABLE_HEADER, headerTop } from '@/game/canvas/TableChrome';
+import { computeLayout } from '@/game/canvas/layout';
+import { TABLE_HEADER, headerTop, useTableSize } from '@/game/canvas/TableChrome';
 import { useTranslation } from '@/i18n';
 import { declineSeatInvitation } from '@/stores/friends';
 import { useGameStore } from '@/stores/game';
@@ -43,6 +44,9 @@ export function TableInvitation({
   // nor any above a bid, trump or hand window: the card waits for your choice.
   // Neither has a short upright phone once the table has made room for it.
   const row = width > height && height < 500;
+  // A tight phone keeps it short: the side seats sit under it (PID-470).
+  const table = useTableSize();
+  const compact = computeLayout(table.width, table.height, insets, TABLE_HEADER).tight;
   const waits = row || (width < height && height < 700);
   const choosing = useGameStore((s) =>
     s.legalActions.some((action) => action.type !== 'play_card')
@@ -132,6 +136,7 @@ export function TableInvitation({
         }}
         footnote={error ?? t('friend_notice.ends_bot_game')}
         row={row}
+        compact={compact}
       />
     </View>
   );

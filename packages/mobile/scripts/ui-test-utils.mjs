@@ -271,6 +271,7 @@ export const UI_VIEWPORTS = [
       'table-small-north-bid',
       'table-small-your-turn',
       'table-trump',
+      'table-invitation',
       ...talkCases,
     ],
   },
@@ -317,7 +318,16 @@ export const UI_VIEWPORTS = [
       'table-dealer-selection',
       'table-teams-spectator',
       'table-game-over-loss',
+      'table-invitation',
     ],
+  },
+  // And under the gesture bar: the invitation's side seats (PID-470).
+  {
+    name: 'compact-gesture',
+    width: 360,
+    height: 640,
+    safeArea: 'android-gesture',
+    cases: ['table-invitation'],
   },
   { name: 'landscape', width: 844, height: 390 },
   // Marcel's TCL 5053Y on its side (PID-305): Classic's two rows per seat.

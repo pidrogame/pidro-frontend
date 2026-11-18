@@ -1748,3 +1748,43 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
     }
   });
 });
+
+describe('an invitation over a tight table keeps clear of East and West (PID-470)', () => {
+  // The compact card on a tight phone, 132pt under the 61pt header.
+  const CARD = 132;
+  const ring = (L) => avatarParts(TIGHT_AVATAR, { seat: true }).turn.radius;
+  for (const [name, insets] of [
+    ['no bars', { top: 0, bottom: 0, left: 0, right: 0 }],
+    ['the gesture bar', { top: 24, bottom: 24, left: 0, right: 0 }],
+    ['the three-button bar', { top: 24, bottom: 48, left: 0, right: 0 }],
+  ]) {
+    it(`seats East and West under the card, their backs whole above your row, with ${name}`, () => {
+      const L = computeLayout(360, 640, insets, 61 + CARD, 0);
+      expect(L.tight).toBe(true);
+      const cardBottom = insets.top + 61 + CARD;
+      expect(L.sides.seat - ring(L)).toBeGreaterThanOrEqual(cardBottom + 8 - 1e-9);
+      const stacks = sideStacks(L);
+      // At least one back, and the stack still ends TRICK_GAP above your seat row.
+      expect(stacks.maxHeight).toBeGreaterThanOrEqual(stacks.backW);
+      expect(stacks.top + stacks.maxHeight).toBeLessThanOrEqual(southRow(L).top - TRICK_GAP + 1e-6);
+    });
+  }
+
+  it('leaves the seats where they sit today once the card goes, and on roomier phones', () => {
+    const bars = { top: 24, bottom: 48, left: 0, right: 0 };
+    const without = computeLayout(360, 640, bars, 61, 0);
+    const under = computeLayout(360, 640, bars, 61 + CARD, 0);
+    // The three-button bar raised East to North's row; the card moves it down.
+    expect(under.sides.seat).toBeGreaterThan(without.sides.seat);
+    expect(under.sides.reach).toBeLessThan(without.sides.reach);
+    for (const [w, h] of [
+      [360, 780],
+      [390, 844],
+    ]) {
+      const L = computeLayout(w, h, bars, 61 + 161, 0);
+      // Their seats already sit under a full card: the rule never moves them.
+      const ring = avatarParts(56, { seat: true }).turn.radius;
+      expect(L.sides.seat - ring).toBeGreaterThan(bars.top + 61 + 161 + 8);
+    }
+  });
+});

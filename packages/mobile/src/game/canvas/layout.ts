@@ -91,6 +91,11 @@ const PORTRAIT_SIDE_DROP = 0.45;
  */
 const SIDE_STACK_LEAST = 0.3;
 /**
+ * Between the table's top and an upright side seat's face (PID-470): its turn
+ * ring, 5pt past a tight face (`avatarParts`), and 8pt of air over that.
+ */
+const SIDE_SEAT_AIR = 5 + 8;
+/**
  * Portrait North, top to bottom, as SeatLayer draws it: a gap, the fan of
  * backs, a gap, then the seat (avatar, level chip, name and status).
  */
@@ -1344,13 +1349,23 @@ export function computeLayout(
   // Its backs hang below it in the edge column, TRICK_GAP clear of your
   // seat row, your pack and talk's bubble at its ends. A full stack short of
   // room closes up to SIDE_STACK_LEAST; only past that does the seat rise, as
-  // little as it must.
+  // little as it must. It never rises past the table's top, its face
+  // SIDE_SEAT_AIR under it: where an invitation over the table (`topReserve`)
+  // reaches down beside North (PID-470), the seat sits under it and its backs
+  // close up as far as they need to, down to one back.
   const upright = profile === 'phone-portrait';
   const sideSize = sideAvatar({ tight, profile });
   const sideBelow = (tight ? TIGHT_SIDE_SEAT : NORTH_SEAT_STACK.phone) - sideSize / 2 + TRICK_GAP;
   const sideLow = Math.min(trickCy, trickCy - (cardW * pileScale) / 2 - sideBelow);
-  const sideSeat = sideLow - Math.max(0, sideLow + sideBelow + stackLeast - stackBottom);
-  const stackReach = Math.min(sideStackReach(cardW), stackBottom - sideSeat - sideBelow);
+  const sideSeat = Math.max(
+    sideLow - Math.max(0, sideLow + sideBelow + stackLeast - stackBottom),
+    tableTop + SIDE_SEAT_AIR + sideSize / 2
+  );
+  const stackReach = clamp(
+    stackBottom - sideSeat - sideBelow,
+    sideBackWidth(cardW),
+    sideStackReach(cardW)
+  );
   // West's and East's spots: in toward the trump mark, just clear of the
   // trail North or you leave in front of you over a hand (PID-308), and of
   // their stacks.

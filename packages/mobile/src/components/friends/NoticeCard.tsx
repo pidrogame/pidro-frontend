@@ -34,6 +34,8 @@ export interface NoticeCardProps {
   footnote?: string;
   /** One row, the words and then the buttons, no avatar: for a short landscape screen. */
   row?: boolean;
+  /** The footnote beside the avatar, under the words, and less air: for a tight phone (PID-470). */
+  compact?: boolean;
   testID?: string;
 }
 
@@ -47,6 +49,7 @@ export function NoticeCard({
   secondary,
   footnote,
   row = false,
+  compact = false,
   testID,
 }: NoticeCardProps) {
   const reduceMotion = useReducedMotion();
@@ -60,7 +63,7 @@ export function NoticeCard({
       exiting={reduceMotion ? undefined : FadeOutDown.duration(160)}
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
-      style={[styles.card, row && styles.row, styles[variant]]}>
+      style={[styles.card, row && styles.row, compact && styles.compact, styles[variant]]}>
       <View style={[styles.person, row && styles.grow]}>
         {row ? null : (
           <View style={(late || variant === 'cant_come') && styles.dim}>
@@ -76,7 +79,7 @@ export function NoticeCard({
               {body}
             </PidroText>
           ) : null}
-          {row && footnote ? (
+          {(row || compact) && footnote ? (
             <PidroText role="metadata" style={styles.body}>
               {footnote}
             </PidroText>
@@ -107,7 +110,7 @@ export function NoticeCard({
           ) : null}
         </View>
       ) : null}
-      {footnote && !row ? (
+      {footnote && !row && !compact ? (
         <PidroText role="metadata" align="center" style={styles.body}>
           {footnote}
         </PidroText>
@@ -137,6 +140,7 @@ const styles = StyleSheet.create({
     backgroundColor: PidroColors.friendSentBg,
   },
   row: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  compact: { gap: 8, paddingVertical: 10 },
   grow: { flex: 1, minWidth: 0 },
   person: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   dim: { opacity: 0.6 },

@@ -375,6 +375,24 @@ export function SeatLayer({
         )
       : L.sides.cy;
   const sideInset = portrait ? 0 : 12;
+  // Upright, an invitation coming or going moves North, East and West: one
+  // calm glide (PID-470). The stacks glide by their top, so a stack of `n` sits
+  // centred on its line as before.
+  const sideBacks = (rel: 'east' | 'west') =>
+    clamp(seats[rel]?.out ? 0 : (seats[rel]?.cardCount ?? 0), 0, 13);
+  const stackTop = (rel: 'east' | 'west') => {
+    const n = sideBacks(rel);
+    return (
+      sideStackCy - (sideBackW + Math.max(0, n - 1) * sideStackStep(L.cardW, n, sideReach)) / 2
+    );
+  };
+  const glide = {
+    northBacks: useGlide(portrait ? northBackTop : 0),
+    northSeat: useGlide(portrait ? northSeatTop : 0),
+    sideSeat: useGlide(portrait ? sideSeatPos.top : 0),
+    eastBacks: useGlide(portrait ? stackTop('east') : 0),
+    westBacks: useGlide(portrait ? stackTop('west') : 0),
+  };
   // The rob: the rest of the pack slides to the dealer's backs, or your hand.
   const sideEdge = (rel: 'east' | 'west') => {
     const edge = rel === 'east' ? insets.right : insets.left;
@@ -732,48 +750,56 @@ export function SeatLayer({
         if (rel === 'north') {
           return (
             <View key={rel} style={StyleSheet.absoluteFill} pointerEvents="box-none">
-              <View
-                testID="seat-north-cards"
+              <Animated.View
                 pointerEvents="none"
-                style={{
-                  position: 'absolute',
-                  top: northBackTop,
-                  left: 0,
-                  right: 0,
-                  alignItems: 'center',
-                  transform: [{ translateX: -northShift }],
-                }}>
-                <BacksFan
-                  count={data.out ? 0 : (data.cardCount ?? 0)}
-                  cardW={L.cardW}
-                  compact={compactNorth(L)}
-                  held={held}
-                  dealing={dealing}
-                  originX={from.x - (width / 2 - northShift)}
-                  originY={from.y - northBackTop}
-                />
-              </View>
-              <View
+                style={[StyleSheet.absoluteFill, glide.northBacks]}>
+                <View
+                  testID="seat-north-cards"
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    top: portrait ? 0 : northBackTop,
+                    left: 0,
+                    right: 0,
+                    alignItems: 'center',
+                    transform: [{ translateX: -northShift }],
+                  }}>
+                  <BacksFan
+                    count={data.out ? 0 : (data.cardCount ?? 0)}
+                    cardW={L.cardW}
+                    compact={compactNorth(L)}
+                    held={held}
+                    dealing={dealing}
+                    originX={from.x - (width / 2 - northShift)}
+                    originY={from.y - northBackTop}
+                  />
+                </View>
+              </Animated.View>
+              <Animated.View
                 pointerEvents="box-none"
-                style={
-                  tight
-                    ? { position: 'absolute', top: northSeatTop, left: tightNorthLeft }
-                    : portrait
-                      ? {
-                          position: 'absolute',
-                          top: northSeatTop,
-                          left: 0,
-                          right: 0,
-                          alignItems: 'center',
-                        }
-                      : {
-                          position: 'absolute',
-                          top: northSeatTop,
-                          left: landscapeNorthLeft(L, insets, northBacks),
-                        }
-                }>
-                {avatar}
-              </View>
+                style={[StyleSheet.absoluteFill, glide.northSeat]}>
+                <View
+                  pointerEvents="box-none"
+                  style={
+                    tight
+                      ? { position: 'absolute', top: 0, left: tightNorthLeft }
+                      : portrait
+                        ? {
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            alignItems: 'center',
+                          }
+                        : {
+                            position: 'absolute',
+                            top: northSeatTop,
+                            left: landscapeNorthLeft(L, insets, northBacks),
+                          }
+                  }>
+                  {avatar}
+                </View>
+              </Animated.View>
             </View>
           );
         }
@@ -790,43 +816,53 @@ export function SeatLayer({
           : sideEdge + sideInset;
         const seatTop = L.sidesUnder
           ? { top: landscapeSideSeatTop(L, rel, stackedSeat) }
-          : sideSeatPos;
+          : portrait
+            ? { top: 0 }
+            : sideSeatPos;
         const seatPos =
           rel === 'east' ? { ...seatTop, right: seatEdge } : { ...seatTop, left: seatEdge };
         const backsEdge = rel === 'east' ? { right: backsInset } : { left: backsInset };
         return (
           <View key={rel} style={StyleSheet.absoluteFill} pointerEvents="box-none">
-            <View style={[{ position: 'absolute' }, seatPos]} pointerEvents="box-none">
-              {avatar}
-            </View>
-            <View
-              testID={`seat-${rel}-cards`}
+            <Animated.View
+              pointerEvents="box-none"
+              style={[StyleSheet.absoluteFill, glide.sideSeat]}>
+              <View style={[{ position: 'absolute' }, seatPos]} pointerEvents="box-none">
+                {avatar}
+              </View>
+            </Animated.View>
+            <Animated.View
               pointerEvents="none"
-              style={[
-                {
-                  position: 'absolute',
-                  top: 0,
-                  height: sideStackCy * 2,
-                  justifyContent: 'center' as const,
-                  alignItems: 'center' as const,
-                },
-                backsEdge,
-              ]}>
-              <BacksStackV
-                seat={rel}
-                count={data.out ? 0 : (data.cardCount ?? 0)}
-                cardW={L.cardW}
-                reach={sideReach}
-                held={held}
-                dealing={dealing}
-                originX={
-                  rel === 'west'
-                    ? from.x - backsInset
-                    : from.x - (width - backsInset - sideBackW * (110 / 78))
-                }
-                originDy={from.y - sideStackCy}
-              />
-            </View>
+              style={[StyleSheet.absoluteFill, rel === 'east' ? glide.eastBacks : glide.westBacks]}>
+              <View
+                testID={`seat-${rel}-cards`}
+                pointerEvents="none"
+                style={[
+                  {
+                    position: 'absolute',
+                    top: 0,
+                    ...(!portrait && { height: sideStackCy * 2 }),
+                    justifyContent: 'center' as const,
+                    alignItems: 'center' as const,
+                  },
+                  backsEdge,
+                ]}>
+                <BacksStackV
+                  seat={rel}
+                  count={data.out ? 0 : (data.cardCount ?? 0)}
+                  cardW={L.cardW}
+                  reach={sideReach}
+                  held={held}
+                  dealing={dealing}
+                  originX={
+                    rel === 'west'
+                      ? from.x - backsInset
+                      : from.x - (width - backsInset - sideBackW * (110 / 78))
+                  }
+                  originDy={from.y - sideStackCy}
+                />
+              </View>
+            </Animated.View>
           </View>
         );
       })}
@@ -909,6 +945,27 @@ function BacksFan({
       ))}
     </View>
   );
+}
+
+/**
+ * Cubic in and out, its progress held to 0–1: a browser's first frame can
+ * come before the glide starts, and the curve would run the seat backwards.
+ */
+function calm(t: number) {
+  'worklet';
+  const x = Math.min(1, Math.max(0, t));
+  return x < 0.5 ? 4 * x * x * x : 1 - (2 - 2 * x) ** 3 / 2;
+}
+const SEAT_GLIDE = { duration: 280, easing: calm };
+
+/** A translate to `top`, gliding there from the last one; at once with Reduce Motion. */
+function useGlide(top: number) {
+  const reducedMotion = useReducedMotion();
+  const y = useSharedValue(top);
+  useEffect(() => {
+    y.value = reducedMotion ? top : withTiming(top, SEAT_GLIDE);
+  }, [top, reducedMotion, y]);
+  return useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
 }
 
 function BacksStackV({
