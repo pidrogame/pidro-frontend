@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
 import { fitStatus } from '../../src/features/avatar.ts';
 import { cutLandsAt, CUT_ORDER } from '../../src/game/canvas/animationTiming.ts';
@@ -11,6 +11,9 @@ import {
   seatPlate,
   teamLine,
 } from '../../src/features/game/seatLine.ts';
+
+// Tests here switch to Swedish: every one ends in English, passed or failed, so the next file reads English.
+afterEach(() => setLocale('en'));
 
 const seat = (overrides) => ({
   seatStatus: 'bot_substitute',
