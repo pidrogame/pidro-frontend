@@ -5,7 +5,16 @@
  * NOTE: web loads CanvasKit through the platform-specific loader before this
  * module is imported. Native imports this module directly.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type RefObject,
+} from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -54,6 +63,7 @@ import { catchUpPace } from '@/features/game/catchUp';
 import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
+import { withArriving, type Arriving } from './useCardSprites';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
 import {
   choosingTrumpLine,
@@ -330,6 +340,7 @@ function TimedSeatLayer({
   held,
   bid,
   said,
+  arrivingRef,
 }: {
   seats: TableModel['seats'];
   dealerRel: RelativePosition | null;
@@ -350,7 +361,15 @@ function TimedSeatLayer({
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
   said: ComponentProps<typeof SeatLayer>['said'];
+  arrivingRef: RefObject<((arriving: Arriving) => void) | null>;
 }) {
+  const [arriving, setArriving] = useState<Arriving>({});
+  useLayoutEffect(() => {
+    arrivingRef.current = setArriving;
+    return () => {
+      arrivingRef.current = null;
+    };
+  }, [arrivingRef]);
   const turnTimer = useGameStore((state) => state.turnTimer);
   const ownPace = useGameStore((state) => state.serverState?.pace === 'own');
   const timerProgress = useTurnTimerProgress(ownPace ? null : turnTimer);
@@ -368,7 +387,7 @@ function TimedSeatLayer({
 
   return (
     <SeatLayer
-      seats={seats}
+      seats={withArriving(seats, arriving)}
       dealerRel={dealerRel}
       dealing={dealing}
       topReserve={topReserve}
@@ -475,6 +494,10 @@ export function GameCanvasTable({
   const classicEnd = !countHelp && !controller.isGameOver && ended != null;
   const endedNumber = classicEnd ? ended.hand_number : null;
   const [cleared, setCleared] = useState<number | null>(null);
+  // Cards on their way that the canvas does not show yet keep their backs (PID-473):
+  // told to the seats alone, so the table does not render again for them.
+  const arrivingRef = useRef<((arriving: Arriving) => void) | null>(null);
+  const onArriving = useCallback((arriving: Arriving) => arrivingRef.current?.(arriving), []);
   // A rematch numbers its hands afresh.
   if (endedNumber == null && cleared != null) setCleared(null);
   useEffect(() => {
@@ -952,11 +975,13 @@ export function GameCanvasTable({
             topReserve={topReserve}
             bottomReserve={bottomReserve}
             previewSuit={previewSuit}
+            onArriving={onArriving}
           />
 
           {/* Seat furniture (avatars, names, dealer chip, turn rings, opponent backs) over the canvas */}
           <TimedSeatLayer
             seats={model.seats}
+            arrivingRef={arrivingRef}
             dealerRel={
               controller.phase === 'dealer_selection'
                 ? null

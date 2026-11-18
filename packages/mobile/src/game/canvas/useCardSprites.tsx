@@ -154,6 +154,8 @@ type SlotInfo = {
   key: string;
   textureKey: CardKey;
   kind: 'hand' | 'cut' | 'played';
+  /** Counts the cards this slot has held: a new card is a new sprite (PID-473). */
+  born: number;
   /** In your hand, or played from it: drawn by your hand's size (PID-467). */
   yours: boolean;
   z: number;
@@ -183,7 +185,24 @@ type Opts = {
   enabled: boolean;
   /** Picking trump: the suit under the finger, whose trumps lift in the hand. */
   previewSuit?: Suit | null;
+  /** Each seat's cards on their way that the canvas does not show yet: its backs wait for them. */
+  onArriving?: (arriving: Arriving) => void;
 };
+
+export type Arriving = Partial<Record<RelativePosition, number>>;
+
+/** A seat's backs, and the cards that have not yet shown themselves leaving them (PID-473). */
+export function withArriving(seats: TableModel['seats'], arriving: Arriving): TableModel['seats'] {
+  if (!Object.keys(arriving).length) return seats;
+  return Object.fromEntries(
+    Object.entries(seats).map(([rel, seat]) => [
+      rel,
+      seat && arriving[rel as RelativePosition]
+        ? { ...seat, cardCount: (seat.cardCount ?? 0) + arriving[rel as RelativePosition]! }
+        : seat,
+    ])
+  ) as TableModel['seats'];
+}
 
 export function useCardSprites({
   model,
@@ -194,6 +213,7 @@ export function useCardSprites({
   nudge = 0,
   enabled,
   previewSuit = null,
+  onArriving,
 }: Opts) {
   /* eslint-disable react-hooks/rules-of-hooks -- fixed-length pools → stable hook order */
   const sx = Array.from({ length: MAX }, () => useSharedValue(0));
@@ -218,8 +238,17 @@ export function useCardSprites({
   const keyToSlot = useRef<Map<string, number>>(new Map());
   const targets = useRef<Map<number, string>>(new Map());
   const retirementTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  /** A new laid card's flight, by slot: it starts once the card is drawn (PID-469). */
+  /**
+   * A phone draws a new sprite a while after its values change. Until it has,
+   * its motion waits here, by slot, and its seat keeps the card's back (PID-473).
+   */
   const departures = useRef<Map<number, () => void>>(new Map());
+  const arriving = useRef<Map<number, { rel: RelativePosition; at: number }>>(new Map());
+  const arrivingSent = useRef('{}');
+  const onArrivingRef = useRef(onArriving);
+  onArrivingRef.current = onArriving;
+  const births = useRef(0);
+  const shownBirths = useRef<Map<number, number>>(new Map());
   const cutSounds = useRef<ReturnType<typeof setTimeout>[]>([]);
   const cutSoundSequence = useRef<string | null>(null);
   const cutSequenceKey = useRef<string | null>(null);
@@ -269,6 +298,31 @@ export function useCardSprites({
   const cardW = L.cardW;
   const cardH = L.cardH;
   const handScale = handScaleFor(L.profile);
+
+  const sendArriving = () => {
+    const counts: Arriving = {};
+    for (const { rel } of arriving.current.values()) counts[rel] = (counts[rel] ?? 0) + 1;
+    const sent = JSON.stringify(counts);
+    if (sent === arrivingSent.current) return;
+    arrivingSent.current = sent;
+    onArrivingRef.current?.(counts);
+  };
+  // The canvas has drawn this slot's new sprite: it shows, its motion starts,
+  // and the back it leaves goes as it does, or as a laid card leaves (PID-473).
+  const depart = (sl: number, born: number) => {
+    shownBirths.current.set(sl, born);
+    const run = departures.current.get(sl);
+    departures.current.delete(sl);
+    run?.();
+    const leaving = arriving.current.get(sl);
+    // A laid card that waits its turn lets its back go as it shows (see `animate`).
+    if (leaving && !leaving.at) leave(sl, leaving);
+  };
+  const leave = (sl: number, leaving: { rel: RelativePosition; at: number } | undefined) => {
+    if (!leaving || arriving.current.get(sl) !== leaving) return;
+    arriving.current.delete(sl);
+    sendArriving();
+  };
 
   useLayoutEffect(() => {
     if (!enabled || !model) return;
@@ -344,6 +398,7 @@ export function useCardSprites({
       castBy?: string;
       /** A laid-down card (PID-469): when it leaves its seat, or your hand. */
       laidAt?: number;
+      rel?: RelativePosition;
     };
     const desired: Desired[] = [];
     const preview = new Set<string>(
@@ -504,6 +559,7 @@ export function useCardSprites({
           previewed: false,
           topacity: 1,
           ownPlay: rel === 'south',
+          rel,
           completed: !tc.isCurrentTrick,
           laidAt: down && j >= 0 ? layDownAt(j, down.cards.length) : undefined,
         });
@@ -594,6 +650,8 @@ export function useCardSprites({
 
         cancelAnimation(flight[sl]);
         cancelAnimation(collection[sl]);
+        // Gone before it was drawn: it fades with the rest, never moves.
+        departures.current.delete(sl);
         // SeatLayer takes over your folded cards as backs in the same frame.
         const folding = slots[sl]?.kind === 'hand' && model.seats.south?.out;
         const duration = folding ? 0 : 180;
@@ -649,6 +707,11 @@ export function useCardSprites({
         if (sl < 0) continue;
         keyToSlot.current.set(d.key, sl);
         departures.current.delete(sl);
+        arriving.current.delete(sl);
+        // Your own cards leave your hand as sprites; a spectator sees South's backs.
+        const fromBacks = !d.ownPlay || !model.seats.south?.isYou;
+        if (d.kind === 'played' && fromBacks && !firstLoad && d.rel)
+          arriving.current.set(sl, { rel: d.rel, at: d.laidAt ?? 0 });
         const comesFromSeat = d.kind === 'played' || d.kind === 'cut';
         const startX = cutCard
           ? d.ox
@@ -693,6 +756,7 @@ export function useCardSprites({
         key: d.key,
         textureKey: d.textureKey,
         kind: d.kind,
+        born: isNew ? ++births.current : (slots[sl]?.born ?? 0),
         yours: d.kind === 'hand' || !!d.ownPlay,
         z: d.z,
         legal: d.legal,
@@ -734,157 +798,171 @@ export function useCardSprites({
           : d.blocked
             ? 1
             : 0;
-      if (cutCard && !reduceMotion) {
-        const pace = cutPace.current;
-        const delay = d.delayOrder * CUT_CARD_STAGGER_MS * pace;
-        const cutCfg = {
-          duration: CUT_CARD_TRAVEL_MS * pace,
-          easing: Easing.out(Easing.back(1.35)),
-          reduceMotion: ReduceMotion.System,
-        };
-        sx[sl].value = withDelay(delay, withTiming(d.tx, cutCfg));
-        sy[sl].value = withDelay(delay, withTiming(d.ty, cutCfg));
-        srot[sl].value = withDelay(delay, withTiming(d.trot, cutCfg));
-        sscale[sl].value = withDelay(delay, withTiming(d.tscale, cutCfg));
-        sop[sl].value = withDelay(
-          delay,
-          withTiming(d.topacity, { duration: 150, reduceMotion: ReduceMotion.System })
-        );
-      } else if (
-        firstLoad ||
-        (d.kind === 'cut' && skipCutSequence) ||
-        (reduceMotion && (d.kind === 'cut' || model.phase === 'playing'))
-      ) {
-        sx[sl].value = d.tx;
-        sy[sl].value = d.ty;
-        srot[sl].value = d.trot;
-        sscale[sl].value = d.tscale;
-        sop[sl].value = d.topacity;
-        flight[sl].value = 1;
-        if (ownLanding) playSelectionHaptic();
-      } else if (d.laidAt !== undefined && (isNew || slots[sl]?.kind === 'hand')) {
-        // A laid card leaves its seat, or your hand where it stood, as its
-        // sound plays, and lands where the table counts it (PID-469).
-        const { tx, ty, trot, tscale, topacity, laidAt } = d;
-        const at = sl;
-        const lay = { duration: LAY_DOWN_FLIGHT_MS, easing: Easing.out(Easing.cubic) };
-        const leave = () => {
-          if (departures.current.get(at) === leave) departures.current.delete(at);
-          sx[at].value = withDelay(laidAt, withTiming(tx, lay));
-          sy[at].value = withDelay(laidAt, withTiming(ty, lay));
-          srot[at].value = withDelay(laidAt, withTiming(trot, lay));
-          sscale[at].value = withDelay(laidAt, withTiming(tscale, lay));
+      const at = sl;
+      const animate = () => {
+        const sl = at;
+        if (cutCard && !reduceMotion) {
+          const pace = cutPace.current;
+          const delay = d.delayOrder * CUT_CARD_STAGGER_MS * pace;
+          const cutCfg = {
+            duration: CUT_CARD_TRAVEL_MS * pace,
+            easing: Easing.out(Easing.back(1.35)),
+            reduceMotion: ReduceMotion.System,
+          };
+          sx[sl].value = withDelay(delay, withTiming(d.tx, cutCfg));
+          sy[sl].value = withDelay(delay, withTiming(d.ty, cutCfg));
+          srot[sl].value = withDelay(delay, withTiming(d.trot, cutCfg));
+          sscale[sl].value = withDelay(delay, withTiming(d.tscale, cutCfg));
+          sop[sl].value = withDelay(
+            delay,
+            withTiming(d.topacity, { duration: 150, reduceMotion: ReduceMotion.System })
+          );
+        } else if (
+          firstLoad ||
+          (d.kind === 'cut' && skipCutSequence) ||
+          (reduceMotion && (d.kind === 'cut' || model.phase === 'playing'))
+        ) {
+          sx[sl].value = d.tx;
+          sy[sl].value = d.ty;
+          srot[sl].value = d.trot;
+          sscale[sl].value = d.tscale;
+          sop[sl].value = d.topacity;
+          flight[sl].value = 1;
+          if (ownLanding) playSelectionHaptic();
+        } else if (d.laidAt !== undefined && (isNew || slots[sl]?.kind === 'hand')) {
+          // A laid card leaves its seat, or your hand where it stood, as its
+          // sound plays, and lands where the table counts it (PID-469).
+          const { tx, ty, trot, tscale, topacity, laidAt } = d;
+          const lay = { duration: LAY_DOWN_FLIGHT_MS, easing: Easing.out(Easing.cubic) };
+          sx[sl].value = withDelay(laidAt, withTiming(tx, lay));
+          sy[sl].value = withDelay(laidAt, withTiming(ty, lay));
+          srot[sl].value = withDelay(laidAt, withTiming(trot, lay));
+          sscale[sl].value = withDelay(laidAt, withTiming(tscale, lay));
           // Anyone else's shows as it leaves their seat, as a played card does.
-          if (isNew && laidAt > 0)
-            sop[at].value = withDelay(laidAt, withTiming(topacity, { duration: 0 }));
-        };
-        sop[sl].value = isNew && laidAt > 0 ? 0 : topacity;
-        flight[sl].value = 1;
-        // Anyone else's is a new sprite, which a phone draws a while after
-        // its values change: it waits at the seat until it is drawn.
-        if (isNew) departures.current.set(sl, leave);
-        else leave();
-      } else if (d.kind === 'cut' && model.phase === 'dealer_selection') {
-        // A dealer snapshot can re-render while this sequence is in flight
-        // (notably React Strict Mode and when the dealer field arrives). Keep
-        // the original delayed animations instead of collapsing all cards to
-        // their targets on that second pass.
-      } else if (isNew && dealCard) {
-        const delay = packetDeal
-          ? (d.delayOrder % 3) * DEAL_PACKET_CARD_STAGGER_MS
-          : d.delayOrder * DEAL_CARD_STAGGER_MS;
-        sx[sl].value = withDelay(delay, withTiming(d.tx, dealCfg));
-        // Keep the landing above the south nameplate; put the soft overshoot
-        // in scale/x rather than diving past the hand's baseline.
-        sy[sl].value = withDelay(
-          delay,
-          withTiming(d.ty, {
-            ...dealCfg,
-            easing: Easing.out(Easing.cubic),
-          })
-        );
-        srot[sl].value = withDelay(delay, withTiming(d.trot, dealCfg));
-        sscale[sl].value = withDelay(delay, withTiming(d.tscale, dealCfg));
-        sop[sl].value = withDelay(delay, withTiming(d.topacity, { duration: 140 }));
-      } else if (isSorting && d.kind === 'hand' && prev?.yourHand[d.delayOrder]?.key !== d.key) {
-        // A small lift lets crossing cards read as a shuffle, then they nestle
-        // into the straight, suit-sorted row. No permanent fan or rotation.
-        const delay = d.delayOrder * 8;
-        sx[sl].value = withDelay(
-          delay,
-          withTiming(d.tx, {
-            duration: DEAL_SORT_DURATION_MS - 64,
-            easing: Easing.out(Easing.back(1.15)),
-          })
-        );
-        sy[sl].value = withSequence(
-          withTiming(d.ty - cardH * 0.12, { duration: 120 }),
-          withTiming(d.ty, { duration: 440, easing: Easing.out(Easing.back(1.2)) })
-        );
-        sscale[sl].value = withSequence(
-          withTiming(d.tscale * 1.035, { duration: 120 }),
-          withTiming(d.tscale, { duration: 440 })
-        );
-      } else if (settles && move && !collectTo) {
-        sx[sl].value = withDelay(settleAt, withTiming(d.tx, settle));
-        sy[sl].value = withDelay(settleAt, withTiming(d.ty, settle));
-        srot[sl].value = withDelay(settleAt, withTiming(d.trot, settle));
-        sscale[sl].value = withDelay(settleAt, withTiming(d.tscale, settle));
-      } else if (
-        move &&
-        !collectTo &&
-        !(
-          d.kind === 'hand' &&
-          model.dealStage &&
-          model.dealStage === prev?.dealStage &&
-          sameHand &&
-          prevLayout.current === L
-        )
-      ) {
-        const motion = playingFlight ? playCfg : cfg;
-        if (playingFlight) {
-          // A refusal can arrive mid-flight: start the return at the drawn
-          // position, including the lift, rather than jumping to its baseline.
-          sy[sl].value -= Math.sin(Math.PI * flight[sl].value) * cardH * (slots[sl]?.lift ?? lift);
-          flight[sl].value = 0;
-          flight[sl].value = withTiming(1, playCfg, (finished) => {
-            if (finished && ownLanding) runOnJS(playSelectionHaptic)();
-          });
-        }
-        const closingHand = d.kind === 'hand' && model.phase === 'playing' && !playingFlight;
-        // Start springs on a frame timestamp too, never an earlier web rAF.
-        sx[sl].value = closingHand
-          ? withDelay(0, withSpring(d.tx, HAND_CLOSE_SPRING))
-          : withTiming(d.tx, motion);
-        sy[sl].value = closingHand
-          ? withDelay(0, withSpring(d.ty, HAND_CLOSE_SPRING))
-          : withTiming(d.ty, motion);
-        srot[sl].value = closingHand
-          ? withDelay(0, withSpring(d.trot, HAND_CLOSE_SPRING))
-          : withTiming(d.trot, motion);
-        const raisedScale = d.ownPlay
-          ? Math.max(
-              sscale[sl].value,
-              (handTargets.value.find((t) => t.slot === sl)?.scale ?? handScale) * PLAY_CARD_SCALE
-            )
-          : sscale[sl].value * OPPONENT_CARD_SCALE;
-        sscale[sl].value =
-          playingFlight && d.kind === 'played'
-            ? withSequence(
-                withTiming(raisedScale, {
-                  duration: PLAY_CARD_LIFT_MS,
-                  easing: motionEasing(PLAY_CARD_LIFT_CURVE),
-                }),
-                withTiming(d.tscale, {
-                  ...playCfg,
-                  duration: PLAY_CARD_TRAVEL_MS - PLAY_CARD_LIFT_MS,
-                })
+          if (isNew && laidAt > 0) {
+            sop[sl].value = 0;
+            const leaving = arriving.current.get(sl);
+            const gone = () => leave(at, leaving);
+            // Its back goes once its face is up, in that frame or the next, never before.
+            sop[sl].value = withDelay(
+              laidAt,
+              withTiming(topacity, { duration: 0 }, () => runOnJS(gone)())
+            );
+          } else sop[sl].value = topacity;
+          flight[sl].value = 1;
+        } else if (d.kind === 'cut' && model.phase === 'dealer_selection') {
+          // A dealer snapshot can re-render while this sequence is in flight
+          // (notably React Strict Mode and when the dealer field arrives). Keep
+          // the original delayed animations instead of collapsing all cards to
+          // their targets on that second pass.
+        } else if (isNew && dealCard) {
+          const delay = packetDeal
+            ? (d.delayOrder % 3) * DEAL_PACKET_CARD_STAGGER_MS
+            : d.delayOrder * DEAL_CARD_STAGGER_MS;
+          sx[sl].value = withDelay(delay, withTiming(d.tx, dealCfg));
+          // Keep the landing above the south nameplate; put the soft overshoot
+          // in scale/x rather than diving past the hand's baseline.
+          sy[sl].value = withDelay(
+            delay,
+            withTiming(d.ty, {
+              ...dealCfg,
+              easing: Easing.out(Easing.cubic),
+            })
+          );
+          srot[sl].value = withDelay(delay, withTiming(d.trot, dealCfg));
+          sscale[sl].value = withDelay(delay, withTiming(d.tscale, dealCfg));
+          sop[sl].value = withDelay(delay, withTiming(d.topacity, { duration: 140 }));
+        } else if (isSorting && d.kind === 'hand' && prev?.yourHand[d.delayOrder]?.key !== d.key) {
+          // A small lift lets crossing cards read as a shuffle, then they nestle
+          // into the straight, suit-sorted row. No permanent fan or rotation.
+          const delay = d.delayOrder * 8;
+          sx[sl].value = withDelay(
+            delay,
+            withTiming(d.tx, {
+              duration: DEAL_SORT_DURATION_MS - 64,
+              easing: Easing.out(Easing.back(1.15)),
+            })
+          );
+          sy[sl].value = withSequence(
+            withTiming(d.ty - cardH * 0.12, { duration: 120 }),
+            withTiming(d.ty, { duration: 440, easing: Easing.out(Easing.back(1.2)) })
+          );
+          sscale[sl].value = withSequence(
+            withTiming(d.tscale * 1.035, { duration: 120 }),
+            withTiming(d.tscale, { duration: 440 })
+          );
+        } else if (settles && move && !collectTo) {
+          sx[sl].value = withDelay(settleAt, withTiming(d.tx, settle));
+          sy[sl].value = withDelay(settleAt, withTiming(d.ty, settle));
+          srot[sl].value = withDelay(settleAt, withTiming(d.trot, settle));
+          sscale[sl].value = withDelay(settleAt, withTiming(d.tscale, settle));
+        } else if (
+          move &&
+          !collectTo &&
+          !(
+            d.kind === 'hand' &&
+            model.dealStage &&
+            model.dealStage === prev?.dealStage &&
+            sameHand &&
+            prevLayout.current === L
+          )
+        ) {
+          const motion = playingFlight ? playCfg : cfg;
+          if (playingFlight) {
+            // A refusal can arrive mid-flight: start the return at the drawn
+            // position, including the lift, rather than jumping to its baseline.
+            sy[sl].value -=
+              Math.sin(Math.PI * flight[sl].value) * cardH * (slots[sl]?.lift ?? lift);
+            flight[sl].value = 0;
+            flight[sl].value = withTiming(1, playCfg, (finished) => {
+              if (finished && ownLanding) runOnJS(playSelectionHaptic)();
+            });
+          }
+          const closingHand = d.kind === 'hand' && model.phase === 'playing' && !playingFlight;
+          // Start springs on a frame timestamp too, never an earlier web rAF.
+          sx[sl].value = closingHand
+            ? withDelay(0, withSpring(d.tx, HAND_CLOSE_SPRING))
+            : withTiming(d.tx, motion);
+          sy[sl].value = closingHand
+            ? withDelay(0, withSpring(d.ty, HAND_CLOSE_SPRING))
+            : withTiming(d.ty, motion);
+          srot[sl].value = closingHand
+            ? withDelay(0, withSpring(d.trot, HAND_CLOSE_SPRING))
+            : withTiming(d.trot, motion);
+          const raisedScale = d.ownPlay
+            ? Math.max(
+                sscale[sl].value,
+                (handTargets.value.find((t) => t.slot === sl)?.scale ?? handScale) * PLAY_CARD_SCALE
               )
-            : closingHand
-              ? withDelay(0, withSpring(d.tscale, HAND_CLOSE_SPRING))
-              : withTiming(d.tscale, motion);
-        sop[sl].value = withTiming(d.topacity, { duration: 150 });
-      }
+            : sscale[sl].value * OPPONENT_CARD_SCALE;
+          sscale[sl].value =
+            playingFlight && d.kind === 'played'
+              ? withSequence(
+                  withTiming(raisedScale, {
+                    duration: PLAY_CARD_LIFT_MS,
+                    easing: motionEasing(PLAY_CARD_LIFT_CURVE),
+                  }),
+                  withTiming(d.tscale, {
+                    ...playCfg,
+                    duration: PLAY_CARD_TRAVEL_MS - PLAY_CARD_LIFT_MS,
+                  })
+                )
+              : closingHand
+                ? withDelay(0, withSpring(d.tscale, HAND_CLOSE_SPRING))
+                : withTiming(d.tscale, motion);
+          sop[sl].value = withTiming(d.topacity, { duration: 150 });
+        }
+      };
+      // A sprite new to its slot moves once the canvas has drawn it (PID-473),
+      // and so does every later motion it is given before then, in order.
+      const waiting = departures.current.get(sl);
+      if (waiting)
+        departures.current.set(sl, () => {
+          waiting();
+          animate();
+        });
+      else if (isNew) departures.current.set(sl, animate);
+      else animate();
 
       // Keep the history slots, but collect only newly completed tricks. A
       // reconnect never replays old wins, and new plays never restart a sweep.
@@ -960,6 +1038,9 @@ export function useCardSprites({
         nextSlots[sl]!.caster = caster;
     }
 
+    for (const sl of arriving.current.keys())
+      if (!nextSlots[sl] || !desiredKeys.has(nextSlots[sl]!.key)) arriving.current.delete(sl);
+    sendArriving();
     handTargets.value = ht;
     blockedTargets.value = bt;
     setSlots(nextSlots);
@@ -1181,7 +1262,7 @@ export function useCardSprites({
       <Group>
         {ordered.map(({ s, i }) => (
           <CardSprite
-            key={i}
+            key={`${i}:${s.born}`}
             // Today's face until the larger one decodes, or if it failed to.
             img={
               (art[+s.yours] && textures?.get(s.textureKey, true)) ||
@@ -1211,11 +1292,17 @@ export function useCardSprites({
             lights={lights}
             cast={
               s.caster !== undefined
-                ? { x: sx[s.caster], y: sy[s.caster], scale: sscale[s.caster], rot: srot[s.caster] }
+                ? {
+                    id: `${s.caster}:${slots[s.caster]?.born}`,
+                    x: sx[s.caster],
+                    y: sy[s.caster],
+                    scale: sscale[s.caster],
+                    rot: srot[s.caster],
+                  }
                 : undefined
             }
             pressed={spress[i]}
-            onDrawn={departures.current.get(i)}
+            onDrawn={() => depart(i, s.born)}
             sampling={
               art[+s.yours] ?? (L.profile.startsWith('tablet') ? TABLET_SAMPLING : undefined)
             }
@@ -1269,6 +1356,8 @@ export function useCardSprites({
                 leading: slot.leading,
                 flight: flight[i].value,
                 opacity: sop[i].value,
+                // Drawn by the canvas: until then it shows nothing (PID-473).
+                shown: shownBirths.current.get(i) === slot.born,
                 shade: slot.blocked ? sshade[i].value : 0,
                 collection: collection[i].value,
                 collectTo: slot.collectTo,
@@ -1348,15 +1437,10 @@ function CardSprite({
   previewed: boolean;
   lights: { glow: BakedBlur | null; shadow: BakedBlur | null; suit: BakedBlur | null };
   /** The next card, where it starts another suit: its shadow deepens on this one. */
-  cast?: {
-    x: SharedValue<number>;
-    y: SharedValue<number>;
-    scale: SharedValue<number>;
-    rot: SharedValue<number>;
-  };
+  cast?: Cast;
   pressed: SharedValue<number>;
-  /** Called a frame after this sprite is first drawn with it. */
-  onDrawn?: () => void;
+  /** Called once, a frame after the canvas first draws this sprite. */
+  onDrawn: () => void;
   sampling?: { B: number; C: number };
 }) {
   const sweep = useDerivedValue(() =>
@@ -1387,25 +1471,14 @@ function CardSprite({
       },
     ];
   });
-  const visible = useDerivedValue(() => opacity.value * (1 - sweep.value));
+  // Nothing of a new sprite shows before the canvas has drawn it once: its
+  // first frames hold whatever its slot last showed (PID-473).
+  const shown = useSharedValue(0);
+  const visible = useDerivedValue(() => opacity.value * (1 - sweep.value) * shown.value);
   // Over every card while pressed, the next one casting nothing on it then.
   // Otherwise each card lies where the cards are listed, in the same frame.
   const zIndex = useDerivedValue(() => pressed.value);
   const castOpacity = useDerivedValue(() => Math.min(1, SUIT_SHADOW) * (1 - pressed.value));
-  // The next card's place, turn and size as this card sees them, every frame.
-  const castAt = useDerivedValue(() => {
-    if (!cast) return [];
-    const dx = cast.x.value - x.value;
-    const dy = cast.y.value - y.value;
-    const cos = Math.cos(rot.value);
-    const sin = Math.sin(rot.value);
-    return [
-      { translateX: (dx * cos + dy * sin) / scale.value },
-      { translateY: (dy * cos - dx * sin) / scale.value },
-      { rotate: cast.rot.value - rot.value },
-      { scale: cast.scale.value / scale.value },
-    ];
-  });
   const winnerOpacity = useDerivedValue(() =>
     Math.max(
       winner ? winnerReveal.value : leading ? leadGlow.value * 0.85 : 0,
@@ -1413,12 +1486,15 @@ function CardSprite({
     )
   );
   // After the mappers above start, and after the canvas records this sprite:
-  // its first frame shows it where it is, not where it will be (PID-469).
+  // it shows where it is given, and its motion starts there.
   useEffect(() => {
-    if (!onDrawn) return;
-    const frame = requestAnimationFrame(onDrawn);
+    const frame = requestAnimationFrame(() => {
+      shown.value = 1;
+      onDrawn();
+    });
     return () => cancelAnimationFrame(frame);
-  }, [onDrawn]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, as the sprite mounts
+  }, []);
   const r = Math.min(10, w * 0.12);
   // Only these cards ever glow; for the rest the glow is never drawn at all.
   const glows = winner || leading || flashing;
@@ -1453,9 +1529,14 @@ function CardSprite({
             w * FACE_CORNER,
             w * FACE_CORNER
           )}>
-          <Group transform={castAt} opacity={castOpacity}>
-            <Baked blur={lights.suit} />
-          </Group>
+          <SuitShade
+            // A new caster is a new shade: right from its first frame (PID-473).
+            key={cast.id}
+            cast={cast}
+            card={{ x, y, rot, scale }}
+            opacity={castOpacity}
+            blur={lights.suit}
+          />
         </Group>
       )}
       {/* Unplayable cards darken; playable ones stay bright and lifted. */}
@@ -1519,6 +1600,45 @@ const FACE_CORNER = 22 / 336;
  * art picks its own (`largeFaceSampling`).
  */
 const TABLET_SAMPLING = { B: 0, C: 0.5 };
+
+type Pose = {
+  x: SharedValue<number>;
+  y: SharedValue<number>;
+  scale: SharedValue<number>;
+  rot: SharedValue<number>;
+};
+type Cast = Pose & { id: string };
+
+function SuitShade({
+  cast,
+  card,
+  opacity,
+  blur,
+}: {
+  cast: Pose;
+  card: Pose;
+  opacity: SharedValue<number>;
+  blur: BakedBlur;
+}) {
+  // The next card's place, turn and size as this card sees them, every frame.
+  const castAt = useDerivedValue(() => {
+    const dx = cast.x.value - card.x.value;
+    const dy = cast.y.value - card.y.value;
+    const cos = Math.cos(card.rot.value);
+    const sin = Math.sin(card.rot.value);
+    return [
+      { translateX: (dx * cos + dy * sin) / card.scale.value },
+      { translateY: (dy * cos - dx * sin) / card.scale.value },
+      { rotate: cast.rot.value - card.rot.value },
+      { scale: cast.scale.value / card.scale.value },
+    ];
+  });
+  return (
+    <Group transform={castAt} opacity={opacity}>
+      <Baked blur={blur} />
+    </Group>
+  );
+}
 
 function Baked({ blur, opacity }: { blur: BakedBlur; opacity?: SharedValue<number> }) {
   return (

@@ -11,6 +11,7 @@ import { View } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GameCanvas from './GameCanvas';
+import { withArriving, type Arriving } from './useCardSprites';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
 import type { SeatLine } from '@/features/game/seatLine';
 import { TableSignals, scoreGlow, tablePidro } from './TableSignals';
@@ -20,6 +21,7 @@ import { handHistory } from './DevOverlays';
 import { TableSettings } from './TableSettings';
 import { headerTop, useTableReserves, useTableSize } from './TableChrome';
 import { computeLayout, showsTicker, tickerPlacement } from './layout';
+import { PLAY_CARD_TRAVEL_MS } from './animationTiming';
 import { useCardTextures } from './cardTextures';
 import { buildTableModel } from './tableModel';
 import { usePlayPresentation } from './usePlayPresentation';
@@ -457,6 +459,7 @@ export default function GameCanvasDev({
   const motionFixture = fixture === 'play-motion';
   const transitionMs =
     transition === '0' ? 0 : transition === '80' ? 80 : transition === '3000' ? 3000 : 1500;
+  const [arriving, setArriving] = useState<Arriving>({});
   const [cycle, setCycle] = useState(0);
   const [transitionTimer, setTransitionTimer] = useState<ActiveTurnTimer | null>(null);
   // `ticker=full`: three bids land after the table opens, so the ticker fills.
@@ -533,7 +536,15 @@ export default function GameCanvasDev({
               after(reply === 'early-reject' ? 80 : 800, () => resolve(false));
           });
         }
-        const delay = reply === 'fast' ? 80 : reply === 'late' ? 5400 : 800;
+        // `reply=landing`: the state arrives as your card lands (PID-473).
+        const delay =
+          reply === 'fast'
+            ? 80
+            : reply === 'landing'
+              ? PLAY_CARD_TRAVEL_MS
+              : reply === 'late'
+                ? 5400
+                : 800;
         const gap = reply === 'burst' ? 80 : 700;
         const plays = [{ player: 'south' as Position, card }, ...OPP_PLAYS];
         after(delay, () => {
@@ -679,7 +690,16 @@ export default function GameCanvasDev({
         legalActions: viewer === 'spectator' ? [] : legalActions,
         currentTurnRelative: turn,
         canPlay,
-        getCardCountForPlayer: (abs) => (abs ? (COUNTS[abs] ?? null) : null),
+        // A seat's back leaves as its card comes onto the trick, as a real table's does.
+        getCardCountForPlayer: (abs) =>
+          abs
+            ? (COUNTS[abs] ?? 0) -
+              (motionFixture
+                ? [...tricks.slice(earlier.length).flatMap((done) => done.cards), ...trick].filter(
+                    (play) => play.player === abs
+                  ).length
+                : 0)
+            : null,
         // `count=on`: "Count for me": the log, the points as tricks are
         // taken, and the card winning the trick, as at the real table.
         countHelp: count === 'on',
@@ -699,6 +719,8 @@ export default function GameCanvasDev({
       lastHand,
       count,
       viewer,
+      motionFixture,
+      earlier,
     ]
   );
   const presentation = usePlayPresentation(serverModel, onPlayCard, transitionTimer);
@@ -786,13 +808,14 @@ export default function GameCanvasDev({
         onPlayCard={playCard}
         topReserve={topReserve}
         bottomReserve={bottomReserve}
+        onArriving={setArriving}
       />
       {countHelp ? (
         <TableSignals model={model} topReserve={topReserve} bottomReserve={bottomReserve} />
       ) : null}
       <SeatLayer
         turnByRel={turnTimer}
-        seats={model.seats}
+        seats={withArriving(model.seats, arriving)}
         dealerRel={phase === 'dealer_selection' ? null : dealer}
         topReserve={topReserve}
         bottomReserve={bottomReserve}

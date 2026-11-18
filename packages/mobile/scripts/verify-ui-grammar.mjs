@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import { PNG } from 'pngjs';
 import { TRICK_SWEEP_ENABLED } from '../src/game/canvas/animationTiming.ts';
 import { cardSize, TIGHT_AVATAR, TRICK_GAP, TRUMP_MARK } from '../src/game/canvas/layout.ts';
 import { partitionCases, verifyCoverage } from './ui-shards.mjs';
@@ -1393,6 +1394,29 @@ const allCases = [
     path: '/table-dev?fixture=play-motion&autoplay=false&reply=ok-first&history=on',
     testId: 'seat-north',
     overPile: true,
+  },
+  // PID-473: the canvas draws its tree 250 ms late, as a busy phone does. Every card
+  // that comes onto the table shows first where it was sent, and its back waits for it.
+  {
+    name: 'table-play-arrives',
+    path: '/table-dev?fixture=play-motion&autoplay=false&reply=landing&history=on',
+    testId: 'seat-north',
+    drawLag: 250,
+    arrivals: 'play',
+  },
+  {
+    name: 'table-lay-down-arrives',
+    path: '/table-dev?fixture=lay-down&by=west&cards=2',
+    testId: 'seat-north',
+    drawLag: 250,
+    arrivals: 'laid',
+  },
+  {
+    name: 'table-hand-closes-shade',
+    path: '/table-dev?fixture=play-motion&autoplay=false',
+    testId: 'seat-north',
+    drawLag: 250,
+    arrivals: 'shade',
   },
   // PID-331: with the server's trick pause at 0, a finished trick stays put.
   {
@@ -5810,7 +5834,10 @@ async function assertPlayOverPile(page) {
   const seats = {};
   for (const sprites of frames)
     for (const rel of ['west', 'north', 'east']) {
-      const pile = sprites.filter((s) => s.kind === 'played' && s.key.includes(`-${rel}-`));
+      // A card the canvas has not drawn yet is not on the table (PID-473).
+      const pile = sprites.filter(
+        (s) => s.kind === 'played' && s.key.includes(`-${rel}-`) && s.shown !== false
+      );
       for (const flying of pile.filter((s) => s.flight < 0.999)) {
         const earlier = pile.filter((s) => s !== flying && s.flight >= 0.999);
         if (!earlier.length) continue;
@@ -5826,6 +5853,191 @@ async function assertPlayOverPile(page) {
       .map(([rel, n]) => `${rel} ${n}`)
       .join(', ')} frames over their own`
   );
+}
+
+/**
+ * PID-473: with the canvas drawing its tree late, as a busy phone does, a card
+ * new to the table shows only once the canvas has drawn it, where it was sent,
+ * and moves from there; its seat keeps the card's back until then. `play`: each
+ * other seat's card leaves its seat and is seen in flight, and yours lies over
+ * your pile in every frame, through the state that places it, landing with it.
+ * `laid`: West's laid card likewise. `shade`: as your hand closes up after a
+ * play, no card's strip darkens, as one did under a shadow from the wrong place.
+ */
+async function assertArrivals(page, mode) {
+  if (mode === 'shade') return assertHandShade(page);
+  if (mode === 'play') {
+    await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
+    await page.waitForTimeout(1500);
+  } else await page.getByTestId('seat-west-cards').waitFor({ state: 'attached' });
+  const known = new Set(
+    (await page.evaluate(() => window.__pidroCardMotion())).map((sprite) => sprite.key)
+  );
+  await page.evaluate(() => {
+    const frames = [];
+    const t0 = performance.now();
+    const sample = () => {
+      const backs = Object.fromEntries(
+        ['west', 'north', 'east'].map((rel) => [
+          rel,
+          document.querySelector(`[data-testid="seat-${rel}-cards"]`)?.firstElementChild?.children
+            .length ?? 0,
+        ])
+      );
+      frames.push({
+        backs,
+        drawn: [...(globalThis.__pidroDrawn ?? [])],
+        sprites: window.__pidroCardMotion(),
+      });
+      if (performance.now() - t0 < 4500) requestAnimationFrame(sample);
+      else window.__pidroArrivals = frames;
+    };
+    requestAnimationFrame(sample);
+  });
+  let yours;
+  if (mode === 'play') {
+    const before = JSON.parse(
+      await page.getByTestId('play-presentation').getAttribute('aria-label')
+    );
+    yours = before.hand[3];
+    await page.mouse.click(yours.x - yours.w / 2 + 10, yours.y);
+  }
+  await page.waitForFunction(() => window.__pidroArrivals, null, { timeout: 15_000 });
+  const frames = await page.evaluate(() => window.__pidroArrivals);
+  const face = (key) => key.split('-').at(-1);
+  const seatOf = (key) => key.split('-')[3];
+  const arriving = [
+    ...new Set(
+      frames.flatMap((f) =>
+        f.sprites
+          .filter(
+            (s) =>
+              s.kind === 'played' &&
+              !known.has(s.key) &&
+              /^trick-/.test(s.key) &&
+              seatOf(s.key) !== 'south'
+          )
+          .map((s) => s.key)
+      )
+    ),
+  ];
+  assert.ok(
+    arriving.length >= (mode === 'play' ? 3 : 1),
+    `only ${arriving.length} cards came onto the table`
+  );
+  const sprite = (f, key) => f.sprites.find((s) => s.key === key);
+  const seen = (f, key) => {
+    const s = sprite(f, key);
+    return !!s && f.drawn.includes(key) && (s.shown ?? true) && s.opacity > 0.99;
+  };
+  const report = [];
+  for (const key of arriving) {
+    const rel = seatOf(key);
+    const i0 = frames.findIndex((f) => sprite(f, key));
+    const i1 = frames.findIndex((f, i) => i >= i0 && seen(f, key));
+    assert.ok(i1 >= 0, `${key} never showed`);
+    const start = sprite(frames[i0], key);
+    const first = sprite(frames[i1], key);
+    const end = sprite(frames.at(-1), key);
+    assert.ok(
+      Math.hypot(first.x - start.x, first.y - start.y) < 1,
+      `${key} first showed ${Math.round(Math.hypot(first.x - start.x, first.y - start.y))}pt from where it was sent`
+    );
+    const flying = frames.filter((f) => {
+      const s = sprite(f, key);
+      return seen(f, key) && Math.hypot(s.x - end.x, s.y - end.y) > 0.5;
+    }).length;
+    assert.ok(flying >= 8, `${key} was seen in flight in only ${flying} frames`);
+    // Its seat keeps a back for every card of its still to show.
+    const before = frames[i0 - 1]?.backs[rel] ?? 0;
+    for (const f of frames.slice(i0, i1)) {
+      // One back leaves for each of the seat's new cards that has shown, and no more.
+      const shown = arriving.filter((other) => seatOf(other) === rel && seen(f, other)).length;
+      assert.ok(
+        f.backs[rel] >= before - shown,
+        `${rel}'s back left before ${face(key)} showed (${f.backs[rel]} of ${before} backs, ${shown} shown)`
+      );
+    }
+    report.push(`${face(key)} ${flying} frames in flight`);
+  }
+  if (yours) {
+    let over = 0;
+    for (const f of frames) {
+      const mine = f.sprites.find((s) => s.kind === 'played' && face(s.key) === face(yours.key));
+      if (!mine) continue;
+      for (const other of f.sprites.filter(
+        (s) =>
+          s !== mine && s.kind === 'played' && (seatOf(s.key) === 'south' || s.key === face(s.key))
+      ))
+        assert.ok(mine.drawZ > other.drawZ, `your ${face(mine.key)} lay under ${other.key}`);
+      over++;
+    }
+    report.push(`yours over your pile in ${over} frames`);
+  }
+  console.log(`arrivals (${mode}): ${report.join('; ')}`);
+}
+
+/** PID-473: your hand closes up after a play with no card's strip darkening. */
+async function assertHandShade(page) {
+  await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
+  await page.clock.runFor(2500);
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 30);
+  const scale = await page.evaluate(() => window.devicePixelRatio);
+  const before = JSON.parse(await page.getByTestId('play-presentation').getAttribute('aria-label'));
+  // The 7♠ between the A♠ and the K♥: the A♠ is cast on by the next suit once it leaves.
+  const target = before.hand.find((card) => card.key === 'spades_7');
+  const shots = [];
+  await page.mouse.move(target.x - target.w / 2 + 6, target.y);
+  await page.mouse.down();
+  await page.clock.runFor(16);
+  await page.mouse.up();
+  for (let t = 0; t <= 700; t += 16) {
+    const hand = (await page.evaluate(() => window.__pidroCardMotion()))
+      .filter((s) => s.kind === 'hand' || s.key.endsWith('spades_7'))
+      .map((s) => ({ ...s, w: s.width * s.scale, h: s.height * s.scale }));
+    shots.push({ t, hand, png: PNG.sync.read(await page.screenshot()) });
+    await page.clock.runFor(16);
+  }
+  await page.clock.resume();
+  const strips = ({ hand, png }) => {
+    const flying = hand.filter((s) => s.kind === 'played');
+    const row = hand.filter((s) => s.kind === 'hand').sort((a, b) => a.x - b.x);
+    const out = {};
+    row.forEach((a, i) => {
+      const b = row[i + 1];
+      const x0 = a.x - a.w / 2 + 2;
+      const x1 = (b ? b.x - b.w / 2 : a.x + a.w / 2) - 2;
+      if (x1 - x0 < 4) return;
+      if (
+        flying.some(
+          (f) =>
+            Math.abs(f.x - (x0 + x1) / 2) < f.w / 2 + (x1 - x0) / 2 + 8 &&
+            Math.abs(f.y - a.y) < f.h + 8
+        )
+      )
+        return;
+      let sum = 0;
+      let n = 0;
+      for (let y = Math.round((a.y - a.h * 0.3) * scale); y < (a.y + a.h * 0.3) * scale; y++)
+        for (let x = Math.round(x0 * scale); x < x1 * scale; x++) {
+          const at = (y * png.width + x) * 4;
+          sum += (png.data[at] + png.data[at + 1] + png.data[at + 2]) / 765;
+          n++;
+        }
+      out[a.key] = sum / n;
+    });
+    return out;
+  };
+  const settled = strips(shots.at(-1));
+  let worst = { drop: 0 };
+  for (const shot of shots)
+    for (const [key, light] of Object.entries(strips(shot)))
+      if (settled[key] - light > worst.drop) worst = { drop: settled[key] - light, key, t: shot.t };
+  assert.ok(
+    worst.drop < 0.3,
+    `your ${worst.key} turned dark as the hand closed up (${worst.drop.toFixed(2)} at ${worst.t} ms)`
+  );
+  console.log(`hand shade: darkest strip ${worst.drop.toFixed(2)} below its settled light`);
 }
 
 /**
@@ -10357,7 +10569,11 @@ async function main() {
           return (testCase.tellViewports ?? TELL_VIEWPORTS).includes(viewport.name);
         if (testCase.league === 'pin-first-partial') return viewport.name === 'landscape';
         // Timing, not layout: one phone is enough (PID-364).
-        if (testCase.sweep === 'on' || (testCase.reducedMotion && testCase.flaky))
+        if (
+          testCase.sweep === 'on' ||
+          testCase.arrivals ||
+          (testCase.reducedMotion && testCase.flaky)
+        )
           return viewport.name === 'portrait';
         if (
           testCase.news ||
@@ -10490,6 +10706,11 @@ async function main() {
         const started = performance.now();
         const page = await context.newPage();
         if (testCase.reducedMotion) await page.emulateMedia({ reducedMotion: 'reduce' });
+        if (testCase.drawLag)
+          await page.addInitScript((ms) => {
+            globalThis.__pidroDrawLagMs = ms;
+          }, testCase.drawLag);
+        if (testCase.arrivals === 'shade') await page.clock.install();
         // From the first frame: Eli's line and the cards on the felt until the result (PID-364).
         if (testCase.sweep === 'on')
           await page.addInitScript(() => {
@@ -11016,6 +11237,7 @@ async function main() {
           }
           if (testCase.trickStays) await assertTrickStays(page);
           if (testCase.overPile) await assertPlayOverPile(page);
+          if (testCase.arrivals) await assertArrivals(page, testCase.arrivals);
           if (testCase.sweepWinner) {
             await assertCardCollection(
               page,

@@ -534,6 +534,12 @@ that places the card, as the server sends them (PID-460: one flight, full colour
 (PID-381); with `count=on` your earlier 10♠ is a point card that stays lit.
 `table-play-over-pile` (PID-461) plays with both: in every frame before the state, your card
 lies over every other card, and each seat's card in flight over its own earlier ones.
+`reply=landing` sends the state as your card lands (PID-473), and each seat's backs drop
+as its card comes onto the trick, as at a real table. `table-play-arrives`,
+`table-lay-down-arrives` and `table-hand-closes-shade` (PID-473) set `__pidroDrawLagMs` so the
+canvas draws its cards' tree 250 ms late, as a busy phone does: each card new to the table
+shows first where it was sent and is seen in flight, its seat keeps its back until it shows,
+your card lies over your pile through the state, and no hand card darkens as the hand closes up.
 `reply=burst` puts opponent updates 80 ms apart;
 the left-card grammar case uses it to catch lights advancing during overlapping flights.
 `transition=0|80|1500|3000` varies the snapshot's hold;

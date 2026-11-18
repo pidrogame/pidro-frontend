@@ -4,7 +4,7 @@
  * are animated, draggable sprites driven by useCardSprites.
  * Self-contained for window/insets; web callers load CanvasKit before import.
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useTableSize } from './TableChrome';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,7 +39,7 @@ import { computeLayout, handLeft, handScale, TRUMP_MARK } from './layout';
 import { T } from './tokens';
 import type { CardTextures } from './cardTextures';
 import type { TableModel } from './tableModel';
-import { useCardSprites } from './useCardSprites';
+import { useCardSprites, type Arriving } from './useCardSprites';
 import { keptBlur } from './bakedBlur';
 
 type Props = {
@@ -53,6 +53,8 @@ type Props = {
   bottomReserve?: number;
   /** Picking trump: lift the cards this suit would make trump. */
   previewSuit?: Suit | null;
+  /** Cards on their way that do not show yet: their seats keep their backs (PID-473). */
+  onArriving?: (arriving: Arriving) => void;
 };
 
 export default function GameCanvas({
@@ -64,6 +66,7 @@ export default function GameCanvas({
   topReserve = 0,
   bottomReserve = 0,
   previewSuit = null,
+  onArriving,
 }: Props) {
   const { width, height } = useTableSize();
   const insets = useSafeAreaInsets();
@@ -91,8 +94,21 @@ export default function GameCanvas({
     nudge,
     enabled: true,
     previewSuit,
+    onArriving,
   });
 
+  // Dev only (PID-473): `__pidroDrawLagMs` draws the cards' tree that much late, as a busy
+  // phone does, so a check sees what a phone shows before it has drawn a new card.
+  const lag = __DEV__ ? (globalThis as { __pidroDrawLagMs?: number }).__pidroDrawLagMs : 0;
+  const [late, setLate] = useState({ nodes, keys: spriteKeys });
+  useEffect(() => {
+    if (lag) setTimeout(() => setLate({ nodes, keys: spriteKeys }), lag);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the tree as it was then
+  }, [nodes]);
+  useEffect(() => {
+    if (__DEV__)
+      (globalThis as { __pidroDrawn?: unknown }).__pidroDrawn = lag ? late.keys : spriteKeys;
+  });
   const canvas = (
     <Canvas style={{ flex: 1 }}>
       {/* Felt: lit from the center, falling into shadow at the rim. */}
@@ -126,7 +142,7 @@ export default function GameCanvas({
           pop={trumpPop}
         />
       )}
-      {nodes}
+      {lag ? late.nodes : nodes}
     </Canvas>
   );
 
