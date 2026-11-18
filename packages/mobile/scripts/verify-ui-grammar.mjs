@@ -1460,6 +1460,14 @@ const allCases = [
     arrivals: 'backs',
     lastBy: 'west',
   })),
+  // PID-476: after a lay-down the laid cards leave the table with the piles,
+  // under Classic's points (count help off) and as the result opens (on).
+  ...['', '&count=on'].map((count) => ({
+    name: `table-lay-down-clears${count ? '-count' : ''}`,
+    path: `/table-dev?fixture=lay-down&by=north&cards=2${count}`,
+    testId: 'seat-north',
+    laidClears: true,
+  })),
   // PID-331: with the server's trick pause at 0, a finished trick stays put.
   {
     name: 'table-trick-stays',
@@ -6114,6 +6122,44 @@ async function assertBacksHold(page, rel) {
   console.log(
     `backs: ${rel} ${dealt} cards in all in ${frames.length} frames, none left${folds ? `, ${folds} folded` : ''}`
   );
+}
+
+/**
+ * PID-476: once the hand's result is up, the laid cards show exactly as much
+ * as the other cards on the table in every frame, and both are gone at the end.
+ */
+async function assertLaidClears(page) {
+  await page.evaluate(() => {
+    const frames = [];
+    const t0 = performance.now();
+    const sample = () => {
+      const sprites = (window.__pidroCardMotion?.() ?? []).filter((s) => s.kind === 'played');
+      const most = (list) => Math.max(0, ...list.map((s) => (s.shown === false ? 0 : s.opacity)));
+      frames.push({
+        result: !!document.querySelector(
+          '[data-testid="hand-points"], [data-testid="hand-result"]'
+        ),
+        laid: most(sprites.filter((s) => s.key.startsWith('trick-laid-'))),
+        piles: most(sprites.filter((s) => !s.key.startsWith('trick-laid-'))),
+      });
+      if (performance.now() - t0 < 11_000) requestAnimationFrame(sample);
+      else window.__pidroClears = frames;
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.waitForFunction(() => window.__pidroClears, null, { timeout: 25_000 });
+  const frames = (await page.evaluate(() => window.__pidroClears)).filter((f) => f.result);
+  assert.ok(frames.length > 60, `the result showed in only ${frames.length} frames`);
+  frames.forEach((f, i) =>
+    assert.ok(
+      // The sprites are read one after another while they fade, the laid ones last.
+      Math.abs(f.laid - f.piles) < 0.1,
+      `${i} frames into the result the laid cards showed ${f.laid.toFixed(2)}, the piles ${f.piles.toFixed(2)}`
+    )
+  );
+  assert.equal(frames.at(-1).laid, 0, 'the laid cards stayed on the table');
+  const together = frames.filter((f) => f.laid > 0.99).length;
+  console.log(`laid clears: with the piles in ${frames.length} frames, ${together} with both up`);
 }
 
 /** PID-473: your hand closes up after a play with no card's strip darkening. */
@@ -10849,6 +10895,11 @@ async function main() {
           await page.addInitScript((ms) => {
             globalThis.__pidroDrawLagMs = ms;
           }, testCase.drawLag);
+        // The lay-down holds its fan for a still capture: this case plays it out.
+        if (testCase.laidClears)
+          await page.addInitScript(() => {
+            globalThis.__pidroStill = false;
+          });
         if (testCase.modelLag)
           await page.addInitScript((ms) => {
             globalThis.__pidroModelLagMs = ms;
@@ -11379,6 +11430,7 @@ async function main() {
             await assertPlayMotion(page, testCase.playPosition, caseViewport);
           }
           if (testCase.trickStays) await assertTrickStays(page);
+          if (testCase.laidClears) await assertLaidClears(page);
           if (testCase.overPile) await assertPlayOverPile(page);
           if (testCase.arrivals === 'backs') await assertBacksHold(page, testCase.lastBy);
           else if (testCase.arrivals === 'unpressed') await assertUnpressedOverPile(page);

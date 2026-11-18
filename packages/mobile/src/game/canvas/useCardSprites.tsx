@@ -568,15 +568,17 @@ export function useCardSprites({
     REL.forEach((rel) => {
       // A settled hand's laid cards are the table's own (PID-469): drawn from
       // its textures from their first frame, and keyed alike while they come
-      // down and under the result, so one card lies there throughout.
+      // down and under the result, so one card lies there throughout. Under
+      // the result they lie in the hand's piles, and leave with them (PID-476).
       const down = model.layDown?.rel === rel ? model.layDown : null;
+      const coming = down?.step === 'fan' ? down.cards : [];
       const laidKey = (key: CardKey) => `trick-laid-0-${rel}-${key}`;
       const onTable = played[rel] ?? [];
       const cards: TableCard[] = [
         ...onTable.map((tc) =>
           laid.has(tc.textureKey) ? { ...tc, key: laidKey(tc.textureKey) } : tc
         ),
-        ...(down?.cards ?? [])
+        ...coming
           .filter((card) => !onTable.some((tc) => tc.textureKey === cardKey(card)))
           .map((card) => ({
             key: laidKey(cardKey(card)),
