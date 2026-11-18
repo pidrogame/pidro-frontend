@@ -29,6 +29,7 @@ import {
   pileSpacing,
   pileSpot,
   PILE_TRAIL_SCALE,
+  laidPileTarget,
   playedCardTarget,
   trailSpot,
   trickOnCross,
@@ -176,6 +177,97 @@ describe('upright piles: the newest in front, the earlier ones behind (PID-381)'
       }
     });
   }
+});
+
+// PID-469: a settled hand's laid cards are its holder's newest trick: each at
+// a played card's size, lying as its played cards do, every rank showing, its
+// earlier cards behind them in view, and the pile clear of the trump mark and
+// of its neighbours' cards. The holder played in every trick, so nobody else
+// has more cards down.
+describe('laid-down cards lie as their holder’s newest trick (PID-469)', () => {
+  const R = 110 / 78;
+  const box = (L, t) => {
+    const [w, h] = [L.cardW * t.scale, L.cardW * t.scale * R];
+    const [hw, hh] = t.rot ? [h / 2, w / 2] : [w / 2, h / 2];
+    return { left: t.x - hw, right: t.x + hw, top: t.y - hh, bottom: t.y + hh };
+  };
+  const apart = (a, b) =>
+    a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+  // Cards as drawn: their corners round off by 0.12 of a card, at most 10pt.
+  const clear = (L, a, b) => {
+    if (apart(a, b)) return true;
+    const r = Math.min(10, L.cardW * L.trick.pileScale * 0.12);
+    const dx = Math.min(a.right - b.left, b.right - a.left);
+    const dy = Math.min(a.bottom - b.top, b.bottom - a.top);
+    return dx < r && dy < r && Math.hypot(2 * r - dx, 2 * r - dy) >= 2 * r;
+  };
+  // [cards the holder played this hand, cards laid]
+  const hands = [
+    [0, 6],
+    [1, 5],
+    [3, 3],
+    [4, 2],
+    [5, 1],
+  ];
+  for (const [width, height, insets] of [
+    [390, 844, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+  ])
+    it(`on ${width}×${height}`, () => {
+      const L = computeLayout(width, height, insets, width < height ? 61 : 0);
+      const mark = (L.cardW * TRUMP_MARK) / 2;
+      const markBox = {
+        left: L.trick.cx - mark,
+        right: L.trick.cx + mark,
+        top: L.trick.cy - mark,
+        bottom: L.trick.cy + mark,
+      };
+      for (const rel of ['north', 'east', 'south', 'west']) {
+        const card = playedCardTarget(L, rel, 0, 1);
+        for (const [played, n] of hands) {
+          const at = Array.from({ length: played + n }, (_, k) =>
+            laidPileTarget(L, rel, played, k, n)
+          );
+          const said = `${rel} ${played}+${n}`;
+          for (const t of at.slice(played)) {
+            expect(t.scale, said).toBe(card.scale);
+            expect(t.rot, said).toBe(card.rot);
+          }
+          // Each card shows its index past the next one (East's at its foot, West's at its top).
+          for (let k = 0; k + 1 < at.length; k++) {
+            const [a, b] = [box(L, at[k]), box(L, at[k + 1])];
+            const shown =
+              rel === 'east'
+                ? a.bottom - b.bottom
+                : rel === 'west'
+                  ? b.top - a.top
+                  : b.left - a.left;
+            expect(shown, `${said}: card ${k}`).toBeGreaterThanOrEqual(L.cardW * 0.16 - 1e-9);
+          }
+          // Each neighbour with a card in each of the holder's tricks, as they lie at the end of the hand.
+          const others = ['north', 'east', 'south', 'west']
+            .filter((other) => other !== rel)
+            .flatMap((other) =>
+              Array.from({ length: played }, (_, i) =>
+                L.front
+                  ? i === played - 1
+                    ? playedCardTarget(L, other, 0, 1)
+                    : trailSpot(L, other, played - 1 - i, played - 1)
+                  : playedCardTarget(L, other, i, played, 1)
+              )
+            );
+          for (const t of at) {
+            const b = box(L, t);
+            expect(apart(b, markBox), `${said} and the trump mark`).toBe(true);
+            for (const other of others)
+              expect(clear(L, b, box(L, other)), `${said} and a neighbour's card`).toBe(true);
+            expect(b.left >= 0 && b.right <= width && b.top >= 0 && b.bottom <= height).toBe(true);
+          }
+        }
+      }
+    });
 });
 
 describe('side stacks and the hand', () => {

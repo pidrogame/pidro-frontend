@@ -16,6 +16,8 @@ export type LayDown = {
   /** What their tricks took, as the hand log counts them: the tricks' points, and the 2 of trump's. */
   points: number;
   two: number;
+  /** How many cards the holder already played this hand (PID-469): the laid cards lie after them. */
+  played: number;
 };
 
 type State = Pick<ServerGameState, 'phase' | 'hand_number' | 'tricks' | 'last_hand'>;
@@ -45,5 +47,8 @@ export function layDown(previous: State | null, next: State | null): LayDown | n
     cards: settled.cards,
     points: tricks.reduce((sum, trick) => sum + (trick.points ?? 0), 0),
     two: tricks.reduce((sum, trick) => sum + (trick.two_of_trump?.points ?? 0), 0),
+    played: (previous.tricks ?? []).flatMap((trick) =>
+      trick.cards.filter((play) => play.player === settled.position)
+    ).length,
   };
 }

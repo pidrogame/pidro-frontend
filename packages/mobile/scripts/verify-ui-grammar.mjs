@@ -7900,7 +7900,7 @@ async function assertLayDown(page, testCase, viewport) {
   assert.equal(
     await page.locator('[data-testid="hand-result"], [data-testid="hand-points"]').count(),
     0,
-    `${testCase.name}: the result waits for the gather`
+    `${testCase.name}: the result waits for the hold`
   );
   if (rel === 'south') await page.getByTestId('rendered-hand-card-count-0').waitFor();
   const seatsAround = ['north', 'east', 'south', 'west'];

@@ -1,31 +1,29 @@
 /**
- * A settled hand laid down (PID-366): the holder's remaining trumps turn face
- * up in a fan in front of their seat, one card sound each, hold to be read,
- * then gather to their pile in one motion; only then the hand's result. The
- * table shows the hand as it stood when it settled until the gather ends, so
+ * A settled hand laid down (PID-366): the holder's remaining trumps come down
+ * face up as the next cards of their pile, one card sound each, and hold to
+ * be read where the table counts them (PID-469); only then the hand's result.
+ * The table shows the hand as it stood when it settled until the hold ends, so
  * the result, the scores and "Takes the rest" wait with it, and the next
  * hand, which the server sends with it, waits too: the server holds its deal
  * 2.5 s longer. A presentation of what the server said (`last_hand.settled`),
  * never game logic.
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useReducedMotion } from 'react-native-reanimated';
 import type { ServerGameState } from '@/types/game';
 import { layDown, type LayDown } from '@/features/game/layDown';
 import { isStillCapture } from '@/utils/stillCapture';
 import type { RelativePosition } from './layout';
 import type { TableModel } from './tableModel';
-import { LAY_DOWN_GATHER_MS, LAY_DOWN_HOLD_MS, layDownAt, layDownLandsMs } from './animationTiming';
+import { LAY_DOWN_HOLD_MS, layDownAt, layDownLandsMs } from './animationTiming';
 import { play } from '../sounds';
 
-/** The fan as the table draws it: `done` once gathered, while the result holds the hand. */
-export type LayDownShow = LayDown & { rel: RelativePosition; step: 'fan' | 'gather' | 'done' };
+/** The laid cards as the table draws them: `done` once held, while the result holds the hand. */
+export type LayDownShow = LayDown & { rel: RelativePosition; step: 'fan' | 'done' };
 
 export function useLayDownPresentation(
   state: ServerGameState | null,
   seats: TableModel['seats']
 ): { show: LayDownShow | null; before: ServerGameState | null } {
-  const reducedMotion = useReducedMotion();
   const [previous, setPrevious] = useState(state);
   const [laid, setLaid] = useState<{ down: LayDown; before: ServerGameState } | null>(null);
   const [step, setStep] = useState<LayDownShow['step']>('fan');
@@ -41,16 +39,10 @@ export function useLayDownPresentation(
 
   useEffect(() => {
     if (!laid || step === 'done' || isStillCapture()) return;
-    // Reduce Motion: the gather is a cut; the holds stay.
-    const ms =
-      step === 'fan'
-        ? layDownLandsMs(laid.down.cards.length) + LAY_DOWN_HOLD_MS
-        : reducedMotion
-          ? 0
-          : LAY_DOWN_GATHER_MS;
-    const timer = setTimeout(() => setStep(step === 'fan' ? 'gather' : 'done'), ms);
+    const ms = layDownLandsMs(laid.down.cards.length) + LAY_DOWN_HOLD_MS;
+    const timer = setTimeout(() => setStep('done'), ms);
     return () => clearTimeout(timer);
-  }, [laid, step, reducedMotion]);
+  }, [laid, step]);
 
   // A card sounds as it leaves the hand, under Reduce Motion too.
   useEffect(() => {

@@ -870,6 +870,28 @@ export function playedCardTarget(
 }
 
 /**
+ * A settled hand's holder (PID-469): where card `k` of its pile lies once its
+ * `n` cards are laid down after the `played` it has on the table this hand.
+ * The laid cards are its newest, as one trick: each at a played card's size,
+ * its earlier cards behind them as for any trick, the pile closing up to fit.
+ */
+export function laidPileTarget(
+  L: TableLayout,
+  rel: RelativePosition,
+  played: number,
+  k: number,
+  n: number
+) {
+  if (!L.front) return playedCardTarget(L, rel, k, played + n, n);
+  if (k >= played) return playedCardTarget(L, rel, k - played, n);
+  // Landscape phones: the earlier cards trail behind the row's last card, not under the row.
+  const spot = playedCardTarget(L, rel, 0, 1);
+  const end = playedCardTarget(L, rel, 0, n);
+  const trail = trailSpot(L, rel, played - k, played);
+  return { ...trail, x: trail.x + end.x - spot.x, y: trail.y + end.y - spot.y };
+}
+
+/**
  * Landscape phones (PID-308): a seat's earlier cards this hand trail behind
  * its played card, smaller: sideways at North and South, up West's column
  * and down East's, toward each card's index (PID-388). `back` counts from the

@@ -990,7 +990,7 @@ function TableDevHarness() {
           <LayDownPreview
             room={DRAW_ROOM}
             by={params.by && CLOCKWISE.includes(params.by) ? params.by : 'north'}
-            cards={params.cards === '2' ? 2 : 5}
+            cards={params.cards === '1' ? 1 : params.cards === '2' ? 2 : 5}
             countHelp={params.count === 'on'}
           />
         </FixtureInsets>
@@ -2608,9 +2608,9 @@ const trumpPoints = (card: Card) =>
 /**
  * `fixture=lay-down` (PID-366): the last real trick taken, the other three
  * out of trumps, and two seconds later the server settles the hand: `by`
- * (north|east|west|south, south being you) lays down `cards` (2|5) trumps,
- * hearts, in the revision that starts the next hand. The table fans them face
- * up, holds, gathers them to the holder's pile, shows the result, then deals;
+ * (north|east|west|south, south being you) lays down `cards` (1|2|5) trumps,
+ * hearts, in the revision that starts the next hand. The table lays them face
+ * up as the holder's newest cards, holds, shows the result, then deals;
  * it plays again once the server's 13.5 s transition is over. `count=on`
  * adds the points on the fan and the result's panel. Grammar captures hold
  * on the fan.
@@ -2623,7 +2623,7 @@ function LayDownPreview({
 }: {
   room: Room;
   by: Position;
-  cards: 2 | 5;
+  cards: 1 | 2 | 5;
   countHelp: boolean;
 }) {
   const [Table, setTable] = useState<Awaited<ReturnType<typeof loadGameCanvasTable>> | null>(null);
@@ -2670,8 +2670,9 @@ function LayDownPreview({
             trick(h, [play(h, heart(13)), play(l, heart(8)), play(p, heart(4))]),
             trick(l, [play(h, heart(9)), play(l, heart(12)), play(p, five)]),
             trick(h, [play(l, heart(6)), play(h, heart(11))]),
+            ...(cards === 1 ? [trick(h, [play(h, heart(5))])] : []),
           ];
-    const laid = cards === 5 ? [14, 13, 11, 5, 2].map(heart) : [5, 2].map(heart);
+    const laid = cards === 5 ? [14, 13, 11, 5, 2].map(heart) : [5, 2].slice(2 - cards).map(heart);
     const settled = [
       ...real,
       ...laid.map((card) => ({

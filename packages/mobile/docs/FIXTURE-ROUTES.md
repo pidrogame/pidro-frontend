@@ -91,11 +91,13 @@ both beats at 390×844, 375×667, 844×390 and 768×1024.
 A settled hand loops at `/table-dev?fixture=lay-down` (PID-366): the last
 real trick taken and the other three out of trumps, then two seconds later the
 server settles the hand in one revision, straight into the next hand's bidding
-(`last_hand.settled`, `transition_delay_ms` 13 500). The holder's trumps turn
-face up in a fan in front of their seat, hold, gather to their pile, and only
-then the result and the deal; it plays again once that transition is over.
-`by=north|east|west|south` (south is you, your cards rise from your hand),
-`cards=2|5`, `count=on` for the points on the fan and the result's panel.
+(`last_hand.settled`, `transition_delay_ms` 13 500). The holder's trumps come
+down face up as the newest cards of their pile, at a played card's size,
+their earlier cards behind them (PID-469), hold, and only then the result and
+the deal, the cards staying where they lie; it plays again once that
+transition is over. `by=north|east|west|south` (south is you, your cards rise
+from your hand), `cards=1|2|5`, `count=on` for the points on the fan and the
+result's panel.
 Grammar captures hold on the fan:
 `table-lay-down-{north-5-count-en,north-2-sv,east-5-sv,east-2-count-en,west-2-en,west-5-count-sv,south-5-count-en,south-2-sv}`
 check that every card lies face up on screen and clear of every seat, that the

@@ -40,6 +40,8 @@ const settledBy = (position, cards = [heart(11), heart(5), heart(2)]) => ({
 
 describe('a settled hand laid down', () => {
   it('names the holder at any seat, and the cards highest first as laid', () => {
+    // North played in both real tricks, East only in the first, West and South in neither.
+    const played = { north: 2, east: 1, west: 0, south: 0 };
     for (const position of ['north', 'east', 'west', 'south']) {
       expect(layDown(playing, settledBy(position))).toEqual({
         hand: 7,
@@ -47,8 +49,28 @@ describe('a settled hand laid down', () => {
         cards: [heart(11), heart(5), heart(2)],
         points: 6,
         two: 1,
+        played: played[position],
       });
     }
+  });
+
+  it('lays the cards after every card the holder played, not after every trick (PID-469)', () => {
+    // East put two trumps into the first trick and sat out the second.
+    const two = [
+      { ...real[0], cards: [...real[0].cards, { player: 'east', card: heart(12) }] },
+      real[1],
+    ];
+    const down = layDown(
+      { ...playing, tricks: two },
+      {
+        ...settledBy('east'),
+        last_hand: {
+          ...settledBy('east').last_hand,
+          tricks: [...two, ...settledBy('east').last_hand.tricks.slice(2)],
+        },
+      }
+    );
+    expect(down?.played).toBe(2);
   });
 
   it('counts only the laid cards, never a real trick of the hand', () => {

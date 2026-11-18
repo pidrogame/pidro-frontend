@@ -49,6 +49,7 @@ import {
   handScale as handScaleFor,
   handStep,
   handXs,
+  laidPileTarget,
   playedCardTarget,
   trailSpot,
   trickOnCross,
@@ -347,7 +348,10 @@ export function useCardSprites({
 
     const played = model.playedCards;
     const keyed = (tc: TableCard) => Number(/^trick-(\d+)-/.exec(tc.key)?.[1] ?? -1);
-    const all = REL.flatMap((rel) => played[rel] ?? []);
+    // A settled hand's laid cards (PID-366) are no trick of the others': under
+    // the result as while they come down, the hand's last trick stays the live one.
+    const laid = new Set(model.layDown?.cards.map(cardKey));
+    const all = REL.flatMap((rel) => played[rel] ?? []).filter((tc) => !laid.has(tc.textureKey));
     const current = all.filter((tc) => tc.isCurrentTrick);
     const liveTrick = current.some((tc) => keyed(tc) >= 0)
       ? Math.max(...current.map(keyed))
@@ -429,12 +433,22 @@ export function useCardSprites({
       );
       const live = cards.filter((tc) => trickNo(tc) === onCross);
       const earlier = cards.filter((tc) => trickNo(tc) !== onCross);
+      // A settled hand's holder (PID-469): its pile makes room for the laid
+      // cards as they come down, its newest trick, bright, as SeatLayer lays
+      // them, until the result clears the hand.
+      const down = model.layDown?.rel === rel ? model.layDown : null;
       cards.forEach((tc, i) => {
         let target = playedCardTarget(L, rel, i, cards.length, live.length);
         const counted = model.countHelp && POINT_RANKS.has(tc.card.rank);
         const li = live.indexOf(tc);
-        const shade = (!!L.front || upright) && !counted && (li < 0 || onCross !== liveTrick);
-        if (L.front)
+        let shade = (!!L.front || upright) && !counted && (li < 0 || onCross !== liveTrick);
+        let k = i;
+        if (down) {
+          const j = down.cards.findIndex((card) => cardKey(card) === tc.textureKey);
+          if (j >= 0) k = down.played + j;
+          target = laidPileTarget(L, rel, down.played, k, down.cards.length);
+          shade = (!!L.front || upright) && !counted && k < down.played;
+        } else if (L.front)
           target =
             li >= 0
               ? playedCardTarget(L, rel, li, live.length)
@@ -444,7 +458,7 @@ export function useCardSprites({
           key: tc.key,
           textureKey: tc.textureKey,
           kind: 'played',
-          z: 100 + i,
+          z: 100 + k,
           delayOrder: i,
           tx: target.x,
           ty: target.y,
@@ -516,7 +530,6 @@ export function useCardSprites({
     const skipCutSequence = newCutSequence && cutPace.current === 0;
     cutSequenceKey.current = nextCutSequenceKey;
     const nextSlots: SlotInfo[] = Array(MAX).fill(null);
-    const laid = new Set(model.layDown?.cards.map(cardKey));
 
     // A card is unique within a hand. Re-key its slot before retirement so a
     // confirmation (or rollback) continues from the exact on-screen position.
@@ -597,7 +610,7 @@ export function useCardSprites({
       let sl = keyToSlot.current.get(d.key);
       const isNew = sl === undefined;
       const dealCard = isDeal && d.kind === 'hand';
-      // Laid-down cards reach the holder's pile by SeatLayer's gather: they appear there.
+      // Laid-down cards lie in the holder's pile already, drawn by SeatLayer: they appear there.
       const laidCard = isNew && d.kind === 'played' && laid.has(d.textureKey);
       const cutCard = d.kind === 'cut' && animateCutSequence;
       if (sl === undefined) {

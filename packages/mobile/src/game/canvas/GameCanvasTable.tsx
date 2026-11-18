@@ -433,7 +433,7 @@ export function GameCanvasTable({
   const solo = useGameStore((state) => isSoloTable(state.readiness, state.youPositionAbs));
   const readiness = useGameStore((state) => state.readiness);
   const lifecycleSeats = useGameStore((state) => state.lifecycle?.seats);
-  // A settled hand is laid down first (PID-366): until the fan has gathered,
+  // A settled hand is laid down first (PID-366): until its hold ends,
   // the table, its result and the scores stand as they were when it settled.
   const laid = useLayDownPresentation(controller.serverState, serverModel.seats);
   const laying = laid.before != null;
