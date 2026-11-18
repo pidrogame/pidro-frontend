@@ -272,6 +272,21 @@ const TRUMP_HAND: Card[] = [
   { rank: 2, suit: 'clubs' },
 ];
 const CLOCKWISE: Position[] = ['north', 'east', 'south', 'west'];
+// `trick=suits&led=<seat>` (PID-466): A♣, K♠, 4♦ and 10♥ played round from that seat.
+const suitTrick = (led?: string): FixtureTrick => {
+  const from = Math.max(0, CLOCKWISE.indexOf(led as Position));
+  const cards: Card[] = [
+    { rank: 14, suit: 'clubs' },
+    spade(13),
+    { rank: 4, suit: 'diamonds' },
+    heart(10),
+  ];
+  return {
+    taken: [],
+    current: cards.map((card, i) => ({ player: CLOCKWISE[(from + i) % 4], card })),
+    hand: [heart(5), heart(2)],
+  };
+};
 const nextSeat = (position: Position) => CLOCKWISE[(CLOCKWISE.indexOf(position) + 1) % 4];
 const highBid = (bids: ServerBid[]) => bids.filter((bid) => bid.amount !== 'pass').at(-1) ?? null;
 
@@ -1021,8 +1036,16 @@ function TableDevHarness() {
             connected={params.connection !== 'lost' && fixture !== 'flaky-offline'}
             bidRound={BID_ROUNDS[params.bids ?? ''] ?? null}
             outPlayers={OUT_PLAYERS[params.out as keyof typeof OUT_PLAYERS] ?? null}
-            botTrick={params.trick === 'bots' || !!TRICKS[params.trick ?? ''] || !!piles}
-            trick={piles ?? TRICKS[params.trick ?? '']}
+            botTrick={
+              params.trick === 'bots' ||
+              params.trick === 'suits' ||
+              !!TRICKS[params.trick ?? ''] ||
+              !!piles
+            }
+            trick={
+              piles ??
+              (params.trick === 'suits' ? suitTrick(params.led) : TRICKS[params.trick ?? ''])
+            }
             botCrew={fixture === 'bot-crew'}
             botCharacter={params.character === 'saga'}
             botTurn={params.botTurn}
@@ -1042,7 +1065,11 @@ function TableDevHarness() {
             details={fixture === 'details'}
             status={fixture === 'status' ? (params.seats === 'b' ? 'b' : 'a') : undefined}
             bidder={params.bidder}
-            turnSeat={params.turn === 'east' || params.turn === 'west' ? params.turn : null}
+            turnSeat={
+              params.turn === 'east' || params.turn === 'west' || params.turn === 'north'
+                ? params.turn
+                : null
+            }
             longNames={params.names === 'long'}
             scoreHistory={fixture === 'scores'}
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}

@@ -4,7 +4,7 @@
  * partner's seat says so whenever it has nothing else to say (PID-383).
  */
 import { getRankLabel, SUIT_SYMBOLS, t, type Card, type SeatStatus } from '@pidro/shared';
-import { textFits } from '@/features/avatar';
+import type { StatusFit } from '@/features/avatar';
 
 /**
  * `now` is the player on turn, `high` holds the high bid. A new `pulse` lights
@@ -45,6 +45,12 @@ export function seatPlate(
   return { plate: 'turn', text: isYou ? yours : (line?.text ?? null) };
 }
 
+/** A card played; where the line has no room, the card alone says it (PID-466). */
+export const playsLine = (card: string): SeatLine => ({
+  text: t('game.plays', { card }),
+  short: card,
+});
+
 /** The bidding's winner choosing trump; "Trump…" where a narrow seat has no room for it. */
 export const choosingTrumpLine = (): SeatLine => ({
   text: t('game.choosing_trump'),
@@ -53,19 +59,14 @@ export const choosingTrumpLine = (): SeatLine => ({
 });
 
 /**
- * What a seat shows in `room` (PID-450): `shown` (its line, or what its plate
- * says), or the line's short form where the line would run out of the room.
- * Plate text that is not the line, like "Your turn", stands as it is.
+ * Where a seat's `shown` (its line, or what its plate says) gives way to the
+ * line's short form when it runs out of `room` (PID-450). Plate text that is
+ * not the line, like "Your turn", stands as it is. The seat measures the line
+ * as it is laid out to decide (`fitStatus`, PID-466), and keeps a lit plate
+ * within `room` either way.
  */
-export function fittedLine(
-  shown: string | null,
-  line: SeatLine | null,
-  fontSize: number,
-  room: number
-): string | null {
-  if (!shown || !line?.short || shown !== line.text || textFits(shown, fontSize, room))
-    return shown;
-  return line.short;
+export function lineFit(shown: string | null, line: SeatLine | null, room: number): StatusFit {
+  return { room, short: shown && line?.short && shown === line.text ? line.short : shown };
 }
 
 export function seatLine(
@@ -82,7 +83,7 @@ export function seatLine(
   if (seat.seatStatus === 'vacant') return null;
   if (seat.lastPlayedCard) {
     const c = seat.lastPlayedCard.card;
-    return { text: t('game.plays', { card: `${getRankLabel(c.rank)}${SUIT_SYMBOLS[c.suit]}` }) };
+    return playsLine(`${getRankLabel(c.rank)}${SUIT_SYMBOLS[c.suit]}`);
   }
   if (seat.out) return outLine();
   if (override) return override;

@@ -452,15 +452,13 @@ const allCases = [
       locale,
     })),
   ]),
-  // PID-405: her longest catalogue line, 40 characters, is cut short inside her seat.
+  // PID-405: her longest catalogue line, 40 characters, has no room in her seat. No line
+  // is cut mid-word (PID-466): North says the plain turn text instead, upright too.
   {
     name: 'table-bot-thinking-saga-cut',
     path: '/table-dev?fixture=bot-crew&character=saga&botTurn=north',
     testId: 'seat-north',
-    thinkingText: 'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…',
-    thinkingCut: true,
-    // Beside the avatar in landscape, North says the plain turn text instead.
-    landscapeText: 'Playing…',
+    thinkingText: 'Playing…',
     botVoice: true,
     locale: 'en',
   },
@@ -6645,19 +6643,9 @@ async function assertBotVoice(page, testCase, viewport) {
     assertInsideViewport('thinking line', await getStableBox(line, page), viewport);
     assert.equal(
       await line.evaluate((node) => node.scrollWidth > node.clientWidth + 1),
-      !!testCase.thinkingCut && !beside,
-      testCase.thinkingCut && !beside
-        ? 'a 40-character line is cut short'
-        : 'thinking line fits the nameplate'
+      false,
+      'thinking line fits the nameplate'
     );
-    if (testCase.thinkingCut && !beside) {
-      const seat = await getStableBox(page.getByTestId(testCase.testId), page);
-      const box = await getStableBox(line, page);
-      assert.ok(
-        box.x >= seat.x - 1 && box.x + box.width <= seat.x + seat.width + 1,
-        'the cut line stays inside its seat'
-      );
-    }
     await page.reload();
     await line.waitFor();
   }

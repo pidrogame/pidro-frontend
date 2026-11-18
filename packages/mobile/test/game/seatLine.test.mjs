@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
+import { fitStatus } from '../../src/features/avatar.ts';
 import {
   choosingTrumpLine,
-  fittedLine,
+  lineFit,
   seatLine,
   seatPlate,
   teamLine,
@@ -19,7 +20,10 @@ const kingOfHearts = { card: { rank: 13, suit: 'hearts' } };
 
 describe('the line under a bot seat', () => {
   it('says what it played, like anyone', () => {
-    expect(seatLine(seat({ lastPlayedCard: kingOfHearts }))).toEqual({ text: 'Plays K♥' });
+    expect(seatLine(seat({ lastPlayedCard: kingOfHearts }))).toEqual({
+      text: 'Plays K♥',
+      short: 'K♥',
+    });
     expect(seatLine(seat({ lastPlayedCard: kingOfHearts }))).toEqual(
       seatLine(seat({ seatStatus: 'normal', lastPlayedCard: kingOfHearts }))
     );
@@ -55,6 +59,7 @@ describe('your partner, in the first hand (PID-383)', () => {
     expect(seatLine(partner(), { text: 'Dealing' }, true)).toEqual({ text: 'Dealing' });
     expect(seatLine(partner({ lastPlayedCard: kingOfHearts }), null, true)).toEqual({
       text: 'Plays K♥',
+      short: 'K♥',
     });
     expect(seatLine(partner({ out: true }), null, true)?.text).toBe('Out');
     expect(seatLine(partner({ seatStatus: 'reconnecting' }), null, true)?.text).toBe(
@@ -167,34 +172,68 @@ describe('the plate under a seat (PID-450)', () => {
   });
 });
 
-describe('a side seat in a narrow column (PID-450)', () => {
-  // 360 wide: the side column leaves 78pt for a 14pt line; 390 leaves 93.
-  const fit = (line, room, shown = line.text) => fittedLine(shown, line, 14, room);
+describe('a side seat in a narrow column (PID-450, PID-466)', () => {
+  // What the seat shows: its line as the device laid it out `width` wide, in `room`. The
+  // widths are Nunito 800 at 14pt in Chromium; Android sets the same words wider (PID-465).
+  // 390 wide, a lit side plate leaves its line 82pt; 360 wide, 67.
+  const shows = (line, width, room, shown = line.text) =>
+    fitStatus(shown, lineFit(shown, line, room), width);
+  const wider = (width) => width * 1.1;
   const high = { text: 'Bid 14 · high', short: 'High 14', tone: 'high' };
+  const thinking = (text) => ({ text, short: 'Playing…', tone: 'now' });
+
+  it('decides from the line as laid out, not from how many letters it has', () => {
+    // Gösta's line on the Android beta: 11 letters passed the old estimate (77pt), but it
+    // is laid out 89pt wide even in Nunito, and its plate ran off the screen.
+    expect(shows(thinking('Hm, kanske…'), 89, 82)).toBe('Playing…');
+    expect(shows(thinking('Counting…'), 72, 82)).toBe('Counting…');
+  });
+
+  it('gives way where another face sets the line a tenth wider than Nunito', () => {
+    const line = thinking('Let’s see…');
+    expect(shows(line, 78, 82)).toBe('Let’s see…');
+    expect(shows(line, wider(78), 82)).toBe('Playing…');
+    // Exactly the room still fits: the plate then reaches the column's edge, not past it.
+    expect(shows(line, 82, 82)).toBe('Let’s see…');
+  });
 
   it('chooses trump in its short form where the line would be cut off, on the lit plate too', () => {
     const choosing = choosingTrumpLine();
     expect(choosing).toEqual({ text: 'Choosing trump…', short: 'Trump…', tone: 'now' });
-    expect(fit(choosing, 78)).toBe('Trump…');
+    expect(shows(choosing, 118, 67)).toBe('Trump…');
     expect(seatPlate(choosing, { onTurn: true, isYou: false })?.text).toBe('Choosing trump…');
     // A bot's own line (PID-405) gives way to the same short form.
-    expect(fit({ ...choosing, text: 'Hmm, which suit is it going to be…' }, 78)).toBe('Trump…');
+    expect(shows({ ...choosing, text: 'Hmm, which suit is it going to be…' }, 230, 67)).toBe(
+      'Trump…'
+    );
     // A tablet's side column has room for the whole line.
-    expect(fit(choosing, 134)).toBe('Choosing trump…');
+    expect(shows(choosing, 118, 134)).toBe('Choosing trump…');
   });
 
   it('keeps the high bid whole where it fits, and short where it would not', () => {
-    expect(fit(high, 93)).toBe('Bid 14 · high');
-    expect(fit(high, 78)).toBe('High 14');
+    expect(shows(high, 84, 93)).toBe('Bid 14 · high');
+    expect(shows(high, 84, 67)).toBe('High 14');
   });
 
-  it('leaves lines that fit, lines without a short form, and plate text as they are', () => {
-    expect(fit({ text: 'Playing…', tone: 'now' }, 78)).toBe('Playing…');
-    expect(fit({ text: 'Bidding…', short: 'Bidding…', tone: 'now' }, 78)).toBe('Bidding…');
+  it('says the card alone where a played card has no room, never a word cut short', () => {
+    const plays = seatLine(seat({ lastPlayedCard: { card: { rank: 10, suit: 'hearts' } } }));
+    // "Plays 10♥" is laid out 69pt wide; a lit plate at 360 leaves 67, and 82 at 390.
+    expect(shows(plays, 69, 67)).toBe('10♥');
+    expect(shows(plays, 69, 82)).toBe('Plays 10♥');
+    expect(shows(plays, wider(69), 82)).toBe('Plays 10♥');
+  });
+
+  it('leaves lines without a short form, and plate text, as they are', () => {
+    // Too wide and nothing shorter to say: the line stays itself, and its plate within the room.
+    expect(lineFit('Plays A♣', { text: 'Plays A♣' }, 67)).toEqual({ room: 67, short: 'Plays A♣' });
+    expect(shows({ text: 'Playing…', tone: 'now' }, 300, 67)).toBe('Playing…');
+    expect(shows({ text: 'Bidding…', short: 'Bidding…' }, 300, 67)).toBe('Bidding…');
     // "Your turn" on your plate is not the line it stands for.
-    expect(fit({ text: 'Playing…', short: 'Playing…' }, 10, 'Your turn')).toBe('Your turn');
-    expect(fittedLine(null, high, 14, 78)).toBeNull();
-    expect(fittedLine('Bid 14 · high', null, 14, 78)).toBe('Bid 14 · high');
+    expect(shows({ text: 'Playing…', short: 'Playing…' }, 300, 10, 'Your turn')).toBe('Your turn');
+    expect(lineFit(null, high, 67)).toEqual({ room: 67, short: null });
+    expect(fitStatus('Bid 14 · high', lineFit('Bid 14 · high', null, 67), 300)).toBe(
+      'Bid 14 · high'
+    );
   });
 
   it('says it in Swedish at a Swedish table', () => {
@@ -202,11 +241,12 @@ describe('a side seat in a narrow column (PID-450)', () => {
     try {
       const choosing = choosingTrumpLine();
       expect(choosing.text).toBe('Väljer trumf…');
-      expect(fit(choosing, 78)).toBe('Trumf…');
-      // 390 wide: 93pt fits the line itself, but a lit plate reaching 13.5pt past
+      expect(shows(choosing, 93, 67)).toBe('Trumf…');
+      // 390 wide: an unlit 101pt line fits it, but a lit plate reaching 13.5pt past
       // it each side leaves 82 to stay on screen.
-      expect(fit(choosing, 82)).toBe('Trumf…');
-      expect(fit({ text: 'Bud 14 · högst', short: 'Högst 14' }, 78)).toBe('Högst 14');
+      expect(shows(choosing, 93, 101)).toBe('Väljer trumf…');
+      expect(shows(choosing, 93, 82)).toBe('Trumf…');
+      expect(shows({ text: 'Bud 14 · högst', short: 'Högst 14' }, 97, 82)).toBe('Högst 14');
     } finally {
       setLocale('en');
     }

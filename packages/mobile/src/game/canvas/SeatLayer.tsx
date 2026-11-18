@@ -37,8 +37,8 @@ import {
 import { PressableFX } from '@/components/ui/PressableFX';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tokens';
-import { avatarLabel, avatarParts, textFits } from '@/features/avatar';
-import { fittedLine, seatLine, seatPlate, type SeatLine } from '@/features/game/seatLine';
+import { avatarLabel, avatarParts } from '@/features/avatar';
+import { lineFit, seatLine, seatPlate, type SeatLine } from '@/features/game/seatLine';
 import { whosePoints } from '@/features/game/points';
 import {
   AVATAR_SIZE,
@@ -271,9 +271,6 @@ export function SeatLayer({
   const size = tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
   const tablet = L.profile.startsWith('tablet');
   const parts = avatarParts(size, { seat: true });
-  // Where a landscape line would run into the hand (yours) or the menu
-  // (North's), the seat says its short line instead, as your tight seat does.
-  const besideStatus = avatarParts(size, { beside: true, seat: true }).status.fontSize;
   // Portrait names sit in a fixed column so a long one truncates instead of
   // pushing the seat off its axis. North and south have the table's width to
   // themselves; east and west get what North's column leaves them, their
@@ -325,6 +322,19 @@ export function SeatLayer({
             maxWidth: size + gap + reach(rel),
             gap,
           };
+  // What an upright seat's line has room for: its column, less what a lit plate reaches past
+  // the line (PID-466). Tight North's line runs right of its avatar, the plate past its end.
+  const lineRoom = (rel: RelativePosition, plated: boolean) =>
+    tight && rel === 'north'
+      ? northRight -
+        PidroSpacing.sm -
+        tightNorthLeft -
+        size -
+        PidroSpacing.xs -
+        (plated ? PLATE_REACH : 0)
+      : rel === 'east' || rel === 'west'
+        ? sideColumn - 2 * (plated ? PLATE_REACH : PidroSpacing.xs)
+        : centerColumn - (plated ? 2 * PLATE_REACH : 0);
   const tableTop = insets.top + topReserve;
   // Floating portrait scores no longer mask the fan behind a header band.
   const northBackTop = northFanTop(L, tableTop);
@@ -593,22 +603,17 @@ export function SeatLayer({
               })}
             {...(!portrait &&
               (rel === 'south' || rel === 'north') &&
-              line &&
-              !textFits(seat.status ?? '', besideStatus, reach(rel)) && {
+              (line || seat.plate) && {
                 // "Your turn" has no short form: where it won't fit, the lit plate says it.
-                status: seat.status === line.text ? (line.short ?? null) : null,
-                accessibilityLabel: avatarLabel(spoken),
+                fit: {
+                  room: reach(rel) - (seat.plate ? PLATE_REACH : 0),
+                  short: line && seat.status === line.text ? (line.short ?? null) : null,
+                },
               })}
-            /* A narrow upright side column says "High 14" or "Trump…" where the line won't fit; a lit plate also keeps on screen (PID-450). */
+            /* Upright, a line laid out too wide for its column says "High 14" or "Trump…", and a lit plate keeps whole on screen (PID-450, PID-466). */
             {...(portrait &&
-              (rel === 'east' || rel === 'west') && {
-                status: fittedLine(
-                  seat.status ?? null,
-                  line,
-                  parts.status.fontSize,
-                  sideColumn - 2 * (seat.plate ? PLATE_REACH : PidroSpacing.xs)
-                ),
-                accessibilityLabel: avatarLabel({ ...spoken, ...(tight && { level: null }) }),
+              !(tight && rel === 'south') && {
+                fit: lineFit(seat.status ?? null, line, lineRoom(rel, !!seat.plate)),
               })}
           />
         );

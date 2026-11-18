@@ -48,7 +48,7 @@ import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
-import { choosingTrumpLine, teamLine, type SeatLine } from '@/features/game/seatLine';
+import { choosingTrumpLine, playsLine, teamLine, type SeatLine } from '@/features/game/seatLine';
 import { Scoreboard } from './Scoreboard';
 import type { TickerRestingLine } from './ActionTicker';
 import { buildHandLog } from '@/game/handLog';
@@ -207,7 +207,7 @@ function statusText(
     case 'second_deal':
       return now(t('game.picking'));
     case 'playing':
-      if (playedCard) return { text: t('game.plays', { card: cardLabel(playedCard) }) };
+      if (playedCard) return playsLine(cardLabel(playedCard));
       // The others are out of trumps: what is left is this player's.
       if (state?.pace !== 'own' && loneTrumpHolder(state?.players) === absolutePosition) {
         return { text: t('game.takes_rest'), short: t('game.all_yours'), tone: 'now' };

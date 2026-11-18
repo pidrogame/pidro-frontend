@@ -133,6 +133,11 @@ PID-214 bid presentation uses `/table-dev?phase=bidding&role=player&bids=round|h
 `table-bid-*` and `locale-sv-table-bid-*` check every seat's visible/spoken bid,
 the high-bid tone and compact south status without changing bid event identities.
 
+Suits in the seats' lines (PID-466) use
+`/table-dev?phase=playing&role=player&trick=suits&led=north|east|south|west&locale=en|sv`:
+A♣, K♠, 4♦ and 10♥ are played round the table from `led`, each line's suit on a white
+tile. `&turn=north|east|west` puts that seat on its lit plate with its line.
+
 Flaky connections use `/table-dev?phase=playing&fixture=flaky-offline&locale=en|sv`.
 Replace `offline` with `auto-card`, `auto-pass`, `auto-bid` or `late-card` for the
 quiet notices, or `spectator&role=spectator` for all four hands of card backs.

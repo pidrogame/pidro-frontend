@@ -162,6 +162,17 @@ const LABEL_ADVANCE = 0.5;
 export const textFits = (text: string, fontSize: number, room: number) =>
   text.length * LABEL_ADVANCE * fontSize <= room;
 
+/** Where a status line may give way: the room it has, and what it says instead. */
+export type StatusFit = { room: number; short: string | null };
+
+/**
+ * The status a label shows (PID-466): its line where the device laid it out
+ * `width` wide within `fit.room`, else `fit.short`. Measured, never estimated,
+ * so it holds in whatever face the phone sets the words in.
+ */
+export const fitStatus = (status: string | null, fit: StatusFit | undefined, width: number) =>
+  !fit || width <= fit.room ? status : fit.short;
+
 /**
  * A name too long for `room` at the large type drops one step, to the phone
  * type, before it truncates. The phone type is the floor: it never drops.

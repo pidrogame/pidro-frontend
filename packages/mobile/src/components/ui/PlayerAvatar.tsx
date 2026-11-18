@@ -4,6 +4,7 @@ import {
   Image,
   Platform,
   StyleSheet,
+  useWindowDimensions,
   View,
   type ImageSourcePropType,
   type StyleProp,
@@ -21,6 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { DealerChip } from '@/components/game/DealerChip';
+import { withSuits } from '@/components/game/SuitTile';
 import { Avatar } from '@/components/ui/Avatar';
 import { BotPersonaFace } from '@/components/ui/BotPersonaFace';
 import { gradientBg } from '@/components/ui/Bevel';
@@ -33,10 +35,12 @@ import {
   avatarLabel,
   avatarParts,
   chipFor,
+  fitStatus,
   nameType,
   type AvatarAway,
   type AvatarKind,
   type AvatarPin,
+  type StatusFit,
 } from '@/features/avatar';
 import { roundGlow } from '@/features/roundGlow';
 import { botPortrait, type BotPersona, type BotProfile } from '@pidro/shared';
@@ -104,6 +108,11 @@ export interface PlayerAvatarProps {
   nameRoom?: number;
   status?: string | null;
   /**
+   * Where the status may give way to a short line (PID-466): laid out wider
+   * than `room`, it says `short` instead, and a plate keeps within `room`.
+   */
+  fit?: StatusFit;
+  /**
    * Names what the player just did (a bid). When it changes, the ring lights
    * up for a moment and the status swells once; reduced motion skips both.
    */
@@ -160,6 +169,7 @@ export function PlayerAvatar({
   name,
   nameRoom,
   status,
+  fit,
   pulse = null,
   label = 'below',
   seat = false,
@@ -199,6 +209,35 @@ export function PlayerAvatar({
           persona: crew,
         })
       : undefined);
+
+  // A line that may give way is laid out once unseen, at the reader's text size, then shown
+  // whole or short; the line decided last stays meanwhile, so the plate never empties.
+  const { fontScale } = useWindowDimensions();
+  const [laid, setLaid] = useState<{ text: string; scale: number; width: number } | null>(null);
+  const measuring =
+    !!fit &&
+    !!status &&
+    fit.short !== status &&
+    (laid?.text !== status || laid.scale !== fontScale);
+  const decided = measuring ? null : fitStatus(status ?? null, fit, laid?.width ?? 0);
+  const [lastLine, setLastLine] = useState(decided);
+  if (!measuring && decided !== lastLine) setLastLine(decided);
+  const line = measuring ? lastLine : decided;
+  // The suit's tile grows with the text, as far as the text may (PidroText's body cap).
+  const suitSize = parts.status.fontSize * Math.min(fontScale, name || kind === 'open' ? 1.8 : 1);
+  const statusType = [
+    styles.status,
+    parts.status,
+    {
+      color:
+        plate === 'turn'
+          ? PidroColors.turnPlateInk
+          : plate === 'out'
+            ? PidroColors.text
+            : STATUS_TONES[statusTone],
+    },
+    plate !== 'turn' && PidroBevel.feltLabelShadow,
+  ];
 
   const hasLabel = !!(name || status);
   const named = !!name || kind === 'open';
@@ -427,7 +466,12 @@ export function PlayerAvatar({
               : { alignItems: label === 'right' ? 'flex-start' : 'flex-end' },
           ]}>
           {/* Capped to the copy's width beside the avatar too, or a long name runs on unclipped. */}
-          <View style={below ? styles.copyBlock : styles.copyLine}>
+          <View
+            style={[
+              below ? styles.copyBlock : styles.copyLine,
+              // The plate reaches past the lines: kept within its room, it stays whole.
+              plate && fit && { maxWidth: fit.room },
+            ]}>
             {plate ? (
               <View
                 testID={testID ? `${testID}-plate` : undefined}
@@ -440,7 +484,13 @@ export function PlayerAvatar({
                 numberOfLines={1}
                 style={[
                   styles.name,
-                  nameType(parts.name, name, nameRoom, parts.smallName),
+                  // On a plate kept within its room, the name drops its type step for that room.
+                  nameType(
+                    parts.name,
+                    name,
+                    plate && fit ? Math.min(nameRoom ?? fit.room, fit.room) : nameRoom,
+                    parts.smallName
+                  ),
                   {
                     color:
                       kind === 'open'
@@ -462,21 +512,33 @@ export function PlayerAvatar({
               <PidroText
                 numberOfLines={1}
                 maxFontSizeMultiplier={named ? undefined : 1}
-                style={[
-                  styles.status,
-                  parts.status,
-                  {
-                    color:
-                      plate === 'turn'
-                        ? PidroColors.turnPlateInk
-                        : plate === 'out'
-                          ? PidroColors.text
-                          : STATUS_TONES[statusTone],
-                  },
-                  plate !== 'turn' && PidroBevel.feltLabelShadow,
-                ]}>
-                {status || ' '}
+                style={statusType}>
+                {line ? withSuits(line, suitSize) : ' '}
               </PidroText>
+              {measuring ? (
+                <View
+                  key={`${status}:${fontScale}`}
+                  pointerEvents="none"
+                  aria-hidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={styles.measure}>
+                  <View style={styles.measureRoom}>
+                    <PidroText
+                      numberOfLines={1}
+                      maxFontSizeMultiplier={named ? undefined : 1}
+                      style={statusType}
+                      onLayout={(e) =>
+                        setLaid({
+                          text: status,
+                          scale: fontScale,
+                          width: e.nativeEvent.layout.width,
+                        })
+                      }>
+                      {withSuits(status, suitSize)}
+                    </PidroText>
+                  </View>
+                </View>
+              ) : null}
             </RNAnimated.View>
           </View>
         </View>
@@ -1206,5 +1268,17 @@ const styles = StyleSheet.create({
   status: {
     fontFamily: PidroFonts.ui,
     fontWeight: '700',
+  },
+  // Out of sight and of the layout: the line laid out at its own width, unclipped by the seat.
+  measure: {
+    position: 'absolute',
+    width: 0,
+    height: 0,
+    overflow: 'hidden',
+  },
+  measureRoom: {
+    position: 'absolute',
+    width: 4096,
+    alignItems: 'flex-start',
   },
 });
