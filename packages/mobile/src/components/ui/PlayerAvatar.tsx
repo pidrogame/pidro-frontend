@@ -447,7 +447,9 @@ export function PlayerAvatar({
                         ? PidroColors.cyanText
                         : (plate === 'turn' ? NAME_ON_PLATE : NAME_TONES)[nameTone],
                   },
-                  plate === 'turn' && styles.onPlate,
+                  // Dark ink on the lit plate takes no shadow. Applied, not cleared: web drops a
+                  // zero-offset, zero-radius shadow, so it cannot override one set earlier.
+                  plate !== 'turn' && PidroBevel.feltLabelShadow,
                   away ? styles.awayName : null,
                 ]}>
                 {name || (kind === 'open' ? t('ui.openSeat') : '')}
@@ -471,7 +473,7 @@ export function PlayerAvatar({
                           ? PidroColors.text
                           : STATUS_TONES[statusTone],
                   },
-                  plate === 'turn' && styles.onPlate,
+                  plate !== 'turn' && PidroBevel.feltLabelShadow,
                 ]}>
                 {status || ' '}
               </PidroText>
@@ -1187,7 +1189,6 @@ const styles = StyleSheet.create({
   name: {
     fontFamily: PidroFonts.ui,
     fontWeight: '800',
-    ...PidroBevel.feltLabelShadow,
   },
   awayName: {
     opacity: 0.7,
@@ -1202,13 +1203,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
   },
-  onPlate: {
-    textShadowColor: 'transparent',
-    textShadowRadius: 0,
-  },
   status: {
     fontFamily: PidroFonts.ui,
     fontWeight: '700',
-    ...PidroBevel.feltLabelShadow,
   },
 });

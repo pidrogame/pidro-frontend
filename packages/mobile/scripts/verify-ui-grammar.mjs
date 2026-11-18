@@ -6765,27 +6765,45 @@ async function assertTeams(page, testCase) {
   const onPlate = {};
   for (const position of ['north', 'east', 'south', 'west']) {
     const seat = page.getByTestId(`seat-${position}`).first();
-    const { names, lights, lit } = await seat.evaluate((root) => {
+    const { names, nameShadows, plateInk, lights, lit } = await seat.evaluate((root) => {
       const nodes = [...root.querySelectorAll('*')];
       const team = /(146, 230, 178|255, 180, 185|184, 198, 255)/;
-      return {
-        names: nodes
+      const texts = (from) =>
+        [...from.querySelectorAll('*')]
           .filter((n) => n.childElementCount === 0 && n.textContent.trim())
-          .map((n) => getComputedStyle(n))
-          .filter((style) => style.fontWeight === '900')
-          .map((style) => style.color),
+          .map((n) => getComputedStyle(n));
+      const nameStyles = texts(root).filter((style) => style.fontWeight === '900');
+      const plate = nodes.find((n) => getComputedStyle(n).backgroundColor === 'rgb(201, 247, 255)');
+      return {
+        names: nameStyles.map((style) => style.color),
+        nameShadows: nameStyles.map((style) => style.textShadow),
+        plateInk: plate ? texts(plate.parentElement).map((style) => style.textShadow) : [],
         lights: nodes
           .map((n) => getComputedStyle(n))
           .filter((style) => team.test(`${style.backgroundColor} ${style.boxShadow}`)).length,
         // PID-450: the seat on turn carries its name on the lit plate.
-        lit: nodes.some((n) => getComputedStyle(n).backgroundColor === 'rgb(201, 247, 255)'),
+        lit: Boolean(plate),
       };
     });
     assert.equal(lights, 0, `${testCase.name}: seat-${position} has a team light`);
     assert.equal(names.length, 1, `${testCase.name}: seat-${position} has one name`);
+    // Dark ink on the lit plate has no shadow; light text on the felt keeps one.
+    if (lit)
+      assert.deepEqual(
+        [...new Set(plateInk)],
+        ['none'],
+        `${testCase.name}: seat-${position}'s lit plate has no text shadow`
+      );
+    else
+      assert.notEqual(
+        nameShadows[0],
+        'none',
+        `${testCase.name}: seat-${position}'s name is shadowed`
+      );
     seen[position] = names[0];
     onPlate[position] = lit;
   }
+  assert.ok(Object.values(onPlate).some(Boolean), `${testCase.name}: a seat is on its lit plate`);
   // You sit south; a spectator's south is N/S too. Both fixtures watch from the
   // south, so this pins the N/S rule for a spectator, not an east/west viewer.
   // On the lit plate the name keeps its team in the tone that reads on cyan.
