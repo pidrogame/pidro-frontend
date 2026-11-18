@@ -431,6 +431,7 @@ export default function GameCanvasDev({
     reply,
     sweep,
     autoplay,
+    killed,
     transition,
     menu,
     solo,
@@ -449,6 +450,7 @@ export default function GameCanvasDev({
     reply?: string;
     sweep?: RelativePosition;
     autoplay?: string;
+    killed?: string;
     transition?: string;
     menu?: string;
     solo?: string;
@@ -699,6 +701,12 @@ export default function GameCanvasDev({
                   ).length
                 : 0)
             : null,
+        // `killed=on` (PID-475): a trump you killed over six lies face up on your pile
+        // until the first card of the hand is on the table.
+        killedCards:
+          killed === 'on' && !trick.length && tricks.length === earlier.length
+            ? { south: [{ suit: 'spades', rank: 13 }] }
+            : null,
         // `count=on`: "Count for me": the log, the points as tricks are
         // taken, and the card winning the trick, as at the real table.
         countHelp: count === 'on',
@@ -720,6 +728,7 @@ export default function GameCanvasDev({
       viewer,
       motionFixture,
       earlier,
+      killed,
     ]
   );
   const presentation = usePlayPresentation(serverModel, onPlayCard, transitionTimer);

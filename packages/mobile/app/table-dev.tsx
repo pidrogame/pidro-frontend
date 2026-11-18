@@ -750,11 +750,17 @@ const DRAW_YOU_POOL: Card[] = [
   { rank: 7, suit: 'diamonds' },
 ];
 const DRAW_YOU_KEEP: Card[] = DRAW_YOU_POOL.slice(0, 5).concat([{ rank: 12, suit: 'clubs' }]);
-/** `kill=1`: East keeps seven trumps and kills the queen over six, face up for everyone. */
-const DRAW_COUNTS_KILL = { ...DRAW_COUNTS, east: { kept: 7, drawn: 0 } } as const;
+/**
+ * `kill=1`: East keeps seven trumps and kills the queen over six, face up for
+ * everyone; `kill=north` North does, and leads onto it (PID-475).
+ */
+const DRAW_COUNTS_KILL = {
+  east: { ...DRAW_COUNTS, east: { kept: 7, drawn: 0 } },
+  north: { ...DRAW_COUNTS, north: { kept: 7, drawn: 0 } },
+} as const;
 /** `nine=1`: East held no trumps, throws all nine and draws six (PID-452). */
 const DRAW_COUNTS_NINE = { ...DRAW_COUNTS, east: { kept: 0, drawn: 6 } } as const;
-const DRAW_KILLED = { east: [spade(12)] };
+const DRAW_KILLED = { east: { east: [spade(12)] }, north: { north: [spade(12)] } };
 const DRAW_FIRST_TRICK = [
   { player: 'north', card: spade(13) },
   { player: 'east', card: spade(9) },
@@ -1051,7 +1057,7 @@ function TableDevHarness() {
             held={params.hand === 'still' || params.hand === 'fan' ? params.hand : 'tilt'}
             youDeal={params.you === 'deal'}
             dealer={params.dealer === 'north' || params.dealer === 'east' ? params.dealer : 'west'}
-            kill={params.kill === '1'}
+            kill={params.kill === '1' ? 'east' : params.kill === 'north' ? 'north' : null}
             nine={params.nine === '1'}
             countHelp={params.count === 'on'}
           />
@@ -2209,7 +2215,7 @@ function RolePreview({
  * play (the second deal and the dealer's pick done), and play waits for the
  * table to play the second deal out. Then it deals again. West deals;
  * `dealer=north|east` another seat (PID-394), `you=deal` you. `kill=1` has
- * East kill a trump over six, `nine=1` throw all nine (PID-452); `count=on`
+ * East kill a trump over six (`kill=north` North, who leads onto it), `nine=1` throw all nine (PID-452); `count=on`
  * shows what each drew. Every throw is counted, the
  * dealer's once play starts (PID-306). Tune opens the second deal's timings; the link takes them too
  * (`holdMs=3000&cardMs=230`…).
@@ -2227,7 +2233,7 @@ function DrawCountPreview({
   held: HeldStyle;
   youDeal: boolean;
   dealer: 'north' | 'east' | 'west';
-  kill: boolean;
+  kill: 'east' | 'north' | null;
   nine: boolean;
   countHelp: boolean;
 }) {
@@ -2236,7 +2242,7 @@ function DrawCountPreview({
   const counts = youDeal
     ? DRAW_COUNTS_YOU_DEAL
     : kill
-      ? DRAW_COUNTS_KILL
+      ? DRAW_COUNTS_KILL[kill]
       : nine
         ? DRAW_COUNTS_NINE
         : DRAW_COUNTS;
@@ -2297,7 +2303,7 @@ function DrawCountPreview({
       tricks: [],
       current_trick: [],
       trump: 'spades',
-      ...(kill && { killed_cards: DRAW_KILLED }),
+      ...(kill && { killed_cards: DRAW_KILLED[kill] }),
     };
     const yours = youDeal ? DRAW_YOU_KEEP : DRAW_REFILLED;
     const ready = { north: 6, east: 6, south: yours, west: 6 };

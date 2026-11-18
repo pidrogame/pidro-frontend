@@ -8,7 +8,7 @@
  * Only player identities handle presses; card backs leave gestures to the canvas.
  * Skia-free (only the pure layout module), safe to import anywhere.
  */
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import Animated, {
   Easing,
   FadeOut,
@@ -67,8 +67,6 @@ import {
   northFanWidth,
   handRight,
   sideStackStep,
-  pileCardW,
-  pileSpot,
   throwPile,
   seatNameGap,
   sideBackWidth,
@@ -188,8 +186,6 @@ type Props = {
   pack?: number;
   /** The second deal playing out: the pack, what each seat threw. */
   secondDeal?: SecondDealShow;
-  /** Killed trumps, face up in front of the seat that killed them (PID-306). */
-  killed?: Partial<Record<RelativePosition, Card[]>>;
   /** With count help: what each seat drew, on the corner of its hand (PID-452). */
   drew?: Partial<Record<RelativePosition, number>>;
   /** How every hand holds its cards. */
@@ -224,7 +220,6 @@ export function SeatLayer({
   levels = true,
   pack: packCount = 0,
   secondDeal,
-  killed,
   drew,
   held = HELD_STYLE,
   bid,
@@ -580,8 +575,7 @@ export function SeatLayer({
       {REL.map((rel) => {
         const folded = seats[rel]?.foldedCount ?? 0;
         const thrown = secondDeal?.thrown[rel] ?? folded;
-        const kills = killed?.[rel] ?? [];
-        if (!seats[rel] || (thrown === 0 && kills.length === 0)) return null;
+        if (!seats[rel] || thrown === 0) return null;
         const foldingHand = !secondDeal && folded > 0;
         const throwing = foldingHand ? null : throwPile(L, rel, thrown);
         const backH = northBackWidth(L.cardW, compactNorth(L)) * (110 / 78);
@@ -625,52 +619,36 @@ export function SeatLayer({
           (rel === 'south' ? L.cardW * handScale(L.profile) : L.cardW * L.trick.pileScale) *
           PixelRatio.get();
         return (
-          <Fragment key={`thrown-${rel}`}>
-            {kills.length > 0 ? (
-              <ThrownPile
-                rel={rel}
-                testID={`killed-${rel}`}
-                count={kills.length}
-                faces={kills}
-                from={from}
-                at={(i) => pileSpot(L, rel, i, kills.length)}
-                cardW={pileCardW(L)}
-                square={!!L.front}
-                facePx={facePx}
-              />
-            ) : null}
-            {thrown > 0 ? (
-              <ThrownPile
-                rel={rel}
-                faces={foldingHand ? undefined : secondDeal?.faces?.[rel]}
-                facePx={facePx}
-                count={thrown}
-                folded={foldingHand}
-                animate={!foldingHand || folding.includes(rel)}
-                fromStep={
-                  rel === 'south'
-                    ? handStep(L, thrown)
+          <ThrownPile
+            key={`thrown-${rel}`}
+            rel={rel}
+            faces={foldingHand ? undefined : secondDeal?.faces?.[rel]}
+            facePx={facePx}
+            count={thrown}
+            folded={foldingHand}
+            animate={!foldingHand || folding.includes(rel)}
+            fromStep={
+              rel === 'south'
+                ? handStep(L, thrown)
+                : rel === 'north'
+                  ? northFanStep(L.cardW, thrown, compactNorth(L))
+                  : sideStackStep(L.cardW, thrown, sideReach)
+            }
+            from={from}
+            // Cold hands fold where they were held; only second-deal throws cross the felt.
+            at={throwing ? (i) => throwing.spots[i] : undefined}
+            square={!!L.front}
+            cardW={
+              throwing
+                ? throwing.w
+                : (rel === 'south'
+                    ? L.cardW * L.trick.pileScale
                     : rel === 'north'
-                      ? northFanStep(L.cardW, thrown, compactNorth(L))
-                      : sideStackStep(L.cardW, thrown, sideReach)
-                }
-                from={from}
-                // Cold hands fold where they were held; only second-deal throws cross the felt.
-                at={throwing ? (i) => throwing.spots[i] : undefined}
-                square={!!L.front}
-                cardW={
-                  throwing
-                    ? throwing.w
-                    : (rel === 'south'
-                        ? L.cardW * L.trick.pileScale
-                        : rel === 'north'
-                          ? northBackWidth(L.cardW, compactNorth(L))
-                          : // Narrower on landscape phones, to fit the stack's column.
-                            sideBackW * (L.front ? 0.85 : 1)) * 0.82
-                }
-              />
-            ) : null}
-          </Fragment>
+                      ? northBackWidth(L.cardW, compactNorth(L))
+                      : // Narrower on landscape phones, to fit the stack's column.
+                        sideBackW * (L.front ? 0.85 : 1)) * 0.82
+            }
+          />
         );
       })}
       {REL.map((rel) => {
@@ -1233,7 +1211,6 @@ function ThrownPile({
   fromStep = 0,
   faces,
   facePx = 0,
-  testID,
   square = false,
 }: {
   rel: RelativePosition;
@@ -1244,7 +1221,6 @@ function ThrownPile({
   faces?: Card[];
   /** The size in device px the canvas draws these faces at, for their art. */
   facePx?: number;
-  testID?: string;
   from: { x: number; y: number };
   at?: (i: number) => { x: number; y: number };
   cardW: number;
@@ -1259,7 +1235,7 @@ function ThrownPile({
   const sideways = rel === 'east' || rel === 'west';
   return (
     <Animated.View
-      testID={testID ?? (folded ? `seat-${rel}-folded` : `second-deal-thrown-${rel}`)}
+      testID={folded ? `seat-${rel}-folded` : `second-deal-thrown-${rel}`}
       accessibilityElementsHidden
       pointerEvents="none"
       exiting={folded ? undefined : FadeOut.duration(SECOND_DEAL_FLIGHT_MS)}

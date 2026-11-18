@@ -68,7 +68,7 @@ lies at the left end of your seat row, over your hand at the bottom edge (PID-46
 has its right end. West deals unless
 `dealer=north|east`; `you=deal` has you deal; `kill=1` has East keep seven trumps and kill the
 queen, face up in East's front row for everyone until the first card lands
-(`killed_cards`); `nine=1` has East throw all nine, spread so each back shows
+(`killed_cards`), and `kill=north` has North kill it and lead onto it (PID-475); `nine=1` has East throw all nine, spread so each back shows
 a third, and `count=on` puts what each drew by their hand until the first card
 (PID-452); `hand=still|tilt|fan` tries how hands hold their
 cards. **Tune** opens live timings (each change replays); the link takes the
@@ -545,6 +545,10 @@ shows first where it was sent and is seen in flight, its seat keeps its back unt
 your card lies over your pile through the state, and no hand card darkens as the hand closes up.
 `table-play-unpressed` (PID-473) lets the loop play your card with no press, as the table
 does for you, under the same late draw: your card lies over your earlier one in every frame.
+`killed=on` (PID-475) puts a trump you killed over six face up on your pile until the
+hand's first card is on the table: `table-play-onto-killed` taps your card onto it, and
+`table-draw-kill-north` (`deal=draw&kill=north`) has North lead onto North's; in every frame
+the played card lies over the killed one.
 `reply=burst` puts opponent updates 80 ms apart;
 the left-card grammar case uses it to catch lights advancing during overlapping flights.
 `transition=0|80|1500|3000` varies the snapshot's hold;

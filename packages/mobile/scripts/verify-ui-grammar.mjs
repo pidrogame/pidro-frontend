@@ -1460,6 +1460,22 @@ const allCases = [
     arrivals: 'backs',
     lastBy: 'west',
   })),
+  // PID-475: the hand's first card lands over a trump killed onto its pile:
+  // yours, tapped, with the state as it lands, and North's, leading.
+  ...['landing', 'fast'].map((reply) => ({
+    name: `table-play-onto-killed${reply === 'fast' ? '-fast' : ''}`,
+    path: `/table-dev?fixture=play-motion&autoplay=false&reply=${reply}&killed=on`,
+    testId: 'seat-north',
+    drawLag: 250,
+    ontoKilled: 'south',
+  })),
+  {
+    name: 'table-draw-kill-north',
+    path: '/table-dev?deal=draw&kill=north&holdMs=100&dealerHoldMs=100&cardMs=10',
+    testId: 'seat-north',
+    drawLag: 250,
+    ontoKilled: 'north',
+  },
   // PID-476: after a lay-down the laid cards leave the table with the piles,
   // under Classic's points (count help off) and as the result opens (on).
   ...['', '&count=on'].map((count) => ({
@@ -6125,6 +6141,97 @@ async function assertBacksHold(page, rel) {
 }
 
 /**
+ * PID-475: the hand's first card, `rel`'s, comes onto the trump that seat
+ * killed over six: in every frame it lies over the killed card, which shows
+ * under it as it arrives, a picture beside the canvas or a card of it.
+ */
+async function assertOntoKilled(page, rel) {
+  await page.waitForFunction(
+    (seat) =>
+      document.querySelector(`[data-testid="killed-${seat}"] [data-testid="thrown-face"]`) ||
+      (window.__pidroCardMotion?.() ?? []).some((s) => s.key.startsWith(`killed-0-0-${seat}-`)),
+    rel,
+    { timeout: 30_000 }
+  );
+  await page.waitForTimeout(800);
+  await page.evaluate((seat) => {
+    const frames = [];
+    const t0 = performance.now();
+    const sample = () => {
+      const pictures = [
+        ...document.querySelectorAll(`[data-testid="killed-${seat}"] [data-testid="thrown-face"]`),
+      ].map((img) => {
+        let opacity = 1;
+        for (let node = img; node; node = node.parentElement)
+          opacity *= Number(getComputedStyle(node).opacity);
+        const r = img.getBoundingClientRect();
+        return { x: r.x, y: r.y, width: r.width, height: r.height, opacity };
+      });
+      frames.push({
+        pictures,
+        drawn: [...(globalThis.__pidroDrawn ?? [])],
+        sprites: window.__pidroCardMotion?.() ?? [],
+      });
+      if (performance.now() - t0 < 3000) requestAnimationFrame(sample);
+      else window.__pidroOntoKilled = frames;
+    };
+    requestAnimationFrame(sample);
+  }, rel);
+  if (rel === 'south') {
+    const before = JSON.parse(
+      await page.getByTestId('play-presentation').getAttribute('aria-label')
+    );
+    const card = before.hand[3];
+    await page.mouse.click(card.x - card.w / 2 + 10, card.y);
+  }
+  await page.waitForFunction(() => window.__pidroOntoKilled, null, { timeout: 15_000 });
+  const frames = await page.evaluate(() => window.__pidroOntoKilled);
+  const box = (s) => {
+    const c = Math.abs(Math.cos(s.rotation));
+    const n = Math.abs(Math.sin(s.rotation));
+    const width = (s.width * c + s.height * n) * s.renderedScale;
+    const height = (s.width * n + s.height * c) * s.renderedScale;
+    return { x: s.x - width / 2, y: s.y - height / 2, width, height };
+  };
+  const seen = (f, s) => f.drawn.includes(s.key) && s.shown !== false && s.opacity > 0.02;
+  // The seat's card in flight: a played card, not a killed one, that was not on the table before.
+  const played = (f) =>
+    f.sprites.find(
+      (s) =>
+        s.kind === 'played' &&
+        !s.key.startsWith('killed-') &&
+        (s.key.includes(`-${rel}-`) || (rel === 'south' && !s.key.startsWith('trick-'))) &&
+        // Yours keeps its hand's sprite as the state re-keys it: drawn throughout.
+        (rel === 'south' ? s.shown !== false : seen(f, s)) &&
+        s.opacity > 0.5
+    );
+  let under = 0;
+  let flying = 0;
+  for (const f of frames) {
+    const card = played(f);
+    if (!card) continue;
+    flying++;
+    const at = box(card);
+    let covered = false;
+    for (const picture of f.pictures.filter((p) => p.opacity > 0.02 && overlaps(p, at))) {
+      assert.fail(
+        `the killed card beside the canvas lay over ${card.key} (opacity ${picture.opacity.toFixed(2)})`
+      );
+    }
+    for (const killed of f.sprites.filter(
+      (s) => s.key.startsWith(`killed-0-0-${rel}-`) && seen(f, s) && overlaps(box(s), at)
+    )) {
+      assert.ok(card.drawZ > killed.drawZ, `${killed.key} lay over ${card.key}`);
+      covered = true;
+    }
+    if (covered) under++;
+  }
+  assert.ok(flying >= 10, `${rel}'s card showed in only ${flying} frames`);
+  assert.ok(under >= 3, `${rel}'s card came over its killed card in only ${under} frames`);
+  console.log(`onto killed: ${rel}'s card over its killed card in ${under} of ${flying} frames`);
+}
+
+/**
  * PID-476: once the hand's result is up, the laid cards show exactly as much
  * as the other cards on the table in every frame, and both are gone at the end.
  */
@@ -7855,7 +7962,21 @@ async function assertTwoRows(page, testCase, viewport) {
   for (const rel of thrown) {
     await page.getByTestId(`second-deal-thrown-${rel}`).waitFor({ timeout: 20_000 });
   }
-  for (const rel of killed) await page.getByTestId(`killed-${rel}`).waitFor({ timeout: 20_000 });
+  // Killed trumps are the canvas's cards (PID-475), under every card played onto them.
+  const killedOf = (rel) =>
+    page.evaluate(
+      (seat) =>
+        (window.__pidroCardMotion?.() ?? []).filter((s) => s.key.startsWith(`killed-0-0-${seat}-`))
+          .length,
+      rel
+    );
+  for (const rel of killed)
+    await page.waitForFunction(
+      (seat) =>
+        (window.__pidroCardMotion?.() ?? []).some((s) => s.key.startsWith(`killed-0-0-${seat}-`)),
+      rel,
+      { timeout: 20_000 }
+    );
   // The last throw lands.
   if (thrown.length || killed.length) await page.waitForTimeout(700);
   for (const rel of thrown) {
@@ -7866,8 +7987,7 @@ async function assertTwoRows(page, testCase, viewport) {
     assert.equal(shown, faces[rel] ?? 0, `${testCase.name}: ${rel}'s pile shows ${shown} faces`);
   }
   for (const rel of killed) {
-    const shown = await page.getByTestId(`killed-${rel}`).getByTestId('thrown-face').count();
-    assert.ok(shown > 0, `${testCase.name}: ${rel}'s killed trumps lie face up`);
+    assert.ok((await killedOf(rel)) > 0, `${testCase.name}: ${rel}'s killed trumps lie face up`);
   }
   await page.getByTestId(`rendered-played-card-count-${played}`).waitFor({ timeout: 20_000 });
   if (played) await page.waitForTimeout(600);
@@ -7901,7 +8021,6 @@ async function assertTwoRows(page, testCase, viewport) {
     }
     const front = [
       ...(await images(`second-deal-thrown-${rel}`)),
-      ...(await images(`killed-${rel}`)),
       ...sprites.filter((s) => s.kind === 'played' && s.key.split('-')[3] === rel).map(spriteBox),
     ];
     if (front.length) {
@@ -11431,6 +11550,7 @@ async function main() {
           }
           if (testCase.trickStays) await assertTrickStays(page);
           if (testCase.laidClears) await assertLaidClears(page);
+          if (testCase.ontoKilled) await assertOntoKilled(page, testCase.ontoKilled);
           if (testCase.overPile) await assertPlayOverPile(page);
           if (testCase.arrivals === 'backs') await assertBacksHold(page, testCase.lastBy);
           else if (testCase.arrivals === 'unpressed') await assertUnpressedOverPile(page);
