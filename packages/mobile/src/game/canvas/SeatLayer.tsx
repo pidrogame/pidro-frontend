@@ -358,10 +358,7 @@ export function SeatLayer({
     L.profile === 'tablet-portrait'
       ? Math.max(
           L.sides.cy,
-          Math.min(
-            sideSeatPos.top + stackedSeat + PidroSpacing.sm,
-            Math.max(stacks.top, handTop - 12 - sideReach)
-          ) +
+          Math.min(sideSeatPos.top + stackedSeat + PidroSpacing.sm, stacks.lowestTop) +
             sideReach / 2
         )
       : L.sides.cy;

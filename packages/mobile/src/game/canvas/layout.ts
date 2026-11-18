@@ -207,8 +207,13 @@ export function packSpot(L: TableLayout, dealer: RelativePosition) {
   // Standing above your hand, short of a lifted card.
   const aboveHand =
     L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L) - TRICK_GAP - h / 2;
-  if (L.profile === 'tablet-landscape')
-    return { x: handLeft(L, FULL_HAND) + w / 2, y: aboveHand, sideways: false };
+  // Landscape tablets: past West's column of thrown backs too (PID-453).
+  if (L.profile === 'tablet-landscape') {
+    const westThrow =
+      sideStackInner(L.cardW, L.insets.left) + TRICK_GAP + pileCardW(L) * CARD_RATIO;
+    const x = Math.max(handLeft(L, FULL_HAND), westThrow + TRICK_GAP) + w / 2;
+    return { x, y: aboveHand, sideways: false };
+  }
   if (!portrait) {
     const x = Math.min(L.hand.cx + L.hand.maxWidth / 2 + 8 + w / 2, L.width - w / 2 - 12);
     const y = Math.min(L.hand.cy, L.bottom - h / 2 - 4);
@@ -316,10 +321,10 @@ export function sideStackStep(cardW: number, n: number, reach = sideStackReach(c
 }
 /**
  * Where North's backs start. Portrait hangs them under the header row;
- * landscape tablets tuck them partly above the table, under the floating
- * scores; landscape phones keep them whole along the top edge, to be counted,
- * and only on the shortest tables lift them past it, TRICK_GAP above North's
- * played card.
+ * landscape tablets tuck half of each above the table, under the floating
+ * scores, however large the cards (PID-453); landscape phones keep them whole
+ * along the top edge, to be counted, and only on the shortest tables lift
+ * them past it, TRICK_GAP above North's played card.
  */
 export const northFanTop = (L: TableLayout, tableTop: number) =>
   L.profile.endsWith('portrait')
@@ -329,7 +334,7 @@ export const northFanTop = (L: TableLayout, tableTop: number) =>
           tableTop + ROW_EDGE,
           L.front.north.y - L.cardH / 2 - TRICK_GAP - sideBackWidth(L.cardW) * CARD_RATIO
         )
-      : tableTop - L.cardH * 0.36;
+      : tableTop - (northBackWidth(L.cardW) * CARD_RATIO) / 2;
 /** Landscape phones: between a hand row and the screen edge. */
 const ROW_EDGE = 4;
 /**
@@ -375,8 +380,9 @@ export function sideStacks(L: TableLayout) {
   // under their seats; landscape tablet seats keep to the trick's line and
   // only their stacks drop (LANDSCAPE_SIDE_DROP).
   const top = (L.profile.endsWith('portrait') || L.front ? L.sides.cy : L.trick.cy) - maxHeight / 2;
-  const handTop = L.hand.cy - L.cardH / 2;
-  return { backW, maxHeight, top, lowestTop: Math.max(top, handTop - 12 - maxHeight) };
+  // As low as ends TRICK_GAP above a lifted card of yours, its tilt included (PID-453).
+  const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
+  return { backW, maxHeight, top, lowestTop: Math.max(top, lifted - TRICK_GAP - maxHeight) };
 }
 
 /**
@@ -955,14 +961,12 @@ export function throwSpread(n: number, room: number, cardW: number) {
  * and where each lies, spread to be counted. Upright phones lay East's and
  * West's down a column beside their stack, from under the seat to above your
  * hand, and North's and yours in a row between those columns. Landscape
- * phones keep Classic's cross; tablets lay them as `pileSpot`.
+ * phones keep Classic's cross. Tablets lay them as upright phones do: their
+ * larger cards leave `pileSpot`'s spread no room to count them (PID-453).
  */
 export function throwPile(L: TableLayout, rel: RelativePosition, n: number) {
   const cardW = pileCardW(L);
   const sideways = rel === 'east' || rel === 'west';
-  const upright = L.profile === 'phone-portrait';
-  if (!upright && !L.front)
-    return { w: cardW, spots: Array.from({ length: n }, (_, i) => pileSpot(L, rel, i, n)) };
   const column = (top: number, bottom: number, y: number, reversed: boolean) => {
     const { w, step } = throwSpread(n, bottom - top, cardW);
     const span = w + (n - 1) * step;
@@ -987,8 +991,15 @@ export function throwPile(L: TableLayout, rel: RelativePosition, n: number) {
   // A side column's outer edge, TRICK_GAP in from its stack.
   const outer = (edge: number) => sideStackInner(L.cardW, edge) + TRICK_GAP;
   if (sideways) {
-    // TRICK_GAP / 2 under its seat, and above a lifted card of yours.
-    const top = L.trick.cy - (L.cardW * L.trick.pileScale) / 2 - TRICK_GAP / 2;
+    // TRICK_GAP / 2 under its seat, and above a lifted card of yours. iPads
+    // upright seat East and West higher, over their stacks: under that seat.
+    const seat = NORTH_SEAT_STACK.tablet;
+    const top =
+      L.profile === 'tablet-portrait'
+        ? sideSeatTop(L, { tableTop: L.top, seatHeight: seat, headerBottom: 0 }) +
+          seat +
+          TRICK_GAP / 2
+        : L.trick.cy - (L.cardW * L.trick.pileScale) / 2 - TRICK_GAP / 2;
     const bottom = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5) - TRICK_GAP / 2;
     const { w, ys } = column(top, bottom, L.trick.cy, false);
     const x =
@@ -1073,9 +1084,21 @@ export function pickProfile(w: number, h: number): Profile {
  * which the table runs out of first; never smaller than before.
  */
 export function cardSize(width: number, height: number): number {
-  if (pickProfile(width, height) === 'phone-portrait')
+  const profile = pickProfile(width, height);
+  if (profile === 'phone-portrait')
     return clamp(Math.max(width * 0.13, Math.min(width * 0.16, height * 0.09)), 54, 104);
-  return clamp(Math.min(width, height) * 0.13, 54, 104); // CSS clamp(), in JS
+  const before = clamp(Math.min(width, height) * 0.13, 54, 104); // CSS clamp(), in JS
+  if (profile === 'phone-landscape') return before;
+  // Tablets (PID-453): 3/16 of the shorter side, up to 150pt, never smaller
+  // than before. The height holds the seats and chrome above and below the
+  // table (upright the header, North's seat and yours: 563pt, on its side
+  // 210pt, an Android tablet's status and button bars included) and about
+  // four cards' widths more: your hand and the trick at its least.
+  const chrome = profile === 'tablet-portrait' ? 563 : 210;
+  return Math.max(
+    before,
+    Math.min(Math.min(width, height) * 0.1875, 150, (height - chrome) / 4.15)
+  );
 }
 
 export function computeLayout(
@@ -1126,8 +1149,7 @@ export function computeLayout(
   const tight =
     portrait && !tabletPortrait && fitR(roomy.band, COMPACT_PILE_SCALE) - lift < MIN_COMFORT_R;
   const { handY: portraitHandY, northBottom, band } = portraitBand(tight);
-  const usualPile = profile === 'phone-portrait' ? PHONE_PILE_SCALE : PILE_SCALE;
-  const compact = portrait && fitR(band, usualPile) - lift < usualR;
+  const compact = profile === 'phone-portrait' && fitR(band, PHONE_PILE_SCALE) - lift < usualR;
   const handH = cardH * handScale(profile);
   // Landscape phones lay the table out as Classic does, one card size
   // (PID-305, PID-307): each hand along its edge, and the played cards on a
@@ -1165,34 +1187,48 @@ export function computeLayout(
     : twoRows
       ? Math.max(tableBottom - ROW_EDGE - cardH / 2, handTop - rise + cardH / 2)
       : tableBottom - handH / 2 - cardH * 0.11;
-  const trickCy = portrait ? northBottom + band / 2 : twoRows ? crossY - rise : height * 0.49;
-  // Landscape: your played card lands above the hand. Short phones shrink the
-  // circle and its cards until it does.
-  const landscapeR = (scale: number) => handY - handH / 2 - 8 - (cardH * scale) / 2 - trickCy;
-  const shortLandscape = !portrait && !twoRows && landscapeR(LANDSCAPE_PILE_SCALE) < usualR;
+  // Tablets (PID-453): the trick sits between North's row and a lifted card
+  // of yours, 8pt clear of each. Its played cards are as large as keeps them
+  // TRICK_GAP from the trump mark, between COMPACT_PILE_SCALE and their usual
+  // scale, and the circle opens as far as that needs. A window too short for
+  // even that (Split View) keeps your hand clear before the mark.
+  const tablet = profile.startsWith('tablet');
+  const tabletBand = {
+    top: portrait ? northBottom : tableTop + 8 + AVATAR_SIZE[profile] + LEVEL_HANG,
+    bottom: handY - handH / 2 - Math.min(16, cardH * 0.14),
+  };
+  const tabletHalf = (tabletBand.bottom - tabletBand.top) / 2 - 8;
+  const markClear = (cardW * TRUMP_MARK) / 2 + TRICK_GAP;
+  const tabletPlayed = clamp(
+    tabletHalf - markClear,
+    cardH * COMPACT_PILE_SCALE,
+    cardH * (portrait ? PILE_SCALE : LANDSCAPE_PILE_SCALE)
+  );
+  const trickCy = tablet
+    ? (tabletBand.top + tabletBand.bottom) / 2
+    : portrait
+      ? northBottom + band / 2
+      : crossY - rise;
   // Upright phones close the circle in before their played cards shrink, and
   // shrink them only to keep TRICK_GAP from the trump mark, as landscape does.
-  const pileScale = portrait
-    ? profile === 'phone-portrait'
+  const pileScale = tablet
+    ? tabletPlayed / cardH
+    : portrait
       ? clamp(
           (band / 2 - 8 - lift - (cardW * TRUMP_MARK) / 2 - TRICK_GAP) / cardH,
           COMPACT_PILE_SCALE,
           PHONE_PILE_SCALE
         )
-      : compact
-        ? COMPACT_PILE_SCALE
-        : PILE_SCALE
-    : twoRows
-      ? 1
-      : shortLandscape
-        ? COMPACT_PILE_SCALE
-        : LANDSCAPE_PILE_SCALE;
-  const trickR = compact
-    ? Math.max(32, Math.min(usualR, fitR(band, pileScale) - lift))
-    : twoRows
-      ? reach
-      : shortLandscape
-        ? Math.max(32, Math.min(usualR, landscapeR(pileScale)))
+      : 1;
+  const trickR = tablet
+    ? Math.max(
+        32,
+        Math.min(Math.max(usualR, tabletPlayed / 2 + markClear), tabletHalf - tabletPlayed / 2)
+      )
+    : compact
+      ? Math.max(32, Math.min(usualR, fitR(band, pileScale) - lift))
+      : twoRows
+        ? reach
         : usualR;
 
   // Upright phones lay East's and West's played cards out past the circle
@@ -1218,13 +1254,10 @@ export function computeLayout(
 
   const northY = tableTop + cardH * (portrait ? 0.48 : 0.22) + 10;
   // iPads upright drop the side line only as far as a full stack still ends
-  // above your hand (`sideStacks().lowestTop`).
+  // TRICK_GAP above a lifted card of yours: a full hand reaches under it (PID-453).
+  const stackBottom = handY - cardH / 2 - Math.min(16, cardH * 0.14) - held - TRICK_GAP;
   const portraitDrop = tabletPortrait
-    ? clamp(
-        handY - cardH / 2 - 12 - sideStackReach(cardW) / 2 - trickCy,
-        0,
-        cardH * PORTRAIT_SIDE_DROP
-      )
+    ? clamp(stackBottom - sideStackReach(cardW) / 2 - trickCy, 0, cardH * PORTRAIT_SIDE_DROP)
     : 0;
   const sideCy = portrait ? trickCy + portraitDrop : trickCy + (twoRows ? 0 : LANDSCAPE_SIDE_DROP);
   // Upright phones (PID-393): East and West come down toward the trick's
@@ -1238,7 +1271,6 @@ export function computeLayout(
   const upright = profile === 'phone-portrait';
   const sideSize = sideAvatar({ tight, profile });
   const sideBelow = (tight ? TIGHT_SIDE_SEAT : NORTH_SEAT_STACK.phone) - sideSize / 2 + TRICK_GAP;
-  const stackBottom = handY - cardH / 2 - Math.min(16, cardH * 0.14) - held - TRICK_GAP;
   const stackLeast = sideBackWidth(cardW) * (1 + 5 * SIDE_STACK_LEAST);
   const sideLow = Math.min(trickCy, trickCy - (cardW * pileScale) / 2 - sideBelow);
   const sideSeat = sideLow - Math.max(0, sideLow + sideBelow + stackLeast - stackBottom);

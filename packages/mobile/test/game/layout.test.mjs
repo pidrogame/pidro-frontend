@@ -52,6 +52,7 @@ import {
   trumpPicker,
   throwPile,
   throwSpread,
+  THROW_SHOWN,
 } from '../../src/game/canvas/layout.ts';
 
 describe('played-card piles', () => {
@@ -260,7 +261,7 @@ describe('side stacks and the hand', () => {
 
   // PID-396: a landscape iPad's talk column (182pt, 24 from the edge) has the
   // corner right of your hand, and your name the room left of a full one: your
-  // pack stands above the hand's left end, a full pack of 52 clear of the
+  // pack stands above the hand from its left end, a full pack of 52 clear of the
   // column, the trump picker, West's backs and your seat, and on screen.
   for (const [width, height, insets] of [
     [1024, 768, { top: 0, bottom: 0, left: 0, right: 0 }],
@@ -280,7 +281,11 @@ describe('side stacks and the hand', () => {
         bottom: pack.y + h / 2,
       };
       expect(pack.sideways).toBe(false);
-      expect(box.left).toBeCloseTo(handLeft(L, 9), -1);
+      // From the hand's left end, or past West's thrown backs (PID-453).
+      expect(box.left).toBeGreaterThanOrEqual(handLeft(L, 9) - 0.01);
+      expect(box.left).toBeGreaterThanOrEqual(
+        sideStackInner(L.cardW, insets.left) + 2 * TRICK_GAP + pileCardW(L) * (110 / 78) - 0.01
+      );
       expect(box.bottom).toBeLessThanOrEqual(
         L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L) - TRICK_GAP + 0.01
       );
@@ -686,6 +691,140 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
       expect(sizes(width, height, { top: 24, bottom: 0, left: 0, right: 0 }).L.cardW).toBe(54);
     }
   });
+});
+
+describe('on tablets the cards use the room (PID-453)', () => {
+  // Before PID-453 every card stopped at 104pt.
+  const before = (width, height) => Math.min(104, Math.max(54, Math.min(width, height) * 0.13));
+
+  it('a card follows the shorter side up to 150pt, upright as far as the height allows; phones keep theirs', () => {
+    expect(cardSize(390, 844)).toBeCloseTo(62.4);
+    expect(cardSize(360, 780)).toBeCloseTo(57.6);
+    expect(cardSize(844, 390)).toBe(54);
+    // 3/16 of the shorter side, half as wide again as before on a 10–11 inch tablet.
+    expect(cardSize(800, 1280)).toBe(150);
+    expect(cardSize(834, 1194)).toBe(150);
+    expect(cardSize(820, 1180)).toBeCloseTo((1180 - 563) / 4.15);
+    expect(cardSize(1024, 1366)).toBe(150);
+    // Where the height holds less, the height decides: a 9.7 inch iPad either
+    // way up, a 10 inch Android tablet on its side, a 600pt tablet.
+    expect(cardSize(768, 1024)).toBeCloseTo((1024 - 563) / 4.15);
+    expect(cardSize(1024, 768)).toBeCloseTo((768 - 210) / 4.15);
+    expect(cardSize(1280, 800)).toBeCloseTo((800 - 210) / 4.15);
+    expect(cardSize(600, 960)).toBeCloseTo((960 - 563) / 4.15);
+    // A short window never draws them smaller than before.
+    expect(cardSize(694, 768)).toBeCloseTo(before(694, 768));
+  });
+
+  const box = (x, y, w, h) => ({ x: x - w / 2, y: y - h / 2, w, h });
+  const apart = (a, b) =>
+    Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
+  const R = 110 / 78;
+  const ipad = { top: 24, bottom: 20, left: 0, right: 0 };
+  // Full screens keep every rule; Split View windows (`split`) too short for
+  // the trick at its least keep your hand clear and draw nothing smaller.
+  for (const [width, height, insets, split] of [
+    [600, 960, ipad],
+    [600, 888, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [960, 600, ipad],
+    [1024, 600, { top: 24, bottom: 0, left: 0, right: 0 }],
+    [768, 1024, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [1024, 768, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [800, 1280, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [1280, 800, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [820, 1180, ipad],
+    [1180, 820, ipad],
+    [1024, 1366, ipad],
+    [1366, 1024, ipad],
+    [694, 768, { top: 20, bottom: 0, left: 0, right: 0 }, true],
+    [778, 820, ipad, true],
+    [981, 1024, ipad, true],
+  ]) {
+    it(`keeps the phones’ rules on ${width}×${height}${split ? ' (Split View)' : ''}`, () => {
+      const top = width < height ? 61 : 0;
+      const L = computeLayout(width, height, insets, top);
+      const tableTop = insets.top + top;
+      const lifted = L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L);
+      const held = L.cardH * 0.015 + 2.5;
+      // Cards no smaller than before: your hand, and played cards above the
+      // old tablets' least (0.72 of a card).
+      expect(L.cardW).toBeGreaterThanOrEqual(before(width, height) - 0.01);
+      expect(L.cardW * L.trick.pileScale).toBeGreaterThanOrEqual(
+        before(width, height) * 0.72 - 0.01
+      );
+      // Every played card lies 8pt above a lifted card of yours, apart from
+      // the others and TRICK_GAP from the trump mark.
+      const mark = box(L.trick.cx, L.trick.cy, L.cardW * TRUMP_MARK, L.cardW * TRUMP_MARK);
+      const played = ['north', 'east', 'south', 'west'].map((rel) => {
+        const t = playedCardTarget(L, rel, 0, 1);
+        const [w, h] = [L.cardW * t.scale, L.cardH * t.scale];
+        return rel === 'east' || rel === 'west' ? box(t.x, t.y, h, w) : box(t.x, t.y, w, h);
+      });
+      for (const [i, card] of played.entries()) {
+        // Split View: the resting hand at least, the trick's circle at its least.
+        expect(card.y + card.h).toBeLessThanOrEqual(lifted + (split ? handLift(L) : -8) + 0.01);
+        if (split) continue;
+        expect(apart(card, mark)).toBeGreaterThanOrEqual(TRICK_GAP - 0.01);
+        for (const other of played.slice(i + 1)) expect(apart(card, other)).toBeGreaterThan(0);
+      }
+      if (split) return;
+      // East's and West's backs end TRICK_GAP above a lifted card, held tilt
+      // included, however low SeatLayer hangs them (`lowestTop`).
+      const stacks = sideStacks(L);
+      expect(stacks.lowestTop + stacks.maxHeight).toBeLessThanOrEqual(
+        lifted - held - TRICK_GAP + 0.01
+      );
+      expect(stacks.top).toBeLessThanOrEqual(stacks.lowestTop);
+      // Landscape North shows as much of its backs as before.
+      if (L.profile === 'tablet-landscape') {
+        const old = before(width, height);
+        const oldShown = Math.min(68, Math.max(36, old * 0.8)) * R - old * R * 0.36;
+        expect(
+          northFanTop(L, tableTop) + northBackWidth(L.cardW) * R - tableTop
+        ).toBeGreaterThanOrEqual(oldShown - 0.5);
+      }
+      // The second deal's throws lie apart, clear of your pack (you deal)
+      // and of East's and West's backs.
+      const throws = { north: 8, east: 9, south: 7, west: 6 };
+      const piles = Object.entries(throws).map(([rel, n]) => {
+        const { w, spots } = throwPile(L, rel, n);
+        const [bw, bh] = rel === 'east' || rel === 'west' ? [w * R, w] : [w, w * R];
+        const xs = spots.map((s) => s.x);
+        const ys = spots.map((s) => s.y);
+        return {
+          x: Math.min(...xs) - bw / 2,
+          y: Math.min(...ys) - bh / 2,
+          w: Math.max(...xs) - Math.min(...xs) + bw,
+          h: Math.max(...ys) - Math.min(...ys) + bh,
+        };
+      });
+      const backW = northBackWidth(L.cardW);
+      const pack = packSpot(L, 'south');
+      const lean = (packLayers(52) - 1) * backW * PACK_STEP;
+      const packBox = pack.sideways
+        ? {
+            x: pack.x - (backW * R) / 2,
+            y: pack.y - backW / 2 - lean,
+            w: backW * R + lean * 0.55,
+            h: backW + lean,
+          }
+        : {
+            x: pack.x - backW / 2,
+            y: pack.y - (backW * R) / 2 - lean,
+            w: backW + lean * 0.55,
+            h: backW * R + lean,
+          };
+      const sideBacks = [L.insets.left, L.width - L.insets.right].map((edge, i) => {
+        const inner = sideStackInner(L.cardW, i ? L.insets.right : L.insets.left);
+        return { x: i ? L.width - inner : 0, y: stacks.top, w: inner, h: stacks.maxHeight };
+      });
+      for (const [i, pile] of piles.entries()) {
+        expect(pile.y + pile.h).toBeLessThanOrEqual(lifted + 0.01);
+        for (const other of [...piles.slice(i + 1), packBox, ...sideBacks])
+          expect(apart(pile, other)).toBeGreaterThan(0);
+      }
+    });
+  }
 });
 
 describe('tight phones', () => {
