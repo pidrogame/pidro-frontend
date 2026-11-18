@@ -863,6 +863,7 @@ function TableDevHarness() {
     guest?: string;
     crew?: string;
     people?: string;
+    swap?: string;
     connection?: string;
     bids?: string;
     out?: string;
@@ -1240,6 +1241,7 @@ function TableDevHarness() {
             guest={params.guest === 'true'}
             crew={params.crew === 'win' || params.crew === 'loss' ? params.crew : undefined}
             people={params.people === 'win' || params.people === 'loss' ? params.people : undefined}
+            swap={params.swap === 'link' || params.swap === 'busy' ? params.swap : undefined}
           />
           {params.feedback === 'owner' && (
             <TableSeatDecision

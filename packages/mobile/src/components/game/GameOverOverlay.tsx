@@ -18,6 +18,7 @@ import {
   PidroColors,
   PidroFonts,
   PidroGameOver,
+  PidroLayout,
   PidroRadii,
   PidroSpacing,
 } from '@/design/tokens';
@@ -65,6 +66,9 @@ interface GameOverOverlayProps {
   showGuestSave?: boolean;
   onSaveGuest?: () => void;
   onProfile?: (playerId: string | null, persona?: BotPersona | null) => void;
+  /** The host's way back to the seats while a bot sits at the table (PID-439). */
+  onSwapBot?: () => void;
+  swapBotPending?: boolean;
 }
 
 function displayName(player: RelativePlayerView): string {
@@ -89,8 +93,9 @@ const isBot = (player: RelativePlayerView) =>
  * Phone sizes are the boards' (390 wide, 375×667 compact, 844×390 landscape);
  * a tablet takes the phone column at 1.15×, centred, in either orientation.
  * `tier` steps the reveal down as height runs out: decoration yields first.
+ * `below` is what an upright column holds under its buttons (the host's link).
  */
-function useLayout() {
+function useLayout(below: number) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const w = width - insets.left - insets.right - PidroSpacing.md * 2;
@@ -98,7 +103,7 @@ function useLayout() {
   const tablet = Math.min(width, height) >= 600;
   const k = tablet ? 1.15 : 1;
   const landscape = width > height && !tablet;
-  const room = h / k;
+  const room = (h - (landscape ? 0 : below)) / k;
   const tier: 0 | 1 | 2 = landscape ? (room >= 300 ? 1 : 2) : room >= 730 ? 0 : room >= 600 ? 1 : 2;
   return {
     insets,
@@ -226,12 +231,18 @@ export function GameOverOverlay({
   showGuestSave = false,
   onSaveGuest,
   onProfile,
+  onSwapBot,
+  swapBotPending = false,
 }: GameOverOverlayProps) {
   useTranslation();
-  const { insets, landscape, k, room, tier, tablet, short, frame, rays } = useLayout();
-  const z = (n: number) => Math.round(n * k);
   const you = viewModel.players.find((player) => player.isYou);
   const spectator = !you;
+  const swapBot = spectator ? undefined : onSwapBot;
+  // The link's 44pt target and the footer's gap.
+  const { insets, landscape, k, room, tier, tablet, short, frame, rays } = useLayout(
+    swapBot ? PidroLayout.touchTarget + 10 : 0
+  );
+  const z = (n: number) => Math.round(n * k);
   const rawScores = serverState.scores ?? { north_south: 0, east_west: 0 };
   const winningTeam = resolveWinningTeam(serverState.winner, rawScores);
   const tied = winningTeam == null;
@@ -664,6 +675,15 @@ export function GameOverOverlay({
           <Icon name="home" size={z(24)} />
         </BevelButton>
       </View>
+      {swapBot ? (
+        <TextLink
+          testID="swap-bot"
+          label={t(swapBotPending ? 'game.swap_bot_busy' : 'game.swap_bot')}
+          disabled={swapBotPending}
+          onPress={swapBot}
+          style={styles.swapBot}
+        />
+      ) : null}
     </Animated.View>
   );
 
@@ -846,4 +866,5 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', alignItems: 'center' },
   rematch: { flex: 1, alignSelf: 'stretch' },
   home: { alignSelf: 'center' },
+  swapBot: { alignSelf: 'center' },
 });

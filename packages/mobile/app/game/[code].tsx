@@ -65,7 +65,7 @@ import { tableInvitation } from '@/features/invites/tableInvitation';
 import { readingTimeMs } from '@/features/game/readingTime';
 import { typingFor } from '@/features/game/talk';
 import { tableBack, type TableScreen } from '@/features/game/tableBack';
-import { isReopenedTable } from '@/features/game/tableHelp';
+import { canSwapBot, isReopenedTable, reopenedNotice } from '@/features/game/tableHelp';
 import { LeaveQuestion } from '@/game/canvas/LeaveQuestion';
 import { TableUtilityWindow } from '@/game/canvas/TableUtilityWindow';
 import { useHardwareBack } from '@/hooks/useFlowBack';
@@ -90,6 +90,8 @@ type SkiaTableProps = {
   guest?: boolean;
   showGuestSave?: boolean;
   onSaveGuest?: () => void;
+  onSwapBot?: () => void;
+  swapBotPending?: boolean;
   topDock?: number;
   notice?: TableNotice | null;
   onDismissNotice?: () => void;
@@ -738,11 +740,21 @@ export default function GameScreen() {
   const handleSoloPlayAgain = () => void adOffer.play(async () => playAgain.current());
   const rematch = rematchVote(readiness, youPositionAbs);
   const tableReopened = isReopenedTable(readiness, hasGameState);
+  // Read when the table reopens, so a later room snapshot does not say it twice.
+  const hostId = useRef(room?.host_id);
+  useEffect(() => {
+    hostId.current = room?.host_id;
+  }, [room?.host_id]);
   useEffect(() => {
     if (!tableReopened) return;
     // Notices still queued belong to the game that just ended.
     clearNotices();
-    handleSeatEvent({ key: 'table.reopened', variant: 'warning' });
+    const said = reopenedNotice(
+      useGameStore.getState().readiness,
+      hostId.current,
+      useAuthStore.getState().user?.id ?? ''
+    );
+    if (said) handleSeatEvent(said);
   }, [tableReopened, handleSeatEvent, clearNotices]);
 
   const handleLeaveGame = (destination = exitPath) => {
@@ -966,6 +978,17 @@ export default function GameScreen() {
           guest={Boolean(currentUser?.guest)}
           showGuestSave={showGuestSave && Boolean(currentUser?.guest)}
           onSaveGuest={() => setAccountSheetOpen(true)}
+          onSwapBot={
+            origin !== 'single-player' && canSwapBot(room, readiness, youPlayerId, role)
+              ? () =>
+                  void runRoomControl(() => lobbyApi.reopenRoom(room.code), true).catch(() =>
+                    // The server's reason speaks of a rematch; here it only means nothing changed.
+                    handleSeatEvent({ key: 'table.actionError', variant: 'error' })
+                  )
+              : undefined
+          }
+          // The room says waiting before the table's readiness does: the tap went through.
+          swapBotPending={controlsBusy || room.status === 'waiting'}
           topDock={invitation ? invitationHeight : 0}
           notice={notice}
           onDismissNotice={dismissNotice}

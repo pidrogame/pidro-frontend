@@ -111,6 +111,8 @@ type Props = {
   guest?: boolean;
   showGuestSave?: boolean;
   onSaveGuest?: () => void;
+  onSwapBot?: () => void;
+  swapBotPending?: boolean;
   /** How every hand holds its cards; fixtures try the styles. */
   held?: HeldStyle;
   /** Upright, the height of a card under the header (a seat invitation): the table starts below it. */
@@ -392,6 +394,8 @@ export function GameCanvasTable({
   guest,
   showGuestSave,
   onSaveGuest,
+  onSwapBot,
+  swapBotPending,
   rulesFixtureSeen,
   held,
   topDock = 0,
@@ -1232,6 +1236,8 @@ export function GameCanvasTable({
               showGuestSave={showGuestSave}
               onSaveGuest={onSaveGuest}
               onProfile={openProfile}
+              onSwapBot={onSwapBot}
+              swapBotPending={swapBotPending}
             />
           )}
           <PlayerSheet

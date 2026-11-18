@@ -371,6 +371,7 @@ export function DevOverlays({
   crew,
   people,
   leagueChange,
+  swap,
 }: {
   phase: string;
   isHandReady: boolean;
@@ -383,6 +384,8 @@ export function DevOverlays({
   crew?: 'win' | 'loss';
   people?: 'win' | 'loss';
   leagueChange?: string;
+  /** `?swap=link|busy`: the host's Swap a bot for a person, idle or sending (PID-439). */
+  swap?: 'link' | 'busy';
 }) {
   const { t } = useTranslation();
   const router = useRouter();
@@ -519,6 +522,8 @@ export function DevOverlays({
           guest={guest}
           showGuestSave={guest}
           onSaveGuest={() => {}}
+          onSwapBot={swap ? noop : undefined}
+          swapBotPending={swap === 'busy'}
           progressionSummary={
             xp
               ? {
