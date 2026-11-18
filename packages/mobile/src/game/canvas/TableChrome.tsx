@@ -9,6 +9,7 @@ import { Platform, useWindowDimensions, type ViewStyle } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PidroLayout, PidroSpacing } from '@/design/tokens';
 import { SCORE_PLAQUE_HEIGHT } from './Scoreboard';
+import { computeLayout, southRow } from './layout';
 
 /** Gap between the safe top and the header row, and the reserve's breathing room. */
 export const HEADER_INSET = PidroSpacing.xs;
@@ -43,7 +44,7 @@ export interface TableReserves {
   topReserve: number;
   /** Nothing docks under the hand any more (PID-393): the felt runs to the edge. */
   bottomReserve: number;
-  /** Where notices and the connection banner float: never over the header or a seat. */
+  /** Where notices and the connection banner float: never over the header, your hand or another seat. */
   noticeSlot: ViewStyle;
 }
 
@@ -55,11 +56,11 @@ export function useTableReserves({ top = TABLE_HEADER }: { top?: number } = {}):
     landscape,
     topReserve: landscape ? 0 : top,
     bottomReserve: 0,
-    // Portrait: floating at the bottom, over your seat, only while it shows.
-    // Landscape: the felt below the header row, between the side seats, where
-    // North no longer sits.
+    // Portrait: over your seat row, only while it shows, never over the hand
+    // under it (PID-464). Landscape: the felt below the header row, between
+    // the side seats, where North no longer sits.
     noticeSlot: landscape
       ? { top: insets.top + TABLE_HEADER + PidroSpacing.xs }
-      : { bottom: insets.bottom + PidroSpacing.xs },
+      : { bottom: height - southRow(computeLayout(width, height, insets, top)).bottom },
   };
 }

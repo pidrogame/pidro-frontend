@@ -3,8 +3,11 @@ import { Text, View } from 'react-native';
 import { useTranslation } from '@/i18n';
 import { useTableReserves } from '@/game/canvas/TableChrome';
 
-/** Lives in the notice slot, yielding to connection and action feedback. */
-export function WatchingBadge() {
+/**
+ * Lives in the notice slot, yielding to connection and action feedback, or
+ * `bottom` points up from the foot (the waiting room, which has no hand).
+ */
+export function WatchingBadge({ bottom }: { bottom?: number }) {
   const { t } = useTranslation();
   const { noticeSlot } = useTableReserves();
   return (
@@ -12,7 +15,7 @@ export function WatchingBadge() {
       testID="watching-badge"
       pointerEvents="none"
       className="absolute inset-x-0 z-50 items-center"
-      style={noticeSlot}>
+      style={bottom === undefined ? noticeSlot : { bottom }}>
       <View
         accessible
         accessibilityLabel={t('game.watching_accessibility')}

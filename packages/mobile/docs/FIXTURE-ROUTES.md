@@ -64,7 +64,8 @@ up for `dealerHoldMs`, everyone else as many backs as the server's
 The dealer deals from a pack beside them (PID-394): the first deal leaves it
 16, it rests through bidding and the trump call, counts down as the dealer
 gives, and slides to the dealer as they take the rest. Upright, your pack
-lies bottom left, under your hand, since talk has the bottom right corner. West deals unless
+lies at the left end of your seat row, over your hand at the bottom edge (PID-464), since talk
+has its right end. West deals unless
 `dealer=north|east`; `you=deal` has you deal; `kill=1` has East keep seven trumps and kill the
 queen, face up in East's front row for everyone until the first card lands
 (`killed_cards`); `nine=1` has East throw all nine, spread so each back shows
@@ -206,8 +207,8 @@ not the real people's biographies or a guarantee about their bidding strategy.
 
 Table talk (PID-114) uses `/table-dev?fixture=talk-quiet|landed|coin|line|sheet|log&locale=en|sv`:
 four people at the table (Bengt, Antti, Jocke, Mikko), so talk shows: on phones a speech
-bubble in the bottom right corner, upright level with your avatar (PID-393), on an iPad a band
-beside the hand. `landed` has your word at your seat, `coin` a coin at North and East and a
+bubble in the right corner, upright at the right end of your seat row over your hand, level with
+your avatar (PID-393, PID-464), on an iPad a band standing on that row. `landed` has your word at your seat, `coin` a coin at North and East and a
 word at West, `line` the last line after a landing fades, `unread` the same line come while
 the sheet was closed (the bubble wears a dot until it opens), `sheet` the hand of words, `log`
 what was said this game. A tap in a fixture lands at once and sends nothing. `table-talk-*`
@@ -416,8 +417,8 @@ the top-level blocks never overlap, and that nothing leaves the screen, at
 The table's header is one row: the score plaque left, the menu right
 (`TABLE_HEADER` in `TableChrome.tsx`). Portrait reserves it above the north seat;
 landscape seats North inside it. Notices and the Reconnecting… banner share one
-slot (`useTableReserves().noticeSlot`): floating at the bottom over your seat in
-portrait, on the panel the old dock gave them, only while one shows (PID-393); the
+slot (`useTableReserves().noticeSlot`): floating over your seat row, never your hand
+under it (PID-464), in portrait, on the panel the old dock gave them, only while one shows (PID-393); the
 felt below the header in landscape, below the toolbar in the waiting room. The
 grammar fails when the header, a notice or a protected window covers the north
 seat or its cards.

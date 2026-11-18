@@ -7,7 +7,13 @@ import { PidroText } from '@/components/ui/PidroText';
 import { PressableFX } from '@/components/ui/PressableFX';
 import { STILL_LAYER } from '@/components/ui/StillLayer';
 import { PidroColors, PidroLayout, PidroRadii, PidroSpacing } from '@/design/tokens';
-import { AVATAR_SIZE, bidWindowTop, computeLayout, handScale } from '@/game/canvas/layout';
+import {
+  AVATAR_SIZE,
+  bidWindowTop,
+  computeLayout,
+  handScale,
+  southRow,
+} from '@/game/canvas/layout';
 import { playActionHaptic } from '@/game/useGameHaptics';
 import { useGameStore } from '@/stores/game';
 import type { LegalAction } from '@/types/game';
@@ -83,7 +89,8 @@ export function BiddingActions({
 
   const layout = computeLayout(width, height, insets, topReserve, bottomReserve);
   const handHeight = layout.cardH * handScale(layout.profile);
-  const handTop = layout.hand.cy - handHeight / 2;
+  // Upright, the window stands above your seat row over the hand (PID-464).
+  const floor = landscape ? layout.hand.cy - handHeight / 2 : southRow(layout).top;
   const tableTop = insets.top + topReserve;
   // A tight table keeps its buttons' size over the usual air below them: the
   // window rises instead (`bidWindowTop`).
@@ -94,7 +101,7 @@ export function BiddingActions({
   const sideClearance =
     layout.trick.cy - (sideBackWidth * 3.4) / 2 - 62 + PidroLayout.touchTarget + handGap;
   const preferredTop = landscape ? northClearance : Math.max(northClearance, sideClearance);
-  const availableHeight = handTop - handGap - preferredTop;
+  const availableHeight = floor - handGap - preferredTop;
   const buttonSize = Math.max(
     PidroLayout.touchTarget,
     Math.min(MAX_BUTTON_SIZE, Math.floor((availableHeight - FIXED_GROUP_HEIGHT) / 3))
@@ -115,7 +122,7 @@ export function BiddingActions({
         styles.overlay,
         {
           top: landscape ? hardTop : portraitTop,
-          bottom: height - handTop + handGap,
+          bottom: height - floor + handGap,
           justifyContent: landscape ? 'flex-end' : 'flex-start',
         },
       ]}

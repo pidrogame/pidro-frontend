@@ -253,8 +253,9 @@ export function TalkLanding({
 export type TalkPlace = 'band' | 'corner' | 'column';
 
 /**
- * Where talk sits: a speech bubble in the bottom right corner on phones,
- * beside the hand on an iPad, a band in the log's sheet. On upright phones
+ * Where talk sits: a speech bubble in the right corner on phones, upright
+ * at the right end of your seat row (PID-464), a column on an iPad, a band
+ * in the log's sheet. On upright phones
  * the bubble says what the game offers in its tail (PID-396).
  */
 export function TalkBand({

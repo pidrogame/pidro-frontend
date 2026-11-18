@@ -76,6 +76,7 @@ import {
   sideStackInner,
   SIDE_SEAT_GAP,
   sideStacks,
+  southRow,
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
   TRICK_GAP,
@@ -266,7 +267,7 @@ export function SeatLayer({
   );
   const portrait = L.profile.endsWith('portrait');
   // Tight phones: every name beside a smaller avatar, no level chips or pins,
-  // and your avatar alone under your hand, with its short line when it has one.
+  // and your avatar alone above your hand, with its short line when it has one.
   const tight = portrait && L.tight;
   const size = tight ? TIGHT_AVATAR : AVATAR_SIZE[L.profile];
   const tablet = L.profile.startsWith('tablet');
@@ -679,9 +680,9 @@ export function SeatLayer({
         );
 
         if (rel === 'south' && tight) {
-          // Your avatar alone, centred under your hand, its short line under
-          // it when there is one (your bid, while the hand is bid); the label
-          // still speaks.
+          // Your avatar alone, centred in your seat row above your hand
+          // (PID-464), its short line under it when there is one (your bid,
+          // while the hand is bid); the label still speaks.
           return (
             <View
               key={rel}
@@ -690,7 +691,7 @@ export function SeatLayer({
                 position: 'absolute',
                 left: 0,
                 right: 0,
-                top: L.hand.cy + L.cardH / 2 + TIGHT_SOUTH_GAP,
+                top: southRow(L).top + TIGHT_SOUTH_GAP,
                 alignItems: 'center',
               }}>
               {avatar}
@@ -698,7 +699,7 @@ export function SeatLayer({
           );
         }
         if (rel === 'south') {
-          const southBottom = insets.bottom + bottomReserve + 8;
+          // Upright, your seat stands on its row over your hand (PID-464).
           return (
             <View
               key={rel}
@@ -709,7 +710,7 @@ export function SeatLayer({
                       position: 'absolute',
                       left: 0,
                       right: 0,
-                      bottom: southBottom,
+                      bottom: height - southRow(L).bottom,
                       alignItems: 'center',
                     }
                   : {

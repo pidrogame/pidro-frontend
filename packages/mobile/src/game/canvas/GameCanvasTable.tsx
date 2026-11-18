@@ -69,9 +69,12 @@ import {
   liftOverPack,
   northSeatBottom,
   showsTicker,
+  sideStackInner,
+  southRow,
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
   tickerPlacement,
+  TRICK_GAP,
   trumpPicker,
   type HeldStyle,
 } from './layout';
@@ -758,20 +761,17 @@ export function GameCanvasTable({
   if (!talking && talk.sheet) talk.open(null);
   const talkPlace: TalkPlace = layout.profile.startsWith('tablet') ? 'column' : 'corner';
   // Upright phones (PID-393): the bubble's centre level with your avatar's,
-  // which sits under your hand on a tight phone, above its name and line
-  // otherwise. What it offers grows out of it as a tail (PID-396), into the
-  // room left of it, short of your avatar and its turn light by a small step.
+  // at the right end of your seat row over your hand (PID-464), the avatar
+  // alone on a tight phone, above its name and line otherwise. What it
+  // offers grows out of it as a tail (PID-396), into the room left of it,
+  // short of your avatar and its turn light by a small step.
   const upright = layout.profile === 'phone-portrait';
   const yourSize = layout.tight ? TIGHT_AVATAR : AVATAR_SIZE[layout.profile];
   const yours = avatarParts(yourSize, { seat: true });
+  const row = southRow(layout);
   const bubbleTop = layout.tight
-    ? layout.hand.cy + layout.cardH / 2 + TIGHT_SOUTH_GAP + (yourSize - TALK_ROW) / 2
-    : layout.bottom -
-      PidroSpacing.xs -
-      4 -
-      yours.name.lineHeight -
-      yours.status.lineHeight -
-      (yourSize + TALK_ROW) / 2;
+    ? row.top + TIGHT_SOUTH_GAP + (yourSize - TALK_ROW) / 2
+    : row.bottom - 4 - yours.name.lineHeight - yours.status.lineHeight - (yourSize + TALK_ROW) / 2;
   const talkRoom = upright
     ? width -
       insets.right -
@@ -954,11 +954,19 @@ export function GameCanvasTable({
               style={[
                 styles.talk,
                 talkPlace === 'column'
-                  ? {
-                      right: insets.right + PidroSpacing.lg,
-                      bottom: insets.bottom + PidroSpacing.md,
-                      width: TALK_COLUMN,
-                    }
+                  ? layout.profile === 'tablet-portrait'
+                    ? {
+                        // An upright iPad's band stands on your seat row (PID-464),
+                        // inside East's backs: a greeting's two words rise above it.
+                        right: sideStackInner(layout.cardW, insets.right) + TRICK_GAP,
+                        bottom: height - row.bottom,
+                        width: TALK_COLUMN,
+                      }
+                    : {
+                        right: insets.right + PidroSpacing.lg,
+                        bottom: insets.bottom + PidroSpacing.md,
+                        width: TALK_COLUMN,
+                      }
                   : upright
                     ? { right: insets.right + PidroSpacing.sm, top: bubbleTop }
                     : {

@@ -29,7 +29,7 @@ import { TextLink } from '@/components/ui/TextLink';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { WatchingBadge } from '@/components/game/WatchingBadge';
-import { PidroFonts, PidroLayout } from '@/design/tokens';
+import { PidroFonts, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { loadCatalogue } from '@/features/bots';
 import { talkRefusal, type Said, type TalkItem } from '@/features/game/talk';
 import { talkText } from '@/components/game/TableTalk';
@@ -928,7 +928,7 @@ export function NewTableScreen({
           )}
         </View>
       </ScreenShell>
-      {isSpectator && <WatchingBadge />}
+      {isSpectator && <WatchingBadge bottom={insets.bottom + PidroSpacing.xs} />}
       <TableFeedback notice={notice ?? null} top={insets.top + 72} onDismiss={onDismissNotice} />
       {room && (
         <RulesExplainer

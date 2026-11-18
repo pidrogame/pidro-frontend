@@ -43,6 +43,7 @@ import {
   sideStacks,
   sideStackStep,
   showsTicker,
+  southRow,
   TIGHT_AVATAR,
   TIGHT_SOUTH_GAP,
   tickerPlacement,
@@ -204,7 +205,7 @@ describe('side stacks and the hand', () => {
     expect(portrait.sides.cy - portrait.trick.cy).toBeLessThanOrEqual(portrait.cardH * 0.45 + 0.01);
   });
 
-  it('lowers portrait side stacks only as far as a full stack still clears your hand', () => {
+  it('lowers portrait side stacks only as far as a full stack still clears your seat row', () => {
     for (const [width, height, insets] of [
       [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
       [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
@@ -214,25 +215,17 @@ describe('side stacks and the hand', () => {
       const L = computeLayout(width, height, insets, 60);
       const stacks = sideStacks(L);
       expect(stacks.top).toBeGreaterThanOrEqual(L.trick.cy - stacks.maxHeight / 2);
-      expect(stacks.top + stacks.maxHeight).toBeLessThanOrEqual(
-        L.hand.cy - L.cardH / 2 - 12 + 0.01
-      );
+      // PID-464: your seat row, your pack and talk's bubble at its ends, lies below them.
+      expect(stacks.top + stacks.maxHeight).toBeLessThanOrEqual(southRow(L).top - TRICK_GAP + 0.01);
     }
   });
 
-  it('keeps the second-deal pack off your hand where the table has room below it', () => {
-    const L = computeLayout(430, 932, { top: 59, bottom: 34, left: 0, right: 0 }, 60, 72);
-    const pack = packSpot(L, 'south');
-    const packH = (Math.min(Math.max(L.cardW * 0.8, 36), 68) * 110) / 78;
-    const handBottom = L.hand.cy + (L.cardH * handScale(L.profile)) / 2;
-    expect(pack.y - packH / 2).toBeGreaterThanOrEqual(handBottom);
-    expect(pack.y + packH / 2).toBeLessThanOrEqual(L.bottom);
-  });
-
-  // PID-394: upright, talk has the bottom-right corner (PID-393), so your
-  // pack lies left of your seat, short of your name's column (156pt, 200 on
-  // iPads; a tight phone's name runs under its avatar), a full pack of 52
-  // leaning right included, and on screen.
+  // PID-394: upright, talk has the right end of your seat row (PID-393), so
+  // your pack lies at its left end, short of your name's column (156pt, 200
+  // on iPads; a tight phone's name runs under its avatar), a full pack of 52
+  // leaning right included, and on screen. PID-464: it stands on the row over
+  // your hand, its top no higher than the row's, a lifted card clear below.
+  // On the shortest phones the row is lower than a standing pack: it lies down.
   for (const [width, height, insets] of [
     [360, 780, { top: 24, bottom: 0, left: 0, right: 0 }],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
@@ -252,10 +245,12 @@ describe('side stacks and the hand', () => {
         : width / 2 - (L.profile.startsWith('tablet') ? 200 : 156) / 2;
       expect(pack.x - across / 2).toBeGreaterThanOrEqual(insets.left);
       expect(pack.x + across / 2 + lean * 0.55).toBeLessThanOrEqual(seatLeft);
-      expect(pack.y + along / 2).toBeLessThanOrEqual(L.bottom);
-      expect(pack.y - along / 2 - lean).toBeGreaterThanOrEqual(
-        L.hand.cy + (L.cardH * handScale(L.profile)) / 2
-      );
+      const row = southRow(L);
+      expect(pack.y + along / 2).toBeCloseTo(row.bottom);
+      expect(pack.y - along / 2 - lean).toBeGreaterThanOrEqual(row.top - 0.01);
+      expect(pack.sideways).toBe(L.tight);
+      const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
+      expect(pack.y + along / 2).toBeLessThan(lifted);
     });
   }
 
@@ -457,7 +452,7 @@ describe('side stacks and the hand', () => {
   });
 });
 
-describe('portrait trick fits between North and your hand', () => {
+describe('portrait trick fits between North and your seat row', () => {
   for (const [width, height, insets] of [
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
     [360, 640, { top: 24, bottom: 48, left: 0, right: 0 }],
@@ -468,7 +463,7 @@ describe('portrait trick fits between North and your hand', () => {
     [375, 667, { top: 0, bottom: 0, left: 0, right: 0 }],
     [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
   ]) {
-    it(`clears North's seat and the hand on ${width}×${height}`, () => {
+    it(`clears North's seat and your seat row on ${width}×${height}`, () => {
       const L = computeLayout(width, height, insets, 60);
       const half = (L.cardH * L.trick.pileScale) / 2;
       const northCardTop = L.trick.cy - L.trick.r - half;
@@ -482,8 +477,8 @@ describe('portrait trick fits between North and your hand', () => {
         12 +
         (L.tight ? TIGHT_AVATAR : 98);
       expect(northCardTop).toBeGreaterThanOrEqual(northSeatBottom);
-      // Clear of a lifted card too (PID-393: 375×667 is no longer tight).
-      expect(southCardBottom).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2 - handLift(L) + 0.01);
+      // Above your seat row, which stands over your hand (PID-464).
+      expect(southCardBottom).toBeLessThanOrEqual(southRow(L).top + 0.01);
     });
   }
 });
@@ -843,27 +838,63 @@ describe('tight phones', () => {
     });
   }
 
-  // PID-304: the hand on the table's axis, your avatar and its short line
-  // under it, above the home indicator, and the trick still clear of the hand.
+  // PID-304, PID-464: the hand on the table's axis along the bottom edge,
+  // 8pt above the home indicator; your avatar alone above it with its short
+  // line, a lifted card clear below them, and the trick above the avatar.
   for (const [width, height, insets] of [
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
     [360, 700, { top: 24, bottom: 48, left: 0, right: 0 }],
   ]) {
-    it(`put your avatar under a centred hand on ${width}×${height}`, () => {
+    it(`put your avatar alone above a centred hand on ${width}×${height}`, () => {
       const L = computeLayout(width, height, insets, 60);
       expect(L.tight).toBe(true);
       expect(L.hand.cx).toBe(width / 2);
       expect(L.hand.maxWidth).toBe(width - 32);
-      const avatarTop = L.hand.cy + L.cardH / 2 + TIGHT_SOUTH_GAP;
-      // The avatar, a 4pt gap, one 18pt status line (14pt type, PID-450) and
-      // 8pt of air above the home indicator, the table's bottom edge (PID-393).
       expect(L.bottom).toBe(height - insets.bottom);
-      expect(avatarTop + TIGHT_AVATAR + 4 + 18 + 8).toBeCloseTo(L.bottom);
+      expect(L.hand.cy + L.cardH / 2 + 8).toBeCloseTo(L.bottom);
+      const row = southRow(L);
+      const avatarTop = row.top + TIGHT_SOUTH_GAP;
+      // The avatar, a 4pt gap and one 18pt status line (14pt type, PID-450).
+      expect(avatarTop + TIGHT_AVATAR + 4 + 18).toBeCloseTo(row.bottom);
+      const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
+      expect(row.bottom).toBeLessThanOrEqual(lifted - 10 + 0.01);
       const south = playedCardTarget(L, 'south', 0, 1);
-      expect(south.y + (L.cardH * south.scale) / 2).toBeLessThanOrEqual(
-        L.hand.cy - L.cardH / 2 - handLift(L)
-      );
+      expect(south.y + (L.cardH * south.scale) / 2).toBeLessThanOrEqual(row.top);
+    });
+  }
+});
+
+// PID-464: upright, your hand lies along the bottom edge, 8pt above the home
+// indicator or Android's nav bar (gesture or buttons), so no card's tap target
+// sits in the system's strip, and your seat row stands over it, 10pt clear of a
+// lifted card. The trick, East's and West's stacks and throws end above it.
+describe('upright, your hand at the bottom edge and your seat row over it (PID-464)', () => {
+  for (const [width, height, insets] of [
+    [390, 844, { top: 59, bottom: 34, left: 0, right: 0 }],
+    [390, 844, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [390, 844, { top: 24, bottom: 24, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [360, 780, { top: 24, bottom: 24, left: 0, right: 0 }],
+    [375, 667, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [768, 1024, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [834, 1194, { top: 24, bottom: 20, left: 0, right: 0 }],
+  ]) {
+    it(`on ${width}×${height}, ${insets.bottom}pt below`, () => {
+      const L = computeLayout(width, height, insets, 60);
+      expect(height - insets.bottom - (L.hand.cy + L.cardH / 2)).toBeCloseTo(8);
+      const row = southRow(L);
+      const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
+      expect(lifted - row.bottom).toBeCloseTo(10);
+      expect(row.top).toBeGreaterThan(northSeatBottom(L, insets.top + 60));
+      const south = playedCardTarget(L, 'south', 0, 1);
+      expect(south.y + (L.cardH * south.scale) / 2).toBeLessThanOrEqual(row.top);
+      const { top, maxHeight } = sideStacks(L);
+      expect(top + maxHeight).toBeLessThanOrEqual(row.top - TRICK_GAP + 0.01);
+      for (const rel of ['east', 'west']) {
+        const { w, spots } = throwPile(L, rel, 9);
+        expect(Math.max(...spots.map((s) => s.y)) + w / 2).toBeLessThanOrEqual(row.top);
+      }
     });
   }
 });
@@ -905,8 +936,8 @@ describe('upright phones seat East and West low beside the trick', () => {
       }
       const { top, maxHeight, backW } = sideStacks(L);
       expect(top).toBeCloseTo(seatBottom + TRICK_GAP);
-      const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
-      expect(top + maxHeight).toBeLessThanOrEqual(lifted - TRICK_GAP + 0.01);
+      // Above your seat row (PID-464), whose ends hold your pack and talk's bubble.
+      expect(top + maxHeight).toBeLessThanOrEqual(southRow(L).top - TRICK_GAP + 0.01);
       // Six backs still count.
       expect(sideStackStep(L.cardW, 6, maxHeight)).toBeGreaterThanOrEqual(backW * 0.3 - 0.01);
     });
@@ -1191,24 +1222,25 @@ describe('the trump picker sits in the felt, clear of everything (PID-209)', () 
         sideSeatTop(L, { tableTop, seatHeight: sideSeat, headerBottom }) + sideSeat
       );
 
-      // Your hand, its previewed trumps lifted, keeps a gap. Upright, the
-      // row stands just that far above it; landscape centres it on the trick.
+      // Your hand, its previewed trumps lifted, keeps a gap. Upright, your
+      // seat row stands between (PID-464): the row stands TRICK_GAP above
+      // it; landscape centres it on the trick.
       const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
       expect(bottom).toBeLessThanOrEqual(handTop - handLift(L) - 8);
-      if (portrait) expect(bottom).toBeCloseTo(handTop - 28);
+      if (portrait) expect(bottom).toBeCloseTo(southRow(L).top - TRICK_GAP);
       else expect(Math.abs(P.top + P.height / 2 - L.trick.cy)).toBeLessThanOrEqual(L.trick.r);
     });
   }
 });
 
-describe('the shortest phones lift the trump picker clear of your hand (PID-304)', () => {
+describe('the shortest phones lift the trump picker clear of your seat row (PID-304)', () => {
   // 360×616: a 16:9 Android phone under a 24pt status bar and a solid nav bar.
   for (const height of [592, 616]) {
     it(`on 360×${height}`, () => {
       const L = computeLayout(360, height, { top: 24, bottom: 0, left: 0, right: 0 }, 61, 52);
       const P = trumpPicker(L, 85, 93);
       expect(P.top).toBeGreaterThanOrEqual(northSeatBottom(L, 85));
-      expect(P.top + P.height).toBeLessThanOrEqual(L.hand.cy - L.cardH / 2 - 28);
+      expect(P.top + P.height).toBeLessThanOrEqual(southRow(L).top - TRICK_GAP + 0.01);
     });
   }
 });
@@ -1338,18 +1370,18 @@ describe('a played card waits on the cross for its seat’s next card (PID-308)'
   });
 });
 
-describe('the bid grid sits on the trick, 18pt clear of your hand', () => {
+describe('the bid grid sits on the trick, 18pt clear of your seat row (PID-464)', () => {
   // A 3×3 grid of 44pt buttons over Pass; `tall` adds a failed bid's message.
   const grid = 3 * 44 + 2 * 4;
   const window = (tall) => ({ center: 4 + grid / 2, height: grid + 68 + (tall ? 40 : 0) });
-  const handTop = (L) => L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
+  const rowTop = (L) => southRow(L).top;
 
   it('centres it where the table has room (390×844)', () => {
     const L = computeLayout(390, 844, { top: 0, bottom: 0, left: 0, right: 0 }, 61, 52);
     const w = window(false);
     const top = bidWindowTop(L, { tableTop: 61, ...w });
     expect(top + w.center).toBe(L.trick.cy);
-    expect(top + w.height).toBeLessThan(handTop(L) - 18);
+    expect(top + w.height).toBeLessThan(rowTop(L) - 18);
   });
 
   // PID-304: tight phones lift the grid above the trick's centre, never below it.
@@ -1365,7 +1397,7 @@ describe('the bid grid sits on the trick, 18pt clear of your hand', () => {
         const w = window(tall);
         const top = bidWindowTop(L, { tableTop: insets.top + 61, ...w });
         expect(top + w.center).toBeLessThanOrEqual(L.trick.cy);
-        expect(top + w.height).toBeLessThanOrEqual(handTop(L) - 18);
+        expect(top + w.height).toBeLessThanOrEqual(rowTop(L) - 18);
       });
     }
   }
@@ -1584,7 +1616,8 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
       headerBottom: insets.top + HEADER + 8,
     });
     const northTop = northSeatBottom(L, tableTop) - stack;
-    const southBottom = height - insets.bottom - 8;
+    // Your seat stands on its row over your hand (PID-464).
+    const southBottom = southRow(L).bottom;
     const seats = {
       north: { ...center, top: northTop, bottom: northTop + stack },
       south: { ...center, top: southBottom - stack, bottom: southBottom },

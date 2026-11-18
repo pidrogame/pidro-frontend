@@ -2466,6 +2466,21 @@ async function assertTargetGeometry(page, testCase, viewport) {
 
     await assertNorthClear(page, testCase, viewport, testCase.protectNorthSeat ? box : null);
 
+    // Upright, a notice or the banner covers your seat row (PID-393), never
+    // your hand along the bottom edge under it (PID-464).
+    if (
+      ['table-feedback', 'connection-banner'].includes(testCase.testId) &&
+      viewport.height > viewport.width &&
+      (await page.getByTestId('player-hand-top').count())
+    ) {
+      const row = await yourSeatRow(page);
+      const hand = await getStableBox(page.getByTestId('player-hand-top').first(), page);
+      assert.ok(
+        boxesOverlap(box, row) && box.y + box.height <= hand.y - 2,
+        `${testCase.name}: covers your seat row, not your hand, in ${viewport.name}: ${JSON.stringify({ box, row, hand })}`
+      );
+    }
+
     if (testCase.testId === 'trump-picker') {
       await assertTrumpPicker(page, testCase, box, viewport);
     }
@@ -6087,7 +6102,7 @@ async function assertTalkOffer(page, testCase, viewport, corner) {
       !overlaps(box, part),
       `the offer keeps clear of your seat: ${JSON.stringify({ box, part })}`
     );
-  if (upright) await assertBubble(box, you, viewport);
+  if (upright) await assertBubble(page, box, you, viewport);
   assert.equal(
     await offer.evaluate((node) => Number(getComputedStyle(node).opacity)),
     testCase.talk === 'offer-turn' ? 0.6 : 1,
@@ -6104,7 +6119,12 @@ async function assertTalkOffer(page, testCase, viewport, corner) {
     await page.locator('[data-testid^="talk-tail-"]').waitFor({ state: 'detached' });
     await page.getByTestId('talk-landed').getByText(word).waitFor();
     const bubble = await getStableBox(page.getByTestId('talk-speech'), page);
-    await assertBubble(bubble, await getStableBox(page.getByTestId('seat-south'), page), viewport);
+    await assertBubble(
+      page,
+      bubble,
+      await getStableBox(page.getByTestId('seat-south'), page),
+      viewport
+    );
   } else if (testCase.talk === 'offer-tap') {
     await card.click();
     await offer.waitFor({ state: 'detached' });
@@ -6167,7 +6187,8 @@ async function assertTail(page, offer, card, testCase, viewport) {
  * landscape phones lift the word card over the pack, or, where the pack would
  * meet the bubble, stand it above the hand's right end (640 wide) or lay it
  * bottom left beside your seat (667 wide, where East's seat comes down); iPads
- * stand it above the hand's left end; upright phones keep it bottom left.
+ * stand it above the hand's left end; upright phones lay it at the left end
+ * of your seat row, over your hand, short of your seat (PID-464).
  * Nothing talk shows, the bubble included, touches the pack or a seat.
  */
 async function assertTalkDeal(page, viewport) {
@@ -6188,6 +6209,14 @@ async function assertTalkDeal(page, viewport) {
     height: Math.max(...backs.map((b) => b.y + b.height)) - y,
   };
   assertInsideViewport('your pack', pack, viewport);
+  if (viewport.height > viewport.width) {
+    const row = await yourSeatRow(page);
+    const hand = await getStableBox(page.getByTestId('player-hand-top').first(), page);
+    assert.ok(
+      pack.y + pack.height <= hand.y - 2 && pack.x + pack.width <= row.x,
+      `your pack lies at the left end of your seat row, over your hand: ${JSON.stringify({ pack, row, hand })}`
+    );
+  }
   // Nor does it lie under a seat or its backs (PID-396: at 667×375 East's seat
   // comes down to where the pack stands at 640).
   const seats = page.locator(
@@ -6223,16 +6252,21 @@ async function assertTalkDeal(page, viewport) {
 }
 
 /**
- * Upright phones (PID-393): the bubble sits in the bottom right corner, its
- * centre level with your avatar's. Expo web drops your seat's empty line,
- * lowering the avatar by that line (18pt since PID-450) where the seat has
- * nothing to say; a phone keeps it.
+ * Upright phones (PID-393): the bubble sits at the right end of your seat
+ * row, over your hand (PID-464), its centre level with your avatar's. Expo
+ * web drops your seat's empty line, lowering the avatar by that line (18pt
+ * since PID-450) where the seat has nothing to say; a phone keeps it.
  */
 const SEAT_STATUS_LINE = 18;
-async function assertBubble(box, you, viewport) {
+async function assertBubble(page, box, you, viewport) {
   assert.ok(
     Math.abs(viewport.width - 12 - (box.x + box.width)) <= 1,
-    `the bubble sits in the right corner: ${JSON.stringify(box)}`
+    `the bubble sits at the right edge: ${JSON.stringify(box)}`
+  );
+  const hand = await getStableBox(page.getByTestId('player-hand-top').first(), page);
+  assert.ok(
+    box.y + box.height <= hand.y - 2,
+    `the bubble stands over your hand: ${JSON.stringify({ box, hand })}`
   );
   const avatar = you.y + Math.min(you.height, 56) / 2;
   assert.ok(
@@ -6409,7 +6443,8 @@ async function assertTalk(page, testCase, viewport) {
   const openerBox = await getStableBox(opener, page);
   assertInsideViewport('talk opener', openerBox, viewport);
   const you = await getStableBox(page.getByTestId('seat-south'), page);
-  if (corner && viewport.height > viewport.width) await assertBubble(openerBox, you, viewport);
+  if (corner && viewport.height > viewport.width)
+    await assertBubble(page, openerBox, you, viewport);
   assert.ok(!overlaps(openerBox, you), 'talk keeps clear of your seat');
   // Phones keep only the speech bubble in their corner; it opens the log.
   if (testCase.talk === 'line' && !corner)
@@ -7043,7 +7078,7 @@ async function assertStatusSeats(page, testCase, viewport) {
         avatar: box(avatar.getBoundingClientRect()),
       };
     }, up);
-  // Tight phones drop your own name under your hand: then there is none to clear.
+  // Tight phones drop your own name over your hand: then there is none to clear.
   const nameBox = async (rel, name) => {
     const text = page.getByTestId(`seat-${rel}`).getByText(name, { exact: true });
     return (await text.count()) ? text.boundingBox() : null;
@@ -7126,6 +7161,7 @@ async function assertSmallTable(page, testCase, viewport) {
   const hand = sprites.filter((s) => s.kind === 'hand').map(spriteBox);
   assert.equal(cards.length, played, `${testCase.name}: every played card is measured`);
   assert.ok(hand.length > 0, `${testCase.name}: your hand is measured`);
+  if (viewport.height > viewport.width) await assertSeatRowOverHand(page, testCase.name, viewport);
   const union = (boxes) => {
     const x = Math.min(...boxes.map((b) => b.x));
     const y = Math.min(...boxes.map((b) => b.y));
@@ -7606,10 +7642,14 @@ async function assertUpright(page, testCase, viewport) {
     assertInsideViewport(`${testCase.name} your hand`, hand, viewport);
     table.push([hand]);
   }
-  // PID-393: East's and West's backs end TRICK_GAP above a lifted card of yours.
+  // PID-393: East's and West's backs end TRICK_GAP above a lifted card of
+  // yours; upright, above your seat row over it (PID-464).
   const cardH = cardSize(viewport.width, viewport.height) * (110 / 78);
   const rest = hand ? (await page.getByTestId('player-hand-top').boundingBox()).y : Infinity;
-  const lifted = rest - Math.min(16, cardH * 0.14) - (cardH * 0.015 + 2.5);
+  const lifted =
+    hand && viewport.height > viewport.width
+      ? (await yourSeatRow(page)).y
+      : rest - Math.min(16, cardH * 0.14) - (cardH * 0.015 + 2.5);
   for (const rel of ['east', 'west']) {
     const backs = await images(`seat-${rel}-cards`);
     if (!backs.length) continue;
@@ -8098,24 +8138,121 @@ async function assertTableInvitation(page, testCase, viewport) {
   await card.waitFor({ state: 'detached' });
 }
 
-// The bidding window stays centred on the trick; on tight phones, your seat
-// under the hand (PID-304) leaves it its own 18pt floor above the hand, where
-// no card is lifted while you bid.
-const biddingClearance = (viewport) =>
-  viewport.height > viewport.width && viewport.height < 700 ? 18 : undefined;
+// The bidding window stays centred on the trick, 18pt clear of your seat row
+// at the least (BID_HAND_GAP); on tight phones it rises to keep that.
+const biddingClearance = (viewport) => (viewport.height > viewport.width ? 18 : undefined);
 
+/**
+ * PID-464: upright, your seat row stands over your hand. What your seat
+ * draws as one box: its face, turn ring, lit plate and words, and the
+ * badges on it; the turn light's soft glow is not a thing to keep off.
+ */
+async function yourSeatRow(page) {
+  const seat = page.getByTestId('seat-south').first();
+  await seat.waitFor({ state: 'visible', timeout: 20_000 });
+  await getStableBox(seat, page);
+  return seat.evaluate((node) => {
+    const boxes = [node, ...node.querySelectorAll('*')]
+      .filter((part) => {
+        const style = getComputedStyle(part);
+        if (style.visibility === 'hidden' || style.opacity === '0') return false;
+        if (style.backgroundImage.includes('radial-gradient(')) return false;
+        return (
+          part === node ||
+          part.childElementCount === 0 ||
+          part.tagName === 'svg' ||
+          style.backgroundColor !== 'rgba(0, 0, 0, 0)'
+        );
+      })
+      .map((part) => part.getBoundingClientRect())
+      .filter((rect) => rect.width && rect.height);
+    const x = Math.min(...boxes.map((b) => b.x));
+    const y = Math.min(...boxes.map((b) => b.y));
+    return {
+      x,
+      y,
+      width: Math.max(...boxes.map((b) => b.x + b.width)) - x,
+      height: Math.max(...boxes.map((b) => b.y + b.height)) - y,
+    };
+  });
+}
+
+/**
+ * A window over the table keeps clear of what lies under it. Landscape:
+ * your hand, by `clearance` (8pt unless named). Upright (PID-464): your seat
+ * row, by `clearance` (TRICK_GAP unless named), and that row clears your
+ * hand: the window, your seat, then your hand at the bottom edge.
+ */
 async function assertAbovePlayerHand(page, name, box, viewport, clearance) {
   const handBoundary = page.getByTestId('player-hand-top').first();
   await handBoundary.waitFor({ state: 'attached', timeout: 20_000 });
   const handBox = await getStableBox(handBoundary, page);
   if (!handBox) throw new Error(`${name} player-hand boundary has no geometry`);
   const handTop = handBox.y;
-  const minimumClearance = clearance ?? (viewport.height >= viewport.width ? 28 : 8);
+  const upright = viewport.height >= viewport.width;
+  const minimumClearance = clearance ?? (upright ? TRICK_GAP : 8);
+  const below = upright ? (await yourSeatRow(page)).y : handTop;
 
   // Layout/card transforms can land on opposite sides of a half-pixel boundary.
-  if (box.y + box.height > handTop - minimumClearance + 0.5) {
+  if (box.y + box.height > below - minimumClearance + 0.5) {
     throw new Error(
-      `${name} is too close to the player hand in ${viewport.name}: window=${JSON.stringify(box)} protectedHandTop=${handTop} minimumClearance=${minimumClearance}`
+      `${name} is too close to ${upright ? 'your seat row' : 'the player hand'} in ${viewport.name}: window=${JSON.stringify(box)} protectedTop=${below} minimumClearance=${minimumClearance}`
+    );
+  }
+  if (upright) await assertSeatRowOverHand(page, name, viewport);
+}
+
+/** The bottom insets `?safeArea=` fakes (FixtureInsets); a browser has none. */
+const SAFE_AREA_BOTTOM = {
+  island: 34,
+  'iphone-17-portrait': 34,
+  android: 48,
+  'android-buttons': 48,
+  'android-gesture': 24,
+};
+/**
+ * PID-464: upright, your seat row (face, ring, plate, words) ends above your
+ * hand, every card of it, a lifted one too, and the hand lies along the
+ * bottom edge, 8pt above the home indicator or nav bar.
+ */
+async function assertSeatRowOverHand(page, name, viewport) {
+  const insetBottom = SAFE_AREA_BOTTOM[new URL(page.url()).searchParams.get('safeArea')] ?? 0;
+  const row = await yourSeatRow(page);
+  // Where the hand comes to rest: a dealt hand flies in from the pack first.
+  const measure = async () =>
+    JSON.stringify(
+      (await page.evaluate(() => window.__pidroCardMotion()))
+        .filter((sprite) => sprite.kind === 'hand')
+        .map(spriteBox)
+    );
+  let settled = await measure();
+  for (let i = 0; i < 25; i++) {
+    await page.waitForTimeout(200);
+    const next = await measure();
+    if (next === settled) break;
+    settled = next;
+  }
+  const hand = JSON.parse(settled);
+  if (!hand.length) throw new Error(`${name}: your hand is not measured in ${viewport.name}`);
+  // The row of cards at rest is where the hand lies; a card that may lift
+  // (your turn, a suit pointed at) rises out of it, lifted now or not.
+  const rest = await getStableBox(page.getByTestId('player-hand-top').first(), page);
+  const cardH = Math.max(
+    ...(await page.evaluate(() => window.__pidroCardMotion()))
+      .filter((sprite) => sprite.kind === 'hand')
+      .map((sprite) => sprite.height)
+  );
+  const handTop = Math.min(...hand.map((card) => card.y), rest.y - Math.min(16, cardH * 0.14));
+  const handBottom = rest.y + cardH;
+  if (row.y + row.height > handTop - 2) {
+    throw new Error(
+      `${name}: your seat row does not stand above your hand in ${viewport.name}: row=${JSON.stringify(row)} handTop=${handTop}`
+    );
+  }
+  const edge = viewport.height - insetBottom - handBottom;
+  if (edge < 4 || edge > 12) {
+    throw new Error(
+      `${name}: your hand is ${edge.toFixed(1)}pt from the bottom edge in ${viewport.name}, not along it`
     );
   }
 }
@@ -8168,7 +8305,7 @@ async function assertBidGridLayout(page, viewport, locale) {
     const centerOffset = Math.abs(
       centerButton.y + centerButton.height / 2 - (trickCenter.y + trickCenter.height / 2)
     );
-    // Tight phones (PID-304): your seat under the hand leaves the grid less
+    // Tight phones (PID-304): your seat row over the hand leaves the grid less
     // room below the trick, so it may rise above the marker, never sink below.
     const risen =
       viewport.height < 700 &&
@@ -8282,6 +8419,8 @@ async function assertSeatPlacement(page, viewport) {
       `seat-south is not below the opponent row: south=${JSON.stringify(seats.south)}`
     );
   }
+  // PID-464: upright, your hand along the bottom edge, your seat row over it.
+  if (portrait) await assertSeatRowOverHand(page, 'table-playing', viewport);
 }
 
 async function assertNamesFit(page, viewport, northNameMin = 0) {
