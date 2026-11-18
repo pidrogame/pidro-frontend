@@ -11,7 +11,7 @@ import { invitePlatform } from '@/features/invites/platform';
 import type { SocialCredentialResult } from '@/features/auth/socialCredentials';
 import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
 import type { AuthProvider, PasswordLoginResponse, ProviderLoginResponse } from '@/api/auth';
-import { rememberPlayer } from '@/features/auth/knownPlayer';
+import { signingInWith } from '@/features/auth/knownPlayer';
 import { guestSaveFailure, runGuestSave, type GuestSaveResult } from '@/features/auth/saveGuest';
 import { storedAgeTerms } from '@/features/onboarding/ageTerms';
 import { queueLinkedFriend } from '@/stores/friends';
@@ -65,11 +65,11 @@ export function useAuth() {
         const installId = await getInstallId().catch(() => undefined);
         const answer = await authApi.passwordLogin(username, password, installId, storedAgeTerms());
         if (answer.status === 'signed_in') {
+          signingInWith('password');
           setSession({
             accessToken: answer.session.token,
             user: answer.session.user,
           });
-          void rememberPlayer(answer.session.user, 'password');
         }
         return answer;
       } catch (e) {
@@ -118,11 +118,11 @@ export function useAuth() {
           { ...storedAgeTerms(), ...pendingFriendSlug() }
         );
         if (outcome.status === 'signed_in') {
+          signingInWith(provider);
           setSession({
             accessToken: outcome.session.token,
             user: outcome.session.user,
           });
-          void rememberPlayer(outcome.session.user, provider);
           queueLinkedFriend(outcome.session.linked_friend);
         }
         return outcome;
@@ -167,8 +167,8 @@ export function useAuth() {
           ...storedAgeTerms(),
           ...pendingFriendSlug(),
         });
+        signingInWith('password');
         setSession({ accessToken: response.token, user: response.user });
-        void rememberPlayer(response.user, 'password');
         queueLinkedFriend(response.linked_friend);
         return { ok: true };
       } catch (e) {
@@ -212,8 +212,8 @@ export function useAuth() {
             authApi.login(identifier, accountPassword, storedAgeTerms()),
           getSession: useAuthStore.getState,
           install: (response) => {
+            signingInWith('password');
             setSession({ accessToken: response.token, user: response.user });
-            void rememberPlayer(response.user, 'password');
             queueLinkedFriend(response.linked_friend);
           },
           setSessionPreservation: (preserve) =>
@@ -296,8 +296,8 @@ export function useAuth() {
         setIsLoading(true);
         setError(null);
         const response = await authApi.resetPassword(token, password);
+        signingInWith('password');
         setSession({ accessToken: response.token, user: response.user });
-        void rememberPlayer(response.user, 'password');
         return true;
       } catch (e) {
         setError({ cause: e, key: 'auth.reset_failed' });

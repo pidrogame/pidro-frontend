@@ -34,7 +34,7 @@ import { getInstallId } from '@/features/invites/installId';
 import { requestNativeSocialCredential } from '@/features/auth/socialProviders';
 import { classicVerification, takePendingClassicClaim } from '@/features/auth/classicFound';
 import { signInOutcome } from '@/features/auth/signInOutcome';
-import { rememberPlayer } from '@/features/auth/knownPlayer';
+import { signingInWith } from '@/features/auth/knownPlayer';
 import { useProviderSignIn } from '@/components/auth/useProviderSignIn';
 import { useAuth } from '@/hooks/useAuth';
 import { take } from '@/features/auth/pendingClassicVerification';
@@ -428,8 +428,8 @@ export default function ClaimClassicScreen() {
         finishVerification(classicVerification(answer.claim), 'password', login.trim());
         return;
       }
+      signingInWith('password');
       setSession({ accessToken: answer.session.token, user: answer.session.user });
-      void rememberPlayer(answer.session.user, 'password');
       router.replace(
         authenticatedEntryDestination(
           usePendingInviteStore.getState().pendingInvite,
@@ -548,6 +548,8 @@ export default function ClaimClassicScreen() {
             authApi.login(identifier, accountPassword, storedAgeTerms()),
           getSession: useAuthStore.getState,
           install: (response) => {
+            // A guest's claim is a sign-in: the old account's way in is now this one's.
+            if (method) signingInWith(method);
             // A claimed account came from the old Pidro (PID-451).
             setSession({ accessToken: response.token, user: { ...response.user, classic: true } });
             queueClassicPremium(response.classic_premium);
@@ -571,14 +573,14 @@ export default function ClaimClassicScreen() {
         }
       } else {
         const result = await claim();
+        // Signed out or as a guest the claim signs in; signed in, the way in stays.
+        if (method && (!user || user.guest)) signingInWith(method);
         setSession({ accessToken: result.token, user: { ...result.user, classic: true } });
         queueClassicPremium(result.classic_premium);
         queueLinkedFriend(result.linked_friend);
       }
       const claimed = useAuthStore.getState().user;
       if (!claimed) return;
-      // Claimed signed out or as a guest, the old account's way in is now this one's.
-      if (method && (!user || user.guest)) void rememberPlayer(claimed, method);
       captureAnalytics('claim_succeeded', { method });
       const pendingInvite = usePendingInviteStore.getState().pendingInvite;
       const destination = authenticatedEntryDestination(
