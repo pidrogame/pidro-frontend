@@ -6730,6 +6730,38 @@ async function assertDealHold(page, testCase, viewport) {
   }
 }
 
+// PID-450, PID-466: an upright side seat's line has the seat's column, less its padding or what
+// a lit plate reaches past the line. The long line shows where its box (as wide as it is laid
+// out, rounded up, and a point more) fits; otherwise the short one. The long line is measured
+// as a copy of the shown one, so a suit tile counts at its real width.
+async function sideSeatLine(text, long, short) {
+  return text.evaluate(
+    (node, [long, short]) => {
+      const column = node.closest('[data-testid^="seat-"]');
+      const plated = column.querySelector(`[data-testid="${column.dataset.testid}-plate"]`);
+      const room =
+        column.clientWidth -
+        2 * (plated ? 12 + 1.5 : parseFloat(getComputedStyle(column).paddingLeft));
+      const probe = node.cloneNode(true);
+      const shown = node.textContent;
+      if (long.endsWith(shown)) probe.prepend(long.slice(0, long.length - shown.length));
+      else probe.textContent = long;
+      Object.assign(probe.style, {
+        position: 'absolute',
+        whiteSpace: 'pre',
+        width: 'auto',
+        minWidth: '0',
+        maxWidth: 'none',
+      });
+      document.body.append(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      return Math.ceil(width) + 1 <= room ? long : short;
+    },
+    [long, short]
+  );
+}
+
 async function assertBidLines(page, testCase, viewport) {
   if (!testCase.bidLines) return;
   for (const [seat, line] of Object.entries(testCase.bidLines)) {
@@ -6758,10 +6790,19 @@ async function assertBidLines(page, testCase, viewport) {
     const box = await getStableBox(shown[0], page);
     assertInsideViewport(`${testCase.name} ${seat} bid line`, box, viewport);
     const words = await shown[0].textContent();
-    if (words === line) continue;
     const short = line
       .replace(/^Bid (\d+) · high$/, 'High $1')
       .replace(/^Bud (\d+) · högst$/, 'Högst $1');
+    if ((seat === 'east' || seat === 'west') && viewport.height > viewport.width) {
+      const expected = await sideSeatLine(shown[0], line, short);
+      if (words !== expected) {
+        throw new Error(
+          `${testCase.name}: seat ${seat} shows "${words}" where its column gives "${expected}" in ${viewport.name}`
+        );
+      }
+      continue;
+    }
+    if (words === line) continue;
     if (seat !== 'south' || words !== short) {
       throw new Error(`${testCase.name}: seat ${seat} shows "${words}" for "${line}"`);
     }
@@ -7026,9 +7067,22 @@ async function assertPlayLines(page, testCase, viewport) {
     if (!label?.endsWith(`, ${line.replace(/^./, (c) => c.toLowerCase())}`)) {
       throw new Error(`${testCase.name}: seat ${seat} says "${label}" for "${line}"`);
     }
-    const text = avatar.getByText(line, { exact: true });
+    // A side seat short of room says the card alone.
+    const card = line.replace(/^\S+ /, '');
+    const side = (seat === 'east' || seat === 'west') && viewport.height > viewport.width;
+    let text = avatar.getByText(line, { exact: true });
+    if (side && (await text.count()) === 0) text = avatar.getByText(card, { exact: true });
     if ((await text.count()) !== 1 || !(await text.isVisible())) {
       throw new Error(`${testCase.name}: seat ${seat} does not show "${line}" in ${viewport.name}`);
+    }
+    if (side) {
+      const words = await text.textContent();
+      const expected = await sideSeatLine(text, line, card);
+      if (words !== expected) {
+        throw new Error(
+          `${testCase.name}: seat ${seat} shows "${words}" where its column gives "${expected}" in ${viewport.name}`
+        );
+      }
     }
     assertInsideViewport(
       `${testCase.name} ${seat} play line`,
