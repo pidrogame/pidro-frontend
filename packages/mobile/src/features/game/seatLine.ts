@@ -52,6 +52,16 @@ export const playsLine = (card: string): SeatLine => ({
 });
 
 /** The bidding's winner choosing trump; "Trump…" where a narrow seat has no room for it. */
+/**
+ * While cards move, only the seat they come from speaks (PID-466): in a deal
+ * the dealer says it is dealing, the others nothing; in the cut for dealer a
+ * seat says the `card` it cut once that card is `up` on the table.
+ */
+export const dealingLine = (dealer: boolean): SeatLine | null =>
+  dealer ? { text: t('game.dealing') } : null;
+export const cutLine = (card: string | null, up: boolean): SeatLine | null =>
+  card && up ? { text: t('game.draws', { card }) } : null;
+
 export const choosingTrumpLine = (): SeatLine => ({
   text: t('game.choosing_trump'),
   short: t('game.choosing_trump_short'),

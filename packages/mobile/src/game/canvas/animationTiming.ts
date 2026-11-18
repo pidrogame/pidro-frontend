@@ -40,6 +40,16 @@ export const DEAL_SORT_DURATION_MS = 560;
 export const CUT_CARD_STAGGER_MS = 620;
 export const CUT_CARD_TRAVEL_MS = 520;
 export const CUT_WINNER_PAUSE_MS = 900;
+/** The cut's winner stays lit this long before the server deals. */
+export const CUT_WINNER_READ_MS = 700;
+/** The seats cut in this order, each its card a stagger after the one before. */
+export const CUT_ORDER = ['north', 'east', 'south', 'west'] as const;
+/** When the cut's winner lights up, at the cut's own pace. */
+export const cutRevealAt = (cuts: number) =>
+  Math.max(0, cuts - 1) * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS + CUT_WINNER_PAUSE_MS;
+/** When the card cut `order`th lands face up, at `pace` (`catchUpPace`): 0 lays it down at once. */
+export const cutLandsAt = (order: number, pace: number) =>
+  (order * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS) * pace;
 
 const CLOCKWISE = ['north', 'east', 'south', 'west'] as const;
 type Seat = (typeof CLOCKWISE)[number];

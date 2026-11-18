@@ -6711,12 +6711,14 @@ async function assertBotVoice(page, testCase, viewport) {
 }
 
 // PID-267: the fixture's bots bid within 1.4s of the deal starting. Every
-// sample while the seats still say they are dealing shows no bid, in a seat or
+// sample while the dealer's seat still says it is dealing shows no bid, in a seat or
 // in the log, and the deal must outlast the last bid for that to mean anything.
+// PID-466: only the dealer says so; the other seats say nothing.
 async function assertDealHold(page, testCase, viewport) {
   if (!testCase.dealHold) return;
   const dealing = /, (dealing|delar ut)$/i;
   const bid = /\b(bid|bud|passed|passat|high|högst)\b/i;
+  const seats = ['north', 'east', 'south', 'west'];
   const sample = () =>
     page.evaluate(() => ({
       labels: ['north', 'east', 'south', 'west'].map(
@@ -6727,19 +6729,29 @@ async function assertDealHold(page, testCase, viewport) {
         .map((node) => node.textContent)
         .filter(Boolean),
     }));
-  await page.waitForFunction(
-    (pattern) =>
-      new RegExp(pattern, 'i').test(
-        document.querySelector('[data-testid="seat-east"]')?.getAttribute('aria-label') ?? ''
-      ),
-    dealing.source,
-    { timeout: 20_000 }
-  );
+  const dealer = await (
+    await page.waitForFunction(
+      (pattern) =>
+        ['north', 'east', 'south', 'west'].find((rel) =>
+          new RegExp(pattern, 'i').test(
+            document.querySelector(`[data-testid="seat-${rel}"]`)?.getAttribute('aria-label') ?? ''
+          )
+        ) ?? null,
+      dealing.source,
+      { timeout: 20_000 }
+    )
+  ).jsonValue();
   const started = Date.now();
   let held = 0;
   for (;;) {
     const { labels, log } = await sample();
-    if (!labels.every((label) => dealing.test(label))) break;
+    if (!dealing.test(labels[seats.indexOf(dealer)])) break;
+    const others = seats.filter((rel, i) => rel !== dealer && dealing.test(labels[i]));
+    if (others.length) {
+      throw new Error(
+        `${testCase.name}: ${others.join(', ')} say they are dealing, ${dealer} deals, in ${viewport.name}`
+      );
+    }
     const shown = labels.filter((label) => bid.test(label));
     if (shown.length || log.length) {
       throw new Error(

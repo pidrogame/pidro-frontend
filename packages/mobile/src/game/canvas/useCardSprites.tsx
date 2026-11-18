@@ -64,7 +64,10 @@ import { cardKey } from './cardKey';
 import {
   CUT_CARD_STAGGER_MS,
   CUT_CARD_TRAVEL_MS,
-  CUT_WINNER_PAUSE_MS,
+  CUT_ORDER,
+  CUT_WINNER_READ_MS,
+  cutLandsAt,
+  cutRevealAt,
   DEAL_CARD_STAGGER_MS,
   DEAL_CARD_TRAVEL_MS,
   DEAL_PACKET_CARD_STAGGER_MS,
@@ -125,11 +128,6 @@ const SHAKE = 0.06;
 /** A, J, 10, 5 and 2: the cards that score in Pidro. */
 const POINT_RANKS = new Set([14, 11, 10, 5, 2]);
 const REL: RelativePosition[] = ['north', 'east', 'south', 'west'];
-/** The cut's winner stays lit this long before the server deals. */
-const CUT_WINNER_READ_MS = 700;
-/** When the cut's winner lights up, at the cut's own pace. */
-const cutRevealAt = (cuts: number) =>
-  Math.max(0, cuts - 1) * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS + CUT_WINNER_PAUSE_MS;
 
 function handSlotFn(L: TableLayout, n: number) {
   const step = handStep(L, n);
@@ -395,7 +393,7 @@ export function useCardSprites({
           next && group(next) !== group(tc) && model.dealStage !== 'dealing' ? next.key : undefined,
       });
     });
-    REL.forEach((rel, cutIndex) => {
+    CUT_ORDER.forEach((rel, cutIndex) => {
       const tc = model.dealerCuts[rel];
       if (!tc) return;
       const target = playedCardTarget(L, rel, 0, 1);
@@ -518,7 +516,7 @@ export function useCardSprites({
         pace > 0
           ? desired
               .filter((card) => card.kind === 'cut')
-              .map((card) => (card.delayOrder * CUT_CARD_STAGGER_MS + CUT_CARD_TRAVEL_MS) * pace)
+              .map((card) => cutLandsAt(card.delayOrder, pace))
           : [];
       const dealsInMs =
         model.dealerSelectionMs != null

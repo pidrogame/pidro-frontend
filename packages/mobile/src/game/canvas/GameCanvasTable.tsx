@@ -43,12 +43,26 @@ import { useDealPresentation } from './useDealPresentation';
 import { useSecondDealPresentation } from './useSecondDealPresentation';
 import { usePlayPresentation } from './usePlayPresentation';
 import { laidDown, useLayDownPresentation } from './useLayDownPresentation';
-import { PLAY_CARD_TRAVEL_MS } from './animationTiming';
+import {
+  CUT_ORDER,
+  CUT_WINNER_READ_MS,
+  cutLandsAt,
+  cutRevealAt,
+  PLAY_CARD_TRAVEL_MS,
+} from './animationTiming';
+import { catchUpPace } from '@/features/game/catchUp';
 import { blockedTapNudges } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { SeatLayer, type SeatTurn } from './SeatLayer';
-import { choosingTrumpLine, playsLine, teamLine, type SeatLine } from '@/features/game/seatLine';
+import {
+  choosingTrumpLine,
+  cutLine,
+  dealingLine,
+  playsLine,
+  teamLine,
+  type SeatLine,
+} from '@/features/game/seatLine';
 import { Scoreboard } from './Scoreboard';
 import type { TickerRestingLine } from './ActionTicker';
 import { buildHandLog } from '@/game/handLog';
@@ -158,7 +172,9 @@ function statusText(
   player: NonNullable<ReturnType<typeof useGameTableController>['viewModel']>['players'][number],
   state: ServerGameState | null,
   room: string,
-  held: SeatLine | null = null
+  held: SeatLine | null = null,
+  /** The seat's cut card is up on the table. */
+  cutUp = false
 ): SeatLine | null {
   const phase = state?.phase ?? 'bidding';
   const absolutePosition = player.absolutePosition;
@@ -187,9 +203,7 @@ function statusText(
 
   switch (phase) {
     case 'dealer_selection':
-      if (cut) return { text: t('game.draws', { card: cardLabel(cut) }) };
-      if (playedCard) return { text: t('game.draws', { card: cardLabel(playedCard) }) };
-      return now(t('game.drawing'));
+      return cutLine(cut && cardLabel(cut), cutUp);
     case 'bidding':
       if (thinking && player.isCurrentTurn) return now(t('game.bidding'));
       return bidSeatLine({
@@ -531,6 +545,39 @@ export function GameCanvasTable({
     [tableModel, arrivedAt, dealerSelectionMs]
   );
   const dealt = useDealPresentation(timedModel, controller.viewModel?.dealerRelative ?? null);
+  // The cut (PID-466): a seat says what it cut once its card is up, on the cards' own clock.
+  const reduceMotion = useReducedMotion();
+  const cutKey = Object.entries(tableModel.dealerCuts)
+    .map(([rel, card]) => `${rel}:${card.key}`)
+    .join('|');
+  const [cutLanded, setCutLanded] = useState({ key: '', seats: [] as RelativePosition[] });
+  useEffect(() => {
+    if (!cutKey) return;
+    const seats = CUT_ORDER.filter((rel) => timedModel.dealerCuts[rel]);
+    const late = timedModel.arrivedAt != null ? Date.now() - timedModel.arrivedAt : 0;
+    const pace = reduceMotion
+      ? 0
+      : catchUpPace({
+          motionMs: cutRevealAt(seats.length),
+          holdMs: CUT_WINNER_READ_MS,
+          windowMs: timedModel.dealerSelectionMs,
+          lateMs: late,
+        });
+    const timers = seats.map((rel) =>
+      setTimeout(
+        () =>
+          setCutLanded((was) => ({
+            key: cutKey,
+            seats: [...(was.key === cutKey ? was.seats : []), rel],
+          })),
+        cutLandsAt(CUT_ORDER.indexOf(rel), pace)
+      )
+    );
+    return () => timers.forEach(clearTimeout);
+    // Once per cut: the clock starts when its cards do.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cutKey]);
+  const cutUp = cutLanded.key === cutKey ? cutLanded.seats : [];
   const presented = useSecondDealPresentation(
     dealt,
     isPrivateDealerRob ? dealerRobPresentation : null
@@ -710,14 +757,17 @@ export function GameCanvasTable({
   const trickKey = `${tableState?.hand_number ?? tableState?.round_number ?? 0}:${model.lastTrick?.number}`;
   const statusByRel = viewModel?.players.reduce(
     (acc, player) => {
-      // In the second deal the cards say what happens; only the dealer says it is dealing.
       const line = model.dealStage
-        ? model.secondDealShow && player.relativePosition !== model.dealerRelative
-          ? null
-          : { text: t('game.dealing') }
+        ? dealingLine(player.relativePosition === model.dealerRelative)
         : laying && laid.show?.rel === player.relativePosition
           ? { text: t('game.takes_rest'), short: t('game.all_yours'), tone: 'now' as const }
-          : statusText(player, shownState, room.code, heldBid);
+          : statusText(
+              player,
+              shownState,
+              room.code,
+              heldBid,
+              cutUp.includes(player.relativePosition)
+            );
       acc[player.relativePosition] =
         pidro?.side === 'theirs' && pidro.seat === player.relativePosition
           ? { ...(line ?? { text: t('game.took_trick') }), pulse: `pidro-${trickKey}` }
@@ -854,7 +904,6 @@ export function GameCanvasTable({
     talk.sheet === 'typing' && dock != null && height > width && !layout.tight
       ? Math.min(1, (dock - insets.top) / (southRow(layout).top - insets.top))
       : 1;
-  const reduceMotion = useReducedMotion();
   const fitted = useSharedValue(1);
   useEffect(() => {
     fitted.set(

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
 import { fitStatus } from '../../src/features/avatar.ts';
+import { cutLandsAt, CUT_ORDER } from '../../src/game/canvas/animationTiming.ts';
 import {
   choosingTrumpLine,
+  cutLine,
+  dealingLine,
   lineFit,
   seatLine,
   seatPlate,
@@ -267,5 +270,32 @@ describe('a side seat in a narrow column (PID-450, PID-466)', () => {
     } finally {
       setLocale('en');
     }
+  });
+});
+
+describe('while the cards move (PID-466)', () => {
+  it('lets only the dealer say it is dealing', () => {
+    setLocale('en');
+    expect(dealingLine(true)).toEqual({ text: 'Dealing' });
+    expect(dealingLine(false)).toBeNull();
+    setLocale('sv');
+    expect(dealingLine(true)).toEqual({ text: 'Delar ut' });
+  });
+
+  it('says what a seat cut once its card is up, and nothing before', () => {
+    setLocale('en');
+    expect(cutLine('K♥', false)).toBeNull();
+    expect(cutLine('K♥', true)).toEqual({ text: 'Draws K♥' });
+    expect(cutLine(null, true)).toBeNull();
+    setLocale('sv');
+    expect(cutLine('K♥', true)).toEqual({ text: 'Drar K♥' });
+  });
+
+  it('times each seat’s card as the cut lays it down: North first, West last', () => {
+    expect(CUT_ORDER).toEqual(['north', 'east', 'south', 'west']);
+    expect(CUT_ORDER.map((_, order) => cutLandsAt(order, 1))).toEqual([520, 1140, 1760, 2380]);
+    // A phone catching up plays the cut faster; one too far behind lays it down at once.
+    expect(cutLandsAt(3, 0.5)).toBe(1190);
+    expect(cutLandsAt(3, 0)).toBe(0);
   });
 });
