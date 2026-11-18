@@ -145,12 +145,18 @@ Exit 2: the control failed or the play was not drawn under the finger; the run
 proves nothing, so rerun it or tune `HOLD_MS`/`PRESS_MS`. Release work, like
 every flow here; run it with one Android phone check by hand.
 
-## Android's Back at the table (PID-458)
+## Android's Back at the table (PID-458, PID-463)
 
-A browser cannot press Android's Back, and the orb has no emulator, so this is
-checked by hand on an Android phone at release, with the button and with the
-back gesture. Each press must do exactly this:
+The orb has no emulator, so this is checked by hand on an Android phone at
+release, with the button and with the back gesture. (In a development browser,
+`__pidroBack()` in the console presses Back for the same listeners; that is not
+Android.) Each press must do exactly this:
 
+- Joining, restoring the table or "The table could not be restored", seated:
+  "Leave table?" opens, and stays open if the table arrives meanwhile. Leave
+  table takes you to the lobby (Home for a solo game) as at the table.
+- Table unavailable (join failed), Room not found, You were away: Back does what
+  that screen's button does, without asking.
 - Mid-hand, nothing open: "Leave table?" opens. "Stay at table" or Back again
   closes it and you are still seated; "Leave table" takes you to the lobby (or
   Home for a solo game) and a bot takes the seat.
