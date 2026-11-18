@@ -1174,8 +1174,11 @@ export function GameCanvasTable({
                 isGameOver={isGameOver}
                 onRules={rules.show}
               />
+              {/* Upright, over South's backs at the foot: the notice slot would hide its name. */}
               {isSpectator && isChannelJoined && !notice && !controller.actionNotice && (
-                <WatchingBadge />
+                <WatchingBadge
+                  bottom={reserves.landscape ? undefined : insets.bottom + PidroSpacing.xs}
+                />
               )}
             </>
           )}

@@ -602,7 +602,7 @@ export function SeatLayer({
                       : sideColumn - PidroSpacing.xs * 2
             }
             style={[
-              tight && rel === 'south'
+              tight && rel === 'south' && data.isYou
                 ? // Room for "Your turn" on its plate.
                   { width: size * 2 }
                 : L.sidesUnder && (rel === 'east' || rel === 'west')
@@ -613,8 +613,17 @@ export function SeatLayer({
             ]}
             {...seat}
             {...(tight && { level: null })}
+            /* Tight, your own seat says only its short line; a spectator's South keeps its name. */
             {...(tight &&
-              rel === 'south' && {
+              rel === 'south' &&
+              !data.isYou && {
+                label: 'below' as const,
+                status: null,
+                accessibilityLabel: avatarLabel({ ...spoken, level: null }),
+              })}
+            {...(tight &&
+              rel === 'south' &&
+              data.isYou && {
                 label: 'below' as const,
                 name: null,
                 status:
@@ -634,7 +643,7 @@ export function SeatLayer({
               })}
             /* Upright, a line laid out too wide for its column says "High 14" or "Trump…", and a lit plate keeps whole on screen (PID-450, PID-466). */
             {...(portrait &&
-              !(tight && rel === 'south') && {
+              !(tight && rel === 'south' && data.isYou) && {
                 fit: lineFit(seat.status ?? null, line, lineRoom(rel, !!seat.plate)),
               })}
             /* Landscape side seats give the line their name's room; their plates stay clear of the screen's edge (PID-450). */
