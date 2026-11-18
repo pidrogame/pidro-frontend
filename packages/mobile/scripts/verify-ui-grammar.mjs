@@ -6518,7 +6518,16 @@ async function assertTalk(page, testCase, viewport) {
       const gap =
         Math.max(0, ring.x - (box.x + box.width), box.x - (ring.x + ring.width)) +
         Math.max(0, ring.y - (box.y + box.height), box.y - (ring.y + ring.height));
-      assert.ok(gap <= 14, `a landing sits by its own ring: ${JSON.stringify({ box, ring })}`);
+      // Upright, yours starts past your own lit plate once it stands that tall (PID-471): 10 pt
+      // off the ring, then past the plate's edge and 6 pt more, 23.5 pt at 390×844; 30 leaves a
+      // margin. Landscape never pushes.
+      const own =
+        viewport.height > viewport.width &&
+        /^(You|Du):/.test(await landing.getAttribute('aria-label'));
+      assert.ok(
+        gap <= (own ? 30 : 14),
+        `a landing sits by its own ring: ${JSON.stringify({ box, ring })}`
+      );
       // Faces and words are plain bubbles, nothing gold.
       assert.equal(
         await landing

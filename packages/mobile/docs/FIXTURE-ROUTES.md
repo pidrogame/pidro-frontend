@@ -218,6 +218,14 @@ checks the bubble in its corner, landings clear of every seat's cards, a sheet w
 scrolling and one tap that sends and closes it, at 390×844, 375×667, 844×390, 640×360 and
 both iPad sizes.
 
+Where a landing may reach (PID-471) is `fixture=talk-reach-long` (everyone says "Good luck. You'll
+need it.") or `talk-reach-word` (everyone says "Naturally."), with `&out=north` for North's Out
+plate or `&turn=north` for its lit plate. Upright, a bubble keeps 150pt where nothing is in its rows
+and stops 6pt short of any other seat's ring, name, plate or line and of the cards; one too narrow
+there for its longest word goes beside its ring toward the trick (your own and North's to the other
+side) and starts past its own plate. Where no place holds the word, it keeps the place it had
+before. Landscape keeps those places.
+
 What talk offers (PID-328) is `fixture=talk-offer` (your partner's trick: Nice trick!,
 heart, thumb), `talk-offer-turn` (the same on your turn, dimmed), `talk-reply` (Antti said
 Well played: Thanks!, heart) and `talk-start` (Hello!, Good luck). In a fixture the gold line

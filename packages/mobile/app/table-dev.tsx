@@ -585,6 +585,17 @@ const TALK_FIXTURES: Record<string, TalkFixture> = {
   'talk-coin': {
     landed: [said('north', 'coin_heart'), said('west', 'word_well'), said('east', 'coin_thumb')],
   },
+  // PID-471: everyone says a long line, or one long word; `out=north` or `turn=north` grows North's seat.
+  'talk-reach-long': {
+    landed: (['west', 'north', 'east', 'south'] as const).map((seat) =>
+      said(seat, 'line_teasing_hello_3')
+    ),
+  },
+  'talk-reach-word': {
+    landed: (['west', 'north', 'east', 'south'] as const).map((seat) =>
+      said(seat, 'line_teasing_reply_thanks_2')
+    ),
+  },
   'talk-line': { line: said('north', 'word_thanks') },
   // PID-393: North said something while the sheet was closed: the bubble wears a dot.
   'talk-unread': { line: said('north', 'word_thanks'), unread: true },
@@ -1125,6 +1136,7 @@ function TableDevHarness() {
             }
             talkGuest={fixture === 'talk-guest'}
             talkTeen={fixture === 'talk-teen'}
+            talkNorthOut={params.out === 'north'}
             teamsHand={fixture === 'teams' ? 1 : fixture === 'teams-hand2' ? 2 : undefined}
           />
           {sheet ? (
@@ -1398,6 +1410,7 @@ function RolePreview({
   talkTurn = true,
   talkGuest,
   talkTeen,
+  talkNorthOut = false,
   teamsHand,
 }: {
   role: 'player' | 'spectator';
@@ -1455,6 +1468,8 @@ function RolePreview({
   talkGuest?: boolean;
   /** `fixture=talk-teen`: a 13 to 17 sees nothing about typing (PID-318). */
   talkTeen?: boolean;
+  /** `fixture=talk-*&out=north`: North has gone cold, its Out plate under its name (PID-471). */
+  talkNorthOut?: boolean;
   /** `fixture=teams|teams-hand2`: the teams' table in this hand of the game (PID-383). */
   teamsHand?: number;
 }) {
@@ -1699,7 +1714,7 @@ function RolePreview({
       // Talk is a playing table: six cards each, as after the second deal.
       ...(talk && {
         players: {
-          north: { hand: 6 },
+          north: talkNorthOut ? cold([]) : { hand: 6 },
           east: { hand: 6 },
           west: { hand: 6 },
           south: { hand: DETAILS_HAND },
@@ -1855,6 +1870,7 @@ function RolePreview({
     talkTurn,
     talkGuest,
     talkTeen,
+    talkNorthOut,
     teamsHand,
   ]);
 
