@@ -271,6 +271,18 @@ const TRUMP_HAND: Card[] = [
   { rank: 12, suit: 'clubs' },
   { rank: 2, suit: 'clubs' },
 ];
+/** `suits=no-clubs` (PID-461): Marcel's beta hand, hearts, spades, diamonds. */
+const NO_CLUBS_HAND: Card[] = [
+  heart(14),
+  heart(13),
+  heart(11),
+  heart(10),
+  spade(11),
+  spade(10),
+  spade(8),
+  { rank: 13, suit: 'diamonds' },
+  { rank: 12, suit: 'diamonds' },
+];
 const CLOCKWISE: Position[] = ['north', 'east', 'south', 'west'];
 // `character=stig` (PID-466): catalogue lines that end in a full stop, Gösta West and Stig
 // East, and a server guest name of 16 letters in your seat.
@@ -897,6 +909,7 @@ function TableDevHarness() {
     count?: string;
     bidder?: Position;
     hand?: string;
+    suits?: string;
     you?: string;
     kill?: string;
     nine?: string;
@@ -1083,6 +1096,7 @@ function TableDevHarness() {
                 : null
             }
             longNames={params.names === 'long'}
+            trumpHand={params.suits === 'no-clubs' ? NO_CLUBS_HAND : TRUMP_HAND}
             scoreHistory={fixture === 'scores'}
             invitation={INVITATIONS[params.invitation ?? ''] ?? null}
             loading={params.loading ? Number(params.loading) : undefined}
@@ -1359,6 +1373,7 @@ function RolePreview({
   status,
   bidder = 'east',
   turnSeat = null,
+  trumpHand = TRUMP_HAND,
   longNames = false,
   botTrick = false,
   trick,
@@ -1402,6 +1417,8 @@ function RolePreview({
    * `phase=declaring` it won the bid at 14 and chooses trump.
    */
   turnSeat?: Position | null;
+  /** What you hold choosing trump (`suits=no-clubs`). */
+  trumpHand?: Card[];
   /** `names=long`: ironman3001 at West and a long North name. */
   longNames?: boolean;
   botTrick?: boolean;
@@ -1709,7 +1726,7 @@ function RolePreview({
           north: { hand: 9 },
           east: { hand: 9 },
           west: { hand: 9 },
-          south: { hand: TRUMP_HAND },
+          south: { hand: trumpHand },
         },
       }),
     } as unknown as ServerGameState);
@@ -1817,6 +1834,7 @@ function RolePreview({
     botTurn,
     botHand,
     turnSeat,
+    trumpHand,
     tableRoom,
     scoreHistory,
     talk,

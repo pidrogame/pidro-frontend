@@ -14,7 +14,7 @@ import { PidroColors, PidroRadii } from '@/design/tokens';
 import { trumpsIn } from '@/features/game/trump';
 import type { trumpPicker } from '@/game/canvas/layout';
 import type { Card, Suit } from '@/types/game';
-import { SUIT_ORDER } from '@/utils/cards';
+import { suitOrder } from '@/utils/cards';
 import { useTranslation } from '@/i18n';
 import { actionTap, pushAttempt } from '@/diagnostics/actions';
 
@@ -64,7 +64,7 @@ export function TrumpPicker({ cards, frame, preview, onPoint, onSelect }: Props)
         </PidroText>
       ) : null}
       <View style={[styles.row, { gap: frame.gap }]}>
-        {SUIT_ORDER.map((suit) => {
+        {suitOrder(cards, null).map((suit) => {
           const count = trumpsIn(cards, suit).length;
           const active = (chosen ?? preview) === suit;
           return (

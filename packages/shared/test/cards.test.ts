@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { SUIT_ORDER, sortCards } from '../src/utils/cards';
+import { sortCards, suitOrder } from '../src/utils/cards';
 import type { Card, Suit } from '../src/types/game';
 
 const suits: Suit[] = ['spades', 'hearts', 'clubs', 'diamonds'];
@@ -50,19 +50,27 @@ test('each trump keeps its five then the off-five together in descending trump r
   }
 });
 
-// PID-461: the trump picker shows the suits in SUIT_ORDER, so a hand of all
-// four, sorted before trump is named, must run in that order too.
-test('a hand of all four suits sorts in SUIT_ORDER before trump is named', () => {
-  expect(SUIT_ORDER).toEqual(['spades', 'hearts', 'clubs', 'diamonds']);
-  const cards: Card[] = [
-    { suit: 'diamonds', rank: 5 },
-    { suit: 'clubs', rank: 12 },
-    { suit: 'hearts', rank: 9 },
-    { suit: 'diamonds', rank: 10 },
-    { suit: 'spades', rank: 7 },
-    { suit: 'hearts', rank: 14 },
-  ];
-  const sorted = sortCards(cards, null);
-  const groups = sorted.filter((card, i) => i === 0 || card.suit !== sorted[i - 1].suit);
-  expect(groups.map((card) => card.suit)).toEqual(SUIT_ORDER);
-});
+// PID-461: the trump picker shows the suits as the hand shows them before
+// trump is named, then the suits the hand lacks, red and black alternating on.
+const hand = (text: string): Card[] =>
+  text.split(' ').map((c) => ({
+    rank: ({ A: 14, K: 13, Q: 12, J: 11, T: 10 } as Record<string, number>)[c[0]] ?? Number(c[0]),
+    suit: ({ s: 'spades', h: 'hearts', c: 'clubs', d: 'diamonds' } as Record<string, Suit>)[c[1]],
+  }));
+for (const [name, cards, order] of [
+  ['all four suits', 'Kd 7s Ah Qc 9h 2c', ['spades', 'hearts', 'clubs', 'diamonds']],
+  // Marcel's beta hand: no clubs, so clubs comes last.
+  ['three, red majority', 'Ah Kh Jh Th Js Ts 8s Kd Qd', ['hearts', 'spades', 'diamonds', 'clubs']],
+  ['three, black majority', 'As 9s Qc 4c 8d', ['spades', 'diamonds', 'clubs', 'hearts']],
+  ['two of one colour', 'Kh 9h Jd 3d', ['hearts', 'diamonds', 'spades', 'clubs']],
+  ['one suit', 'Ac Kc 9c', ['clubs', 'hearts', 'spades', 'diamonds']],
+  // No hearts: the 5♦ is hearts' only trump, and hearts comes after the held suits.
+  ['hearts only as the other five', 'Jd 5d 8c 3c', ['clubs', 'diamonds', 'spades', 'hearts']],
+] as [string, string, Suit[]][]) {
+  test(`the picker's suits follow the hand: ${name}`, () => {
+    expect(suitOrder(hand(cards), null)).toEqual(order);
+    const sorted = sortCards(hand(cards), null);
+    const groups = sorted.filter((card, i) => i === 0 || card.suit !== sorted[i - 1].suit);
+    expect(groups.map((card) => card.suit)).toEqual(order.slice(0, groups.length));
+  });
+}
