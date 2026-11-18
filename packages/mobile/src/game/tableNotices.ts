@@ -94,14 +94,7 @@ function awayText({ cards, out }: NonNullable<TableNotice['away']>): string {
 }
 
 function autoTurnText({ scope, action }: NonNullable<TableNotice['autoTurn']>): string {
-  const types = [
-    'pass',
-    'bid',
-    'declare_trump',
-    'play_card',
-    'select_hand',
-    'select_dealer',
-  ] as const;
+  const types = ['pass', 'bid', 'declare_trump', 'play_card', 'select_hand'] as const;
   let type: (typeof types)[number] | 'acted' = 'acted';
   for (const candidate of types) if (action?.type === candidate) type = candidate;
   const suitName = (suit: unknown) => {
@@ -130,19 +123,12 @@ function autoTurnText({ scope, action }: NonNullable<TableNotice['autoTurn']>): 
       : null;
   const suit = suitName(action?.suit);
   const cardSuit = suitName(card?.suit);
-  const position = action?.position;
-  const dealer =
-    position === 'north' || position === 'east' || position === 'south' || position === 'west'
-      ? t(`table.position.${position}`)
-      : null;
   const detail =
     type === 'play_card' && rank && cardSuit
       ? 'card'
       : type === 'declare_trump' && suit
         ? 'trump'
-        : type === 'select_dealer' && dealer
-          ? 'dealer'
-          : type;
+        : type;
   return t(`game.auto_${scope}_${detail}`, {
     amount: typeof action?.amount === 'number' ? action.amount : '',
     suit: suit ?? '',
@@ -150,7 +136,6 @@ function autoTurnText({ scope, action }: NonNullable<TableNotice['autoTurn']>): 
       rank && cardSuit
         ? `${getRankLabel(card!.rank as number)}${SUIT_SYMBOLS[card!.suit as Suit]}`
         : '',
-    position: dealer ?? '',
   });
 }
 
