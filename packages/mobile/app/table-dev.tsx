@@ -272,6 +272,17 @@ const TRUMP_HAND: Card[] = [
   { rank: 2, suit: 'clubs' },
 ];
 const CLOCKWISE: Position[] = ['north', 'east', 'south', 'west'];
+// `character=stig` (PID-466): catalogue lines that end in a full stop, Gösta West and Stig
+// East, and a server guest name of 16 letters in your seat.
+const voice = (id: string, name: string, line: string) => ({
+  ...BOT_CHARACTER,
+  bot_persona: id,
+  username: name,
+  display_name: name,
+  bot_profile: { ...BOT_CHARACTER.bot_profile, id, name, lines: [line] },
+});
+const GOSTA = voice('2d9a1c3e-0b6f-4e57-9a11-6c0e2f1b7a40', 'Gösta', 'Jaså.');
+const STIG = voice('7f3e8b21-5c4d-4a9e-8b02-1d6f9e3c5a71', 'Stig', 'Så där ja.');
 // `trick=suits&led=<seat>` (PID-466): A♣, K♠, 4♦ and 10♥ played round from that seat.
 const suitTrick = (led?: string): FixtureTrick => {
   const from = Math.max(0, CLOCKWISE.indexOf(led as Position));
@@ -1048,6 +1059,7 @@ function TableDevHarness() {
             }
             botCrew={fixture === 'bot-crew'}
             botCharacter={params.character === 'saga'}
+            botVoices={params.character === 'stig'}
             botTurn={params.botTurn}
             botHand={Number(params.botHand) || 4}
             fold={
@@ -1352,6 +1364,7 @@ function RolePreview({
   trick,
   botCrew = false,
   botCharacter = false,
+  botVoices = false,
   botTurn = 'west',
   botHand = 4,
   invitation = null,
@@ -1397,6 +1410,8 @@ function RolePreview({
   botCrew?: boolean;
   /** `character=saga` (PID-405): North is a catalogue character with its own lines. */
   botCharacter?: boolean;
+  /** `character=stig` (PID-466): Gösta and Stig, whose lines end in a full stop, and Sincere Snowdrop. */
+  botVoices?: boolean;
   botTurn?: Position;
   botHand?: number;
   invitation?: SeatInvitation | null;
@@ -1541,11 +1556,16 @@ function RolePreview({
         owner_id: 'p-south',
         room_status: previewPhase === 'game_over' ? 'finished' : 'playing',
         seats: {
-          south: { status: 'normal', player_id: 'p-south', username: 'Mia', decision: null },
+          south: {
+            status: 'normal',
+            player_id: 'p-south',
+            username: botVoices ? 'Sincere Snowdrop' : 'Mia',
+            decision: null,
+          },
           west: {
             status: 'permanent_bot',
             player_id: null,
-            ...BOT_CREW[0],
+            ...(botVoices ? GOSTA : BOT_CREW[0]),
             decision: null,
           },
           north: {
@@ -1557,7 +1577,7 @@ function RolePreview({
           east: {
             status: 'permanent_bot',
             player_id: null,
-            ...(talk ? BOT_GUN : BOT_CREW[2]),
+            ...(botVoices ? STIG : talk ? BOT_GUN : BOT_CREW[2]),
             decision: null,
           },
         },
@@ -1793,6 +1813,7 @@ function RolePreview({
     trick,
     botCrew,
     botCharacter,
+    botVoices,
     botTurn,
     botHand,
     turnSeat,

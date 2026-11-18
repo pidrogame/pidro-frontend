@@ -324,8 +324,9 @@ export function SeatLayer({
             maxWidth: size + gap + reach(rel),
             gap,
           };
-  // What an upright seat's line has room for: its column, less what a lit plate reaches past
-  // the line (PID-466). Tight North's line runs right of its avatar, the plate past its end.
+  // What an upright seat's line has room for (PID-466): a side seat's column, less what a lit
+  // plate reaches past the line; North and you keep the centre column, whose plate stays well
+  // inside the screen (PID-450). Tight North's line runs right of its avatar, the plate past it.
   const lineRoom = (rel: RelativePosition, plated: boolean) =>
     tight && rel === 'north'
       ? northRight -
@@ -336,7 +337,7 @@ export function SeatLayer({
         (plated ? PLATE_REACH : 0)
       : rel === 'east' || rel === 'west'
         ? sideColumn - 2 * (plated ? PLATE_REACH : PidroSpacing.xs)
-        : centerColumn - (plated ? 2 * PLATE_REACH : 0);
+        : centerColumn;
   const tableTop = insets.top + topReserve;
   // Floating portrait scores no longer mask the fan behind a header band.
   const northBackTop = northFanTop(L, tableTop);
@@ -580,13 +581,16 @@ export function SeatLayer({
             bid={holds != null ? { amount: holds, tone: team } : null}
             dealerTrail={dealerTrail}
             nameRoom={
-              L.sidesUnder && (rel === 'east' || rel === 'west')
-                ? (L.sideSeatWidth ?? SIDE_SEAT_WIDTH)
-                : !portrait
-                  ? reach(rel)
-                  : rel === 'north' || rel === 'south'
-                    ? centerColumn
-                    : sideColumn - PidroSpacing.xs * 2
+              // Tight North's name runs beside its avatar, up to the pack where East deals.
+              tight && rel === 'north'
+                ? lineRoom('north', false)
+                : L.sidesUnder && (rel === 'east' || rel === 'west')
+                  ? (L.sideSeatWidth ?? SIDE_SEAT_WIDTH)
+                  : !portrait
+                    ? reach(rel)
+                    : rel === 'north' || rel === 'south'
+                      ? centerColumn
+                      : sideColumn - PidroSpacing.xs * 2
             }
             style={[
               tight && rel === 'south'
@@ -623,6 +627,15 @@ export function SeatLayer({
             {...(portrait &&
               !(tight && rel === 'south') && {
                 fit: lineFit(seat.status ?? null, line, lineRoom(rel, !!seat.plate)),
+              })}
+            /* Landscape side seats give the line their name's room; their plates stay clear of the screen's edge (PID-450). */
+            {...(!portrait &&
+              (rel === 'east' || rel === 'west') && {
+                fit: lineFit(
+                  seat.status ?? null,
+                  line,
+                  L.sidesUnder ? (L.sideSeatWidth ?? SIDE_SEAT_WIDTH) : reach(rel)
+                ),
               })}
           />
         );

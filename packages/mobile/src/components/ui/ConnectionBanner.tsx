@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { useTranslation } from '@/i18n';
-import { PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { PidroBevel, PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { PidroText } from './PidroText';
 
 interface ConnectionBannerProps {
@@ -12,16 +12,23 @@ export function ConnectionBanner({ isConnected }: ConnectionBannerProps) {
   if (isConnected) return null;
 
   return (
-    <View testID="connection-banner" style={styles.banner} accessibilityRole="alert">
-      <View style={styles.dot} />
-      <PidroText role="metadata" tone="default">
-        {t('ui.reconnecting')}
-      </PidroText>
+    // Solid, on the navy panel: at the table it floats over your seat, and nothing reads through.
+    <View style={styles.solid}>
+      <View testID="connection-banner" style={styles.banner} accessibilityRole="alert">
+        <View style={styles.dot} />
+        <PidroText role="metadata" tone="default">
+          {t('ui.reconnecting')}
+        </PidroText>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  solid: {
+    borderRadius: PidroRadii.full,
+    backgroundColor: PidroBevel.panelDeep,
+  },
   banner: {
     minHeight: 32,
     flexDirection: 'row',

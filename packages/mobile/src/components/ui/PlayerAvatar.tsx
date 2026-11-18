@@ -36,6 +36,7 @@ import {
   avatarParts,
   chipFor,
   fitStatus,
+  lineBox,
   nameType,
   type AvatarAway,
   type AvatarKind,
@@ -166,7 +167,7 @@ export function PlayerAvatar({
   kind = 'player',
   persona = null,
   botProfile = null,
-  name,
+  name: givenName,
   nameRoom,
   status,
   fit,
@@ -184,7 +185,7 @@ export function PlayerAvatar({
   const parts = avatarParts(size, { beside: label !== 'below', seat });
   const crew = kind === 'bot' ? persona : null;
   const profile = useBotProfile(crew, botProfile);
-  if (crew && name) name = profile?.name || name;
+  const name = crew && givenName ? profile?.name || givenName : givenName;
   const [failedUri, setFailedUri] = useState<string | null>(null);
   const portrait = botPortrait(crew, profile, failedUri);
   const seated = kind !== 'open';
@@ -210,19 +211,59 @@ export function PlayerAvatar({
         })
       : undefined);
 
-  // A line that may give way is laid out once unseen, at the reader's text size, then shown
-  // whole or short; the line decided last stays meanwhile, so the plate never empties.
+  // A seat's words are laid out unseen first, at the reader's text size (PID-466): each
+  // shows only where its box fits (`lineBox`), drawn in that box, so rounding never cuts
+  // its last letter. The line decided last stays meanwhile, so the plate never empties.
   const { fontScale } = useWindowDimensions();
-  const [laid, setLaid] = useState<{ text: string; scale: number; width: number } | null>(null);
+  const [laid, setLaid] = useState<{ scale: number; widths: Record<string, number> }>(() => ({
+    scale: fontScale,
+    widths: {},
+  }));
+  const widths = laid.scale === fontScale ? laid.widths : {};
+  const lineKey = (text: string) => `line${parts.status.fontSize}:${text}`;
+  const nameKey = (type: { fontSize: number }, text: string) => `name${type.fontSize}:${text}`;
+  const statusWidth = status ? widths[lineKey(status)] : undefined;
   const measuring =
-    !!fit &&
+    seat &&
     !!status &&
-    fit.short !== status &&
-    (laid?.text !== status || laid.scale !== fontScale);
-  const decided = measuring ? null : fitStatus(status ?? null, fit, laid?.width ?? 0);
+    (statusWidth == null || (!!fit?.short && widths[lineKey(fit.short)] == null));
+  const decided = measuring
+    ? null
+    : fitStatus(status ?? null, fit, (text) => widths[lineKey(text)] ?? 0, plate === 'turn');
   const [lastLine, setLastLine] = useState(decided);
   if (!measuring && decided !== lastLine) setLastLine(decided);
   const line = measuring ? lastLine : decided;
+  const lineWidth = line != null ? widths[lineKey(line)] : undefined;
+  // Only a line that knows its room gets a box: without one it is cut short where it must be.
+  const lineBoxWidth = lineWidth != null && fit ? lineBox(lineWidth, fit.room) : null;
+  // On a plate kept within its room, the name has that room too.
+  const nameRoomShown = plate && fit ? Math.min(nameRoom ?? fit.room, fit.room) : nameRoom;
+  const shownName = nameType(
+    parts.name,
+    name,
+    nameRoomShown,
+    parts.smallName,
+    name ? widths[nameKey(parts.name, name)] : undefined
+  );
+  const nameWidth = name ? widths[nameKey(shownName, name)] : undefined;
+  const nameBox =
+    nameWidth != null && nameRoomShown != null ? lineBox(nameWidth, nameRoomShown) : null;
+  const unseen = seat
+    ? [
+        ...[status, fit?.short]
+          .filter((text): text is string => !!text)
+          .map((text) => ({ key: lineKey(text), text, type: null })),
+        ...(name
+          ? [parts.name, parts.smallName].map((type) => ({
+              key: nameKey(type, name),
+              text: name,
+              type,
+            }))
+          : []),
+      ].filter(
+        ({ key }, i, all) => widths[key] == null && all.findIndex((a) => a.key === key) === i
+      )
+    : [];
   // The suit's tile grows with the text, as far as the text may (PidroText's body cap).
   const suitSize = parts.status.fontSize * Math.min(fontScale, name || kind === 'open' ? 1.8 : 1);
   const statusType = [
@@ -484,13 +525,9 @@ export function PlayerAvatar({
                 numberOfLines={1}
                 style={[
                   styles.name,
-                  // On a plate kept within its room, the name drops its type step for that room.
-                  nameType(
-                    parts.name,
-                    name,
-                    plate && fit ? Math.min(nameRoom ?? fit.room, fit.room) : nameRoom,
-                    parts.smallName
-                  ),
+                  shownName,
+                  // A name cut short keeps its "…" whole inside the box.
+                  nameBox != null ? { minWidth: nameBox } : seat && styles.cutLine,
                   {
                     color:
                       kind === 'open'
@@ -512,30 +549,38 @@ export function PlayerAvatar({
               <PidroText
                 numberOfLines={1}
                 maxFontSizeMultiplier={named ? undefined : 1}
-                style={statusType}>
+                style={[
+                  statusType,
+                  lineBoxWidth != null ? { minWidth: lineBoxWidth } : seat && styles.cutLine,
+                ]}>
                 {line ? withSuits(line, suitSize) : ' '}
               </PidroText>
-              {measuring ? (
+              {unseen.length > 0 ? (
                 <View
-                  key={`${status}:${fontScale}`}
                   pointerEvents="none"
                   aria-hidden
                   importantForAccessibility="no-hide-descendants"
                   style={styles.measure}>
                   <View style={styles.measureRoom}>
-                    <PidroText
-                      numberOfLines={1}
-                      maxFontSizeMultiplier={named ? undefined : 1}
-                      style={statusType}
-                      onLayout={(e) =>
-                        setLaid({
-                          text: status,
-                          scale: fontScale,
-                          width: e.nativeEvent.layout.width,
-                        })
-                      }>
-                      {withSuits(status, suitSize)}
-                    </PidroText>
+                    {unseen.map(({ key, text, type }) => (
+                      <PidroText
+                        key={`${key}:${fontScale}`}
+                        numberOfLines={1}
+                        maxFontSizeMultiplier={!type && !named ? 1 : undefined}
+                        style={type ? [styles.name, type] : statusType}
+                        onLayout={(e) => {
+                          const width = e.nativeEvent.layout.width;
+                          setLaid((was) => ({
+                            scale: fontScale,
+                            widths: {
+                              ...(was.scale === fontScale ? was.widths : {}),
+                              [key]: width,
+                            },
+                          }));
+                        }}>
+                        {type ? text : withSuits(text, suitSize)}
+                      </PidroText>
+                    ))}
                   </View>
                 </View>
               ) : null}
@@ -1280,5 +1325,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: 4096,
     alignItems: 'flex-start',
+  },
+  // A line cut short: a point inside each edge, so the box's rounding never clips its "…".
+  cutLine: {
+    paddingHorizontal: 1,
   },
 });

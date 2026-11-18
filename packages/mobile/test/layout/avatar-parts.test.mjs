@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
-import { avatarLabel, avatarParts, chipFor, nameType } from '../../src/features/avatar';
+import { avatarLabel, avatarParts, chipFor, lineBox, nameType } from '../../src/features/avatar';
 
 describe('avatar parts by size', () => {
   it('matches the profile avatar on the board', () => {
@@ -102,6 +102,29 @@ describe('avatar parts by size', () => {
     expect(nameType(large, name, undefined)).toBe(large);
     const small = avatarParts(56).name;
     expect(nameType(small, name, 40)).toBe(small);
+  });
+
+  it('decides a seat name from its laid-out width where it has one (PID-466)', () => {
+    const landscape = avatarParts(52, { beside: true, seat: true });
+    // "Sincere Snowdrop", a 16-letter guest name: 16 × 0.5 per letter says 16pt fits in 130,
+    // but laid out it is 135 wide at 16pt, so it drops to 14.
+    expect(nameType(landscape.name, 'Sincere Snowdrop', 130, landscape.smallName)).toBe(
+      landscape.name
+    );
+    expect(nameType(landscape.name, 'Sincere Snowdrop', 130, landscape.smallName, 135)).toBe(
+      landscape.smallName
+    );
+    expect(nameType(landscape.name, 'Sincere Snowdrop', 140, landscape.smallName, 135)).toBe(
+      landscape.name
+    );
+  });
+
+  it('draws a seat label in a box a point wider than the line, rounded up, or not at all', () => {
+    // Android's "Jaså…": a box a hair narrower than "Jaså." cuts its full stop.
+    expect(lineBox(36.2)).toBe(38);
+    expect(lineBox(36)).toBe(37);
+    expect(lineBox(36.2, 38)).toBe(38);
+    expect(lineBox(36.2, 37.9)).toBeNull();
   });
 
   it('is the ring alone at 24', () => {

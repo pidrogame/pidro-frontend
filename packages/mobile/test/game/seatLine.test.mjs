@@ -175,9 +175,14 @@ describe('the plate under a seat (PID-450)', () => {
 describe('a side seat in a narrow column (PID-450, PID-466)', () => {
   // What the seat shows: its line as the device laid it out `width` wide, in `room`. The
   // widths are Nunito 800 at 14pt in Chromium; Android sets the same words wider (PID-465).
-  // 390 wide, a lit side plate leaves its line 82pt; 360 wide, 67.
-  const shows = (line, width, room, shown = line.text) =>
-    fitStatus(shown, lineFit(shown, line, room), width);
+  // 390 wide, a lit side plate leaves its line 82pt; 360 wide, 67. A short line is 40 wide.
+  const shows = (line, width, room, shown = line.text, { short = 40, plated = false } = {}) =>
+    fitStatus(
+      shown,
+      lineFit(shown, line, room),
+      (text) => (text === shown ? width : short),
+      plated
+    );
   const wider = (width) => width * 1.1;
   const high = { text: 'Bid 14 · high', short: 'High 14', tone: 'high' };
   const thinking = (text) => ({ text, short: 'Playing…', tone: 'now' });
@@ -193,8 +198,20 @@ describe('a side seat in a narrow column (PID-450, PID-466)', () => {
     const line = thinking('Let’s see…');
     expect(shows(line, 78, 82)).toBe('Let’s see…');
     expect(shows(line, wider(78), 82)).toBe('Playing…');
-    // Exactly the room still fits: the plate then reaches the column's edge, not past it.
-    expect(shows(line, 82, 82)).toBe('Let’s see…');
+    // Its box is a point wider than the line, rounded up, so a line a hair short of the
+    // room does not fit: Android would cut its last letter for "…" (PID-466).
+    expect(shows(line, 81, 82)).toBe('Let’s see…');
+    expect(shows(line, 81.2, 82)).toBe('Playing…');
+    expect(shows(line, 82, 82)).toBe('Playing…');
+  });
+
+  it('says nothing more on a lit plate where not even the short line fits, never a cut word', () => {
+    // Stig's "Så där ja." at 360 in a face a tenth wider: "Playing…" has no room either.
+    const stig = thinking('Så där ja.');
+    expect(shows(stig, 76, 67, undefined, { short: 66.4, plated: true })).toBeNull();
+    expect(shows(stig, 76, 67, undefined, { short: 60, plated: true })).toBe('Playing…');
+    // On the felt there is no plate to say it: the short line stands.
+    expect(shows(stig, 76, 67, undefined, { short: 66.4 })).toBe('Playing…');
   });
 
   it('chooses trump in its short form where the line would be cut off, on the lit plate too', () => {
@@ -231,7 +248,7 @@ describe('a side seat in a narrow column (PID-450, PID-466)', () => {
     // "Your turn" on your plate is not the line it stands for.
     expect(shows({ text: 'Playing…', short: 'Playing…' }, 300, 10, 'Your turn')).toBe('Your turn');
     expect(lineFit(null, high, 67)).toEqual({ room: 67, short: null });
-    expect(fitStatus('Bid 14 · high', lineFit('Bid 14 · high', null, 67), 300)).toBe(
+    expect(fitStatus('Bid 14 · high', lineFit('Bid 14 · high', null, 67), () => 300)).toBe(
       'Bid 14 · high'
     );
   });

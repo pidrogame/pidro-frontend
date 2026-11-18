@@ -166,24 +166,52 @@ export const textFits = (text: string, fontSize: number, room: number) =>
 export type StatusFit = { room: number; short: string | null };
 
 /**
- * The status a label shows (PID-466): its line where the device laid it out
- * `width` wide within `fit.room`, else `fit.short`. Measured, never estimated,
- * so it holds in whatever face the phone sets the words in.
+ * The box a seat's line is drawn in (PID-466): as wide as the device laid the
+ * line out, rounded up, and a point more, so rounding the box to the screen's
+ * pixels never leaves it a hair too narrow and cuts the last letter for "…".
+ * None where that is more than `room`: the line does not fit.
  */
-export const fitStatus = (status: string | null, fit: StatusFit | undefined, width: number) =>
-  !fit || width <= fit.room ? status : fit.short;
+export const lineBox = (width: number, room = Infinity) => {
+  const box = Math.ceil(width) + 1;
+  return box <= room ? box : null;
+};
+
+/**
+ * The status a label shows (PID-466): its line where its box fits `fit.room`,
+ * else `fit.short`, each as wide as the device laid it out (`widthOf`):
+ * measured, never estimated, so it holds in whatever face the phone draws.
+ * Where neither fits, a lit plate says nothing more, its light says whose turn
+ * it is (PID-450); on the felt the short line stands, cut.
+ */
+export function fitStatus(
+  status: string | null,
+  fit: StatusFit | undefined,
+  widthOf: (text: string) => number,
+  plated = false
+): string | null {
+  if (!fit || !status) return status;
+  for (const text of [status, fit.short])
+    if (text && lineBox(widthOf(text), fit.room) != null) return text;
+  return plated ? null : fit.short;
+}
 
 /**
  * A name too long for `room` at the large type drops one step, to the phone
- * type, before it truncates. The phone type is the floor: it never drops.
+ * type, before it truncates. The phone type is the floor: it never drops. With
+ * `laid`, the name's width at the large type as the device laid it out, that
+ * decides (PID-466); without, an estimate.
  */
 export function nameType(
   type: AvatarParts['name'],
   name: string | null | undefined,
   room: number | undefined,
-  small: AvatarParts['name'] = SMALL_NAME
+  small: AvatarParts['name'] = SMALL_NAME,
+  laid?: number
 ): AvatarParts['name'] {
-  const long = !!name && room != null && !textFits(name, type.fontSize, room);
+  const long =
+    !!name &&
+    room != null &&
+    (laid != null ? lineBox(laid, room) == null : !textFits(name, type.fontSize, room));
   return long && type.fontSize > small.fontSize ? small : type;
 }
 
