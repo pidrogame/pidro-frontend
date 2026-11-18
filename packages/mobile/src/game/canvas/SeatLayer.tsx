@@ -307,11 +307,6 @@ export function SeatLayer({
   const packBackW = northBackWidth(L.cardW, compactNorth(L));
   const taken = secondDeal?.taken ?? 0;
   const tightNorthLeft = width / 2 - size / 2;
-  // East's pack lies at the end of tight North's row: the name stops short of it.
-  const northRight =
-    dealer === 'east' && (packCount > 0 || taken > 0)
-      ? from.x - (packBackW * (110 / 78)) / 2
-      : width - insets.right;
   const seatWidth = (rel: RelativePosition) =>
     tight && rel === 'north'
       ? { maxWidth: northRight - PidroSpacing.sm - tightNorthLeft, gap: PidroSpacing.xs }
@@ -364,6 +359,19 @@ export function SeatLayer({
       headerBottom: insets.top + TABLE_HEADER + PidroSpacing.xs,
     }),
   };
+  // East's pack lies at the end of tight North's row: the name stops short of it.
+  // Under Android's bars East's seat, its turn ring and badges included, rises
+  // beside that row (PID-470): the name stops short of that ring too. A long
+  // name keeps half its room, the least there is to give: East cannot sit lower.
+  const eastRing = parts.turn?.radius ?? size / 2;
+  const northRight = Math.min(
+    dealer === 'east' && (packCount > 0 || taken > 0)
+      ? from.x - (packBackW * (110 / 78)) / 2
+      : width - insets.right,
+    sideSeatPos.top + size / 2 - eastRing < northSeatTop + size
+      ? width - insets.right - sideColumn / 2 - eastRing
+      : Infinity
+  );
   const handTop = L.hand.cy - L.cardH / 2;
   const sideReach = stacks.maxHeight;
   const sideStackCy =

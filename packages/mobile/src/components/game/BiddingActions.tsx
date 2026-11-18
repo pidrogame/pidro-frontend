@@ -122,7 +122,8 @@ export function BiddingActions({
         styles.overlay,
         {
           top: landscape ? hardTop : portraitTop,
-          bottom: height - floor + handGap,
+          // Tight, it may come down over your seat row (`bidWindowTop`).
+          bottom: height - (layout.tight ? southRow(layout).bottom : floor - handGap),
           justifyContent: landscape ? 'flex-end' : 'flex-start',
         },
       ]}

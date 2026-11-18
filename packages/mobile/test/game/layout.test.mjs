@@ -1486,20 +1486,32 @@ describe('the bid grid sits on the trick, 18pt clear of your seat row (PID-464)'
     expect(top + w.height).toBeLessThan(rowTop(L) - 18);
   });
 
-  // PID-304: tight phones lift the grid above the trick's centre, never below it.
-  for (const [width, height, insets] of [
-    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
-    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
-    [360, 616, { top: 24, bottom: 0, left: 0, right: 0 }],
+  // PID-304: tight phones lift the grid above the trick's centre, never below
+  // it. PID-470: never into North's seat either. Where the room between North
+  // and your row is too short for that (Android's bars), the window comes down
+  // over your face instead, as far as your row's foot and no further.
+  for (const [width, height, insets, bottomReserve] of [
+    [360, 640, { top: 0, bottom: 0, left: 0, right: 0 }, 0],
+    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, 52],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }, 52],
+    [360, 616, { top: 24, bottom: 0, left: 0, right: 0 }, 52],
+    [360, 640, { top: 24, bottom: 24, left: 0, right: 0 }, 0],
+    [360, 640, { top: 24, bottom: 48, left: 0, right: 0 }, 0],
   ]) {
     for (const tall of [false, true]) {
-      it(`lifts it on tight ${width}×${height}${tall ? ' with a failed bid' : ''}`, () => {
-        const L = computeLayout(width, height, insets, 61, 52);
+      it(`keeps North in view on tight ${width}×${height}, ${insets.top}/${insets.bottom}${tall ? ' with a failed bid' : ''}`, () => {
+        const L = computeLayout(width, height, insets, 61, bottomReserve);
         expect(L.tight).toBe(true);
         const w = window(tall);
         const top = bidWindowTop(L, { tableTop: insets.top + 61, ...w });
-        expect(top + w.center).toBeLessThanOrEqual(L.trick.cy);
-        expect(top + w.height).toBeLessThanOrEqual(rowTop(L) - 18);
+        const north = northSeatBottom(L, insets.top + 61);
+        const foot = southRow(L).bottom;
+        expect(top + w.height).toBeLessThanOrEqual(foot + 1e-9);
+        expect(top >= north + TRICK_GAP - 1e-9 || top + w.height >= foot - 1e-9).toBe(true);
+        // Only the old 52pt dock under the hand left a failed bid no room under North.
+        if (!bottomReserve) expect(top).toBeGreaterThanOrEqual(north + TRICK_GAP - 1e-9);
+        if (top + w.height <= rowTop(L) - 18)
+          expect(top + w.center).toBeLessThanOrEqual(L.trick.cy);
       });
     }
   }

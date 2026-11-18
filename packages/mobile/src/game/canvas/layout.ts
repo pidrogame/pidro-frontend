@@ -523,15 +523,23 @@ const BID_HAND_GAP = 18;
  * grid sits on the trick's centre, but the window never comes closer to
  * your seat row over your hand (PID-464) than BID_HAND_GAP. On tight phones
  * (PID-304) that leaves less room below the trick, so the grid rises above
- * the centre there, never below it; North keeps clear by its own check.
+ * the centre there, never below it. Where even that reaches North's seat (a
+ * 360×640 phone under Android's bars, PID-470), the window comes down over
+ * your own face, which it stands for while you bid, as far as your row's
+ * foot, rather than cover North's face and line.
  */
 export function bidWindowTop(
   L: TableLayout,
   { tableTop, center, height }: { tableTop: number; center: number; height: number }
 ) {
-  return Math.max(
+  const top = Math.max(
     tableTop + BID_HAND_GAP,
     Math.min(L.trick.cy - center, southRow(L).top - BID_HAND_GAP - height)
+  );
+  if (!L.tight) return top;
+  return Math.max(
+    top,
+    Math.min(northSeatBottom(L, tableTop) + TRICK_GAP, southRow(L).bottom - height)
   );
 }
 
