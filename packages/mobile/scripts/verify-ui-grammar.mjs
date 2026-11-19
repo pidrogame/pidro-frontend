@@ -2370,10 +2370,12 @@ async function assertLocalization(page, testCase, viewport) {
         `${testCase.name}: rule badge crowds seat count`
       );
     }
-    const flag = target.locator('svg[viewBox="0 0 18 12"]').first();
+    // Finland's flag (PID-483): white field, blue cross, a hairline edge.
+    const flag = target.locator('svg[viewBox="0 0 18 11"]').first();
     if (['header', 'settings'].includes(testCase.words)) {
-      assert.equal(await flag.locator('rect').first().getAttribute('fill'), '#d21034');
-      assert.equal(await flag.locator('path').first().getAttribute('fill'), '#ffce00');
+      assert.equal(await flag.locator('rect').first().getAttribute('fill'), '#FFFFFF');
+      assert.equal(await flag.locator('path').first().getAttribute('fill'), '#002F6C');
+      assert.ok(await flag.locator('rect').nth(1).getAttribute('stroke'), 'the white has an edge');
     }
   }
   const clipped = await page.locator('[dir="auto"]').evaluateAll((nodes) =>

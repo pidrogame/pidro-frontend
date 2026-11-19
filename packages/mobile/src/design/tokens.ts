@@ -297,8 +297,10 @@ export const PidroSwitchTokens = {
 
 /** The rule sets' flags keep their own colours; nothing else may use these. */
 export const PidroFlagColors = {
-  ostrobothnianField: '#d21034',
-  ostrobothnianCross: '#ffce00',
+  finnishField: '#FFFFFF',
+  finnishCross: '#002F6C',
+  // A hairline round the white field, so it reads on light and dark surfaces.
+  finnishEdge: 'rgba(124, 140, 160, 0.9)',
   // Louisiana's fleur-de-lis is the app's light gold on this navy.
   louisianaField: '#2b3a7a',
 } as const;

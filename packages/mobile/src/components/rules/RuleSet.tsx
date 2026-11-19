@@ -35,20 +35,31 @@ const FLEUR_DE_LIS = [
  * letters on some Android phones and never match the bevel look.
  */
 export function RuleSetFlag({ ruleSet, height = 12 }: { ruleSet: RuleSet; height?: number }) {
-  const finnish = ruleSet === 'finnish';
+  if (ruleSet === 'finnish') {
+    // Finland's Nordic cross on 18×11: arms 3 wide, the upright left of centre.
+    return (
+      <Svg width={(height * 18) / 11} height={height} viewBox="0 0 18 11">
+        <Rect width={18} height={11} rx={1.5} fill={PidroFlagColors.finnishField} />
+        <Path d="M5 0h3v11H5zM0 4h18v3H0z" fill={PidroFlagColors.finnishCross} />
+        <Rect
+          x={0.3}
+          y={0.3}
+          width={17.4}
+          height={10.4}
+          rx={1.2}
+          fill="none"
+          stroke={PidroFlagColors.finnishEdge}
+          strokeWidth={0.6}
+        />
+      </Svg>
+    );
+  }
   return (
     <Svg width={height * 1.5} height={height} viewBox="0 0 18 12">
-      <Rect
-        width={18}
-        height={12}
-        rx={1.5}
-        fill={finnish ? PidroFlagColors.ostrobothnianField : PidroFlagColors.louisianaField}
-      />
-      {finnish ? (
-        <Path d="M5 0h3v12H5zM0 4.5h18v3H0z" fill={PidroFlagColors.ostrobothnianCross} />
-      ) : (
-        FLEUR_DE_LIS.map((d) => <Path key={d} d={d} fill={PidroColors.goldLight} />)
-      )}
+      <Rect width={18} height={12} rx={1.5} fill={PidroFlagColors.louisianaField} />
+      {FLEUR_DE_LIS.map((d) => (
+        <Path key={d} d={d} fill={PidroColors.goldLight} />
+      ))}
     </Svg>
   );
 }

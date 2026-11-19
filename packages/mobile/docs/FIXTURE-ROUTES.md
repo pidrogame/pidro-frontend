@@ -1206,7 +1206,7 @@ header flag, settings selector, new-table pills, bot waiting room
 (`/table-dev?fixture=finnish&phase=ready-solo`), losing game-over team headings and
 compact lobby badges (`/ui-dev?state=lobby-seats`). The lobby cases also check that
 the longer rule label leaves a clear gap before the seat count.
-They check the red/yellow flag, Finnish/Finländska and Us/Them (Vi/Dom)
+They check the Finnish flag (white field, blue cross), Finnish/Finländska and Us/Them (Vi/Dom)
 at 390×844, 375×667, 844×390 and 768×1024. The internal rule value stays `finnish`.
 
 ---
