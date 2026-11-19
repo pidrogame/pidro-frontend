@@ -956,42 +956,43 @@ export function trickOnCross(
   return Math.max(-1, ...seatTricks);
 }
 
-/** A card in a pile in front of a seat (thrown or killed): a played card's size on landscape phones. */
+/** A card thrown in front of a seat in the second deal: a played card's size on landscape phones. */
 export const pileCardW = (L: TableLayout) =>
   L.front ? L.cardW : L.cardW * L.trick.pileScale * 0.82;
 /** How wide North's or your front-row pile spreads at most, in faces. */
 const FRONT_PILE_SPAN = 3.4;
+
 /**
- * Where card `i` of a seat's pile of `n` lies: spread over its trick spot,
- * or on landscape phones on its spot of the cross, as in Classic: North's
- * and yours spread sideways, East's and West's down their column, closing
- * up to fit.
+ * Where card `i` of the `n` trumps a seat killed over six lies from the start
+ * of play to the end of the hand (PID-481): on its pack's spot (`packSpot`),
+ * which the dealer has taken up by then and which keeps clear of every seat,
+ * hand, pile and talk. As small as a card trailing a landscape phone's pile,
+ * each showing its rank and suit, as far as it can within what the full pack
+ * would cover: a row of standing cards from its left edge, or at East and
+ * West, lying sideways as their pack does, a column from its foot, each
+ * card's index clear of the next.
  */
-export function pileSpot(L: TableLayout, rel: RelativePosition, i: number, n: number) {
-  const w = pileCardW(L);
-  const sideways = rel === 'east' || rel === 'west';
-  if (!L.front) {
-    const at = playedCardTarget(L, rel, 0, 1);
-    // Upright phones: a big throw closes up to keep the trick's corners free
-    // (PID-333), East's and West's between North's and yours, and those two
-    // within the circle.
-    const reach =
-      L.profile === 'phone-portrait'
-        ? L.trick.r - 6 - (sideways ? (w * CARD_RATIO) / 2 : 0)
-        : Infinity;
-    // There East's and West's seats sit just above their spot (PID-393): a
-    // fan rises at most half a gap above it and closes up to keep its bottom.
-    const rise = sideways && L.profile === 'phone-portrait' ? TRICK_GAP / 2 : Infinity;
-    const span = Math.min(2 * reach - w, rise + reach - w / 2);
-    const step = n > 1 ? Math.max(0, Math.min(w * 0.44, span / (n - 1))) : 0;
-    const off = i * step - Math.min(rise, ((n - 1) * step) / 2);
-    return sideways ? { x: at.x, y: at.y + off } : { x: at.x + off, y: at.y };
+export function killedSpot(L: TableLayout, rel: RelativePosition, i: number, n: number) {
+  const pack = packSpot(L, rel);
+  const packW = northBackWidth(L.cardW, compactNorth(L));
+  const full = packRise(packW, 52);
+  const w = Math.min(packW, L.cardW * L.trick.pileScale * TRAIL_SCALE);
+  const h = w * CARD_RATIO;
+  // Closing up within the pack's room, never past a third of a card (THROW_SHOWN).
+  const step = (room: number) =>
+    n > 1 ? Math.max(w * THROW_SHOWN, Math.min(w * 0.44, (room - w) / (n - 1))) : 0;
+  // The pack's bottom back, standing or lying sideways.
+  const [packX, packY] = pack.sideways ? [packW * CARD_RATIO, packW] : [packW, packW * CARD_RATIO];
+  if (rel === 'north' || rel === 'south') {
+    const s = step(packX + full * 0.55);
+    const y = pack.y + packY / 2 - h / 2;
+    return { x: pack.x - packX / 2 + w / 2 + i * s, y, rot: 0, w };
   }
-  const at = L.front[rel];
-  if (sideways) return { x: at.x, y: sideColumn(L, rel, at.y, i, n, w * 0.44) };
-  const span = w * FRONT_PILE_SPAN;
-  const step = n > 1 ? Math.min(w * 0.44, (span - w) / (n - 1)) : 0;
-  return { x: at.x + (i - (n - 1) / 2) * step, y: at.y };
+  // East's index lies at the card's foot, West's at its top (PID-388).
+  const s = step(packY + full);
+  const foot = pack.y + packY / 2;
+  const y = rel === 'west' ? foot - w / 2 - (n - 1 - i) * s : foot - w / 2 - i * s;
+  return { x: pack.x, y, rot: ((rel === 'east' ? -1 : 1) * Math.PI) / 2, w };
 }
 
 /** A thrown back shows at least this much of itself, as Classic's do (PID-452). */
@@ -1012,7 +1013,7 @@ export function throwSpread(n: number, room: number, cardW: number) {
  * West's down a column beside their stack, from under the seat to above your
  * hand, and North's and yours in a row between those columns. Landscape
  * phones keep Classic's cross. Tablets lay them as upright phones do: their
- * larger cards leave `pileSpot`'s spread no room to count them (PID-453).
+ * larger cards leave a spread over their trick spot no room to count them (PID-453).
  */
 export function throwPile(L: TableLayout, rel: RelativePosition, n: number) {
   const cardW = pileCardW(L);

@@ -300,7 +300,7 @@ describe('table talk', () => {
     const west = { x: 28, y: 291, width: 56, height: 56 };
     const east = { x: 306, y: 291, width: 56, height: 56 };
     const plate = { x: 163, y: 207, width: 64, height: 46 };
-    const seats = { own: null, boxes: [plate] };
+    const seats = { own: [], boxes: [plate] };
 
     it("stops a side seat's bubble 6pt short of North's plate, from either side", () => {
       // West's bubble starts 22pt left of its ring's middle (56): 163 - 6 - 34.
@@ -315,20 +315,20 @@ describe('table talk', () => {
     it('keeps its full width where nothing lies in the rows it fills', () => {
       // A one-line bubble above West's ring ends at 283, its top at 246: the plate ends at 253.
       const higher = { ...plate, y: 150, height: 96 };
-      expect(landingRoom('aboveStart', { ring: west, own: null, boxes: [higher] }, 37).room).toBe(
+      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [higher] }, 37).room).toBe(
         150
       );
       // Two lines reach 225: up into the plate, and it narrows.
-      expect(landingRoom('aboveStart', { ring: west, own: null, boxes: [higher] }, 58).room).toBe(
+      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [higher] }, 58).room).toBe(
         123
       );
       // A box behind where it starts is out of its way; one it starts on leaves no room.
       const behind = { x: 0, y: 260, width: 30, height: 10 };
-      expect(landingRoom('aboveStart', { ring: west, own: null, boxes: [behind] }, 37).room).toBe(
+      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [behind] }, 37).room).toBe(
         150
       );
       const under = { x: 20, y: 260, width: 30, height: 10 };
-      expect(landingRoom('aboveStart', { ring: west, own: null, boxes: [under] }, 37).room).toBe(0);
+      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [under] }, 37).room).toBe(0);
     });
 
     it('starts beside its ring past its own lit plate once it stands that tall', () => {
@@ -336,12 +336,12 @@ describe('table talk', () => {
       const own = { x: 151, y: 211, width: 88, height: 46 };
       const wall = { x: 382, y: -844, width: 390, height: 2532 };
       // One line beside the ring stays above the plate: it starts 10pt off the ring.
-      expect(landingRoom('besideEnd', { ring: north, own, boxes: [wall] }, 37)).toEqual({
+      expect(landingRoom('besideEnd', { ring: north, own: [own], boxes: [wall] }, 37)).toEqual({
         room: 143,
         push: 0,
       });
       // Taller, it starts 6pt past the plate (239), and stops 6pt short of the screen's side.
-      expect(landingRoom('besideEnd', { ring: north, own, boxes: [wall] }, 70)).toEqual({
+      expect(landingRoom('besideEnd', { ring: north, own: [own], boxes: [wall] }, 70)).toEqual({
         room: 131,
         push: 12,
       });
@@ -354,15 +354,28 @@ describe('table talk', () => {
       const own = { x: 151, y: 686, width: 88, height: 46 };
       const wall = { x: -390, y: -844, width: 390, height: 2532 };
       // It starts 10pt left of the ring (157), then 6pt past the plate's left edge: 145.
-      expect(landingRoom('besideStart', { ring: you, own, boxes: [wall] }, 70)).toEqual({
+      expect(landingRoom('besideStart', { ring: you, own: [own], boxes: [wall] }, 70)).toEqual({
         room: 139,
         push: 12,
       });
       // One line stays above the plate: no push, and 151pt to the edge keeps its full 150.
-      expect(landingRoom('besideStart', { ring: you, own, boxes: [wall] }, 37)).toEqual({
+      expect(landingRoom('besideStart', { ring: you, own: [own], boxes: [wall] }, 37)).toEqual({
         room: 150,
         push: 0,
       });
+    });
+
+    // PID-481: West's killed trumps lie sideways above its ring, at the screen's edge.
+    it("starts past its own seat's killed trumps, and stops short of another seat's", () => {
+      const killed = { x: 12, y: 230, width: 52, height: 40 };
+      // Its own: it starts 6pt past them (70), and still stops 6pt short of North's plate.
+      expect(
+        landingRoom('aboveStart', { ring: west, own: [killed], boxes: [killed, plate] }, 37)
+      ).toEqual({ room: 87, push: 36 });
+      // Another seat's under where it starts leave it no room there.
+      expect(
+        landingRoom('aboveStart', { ring: west, own: [], boxes: [killed, plate] }, 37)
+      ).toEqual({ room: 0, push: 0 });
     });
 
     it('goes where its longest word fits, and nowhere new when no place holds it', () => {
@@ -409,10 +422,27 @@ describe('table talk', () => {
     it('goes by id when the server numbers its lines', () => {
       const n = (id, text) => ({ id, seat: 'east', userId: 'kalle', text });
       // Heard live while joining, then in the reply: once. Same words, new id: a new line.
-      expect(mergeTalk([n(3, 'c')], [n(1, 'a'), n(2, 'b'), n(3, 'c')])).toEqual([n(1, 'a'), n(2, 'b'), n(3, 'c')]);
-      expect(mergeTalk([n(1, 'a'), n(2, 'b')], [n(2, 'b'), n(3, 'b')])).toEqual([n(1, 'a'), n(2, 'b'), n(3, 'b')]);
-      expect(saidFrom({ id: 7, seat: 'north', user_id: 'u', item: 'coin_heart' })).toEqual({ id: 7, seat: 'north', userId: 'u', item: 'coin_heart' });
-      expect(saidFrom({ id: 'x', seat: 'north', user_id: 'u', text: 'hi' })).toEqual({ seat: 'north', userId: 'u', text: 'hi' });
+      expect(mergeTalk([n(3, 'c')], [n(1, 'a'), n(2, 'b'), n(3, 'c')])).toEqual([
+        n(1, 'a'),
+        n(2, 'b'),
+        n(3, 'c'),
+      ]);
+      expect(mergeTalk([n(1, 'a'), n(2, 'b')], [n(2, 'b'), n(3, 'b')])).toEqual([
+        n(1, 'a'),
+        n(2, 'b'),
+        n(3, 'b'),
+      ]);
+      expect(saidFrom({ id: 7, seat: 'north', user_id: 'u', item: 'coin_heart' })).toEqual({
+        id: 7,
+        seat: 'north',
+        userId: 'u',
+        item: 'coin_heart',
+      });
+      expect(saidFrom({ id: 'x', seat: 'north', user_id: 'u', text: 'hi' })).toEqual({
+        seat: 'north',
+        userId: 'u',
+        text: 'hi',
+      });
     });
     it('takes a replay shorter than the window as the whole room when nothing overlaps', () => {
       // Kalle's last line is gone from the server's replay (blocked since): no line twice.
@@ -443,7 +473,15 @@ describe('table talk', () => {
     };
     for (const [error, line] of Object.entries(lines)) expect(talkRefusal({ error })).toBe(line);
     // A timeout, a lost socket, watching, an unknown code or nothing at all: "try again".
-    for (const error of [{ reason: 'timeout' }, { reason: 'disconnected' }, new Error('Watching is read-only'), { error: 'invalid_item' }, { error: 'toString' }, null, undefined])
+    for (const error of [
+      { reason: 'timeout' },
+      { reason: 'disconnected' },
+      new Error('Watching is read-only'),
+      { error: 'invalid_item' },
+      { error: 'toString' },
+      null,
+      undefined,
+    ])
       expect(talkRefusal(error)).toBe('talk.report_failed');
     // Every line is in both languages, and none is the same in both.
     for (const line of [...Object.values(lines), 'talk.report_failed']) {

@@ -4,8 +4,8 @@
  * face down in front of them, the piles hold to be counted and clear, the
  * dealer gives each player their cards one at a time, takes the rest and
  * throws down to six last. Throws are backs; only the dealer sees their own (`showAt`).
- * Then any killed trumps lie face up for everyone, KILLED_SHOW_MS or until
- * the first card lands, without holding play (PID-306). Built only from the
+ * Then any killed trumps are thrown face up for everyone, to lie there all
+ * hand (PID-306, PID-481), without holding play. Built only from the
  * server's counts and the hands it already sent: a presentation, never game
  * logic. The server holds play for the second deal
  * (second_deal_transition_delay_ms).
@@ -26,7 +26,6 @@ import {
   type Plan,
   type SecondDealShow,
 } from './secondDealPlan';
-import { KILLED_SHOW_MS } from './animationTiming';
 import { play } from '../sounds';
 import { refillArrives } from '@/features/game/sounds';
 
@@ -66,9 +65,6 @@ export function useSecondDealPresentation(
   const robbed = dealerThrow(rob?.pool, rob?.kept);
   const [dealt, setDealt] = useState<Card[] | null>(null);
   if (robbed?.length && robbed.map(cardKey).join() !== dealt?.map(cardKey).join()) setDealt(robbed);
-  // The killed trumps that have had their moment.
-  const killedKey = JSON.stringify(model.killed ?? {});
-  const [killedShown, setKilledShown] = useState<string | null>(null);
 
   if (previous !== signature) {
     setPrevious(signature);
@@ -76,7 +72,6 @@ export function useSecondDealPresentation(
       if (plan) setPlan(null);
       if (!armed) setArmed(true);
       if (dealt) setDealt(null);
-      if (killedShown) setKilledShown(null);
       if (model.yourHand.length > 0) setHeld(model.yourHand);
     } else if (!AFTER.has(model.phase)) {
       if (plan) setPlan(null);
@@ -114,30 +109,12 @@ export function useSecondDealPresentation(
     return () => clearTimeout(timer);
   }, [plan, frame, atEnd, step, dealerPicking]);
 
-  // Once the second deal has played, killed trumps show until the first card lands.
-  const anyKilled = killedKey !== '{}';
-  const showKilled =
-    anyKilled &&
-    (!plan || reducedMotion) &&
-    model.phase === 'playing' &&
-    !hasPlay(model) &&
-    killedShown !== killedKey;
-  useEffect(() => {
-    if (!showKilled) return;
-    const timer = setTimeout(() => setKilledShown(killedKey), KILLED_SHOW_MS);
-    return () => clearTimeout(timer);
-  }, [showKilled, killedKey]);
   // With count help, what each drew stays by their hand until the first card (PID-452).
   const shown = useMemo(() => {
     const drew =
       model.countHelp && model.phase === 'playing' && !hasPlay(model) ? drewCounts(model) : null;
-    if (!drew && !(anyKilled && !showKilled)) return model;
-    return {
-      ...model,
-      ...(anyKilled && !showKilled && { killed: {} }),
-      ...(drew && { drew }),
-    };
-  }, [model, anyKilled, showKilled]);
+    return drew ? { ...model, drew } : model;
+  }, [model]);
 
   if (!plan || !frame || !AFTER.has(model.phase) || hasPlay(model)) return shown;
   if (reducedMotion) return { ...shown, dealUnseen: true };

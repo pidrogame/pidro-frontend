@@ -381,6 +381,16 @@ function useFixtureTurnTimer(
   };
 }
 
+const KILLED: Record<string, Partial<Record<Position, Card[]>>> = {
+  on: { south: [{ suit: 'spades', rank: 13 }] },
+  west: {
+    west: [
+      { suit: 'spades', rank: 8 },
+      { suit: 'spades', rank: 4 },
+    ],
+  },
+};
+
 export type GameCanvasDevProps = {
   onHandPresentationReadyChange?: (ready: boolean) => void;
   autoPlay?: boolean;
@@ -701,12 +711,9 @@ export default function GameCanvasDev({
                   ).length
                 : 0)
             : null,
-        // `killed=on` (PID-475): a trump you killed over six lies face up on your pile
-        // until the first card of the hand is on the table.
-        killedCards:
-          killed === 'on' && !trick.length && tricks.length === earlier.length
-            ? { south: [{ suit: 'spades', rank: 13 }] }
-            : null,
+        // `killed=on` (PID-475): a trump you killed over six lies face up all
+        // hand (PID-481); `killed=west`: two West killed.
+        killedCards: KILLED[killed ?? ''] ?? null,
         // `count=on`: "Count for me": the log, the points as tricks are
         // taken, and the card winning the trick, as at the real table.
         countHelp: count === 'on',
@@ -750,13 +757,14 @@ export default function GameCanvasDev({
         handNumber,
         bids,
         trump,
+        killed: trump ? KILLED[killed ?? ''] : null,
         tricks,
         currentTrick: trick,
         lastHand,
         players,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- buildHandLog translates through the stable global t
-    [handNumber, bids, trump, tricks, trick, lastHand, players, locale]
+    [handNumber, bids, trump, killed, tricks, trick, lastHand, players, locale]
   );
 
   const countHelp = count === 'on';

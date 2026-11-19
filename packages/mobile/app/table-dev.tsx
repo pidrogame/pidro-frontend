@@ -231,6 +231,11 @@ function pileTrick(cards: number, led: boolean, out: boolean, next: boolean): Fi
     next: next ? [{ player: 'west', card: pileCard(at + 3) }] : undefined,
   };
 }
+/** `killed=on|west` at a playing table (PID-481): you, or West, killed trumps over six. */
+const KILLED: Record<string, Partial<Record<Position, Card[]>>> = {
+  on: { south: [heart(8)] },
+  west: { west: [heart(7), heart(6)] },
+};
 const TRICKS: Record<string, FixtureTrick> = {
   full: { taken: [], current: [...BOT_TRICK, play('south', 14)], hand: BOT_TRICK_HAND.slice(1) },
   third: {
@@ -934,6 +939,7 @@ function TableDevHarness() {
     legal?: string;
     you?: string;
     kill?: string;
+    killed?: string;
     nine?: string;
     end?: string;
     sweep?: string;
@@ -1095,6 +1101,7 @@ function TableDevHarness() {
               !!TRICKS[params.trick ?? ''] ||
               !!piles
             }
+            killed={KILLED[params.killed ?? '']}
             trick={
               piles ??
               (params.trick === 'suits' ? suitTrick(params.led) : TRICKS[params.trick ?? ''])
@@ -1409,6 +1416,7 @@ function RolePreview({
   longNames = false,
   botTrick = false,
   trick,
+  killed,
   botCrew = false,
   botCharacter = false,
   botVoices = false,
@@ -1459,6 +1467,7 @@ function RolePreview({
   botTrick?: boolean;
   /** `trick=full` (PID-305): you have played A♥ to the bots' trick, all four cards down; `third`, `seven` (PID-307). */
   trick?: (typeof TRICKS)[string];
+  killed?: Partial<Record<Position, Card[]>>;
   botCrew?: boolean;
   /** `character=saga` (PID-405): North is a catalogue character with its own lines. */
   botCharacter?: boolean;
@@ -1724,6 +1733,7 @@ function RolePreview({
         tricks: trick?.taken ?? [],
         current_trick: trick?.current ?? BOT_TRICK,
       }),
+      ...(killed && { killed_cards: killed }),
       // Talk is a playing table: six cards each, as after the second deal.
       ...(talk && {
         players: {
@@ -1869,6 +1879,7 @@ function RolePreview({
     bidder,
     botTrick,
     trick,
+    killed,
     botCrew,
     botCharacter,
     botVoices,

@@ -336,6 +336,7 @@ function TimedSeatLayer({
   pack,
   secondDeal,
   drew,
+  killed,
   held,
   bid,
   said,
@@ -356,6 +357,7 @@ function TimedSeatLayer({
   pack: ComponentProps<typeof SeatLayer>['pack'];
   secondDeal: ComponentProps<typeof SeatLayer>['secondDeal'];
   drew: ComponentProps<typeof SeatLayer>['drew'];
+  killed: ComponentProps<typeof SeatLayer>['killed'];
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
   said: ComponentProps<typeof SeatLayer>['said'];
@@ -399,6 +401,7 @@ function TimedSeatLayer({
       pack={pack}
       secondDeal={secondDeal}
       drew={drew}
+      killed={killed}
       held={held}
       bid={bid}
       said={said}
@@ -561,6 +564,8 @@ export function GameCanvasTable({
               yourHand: [],
               currentTrick: {},
               playedCards: piles,
+              // The killed trumps leave with the piles (PID-481).
+              killed: endedTricks ? heldModel.killed : {},
               latestPlayKey: null,
               winningKey: null,
               trickPoints: null,
@@ -584,7 +589,7 @@ export function GameCanvasTable({
           : heldModel,
         layDown
       ),
-    [holding, heldModel, heldSeats, piles, classicEnd, layDown]
+    [holding, heldModel, heldSeats, piles, endedTricks, classicEnd, layDown]
   );
   // Catching up: what the server allows the dealer cut, and how late this phone is.
   const arrivedAt = controller.serverState ? arrivals.get(controller.serverState) : undefined;
@@ -708,12 +713,15 @@ export function GameCanvasTable({
   // Bids sound once the deal has played, seen or not.
   useTableHaptics(model, dealt.dealUnseen ? undefined : shownState?.bid_order);
 
+  const secondDealing = presented.dealStage != null;
   const handLog = useMemo(
     () =>
       buildHandLog({
         handNumber: serverState?.hand_number ?? serverState?.round_number ?? null,
         bids: shownState?.bid_order,
         trump: serverState?.trump ?? null,
+        // Who killed which reads once the second deal has played and the cards lie face up.
+        killed: secondDealing ? null : serverState?.killed_cards,
         tricks: controller.completedTricks,
         currentTrick: controller.currentTrick,
         lastHand: serverState?.last_hand ?? null,
@@ -726,6 +734,8 @@ export function GameCanvasTable({
       serverState?.round_number,
       shownState?.bid_order,
       serverState?.trump,
+      secondDealing,
+      serverState?.killed_cards,
       serverState?.last_hand,
       controller.completedTricks,
       controller.currentTrick,
@@ -885,10 +895,12 @@ export function GameCanvasTable({
       TALK_ROW -
       (width / 2 + (yours.turn?.radius ?? yourSize / 2) + PidroSpacing.xs)
     : width - insets.right - PidroSpacing.sm * 2 - handRight(layout, model.yourHand.length);
-  // Landscape phones: while you deal, the offer's word card rises over your pack (PID-396).
+  // Landscape phones: while you deal, the offer's word card rises over your pack (PID-396),
+  // and over the trumps you killed, which lie there all hand (PID-481).
   const talkLift =
-    layout.profile === 'phone-landscape' && model.dealerRelative === 'south' && model.pack
-      ? liftOverPack(layout, model.pack, height - insets.bottom - PidroSpacing.xs)
+    layout.profile === 'phone-landscape' &&
+    ((model.dealerRelative === 'south' && model.pack) || model.killed?.south?.length)
+      ? liftOverPack(layout, model.pack ?? 0, height - insets.bottom - PidroSpacing.xs)
       : 0;
   const faced = players.find((player) => player.playerId === talk.person);
   // Whose sheet is open: a bot by its persona, one per table; anyone else by account.
@@ -1027,6 +1039,9 @@ export function GameCanvasTable({
             pack={model.pack}
             secondDeal={model.secondDealShow}
             drew={model.drew}
+            killed={Object.fromEntries(
+              Object.entries(model.killed ?? {}).map(([rel, cards]) => [rel, cards.length])
+            )}
             held={model.held}
             said={talking ? said : undefined}
             bid={

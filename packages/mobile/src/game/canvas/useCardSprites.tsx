@@ -50,8 +50,7 @@ import {
   handScale as handScaleFor,
   handStep,
   laidPileTarget,
-  pileCardW,
-  pileSpot,
+  killedSpot,
   playedCardTarget,
   trailSpot,
   trickOnCross,
@@ -478,7 +477,7 @@ export function useCardSprites({
       castBy?: string;
       /** A laid-down card (PID-469): when it leaves its seat, or your hand. */
       laidAt?: number;
-      /** A trump killed over six (PID-475): when it is thrown onto its pile. */
+      /** A trump killed over six (PID-475): when it is thrown onto its pack spot (PID-481). */
       killedAt?: number;
       rel?: RelativePosition;
     };
@@ -650,15 +649,13 @@ export function useCardSprites({
       });
     });
 
-    // Trumps killed over six lie face up on their seat's pile (PID-475), thrown
-    // there as a second deal's cards are, under every card played onto them.
+    // Trumps killed over six lie face up on their seat's pack spot all hand
+    // (PID-481), thrown there as a second deal's cards are.
     REL.forEach((rel) => {
       const kills = model.killed?.[rel] ?? [];
-      const sideways = rel === 'east' || rel === 'west';
       const from = rel === 'south' ? { x: L.hand.cx, y: L.hand.cy } : L.seats[rel];
       kills.forEach((card, i) => {
-        const spot = pileSpot(L, rel, i, kills.length);
-        const tilt = L.front ? 0 : ((i * 37) % 7) - 3;
+        const spot = killedSpot(L, rel, i, kills.length);
         desired.push({
           key: `killed-0-0-${rel}-${cardKey(card)}`,
           textureKey: cardKey(card),
@@ -667,8 +664,8 @@ export function useCardSprites({
           delayOrder: i,
           tx: spot.x,
           ty: spot.y,
-          trot: (((rel === 'east' ? -90 : sideways ? 90 : 0) + tilt) * Math.PI) / 180,
-          tscale: pileCardW(L) / cardW,
+          trot: spot.rot,
+          tscale: spot.w / cardW,
           ox: from.x,
           oy: from.y,
           legal: false,
@@ -735,8 +732,6 @@ export function useCardSprites({
     const skipCutSequence = newCutSequence && cutPace.current === 0;
     cutSequenceKey.current = nextCutSequenceKey;
     const nextSlots: SlotInfo[] = Array(MAX).fill(null);
-    const killedLeaving: ((delay: number) => void)[] = [];
-    let firstPlay: number | undefined;
 
     // A card is unique within a hand. Re-key its slot before retirement so a
     // confirmation (or rollback) continues from the exact on-screen position.
@@ -761,8 +756,6 @@ export function useCardSprites({
       retirementTimers.current.delete(oldKey);
       keyToSlot.current.delete(oldKey);
       keyToSlot.current.set(d.key, old);
-      // Your card confirmed in flight is the first on the table too: killed trumps wait for it.
-      if (!firstLoad) firstPlay ??= old;
     }
 
     // Retire slots only when cards leave the server's round history. Completed
@@ -799,14 +792,7 @@ export function useCardSprites({
             }, delay + duration)
           );
         };
-        // A killed trump stays until the hand's first card has landed on it, then fades under it.
-        if (key.startsWith('killed-')) {
-          retirementTimers.current.set(
-            key,
-            setTimeout(() => retire(0), 5_000)
-          );
-          killedLeaving.push(retire);
-        } else retire(0);
+        retire(0);
       }
     }
     const used = new Set(keyToSlot.current.values());
@@ -847,7 +833,6 @@ export function useCardSprites({
         arriving.current.delete(sl);
         // Your own cards leave your hand as sprites; a spectator sees South's backs.
         const fromBacks = !d.ownPlay || !model.seats.south?.isYou;
-        if (d.kind === 'played' && d.killedAt === undefined && !firstLoad) firstPlay ??= sl;
         if (d.kind === 'played' && d.killedAt === undefined && fromBacks && !firstLoad && d.rel)
           arriving.current.set(sl, { rel: d.rel, at: reduceMotion ? 0 : (d.laidAt ?? 0) });
         const comesFromSeat = d.kind === 'played' || d.kind === 'cut';
@@ -1001,7 +986,7 @@ export function useCardSprites({
           }
           flight[sl].value = 1;
         } else if (d.killedAt !== undefined && isNew) {
-          // Thrown face up onto its pile, turning square as it lands.
+          // Thrown face up onto its pack spot, turning square as it lands.
           const toss = { duration: SECOND_DEAL_FLIGHT_MS, easing: Easing.out(Easing.cubic) };
           sx[sl].value = withDelay(d.killedAt, withTiming(d.tx, toss));
           sy[sl].value = withDelay(d.killedAt, withTiming(d.ty, toss));
@@ -1194,20 +1179,6 @@ export function useCardSprites({
       const caster = d.castBy ? keyToSlot.current.get(d.castBy) : undefined;
       if (sl !== undefined && caster !== undefined && nextSlots[sl] && nextSlots[caster])
         nextSlots[sl]!.caster = caster;
-    }
-
-    // The killed trumps fade once the card played onto the table has landed:
-    // a card that has yet to be drawn lands that much later.
-    if (killedLeaving.length) {
-      const fade = (delay: number) => killedLeaving.forEach((retire) => retire(delay));
-      const waiting = firstPlay !== undefined ? departures.current.get(firstPlay) : undefined;
-      const travel = firstPlay !== undefined && !reduceMotion ? PLAY_CARD_TRAVEL_MS : 0;
-      if (waiting && firstPlay !== undefined)
-        departures.current.set(firstPlay, () => {
-          waiting();
-          fade(travel);
-        });
-      else fade(travel);
     }
 
     for (const sl of arriving.current.keys())

@@ -1460,8 +1460,8 @@ const allCases = [
     arrivals: 'backs',
     lastBy: 'west',
   })),
-  // PID-475: the hand's first card lands over a trump killed onto its pile:
-  // yours, tapped, with the state as it lands, and North's, leading.
+  // PID-475, PID-481: the hand's first card lands while a trump killed over six
+  // lies beside it, and stays: yours, tapped, with the state as it lands, and North's, leading.
   ...['landing', 'fast'].map((reply) => ({
     name: `table-play-onto-killed${reply === 'fast' ? '-fast' : ''}`,
     path: `/table-dev?fixture=play-motion&autoplay=false&reply=${reply}&killed=on`,
@@ -6150,9 +6150,9 @@ async function assertBacksHold(page, rel) {
 }
 
 /**
- * PID-475: the hand's first card, `rel`'s, comes onto the trump that seat
- * killed over six: in every frame it lies over the killed card, which shows
- * under it as it arrives, a picture beside the canvas or a card of it.
+ * PID-475, PID-481: the hand's first card, `rel`'s, comes onto the table
+ * while the trumps that seat killed over six lie face up on its pack spot: in
+ * no frame does it touch one, and they are all still up once it has landed.
  */
 async function assertOntoKilled(page, rel) {
   await page.waitForFunction(
@@ -6214,30 +6214,31 @@ async function assertOntoKilled(page, rel) {
         (rel === 'south' ? s.shown !== false : seen(f, s)) &&
         s.opacity > 0.5
     );
-  let under = 0;
+  const killedIn = (f) =>
+    f.sprites.filter((s) => s.key.startsWith(`killed-0-0-${rel}-`) && seen(f, s));
   let flying = 0;
   for (const f of frames) {
     const card = played(f);
     if (!card) continue;
     flying++;
     const at = box(card);
-    let covered = false;
     for (const picture of f.pictures.filter((p) => p.opacity > 0.02 && overlaps(p, at))) {
       assert.fail(
         `the killed card beside the canvas lay over ${card.key} (opacity ${picture.opacity.toFixed(2)})`
       );
     }
-    for (const killed of f.sprites.filter(
-      (s) => s.key.startsWith(`killed-0-0-${rel}-`) && seen(f, s) && overlaps(box(s), at)
-    )) {
-      assert.ok(card.drawZ > killed.drawZ, `${killed.key} lay over ${card.key}`);
-      covered = true;
-    }
-    if (covered) under++;
+    for (const killed of killedIn(f).filter((s) => overlaps(box(s), at)))
+      assert.fail(`${card.key} came onto ${killed.key}`);
   }
   assert.ok(flying >= 10, `${rel}'s card showed in only ${flying} frames`);
-  assert.ok(under >= 3, `${rel}'s card came over its killed card in only ${under} frames`);
-  console.log(`onto killed: ${rel}'s card over its killed card in ${under} of ${flying} frames`);
+  // PID-481: the killed trumps lie there all hand, whole, after the card has landed.
+  const last = frames.at(-1);
+  assert.ok(killedIn(last).length > 0, `${rel}'s killed trumps left after the first card`);
+  for (const killed of killedIn(last))
+    assert.ok(killed.opacity > 0.98, `${killed.key} faded to ${killed.opacity.toFixed(2)}`);
+  console.log(
+    `beside killed: ${rel}'s card clear of its killed trumps in all ${flying} frames, ${killedIn(last).length} still up`
+  );
 }
 
 /**

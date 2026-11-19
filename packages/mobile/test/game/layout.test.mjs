@@ -26,7 +26,7 @@ import {
   packSpot,
   pileCardW,
   pileSpacing,
-  pileSpot,
+  killedSpot,
   PILE_TRAIL_SCALE,
   laidPileTarget,
   playedCardTarget,
@@ -544,6 +544,95 @@ describe('side stacks and the hand', () => {
   });
 });
 
+describe('killed trumps lie on their seat’s pack spot all hand (PID-481)', () => {
+  const box = (spot) => {
+    const [w, h] = [spot.w, spot.w * (110 / 78)];
+    const [x, y] = spot.rot ? [h / 2, w / 2] : [w / 2, h / 2];
+    return { left: spot.x - x, right: spot.x + x, top: spot.y - y, bottom: spot.y + y };
+  };
+  const apart = (a, b) =>
+    a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+  // Every card a seat may have played this hand, a hand of six, its newest on the circle or cross.
+  const played = (L) =>
+    ['north', 'east', 'south', 'west'].flatMap((rel) =>
+      [1, 3, 6].flatMap((n) =>
+        Array.from({ length: n }, (_, i) => {
+          const card = playedCardTarget(L, rel, i, n, 1);
+          return box({ ...card, w: L.cardW * card.scale });
+        }).concat(
+          L.front
+            ? [1, 2, 3, 4, 5, 6].map((back) => {
+                const card = trailSpot(L, rel, back, 6);
+                return box({ ...card, w: L.cardW * card.scale });
+              })
+            : []
+        )
+      )
+    );
+  for (const [width, height, insets] of [
+    [360, 640, { top: 24, bottom: 48, left: 0, right: 0 }],
+    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
+    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
+    [768, 1024, { top: 24, bottom: 20, left: 0, right: 0 }],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [1024, 768, { top: 24, bottom: 20, left: 0, right: 0 }],
+  ]) {
+    it(`lays up to three on the pack's room, smaller than a played card, each index showing, clear of every pile, on ${width}×${height}`, () => {
+      const upright = height > width;
+      const L = computeLayout(width, height, insets, upright ? 60 : 0, 0);
+      const w = northBackWidth(L.cardW, compactNorth(L));
+      const h = w * (110 / 78);
+      const rise = (packLayers(52) - 1) * w * PACK_STEP;
+      for (const rel of ['north', 'east', 'south', 'west']) {
+        const piles = played(L);
+        const pack = packSpot(L, rel);
+        const [pw, ph] = pack.sideways ? [h, w] : [w, h];
+        const room = {
+          left: pack.x - pw / 2,
+          right: pack.x + pw / 2 + rise * 0.55,
+          top: pack.y - ph / 2 - rise,
+          bottom: pack.y + ph / 2,
+        };
+        for (let n = 1; n <= 3; n++) {
+          const spots = Array.from({ length: n }, (_, i) => killedSpot(L, rel, i, n));
+          for (const spot of spots) {
+            const b = box(spot);
+            // One in the pack's room; more may run a card's third each past it, still on screen.
+            const over = ((n - 1) * spot.w) / 3;
+            expect(b.left, `${rel} ${n}`).toBeGreaterThanOrEqual(room.left - 0.01);
+            expect(b.right, `${rel} ${n}`).toBeLessThanOrEqual(
+              Math.min(n === 1 ? room.right : room.right + over, width - insets.right) + 0.01
+            );
+            expect(b.top, `${rel} ${n}`).toBeGreaterThanOrEqual(
+              Math.max(n === 1 ? room.top : room.top - over, insets.top) - 0.01
+            );
+            expect(b.bottom, `${rel} ${n}`).toBeLessThanOrEqual(room.bottom + 0.01);
+            expect(spot.w).toBeLessThan(L.cardW * L.trick.pileScale);
+            // Open (PID-481): a landscape iPad's pack spots reach a hand's late piles.
+            if (L.profile === 'tablet-landscape') continue;
+            for (const card of piles) expect(apart(b, card), `${rel} ${n} on a pile`).toBe(true);
+          }
+          // Your own and North's stand; East's and West's lie as their backs do.
+          expect(
+            spots.every(
+              (s) =>
+                s.rot === { east: -Math.PI / 2, west: Math.PI / 2 }[rel] ||
+                (s.rot === 0 && (rel === 'north' || rel === 'south'))
+            )
+          ).toBe(true);
+          // Each card shows a third of itself past the next, which lies over it:
+          // rightward in a row, up East's column toward its foot's index, down West's.
+          const along = (s) => (rel === 'east' ? -s.y : rel === 'west' ? s.y : s.x);
+          for (let i = 1; i < n; i++)
+            expect(along(spots[i]) - along(spots[i - 1])).toBeGreaterThanOrEqual(
+              spots[i].w / 3 - 0.01
+            );
+        }
+      }
+    });
+  }
+});
+
 describe('portrait trick fits between North and your seat row', () => {
   for (const [width, height, insets] of [
     [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
@@ -642,39 +731,6 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
       const stack = sideStackInner(L.cardW, 0) + TRICK_GAP;
       expect(west.x - played / 2).toBeGreaterThan(stack);
       expect(east.x + played / 2).toBeLessThan(width - stack);
-    });
-  }
-
-  // The second deal's throws grew with the cards; a big one closes up.
-  for (const [width, height, insets] of [
-    [390, 844, { top: 0, bottom: 0, left: 0, right: 0 }],
-    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
-    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
-  ]) {
-    it(`keeps nine-card throws apart on ${width}×${height} ${insets.top}pt`, () => {
-      const { L } = sizes(width, height, insets);
-      const w = pileCardW(L);
-      const h = w * (110 / 78);
-      const pile = (rel) => {
-        const side = rel === 'east' || rel === 'west';
-        const spots = Array.from({ length: 9 }, (_, i) => pileSpot(L, rel, i, 9));
-        const [hw, hh] = side ? [h / 2, w / 2] : [w / 2, h / 2];
-        return {
-          left: Math.min(...spots.map((s) => s.x)) - hw,
-          right: Math.max(...spots.map((s) => s.x)) + hw,
-          top: Math.min(...spots.map((s) => s.y)) - hh,
-          bottom: Math.max(...spots.map((s) => s.y)) + hh,
-        };
-      };
-      const apart = (a, b) =>
-        a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
-      for (const [a, b] of [
-        ['north', 'east'],
-        ['east', 'south'],
-        ['south', 'west'],
-        ['west', 'north'],
-      ])
-        expect(apart(pile(a), pile(b)), `${a} and ${b}`).toBe(true);
     });
   }
 
@@ -1022,11 +1078,6 @@ describe('upright phones seat East and West low beside the trick', () => {
       for (const rel of ['east', 'west']) {
         const card = playedCardTarget(L, rel, 0, 1);
         expect(card.y - (L.cardW * card.scale) / 2 - seatBottom).toBeCloseTo(TRICK_GAP);
-        // A throw or a laid hand fanned there stays under the seat too.
-        for (let n = 2; n <= 9; n++) {
-          const high = Math.min(...Array.from({ length: n }, (_, i) => pileSpot(L, rel, i, n).y));
-          expect(high - pileCardW(L) / 2 - seatBottom).toBeGreaterThanOrEqual(TRICK_GAP / 2 - 0.01);
-        }
       }
       const { top, maxHeight, backW } = sideStacks(L);
       expect(top).toBeCloseTo(seatBottom + TRICK_GAP);
@@ -1555,16 +1606,6 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
           })
         )
       : [];
-  // Every seat's pile of `n` thrown cards in its front row (PID-305).
-  const frontPiles = (L, n) =>
-    ['north', 'east', 'south', 'west'].flatMap((rel) =>
-      Array.from({ length: n }, (_, i) => {
-        const card = pileSpot(L, rel, i, n);
-        const [w, h] = [pileCardW(L), (pileCardW(L) * 110) / 78];
-        const [x, y] = rel === 'east' || rel === 'west' ? [h / 2, w / 2] : [w / 2, h / 2];
-        return { left: card.x - x, right: card.x + x, top: card.y - y, bottom: card.y + y };
-      })
-    );
   // East's and West's full stacks along the edges.
   const sideStackBoxes = (L, insets) => {
     const { top, maxHeight } = sideStacks(L);
@@ -1664,7 +1705,6 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
             ['hand', handBox(L, n)],
             ['menu', menu],
             ...playedCards(L).map((card) => ['a played card', card]),
-            ...frontPiles(L, n).map((card) => ['a thrown card', card]),
             ...trailCards(L).map((card) => ['an earlier card', card]),
             ...sideStackBoxes(L, insets).map((stack) => ['a side stack', stack]),
           ],

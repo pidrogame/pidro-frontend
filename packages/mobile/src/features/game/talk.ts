@@ -230,13 +230,13 @@ export interface Box {
 
 /**
  * What a landing keeps clear of (PID-471): every other seat's face, name, plate
- * and line, and every card, as `boxes`; its own seat's name and line as `own`,
- * which it may start past; and where it goes instead, in turn, when its
- * longest word will not fit where it would land.
+ * and line, and every card, as `boxes`; its own seat's name and line, and the
+ * trumps it killed (PID-481), as `own`, which it may start past; and where it
+ * goes instead, in turn, when its longest word will not fit where it would land.
  */
 export interface Clearance {
   ring: Box;
-  own: Box | null;
+  own: Box[];
   boxes: Box[];
   instead: SaidAt[];
 }
@@ -260,8 +260,8 @@ export const LANDING = {
 /**
  * How wide a landing at `at` may be (PID-471), `tall` points tall: from where
  * it starts toward the first box in the rows it fills, short of it by `clear`.
- * Where its own name and line reach past that start, it starts `push` further
- * out, past them.
+ * Where its own name and line, or its killed trumps, reach past that start, it
+ * starts `push` further out, past them.
  */
 export function landingRoom(
   at: SaidAt,
@@ -281,8 +281,11 @@ export function landingRoom(
   // How far a box's far and near edges lie ahead of `from`.
   const far = (box: Box, from: number) => (ahead > 0 ? box.x + box.width - from : from - box.x);
   const near = (box: Box, from: number) => (ahead > 0 ? box.x - from : from - box.x - box.width);
-  const push =
-    own && inRows(own) && near(own, start) < 0 ? Math.max(0, far(own, start) + LANDING.clear) : 0;
+  const push = own.reduce(
+    (most, box) =>
+      inRows(box) && near(box, start) < 0 ? Math.max(most, far(box, start) + LANDING.clear) : most,
+    0
+  );
   const from = start + ahead * push;
   const room = boxes.reduce(
     (most, box) =>

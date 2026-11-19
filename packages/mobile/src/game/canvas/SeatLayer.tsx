@@ -60,6 +60,7 @@ import {
   handScale,
   type HeldStyle,
   northFanTop,
+  killedSpot,
   packSpot,
   packLayers,
   PACK_STEP,
@@ -188,6 +189,8 @@ type Props = {
   secondDeal?: SecondDealShow;
   /** With count help: what each seat drew, on the corner of its hand (PID-452). */
   drew?: Partial<Record<RelativePosition, number>>;
+  /** How many trumps each seat killed over six, on its pack spot all hand (PID-481). */
+  killed?: Partial<Record<RelativePosition, number>>;
   /** How every hand holds its cards. */
   held?: HeldStyle;
   bid?: { seat: RelativePosition | undefined; amount: number };
@@ -221,6 +224,7 @@ export function SeatLayer({
   pack: packCount = 0,
   secondDeal,
   drew,
+  killed,
   held = HELD_STYLE,
   bid,
   said,
@@ -478,7 +482,14 @@ export function SeatLayer({
         copyAt && grow({ ...copyAt, x: x + copyAt.x, y: y + copyAt.y }, edge, seat.plate ? 6 : 0),
     };
   };
-  // The cards: North's fan, the side stacks, your hand, the trick and the dealer's pack.
+  // The trumps a seat killed (PID-481).
+  const killedBoxes = (rel: RelativePosition): Box[] =>
+    Array.from({ length: killed?.[rel] ?? 0 }, (_, i) => {
+      const spot = killedSpot(L, rel, i, killed?.[rel] ?? 0);
+      const [w, h] = spot.rot ? [spot.w * (110 / 78), spot.w] : [spot.w, spot.w * (110 / 78)];
+      return { x: spot.x - w / 2, y: spot.y - h / 2, width: w, height: h };
+    });
+  // The cards: North's fan, the side stacks, your hand, the trick, the dealer's pack and the killed trumps.
   const cards: Box[] = [
     ...(northBacks > 0
       ? [
@@ -522,6 +533,7 @@ export function SeatLayer({
     ...(packCount > 0 || taken > 0
       ? [grow({ x: from.x, y: from.y, width: 0, height: 0 }, packBackW, packBackW)]
       : []),
+    ...REL.flatMap(killedBoxes),
     // The screen's sides, inside the safe area.
     { x: -width, y: -height, width: width + insets.left, height: 3 * height },
     { x: width - insets.right, y: -height, width, height: 3 * height },
@@ -535,7 +547,12 @@ export function SeatLayer({
       const them = other === rel ? null : drawn(other);
       if (them) boxes.push(them.lit, ...(them.copy ? [them.copy] : []));
     }
-    return { ring: own.ring, own: own.copy ?? null, boxes, instead };
+    return {
+      ring: own.ring,
+      own: [...(own.copy ? [own.copy] : []), ...killedBoxes(rel)],
+      boxes,
+      instead,
+    };
   };
 
   return (

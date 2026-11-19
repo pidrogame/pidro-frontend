@@ -137,8 +137,6 @@ export const layDownAt = (i: number, n: number) =>
   i * Math.min(LAY_DOWN_STAGGER_MS, LAY_DOWN_FAN_MS / Math.max(1, n - 1));
 /** When the last of `n` cards is down. */
 export const layDownLandsMs = (n: number) => layDownAt(n - 1, n) + LAY_DOWN_FLIGHT_MS;
-/** Killed trumps lie face up at the start of play this long, or until the first card lands (PID-306). */
-export const KILLED_SHOW_MS = 3_000;
 /** Cards in one swoop leave a hair apart, so it reads as a handful. */
 export const SECOND_DEAL_SWOOP_STAGGER_MS = 35;
 /** A thrown or dealt card's flight. */

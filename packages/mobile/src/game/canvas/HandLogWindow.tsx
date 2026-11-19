@@ -1,5 +1,5 @@
 /**
- * The hand read back, from the plaque's ticker: bids in order, trump, each
+ * The hand read back, from the plaque's ticker: bids in order, trump and kills, each
  * trick (its plays, who took it, what it was worth) and the result. Between
  * hands the finished hand comes first. It shows the hand log's lines and adds
  * nothing of its own.
@@ -18,7 +18,8 @@ function sectionFor(entry: HandLogEntry): { key: string; title: string | null } 
   if (entry.kind === 'result') return { key: 'result', title: null };
   if (entry.trick != null)
     return { key: `trick-${entry.trick}`, title: t('game.trick', { number: entry.trick }) };
-  if (entry.kind === 'trump') return { key: 'trump', title: null };
+  // Who killed which trumps reads with trump, before the first trick.
+  if (entry.kind === 'trump' || entry.kind === 'kill') return { key: 'trump', title: null };
   return { key: 'bids', title: t('game.bids') };
 }
 

@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'bun:test';
+import { afterEach, describe, expect, it } from 'bun:test';
+import { setLocale } from '@pidro/shared';
 import { buildHandLog, handLogEntries } from '../../src/game/handLog.ts';
 
 const NAMES = { north: 'Kai', east: 'Eli', south: 'Mia', west: 'Nora' };
@@ -41,6 +42,7 @@ const trickTo = (winner, points, twoOfTrump = null, plays = null) => ({
 });
 
 describe('buildHandLog', () => {
+  afterEach(() => setLocale('en'));
   it('lists bids in the order the server made them, with "You" for the viewer', () => {
     const groups = build({
       bids: [
@@ -62,6 +64,48 @@ describe('buildHandLog', () => {
       tricks: [trickTo('east', 5, { position: 'south', points: 1 })],
     });
     expect(texts(groups).slice(-2)).toEqual(['They won the trick +5', 'Your 2 of trump +1']);
+  });
+
+  // PID-481: one line per seat that killed, highest first, after trump and before the first play.
+  it('says who killed which trumps over six, as the seats are named elsewhere', () => {
+    const killed = {
+      west: [card(4, 'hearts'), card(7, 'hearts')],
+      south: [card(13, 'hearts')],
+      north: [],
+    };
+    const groups = build({
+      trump: 'hearts',
+      killed,
+      currentTrick: [play('east', 14, 'hearts')],
+    });
+    expect(texts(groups)).toEqual([
+      'Trump ♥',
+      'You killed K♥',
+      'Nora killed 7♥ 4♥',
+      'Eli plays A♥',
+    ]);
+    const entries = handLogEntries(groups);
+    expect(entries.filter((entry) => entry.kind === 'kill')).toMatchObject([
+      { id: 'kill-2-south', ours: true, trick: null },
+      { id: 'kill-2-west', who: 'Nora', ours: false, trick: null },
+    ]);
+    // A seat without a name is its position, as in every other line.
+    const seats = players().map((p) =>
+      p.absolutePosition === 'west' ? { ...p, username: null } : p
+    );
+    expect(
+      texts(build({ players: seats, killed, currentTrick: [play('west', 9, 'hearts')] }))
+    ).toEqual(['You killed K♥', 'west killed 7♥ 4♥', 'west plays 9♥']);
+    setLocale('sv');
+    expect(texts(build({ killed }))).toEqual(['Du dödade K♥', 'Nora dödade 7♥ 4♥']);
+    expect(texts(build({ players: seats, killed }))).toContain('väster dödade 7♥ 4♥');
+    // Nothing killed, or an older server: no line.
+    expect(texts(build({ killed: {} }))).toEqual([]);
+    expect(texts(build({ killed: null }))).toEqual([]);
+    // A malformed entry is left out, never thrown on (still in Swedish).
+    expect(texts(build({ killed: { north: [null, card(3, 'hearts')], east: 'x' } }))).toEqual([
+      'Kai dödade 3♥',
+    ]);
   });
 
   it('marks your side’s lines as ours', () => {

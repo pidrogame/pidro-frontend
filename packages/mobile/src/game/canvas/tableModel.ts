@@ -414,7 +414,10 @@ export function buildTableModel(input: TableModelInput): TableModel {
       ? Object.fromEntries(
           input.players.flatMap((p) => {
             const cards = input.killedCards?.[p.absolutePosition];
-            return cards?.length ? [[p.relativePosition, cards]] : [];
+            // Highest first, as the hand log reads them.
+            return cards?.length
+              ? [[p.relativePosition, [...cards].sort((a, b) => b.rank - a.rank)]]
+              : [];
           })
         )
       : {},

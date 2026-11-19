@@ -1,6 +1,6 @@
 /**
  * The hand as a list of plain lines, for the plaque's ticker and the hand log:
- * who bid what, trump, every card played, who took each trick and what the
+ * who bid what, trump, who killed which trumps over six, every card played, who took each trick and what the
  * server says it was worth, and how the hand scored. Built from one state
  * snapshot, so a reconnect rebuilds it whole. The server decides winners and
  * points; this only words them. Never throws on malformed state: a piece it
@@ -18,7 +18,7 @@ import { isNorthSouthTeam, t, type TranslationKey, type TranslationValues } from
 import type { Position } from '@/types/lobby';
 import { getRankLabel, SUIT_SYMBOLS } from '@/utils/cards';
 
-export type HandLogKind = 'bid' | 'trump' | 'play' | 'trick' | 'two' | 'result';
+export type HandLogKind = 'bid' | 'trump' | 'kill' | 'play' | 'trick' | 'two' | 'result';
 
 export type HandLogEntry = {
   /** Stable across snapshots: the same action keeps its id when the hand moves on. */
@@ -54,6 +54,8 @@ export type HandLogInput = {
   /** The current hand's bids in the order made; unknown order shows no bids. */
   bids: ServerBid[] | null | undefined;
   trump: Suit | null;
+  /** The current hand's trumps killed over six, by seat; the server sends them once play starts. */
+  killed?: Partial<Record<Position, Card[]>> | null;
   /** Finished tricks this hand, as the server sends them. */
   tricks: unknown;
   /** Plays of the trick in progress. */
@@ -85,6 +87,7 @@ function playsOf(trick: unknown): RawPlay[] {
   return Array.isArray(plays) ? (plays as RawPlay[]) : [];
 }
 
+const cardText = (card: Card) => `${getRankLabel(card.rank)}${SUIT_SYMBOLS[card.suit] ?? ''}`;
 const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 const say = (
   who: string | null,
@@ -147,7 +150,8 @@ export function buildHandLog(input: HandLogInput): HandLogGroup[] {
     bids: ServerBid[] | null | undefined,
     trump: Suit | null | undefined,
     tricks: unknown,
-    currentTrick: unknown
+    currentTrick: unknown,
+    killed?: Partial<Record<Position, Card[]>> | null
   ): HandLogEntry[] => {
     const entries: HandLogEntry[] = [];
     for (const bid of Array.isArray(bids) ? bids : []) {
@@ -178,6 +182,30 @@ export function buildHandLog(input: HandLogInput): HandLogGroup[] {
         trick: null,
       });
     }
+    for (const position of ['north', 'east', 'south', 'west'] as const) {
+      const cards = (Array.isArray(killed?.[position]) ? killed[position] : []).filter(
+        (card) => typeof card?.rank === 'number'
+      );
+      if (!cards.length) continue;
+      entries.push({
+        id: `kill-${hand}-${position}`,
+        kind: 'kill',
+        ...say(
+          name(position),
+          'game.log_killed',
+          {
+            cards: [...cards]
+              .sort((a, b) => b.rank - a.rank)
+              .map(cardText)
+              .join(' '),
+          },
+          nameKey(position)
+        ),
+        ours: ours(teamOf(position)),
+        hand,
+        trick: null,
+      });
+    }
 
     const addPlays = (plays: RawPlay[], trick: number) => {
       plays.forEach((play, index) => {
@@ -189,7 +217,7 @@ export function buildHandLog(input: HandLogInput): HandLogGroup[] {
           ...say(
             name(position),
             isYou(position) ? 'game.log_play_you' : 'game.log_play',
-            { card: `${getRankLabel(play.card.rank)}${SUIT_SYMBOLS[play.card.suit] ?? ''}` },
+            { card: cardText(play.card) },
             nameKey(position)
           ),
           ours: ours(teamOf(position)),
@@ -264,7 +292,14 @@ export function buildHandLog(input: HandLogInput): HandLogGroup[] {
   const hand = input.handNumber ?? 0;
   const last = input.lastHand;
   const groups: HandLogGroup[] = [];
-  const current = handEntries(hand, input.bids, input.trump, input.tricks, input.currentTrick);
+  const current = handEntries(
+    hand,
+    input.bids,
+    input.trump,
+    input.tricks,
+    input.currentTrick,
+    input.killed
+  );
 
   if (last && last.hand_number < hand) {
     // The server has reset for the next hand; the last hand carries itself.
