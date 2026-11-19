@@ -97,8 +97,9 @@ export const en = {
   'rules.long.louisiana': 'Louisiana rules',
   'rules.all': 'All',
   'rules.preferred': 'Preferred rules',
-  'rules.description.finnish': 'Only trumps are played. Lowest bid is 6.',
-  'rules.description.louisiana': 'Lead any suit, nobody sits out. Lowest bid is 7.',
+  // A non-breaking space keeps the number with its words.
+  'rules.description.finnish': 'Only trumps are played. Lowest bid is\u00a06.',
+  'rules.description.louisiana': 'Lead any suit, nobody sits out. Lowest bid is\u00a07.',
   'rules.empty': 'No %{rules} tables match this filter.',
   'rules.emptySearch': 'No %{rules} tables match your search.',
   'rules.searchHint':
@@ -226,8 +227,9 @@ export const sv: Record<keyof typeof en, string> = {
   'rules.long.louisiana': 'Louisiana-regler',
   'rules.all': 'Alla',
   'rules.preferred': 'Föredragna regler',
-  'rules.description.finnish': 'Endast trumf spelas. Lägsta bud är 6.',
-  'rules.description.louisiana': 'Spela ut vilken färg som helst, ingen står över. Lägsta bud är 7.',
+  'rules.description.finnish': 'Endast trumf spelas. Lägsta bud är\u00a06.',
+  'rules.description.louisiana':
+    'Spela ut vilken färg som helst, ingen står över. Lägsta bud är\u00a07.',
   'rules.empty': 'Inga bord med %{rules} regler matchar filtret.',
   'rules.emptySearch': 'Inga bord med %{rules} regler matchar sökningen.',
   'rules.searchHint':

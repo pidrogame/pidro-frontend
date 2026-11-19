@@ -20,6 +20,9 @@ test('rules have a short and a long name in both languages, without changing the
     expect(names.map(({ labelKey }) => catalogs[locale][labelKey])).toEqual(short);
     expect(names.map(({ longKey }) => catalogs[locale][longKey])).toEqual(long);
     expect(catalogs[locale]['social.finnish']).toBe(short[0]);
+    // Settings' hint keeps the lowest bid with its words: no line ends before the number.
+    for (const ruleSet of Object.keys(ruleSets))
+      expect(catalogs[locale][`rules.description.${ruleSet}`]).toMatch(/\S\u00a0[67]\.$/);
   }
 });
 

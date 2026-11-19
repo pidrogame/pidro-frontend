@@ -177,7 +177,7 @@ export const en = {
     "This is a test version. You're one of the first to play it, and it's still being built.",
   "news.today": "Here today",
   "news.todayBody":
-    "Ostrobothnian and Louisiana rules, tables with friends, table talk, weekly leagues, and bots that fill an empty chair.",
+    "Finnish and Louisiana rules, tables with friends, table talk, weekly leagues, and bots that fill an empty chair.",
   "news.tell": "Tell me what you find",
   "news.tellBody":
     "Something odd, broken or confusing? Write to %{email} or use Settings → Tell us. I read every one.",
@@ -405,7 +405,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
     "Det här är en testversion. Du är en av de första som spelar den, och den är inte färdig än.",
   "news.today": "Redan nu",
   "news.todayBody":
-    "Österbottniska regler och Louisiana-regler, bord med vänner, bordsprat, veckoligor och bottar som fyller en tom plats.",
+    "Finländska regler och Louisiana-regler, bord med vänner, bordsprat, veckoligor och bottar som fyller en tom plats.",
   "news.tell": "Hör av dig",
   "news.tellBody":
     "Något konstigt, trasigt eller krångligt? Skriv till %{email} eller använd Inställningar → Berätta för oss. Jag läser varenda en.",
