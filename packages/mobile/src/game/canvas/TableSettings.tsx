@@ -5,7 +5,6 @@ import { BevelButton } from '@/components/ui/BevelButton';
 import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
 import { PidroSwitch } from '@/components/ui/PidroSwitch';
-import { ActionPill } from '@/components/ui/ActionPill';
 import { StillLayer } from '@/components/ui/StillLayer';
 import { PidroColors, PidroSpacing } from '@/design/tokens';
 import { useSettingsStore } from '@/stores/settings';
@@ -90,48 +89,33 @@ export function TableSettings({
                   }}
                 />
               )}
-              <View style={styles.row}>
+              <View style={styles.row} testID="settings-counting">
                 <View style={styles.copy}>
-                  <PidroText role="label">{t('settings.sound')}</PidroText>
+                  <PidroText role="label">{t('settings.countForMe')}</PidroText>
                   <PidroText role="metadata" tone="muted">
-                    {t('settings.soundHint')}
+                    {t('settings.countForMeHint')}
                   </PidroText>
                 </View>
                 <PidroSwitch
-                  accessibilityLabel={t('settings.sound')}
-                  value={soundEnabled}
-                  onValueChange={toggleSound}
+                  accessibilityLabel={t('settings.countForMe')}
+                  value={countHelp}
+                  onValueChange={setCountHelp}
                 />
               </View>
-              <View style={styles.row}>
+              {/* With people at the table it plays quick, whatever the player chose. */}
+              <View style={styles.row} testID="settings-pace">
                 <View style={styles.copy}>
-                  <PidroText role="label">{t('game.haptics')}</PidroText>
+                  <PidroText role="label">{t('settings.waitForMe')}</PidroText>
                   <PidroText role="metadata" tone="muted">
-                    {t('game.haptics_description')}
+                    {t(isSolo ? 'settings.waitForMeHint' : 'settings.paceTableQuick')}
                   </PidroText>
                 </View>
                 <PidroSwitch
-                  accessibilityLabel={t('game.haptics')}
-                  value={hapticEnabled}
-                  onValueChange={toggleHaptic}
+                  accessibilityLabel={t('settings.waitForMe')}
+                  value={pace === 'own'}
+                  disabled={!isSolo}
+                  onValueChange={(on) => setPace(on ? 'own' : 'quick')}
                 />
-              </View>
-              <View style={styles.choice} testID="settings-counting">
-                <PidroText role="label">{t('settings.counting')}</PidroText>
-                <View style={styles.choices}>
-                  {([false, true] as const).map((value) => (
-                    <ActionPill
-                      key={String(value)}
-                      size="lg"
-                      label={t(value ? 'settings.countForMe' : 'settings.countSelf')}
-                      selected={countHelp === value}
-                      onPress={() => setCountHelp(value)}
-                    />
-                  ))}
-                </View>
-                <PidroText role="metadata" tone="muted">
-                  {t(countHelp ? 'settings.countForMeHint' : 'settings.countSelfHint')}
-                </PidroText>
               </View>
             </View>
             <View style={[styles.column, landscape && styles.half]}>
@@ -146,33 +130,25 @@ export function TableSettings({
                   }}
                 />
               )}
-              <View style={styles.choice} testID="settings-pace">
-                <PidroText role="label">{t('settings.pace')}</PidroText>
-                <View style={styles.choices}>
-                  {(['quick', 'own'] as const).map((value) => (
-                    <ActionPill
-                      key={value}
-                      size="lg"
-                      label={t(value === 'quick' ? 'settings.paceQuick' : 'settings.paceOwn')}
-                      selected={pace === value}
-                      onPress={() => setPace(value)}
-                    />
-                  ))}
-                </View>
-                {pace === 'own' ? (
-                  <>
-                    <PidroText role="metadata" tone="muted">
-                      {t('settings.paceHint')}
-                    </PidroText>
-                    <PidroText role="metadata" tone="muted">
-                      {t(isSolo ? 'settings.paceSolo' : 'settings.paceTableQuick')}
-                    </PidroText>
-                  </>
-                ) : (
-                  <PidroText role="metadata" tone="muted">
-                    {t('settings.paceQuickHint')}
-                  </PidroText>
-                )}
+              <View style={styles.row}>
+                <PidroText role="label" style={styles.copy}>
+                  {t('settings.sound')}
+                </PidroText>
+                <PidroSwitch
+                  accessibilityLabel={t('settings.sound')}
+                  value={soundEnabled}
+                  onValueChange={toggleSound}
+                />
+              </View>
+              <View style={styles.row}>
+                <PidroText role="label" style={styles.copy}>
+                  {t('settings.haptics')}
+                </PidroText>
+                <PidroSwitch
+                  accessibilityLabel={t('settings.haptics')}
+                  value={hapticEnabled}
+                  onValueChange={toggleHaptic}
+                />
               </View>
               <View style={styles.exit}>
                 {!isSpectator && (
@@ -218,13 +194,12 @@ const styles = StyleSheet.create({
   half: { flex: 1 },
   trigger: { position: 'absolute', zIndex: 44, elevation: 44 },
   row: {
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: PidroSpacing.sm,
   },
   copy: { flex: 1, gap: PidroSpacing.xxs },
-  choice: { gap: PidroSpacing.xxs },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xs },
   exitAction: { flex: 1, minWidth: 0 },
   exit: {
     flexDirection: 'row',

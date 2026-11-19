@@ -78,7 +78,8 @@ test('language choices apply immediately, persist and keep keyboard focus @respo
   const languageChoices = page.getByTestId('settings-language').getByRole('radio');
   for (const radio of await page.getByRole('radio').all()) {
     const box = await radio.boundingBox();
-    expect(box!.height).toBeGreaterThanOrEqual(48);
+    // Wood and glass like the rules selector (PID-483): the DS 44pt target.
+    expect(box!.height).toBeGreaterThanOrEqual(44);
   }
   await expect(page.getByRole('radio', { name: 'English', exact: true })).toHaveAttribute(
     'lang',

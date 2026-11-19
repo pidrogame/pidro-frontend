@@ -96,7 +96,7 @@ export const en = {
   'rules.long.finnish': 'Finnish rules',
   'rules.long.louisiana': 'Louisiana rules',
   'rules.all': 'All',
-  'rules.preferred': 'Preferred rules',
+  'rules.preferred': 'Rules',
   // A non-breaking space keeps the number with its words.
   'rules.description.finnish': 'Only trumps are played. Lowest bid is\u00a06.',
   'rules.description.louisiana': 'Lead any suit, nobody sits out. Lowest bid is\u00a07.',
@@ -226,7 +226,7 @@ export const sv: Record<keyof typeof en, string> = {
   'rules.long.finnish': 'Finländska regler',
   'rules.long.louisiana': 'Louisiana-regler',
   'rules.all': 'Alla',
-  'rules.preferred': 'Föredragna regler',
+  'rules.preferred': 'Regler',
   'rules.description.finnish': 'Endast trumf spelas. Lägsta bud är\u00a06.',
   'rules.description.louisiana':
     'Spela ut vilken färg som helst, ingen står över. Lägsta bud är\u00a07.',

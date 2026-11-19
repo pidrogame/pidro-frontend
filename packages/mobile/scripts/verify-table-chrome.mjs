@@ -101,7 +101,7 @@ try {
       null
     );
     assert.equal(
-      await page.getByRole('switch', { name: 'Haptics' }).getAttribute('aria-disabled'),
+      await page.getByRole('switch', { name: 'Vibration' }).getAttribute('aria-disabled'),
       null
     );
     await assertMinimumTouchTargets(page, 'table settings', viewport);

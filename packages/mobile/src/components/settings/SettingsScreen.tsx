@@ -9,7 +9,6 @@ import { useTranslation } from '@/i18n';
 import { LanguageSelector } from './LanguageSelector';
 import { PidroText } from '@/components/ui/PidroText';
 import { PidroSwitch } from '@/components/ui/PidroSwitch';
-import { ActionPill } from '@/components/ui/ActionPill';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Surface } from '@/components/ui/Surface';
@@ -86,127 +85,89 @@ export function SettingsScreen({
           paddingBottom: bottomClearance + PidroSpacing.md,
           paddingRight: rightClearance + PidroSpacing.md,
         }}>
-        <ScreenHeader
-          title={t('settings.title')}
-          subtitle={t('settings.subtitle')}
-          onBack={onBack}
-        />
+        <ScreenHeader title={t('settings.title')} onBack={onBack} />
         <Surface variant="window" style={styles.panel} padded>
           {tells ? <TellRow testID="settings-tell" onPress={() => setTellOpen(true)} /> : null}
-          <View style={styles.languageColumn}>
-            <LanguageSelector />
-          </View>
-          <View style={styles.preferencesColumn}>
-            {registered && league && league.status !== 'guest' && league.status !== 'off' ? (
-              <>
-                <Surface variant="subtle" style={styles.row} testID="settings-league">
-                  <View style={styles.rowCopy}>
-                    <PidroText role="label">{t('league.settings.hidden')}</PidroText>
-                    <PidroText role="metadata" tone="muted">
-                      {t('league.settings.help')}
-                    </PidroText>
-                  </View>
-                  <PidroSwitch
-                    accessibilityLabel={t('league.settings.hidden')}
-                    value={league.status === 'opted_out'}
-                    disabled={leagueBusy}
-                    onValueChange={(hidden) => {
-                      setLeagueFailed(false);
-                      if (hidden && league.status === 'placed') setHideConfirm(true);
-                      else changeHidden(hidden);
-                    }}
-                  />
-                </Surface>
-                {leagueFailed && !hideConfirm ? (
-                  <PidroText role="metadata" tone="danger" accessibilityRole="alert">
-                    {t('league.settings.error')}
-                  </PidroText>
-                ) : null}
-              </>
-            ) : null}
-            <Surface variant="subtle" style={styles.rulesRow} testID="settings-preferred-rules">
-              <PidroText role="label">{t('rules.preferred')}</PidroText>
-              <RuleSetSelector
-                value={ruleSet}
-                onChange={
-                  initialFixture
-                    ? setFixtureChoice
-                    : (choice) => {
-                        if (choice === preferredRuleSet) return;
-                        // Tables starts from the new choice too (PID-479).
-                        setPreferredRuleSet(choice);
-                        setLobbyRuleSetFilter(choice);
-                      }
-                }
+          <Surface variant="subtle" style={styles.rulesRow} testID="settings-preferred-rules">
+            <PidroText role="label">{t('rules.preferred')}</PidroText>
+            <RuleSetSelector
+              value={ruleSet}
+              onChange={
+                initialFixture
+                  ? setFixtureChoice
+                  : (choice) => {
+                      if (choice === preferredRuleSet) return;
+                      // Tables starts from the new choice too (PID-479).
+                      setPreferredRuleSet(choice);
+                      setLobbyRuleSetFilter(choice);
+                    }
+              }
+            />
+            <View style={styles.rulesLine}>
+              <RuleSetChip
+                ruleSet={ruleSet}
+                flagOnly
+                testID="settings-rules-flag"
+                onPress={() => setRulesOpen(true)}
+                style={styles.flagRoomy}
               />
-              <View style={styles.rulesLine}>
-                <RuleSetChip
-                  ruleSet={ruleSet}
-                  flagOnly
-                  testID="settings-rules-flag"
-                  onPress={() => setRulesOpen(true)}
-                  style={styles.flagRoomy}
-                />
-                <PidroText role="metadata" tone="muted" style={styles.grow}>
-                  {t(`rules.description.${ruleSet}`)}
+              <PidroText role="metadata" tone="muted" style={styles.grow}>
+                {t(`rules.description.${ruleSet}`)}
+              </PidroText>
+            </View>
+          </Surface>
+          <RulesExplainer
+            ruleSet={ruleSet}
+            tableCode=""
+            open={rulesOpen}
+            onClose={() => setRulesOpen(false)}
+          />
+          <SettingRow
+            testID="settings-counting"
+            title={t('settings.countForMe')}
+            hint={t('settings.countForMeHint')}
+            value={countHelp}
+            onValueChange={setCountHelp}
+          />
+          <SettingRow
+            testID="settings-pace"
+            title={t('settings.waitForMe')}
+            hint={t('settings.waitForMeHint')}
+            value={pace === 'own'}
+            onValueChange={(on) => setPace(on ? 'own' : 'quick')}
+          />
+          <LanguageSelector />
+          <SettingRow
+            title={t('settings.sound')}
+            value={soundEnabled}
+            onValueChange={toggleSound}
+          />
+          <SettingRow
+            title={t('settings.haptics')}
+            value={hapticEnabled}
+            onValueChange={toggleHaptic}
+          />
+          {registered && league && league.status !== 'guest' && league.status !== 'off' ? (
+            <>
+              <SettingRow
+                testID="settings-league"
+                title={t('league.settings.hidden')}
+                hint={t('league.settings.help')}
+                value={league.status === 'opted_out'}
+                disabled={leagueBusy}
+                onValueChange={(hidden) => {
+                  setLeagueFailed(false);
+                  if (hidden && league.status === 'placed') setHideConfirm(true);
+                  else changeHidden(hidden);
+                }}
+              />
+              {leagueFailed && !hideConfirm ? (
+                <PidroText role="metadata" tone="danger" accessibilityRole="alert">
+                  {t('league.settings.error')}
                 </PidroText>
-              </View>
-            </Surface>
-            <RulesExplainer
-              ruleSet={ruleSet}
-              tableCode=""
-              open={rulesOpen}
-              onClose={() => setRulesOpen(false)}
-            />
-            <SettingRow
-              title={t('settings.sound')}
-              subtitle={t('settings.soundHint')}
-              value={soundEnabled}
-              onValueChange={toggleSound}
-            />
-            <SettingRow
-              title={t('settings.haptics')}
-              subtitle={t('settings.hapticsHint')}
-              value={hapticEnabled}
-              onValueChange={toggleHaptic}
-            />
-            <Surface variant="subtle" style={styles.rulesRow} testID="settings-counting">
-              <PidroText role="label">{t('settings.counting')}</PidroText>
-              <View style={styles.choices}>
-                {([false, true] as const).map((value) => (
-                  <ActionPill
-                    key={String(value)}
-                    size="lg"
-                    label={t(value ? 'settings.countForMe' : 'settings.countSelf')}
-                    selected={countHelp === value}
-                    onPress={() => setCountHelp(value)}
-                  />
-                ))}
-              </View>
-              <PidroText role="metadata" tone="muted">
-                {t(countHelp ? 'settings.countForMeHint' : 'settings.countSelfHint')}
-              </PidroText>
-            </Surface>
-            <Surface variant="subtle" style={styles.rulesRow} testID="settings-pace">
-              <PidroText role="label">{t('settings.pace')}</PidroText>
-              <View style={styles.choices}>
-                {(['quick', 'own'] as const).map((value) => (
-                  <ActionPill
-                    key={value}
-                    size="lg"
-                    label={t(value === 'quick' ? 'settings.paceQuick' : 'settings.paceOwn')}
-                    selected={pace === value}
-                    onPress={() => setPace(value)}
-                  />
-                ))}
-              </View>
-              <PidroText role="metadata" tone="muted">
-                {pace === 'own'
-                  ? `${t('settings.paceHint')} ${t('settings.paceSolo')}`
-                  : t('settings.paceQuickHint')}
-              </PidroText>
-            </Surface>
-          </View>
+              ) : null}
+            </>
+          ) : null}
         </Surface>
         {signedIn ? <AccountSection /> : null}
         <PremiumSection fixture={fixture} onToast={setToast} />
@@ -249,24 +210,35 @@ export function SettingsScreen({
 
 function SettingRow({
   title,
-  subtitle,
+  hint,
   value,
+  disabled,
+  testID,
   onValueChange,
 }: {
   title: string;
-  subtitle: string;
+  hint?: string;
   value: boolean;
-  onValueChange: () => void;
+  disabled?: boolean;
+  testID?: string;
+  onValueChange: (value: boolean) => void;
 }) {
   return (
-    <Surface variant="subtle" style={styles.row}>
+    <Surface variant="subtle" style={styles.row} testID={testID}>
       <View style={styles.rowCopy}>
         <PidroText role="label">{title}</PidroText>
-        <PidroText role="metadata" tone="muted">
-          {subtitle}
-        </PidroText>
+        {hint ? (
+          <PidroText role="metadata" tone="muted">
+            {hint}
+          </PidroText>
+        ) : null}
       </View>
-      <PidroSwitch accessibilityLabel={title} value={value} onValueChange={onValueChange} />
+      <PidroSwitch
+        accessibilityLabel={title}
+        value={value}
+        disabled={disabled}
+        onValueChange={onValueChange}
+      />
     </Surface>
   );
 }
@@ -274,17 +246,14 @@ function SettingRow({
 const styles = StyleSheet.create({
   root: { flex: 1 },
   shell: { gap: PidroSpacing.md },
-  panel: { gap: PidroSpacing.sm, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start' },
-  languageColumn: { flexGrow: 1, flexBasis: 280, minWidth: 0 },
-  preferencesColumn: { flexGrow: 1, flexBasis: 280, minWidth: 0, gap: PidroSpacing.sm },
+  panel: { gap: PidroSpacing.sm },
   rulesRow: { gap: PidroSpacing.xs, padding: PidroSpacing.sm },
   rulesLine: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xxs },
   grow: { flex: 1 },
   // Under the selector the flag takes its full 44pt, so its target never covers it.
   flagRoomy: { marginHorizontal: 0, marginVertical: 0 },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xs },
   row: {
-    minHeight: 72,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: PidroSpacing.md,

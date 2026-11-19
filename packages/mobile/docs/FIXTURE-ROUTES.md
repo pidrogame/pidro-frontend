@@ -345,8 +345,9 @@ UI_SHOT_DIR=/tmp/pidro-locales node scripts/verify-ui-grammar.mjs
 PID-268: `/table-dev?phase=playing&hand=own` holds the result without a timer;
 a tap on the table, panel or **Tap to continue** releases this local fixture
 (it does not send a channel intent). `hand=own-missed` shows a missed bid.
-`menu=pace&solo=true` opens Pace for a bot table; omit `solo` for the human-table
-Quick note. Add `locale=sv` for Swedish. Grammar cases `table-hand-own(-sv)`,
+`menu=pace&solo=true` opens Table settings at a bot table, with Wait for me on a switch;
+omit `solo` for a human table, where the switch is disabled with its "Tables with people
+play quick." hint (PID-483). Add `locale=sv` for Swedish. Grammar cases `table-hand-own(-sv)`,
 `table-pace-solo-en|sv`, `table-pace-human-en|sv` and `settings-pace-en|sv` cover
 390×844, 375×667, 844×390 and 768×1024. The table windows fit without scrolling;
 the existing full Settings page still scrolls to its account and update sections.
@@ -1079,7 +1080,7 @@ that table's rules sheet without joining. Fixtures holding both kinds (`list`, `
 `watch`, `badges`, `locked`, `search-empty`, the password states) show the All / Finnish /
 Louisiana filter (`lobby-rule-filter`), which starts on All and keeps its choice to itself;
 `rejoin` and `substitute` hold only Finnish tables, so there is no filter. The live screen
-starts on All until the player chooses, in the filter or Settings' Preferred rules, and
+starts on All until the player chooses, in the filter or Settings' Rules, and
 remembers that choice in the settings store; tables you sit at are never filtered.
 
 `badges` shows open tables with 100+ and 1000+ chairs for a 1500-game player.

@@ -1,21 +1,20 @@
-import { useRef, useState, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { type LanguagePreference } from '@pidro/shared';
 import { useLanguagePreference, useTranslation } from '@/i18n';
-import { PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
+import { PidroColors, PidroSpacing } from '@/design/tokens';
+import { BevelButton } from '@/components/ui/BevelButton';
 import { PidroText } from '@/components/ui/PidroText';
-import { PressableFX } from '@/components/ui/PressableFX';
 import { Surface } from '@/components/ui/Surface';
 
 const choices = ['en', 'sv'] as const;
 const autonyms = { en: 'English', sv: 'Svenska' } as const;
 
-/** Immediate device preference, independent of the table's rules. */
+/** Immediate device preference, independent of the table's rules: wood is chosen, glass is not. */
 export function LanguageSelector() {
   const { t } = useTranslation();
   const { language, setLanguage } = useLanguagePreference();
   const [focused, setFocused] = useState<LanguagePreference | null>(null);
-  const refs = useRef<Partial<Record<LanguagePreference, View | null>>>({});
 
   return (
     <Surface variant="subtle" style={styles.group} testID="settings-language">
@@ -27,11 +26,11 @@ export function LanguageSelector() {
         {choices.map((choice, index) => {
           const selected = language === choice;
           return (
-            <PressableFX
+            <BevelButton
               key={choice}
-              ref={(ref) => {
-                refs.current[choice] = ref;
-              }}
+              label={autonyms[choice]}
+              material={selected ? 'wood' : 'glass'}
+              size="sm"
               accessibilityRole="radio"
               accessibilityLabel={autonyms[choice]}
               accessibilityLanguage={choice}
@@ -55,23 +54,14 @@ export function LanguageSelector() {
                       event.preventDefault();
                       const next = choices[(index + delta + choices.length) % choices.length];
                       setLanguage(next);
-                      // RN Web forwards the host ref to its focusable DOM node.
-                      (refs.current[next] as unknown as { focus?: () => void })?.focus?.();
+                      // The radios are siblings in the group's DOM node on web.
+                      const group = (event.currentTarget as unknown as HTMLElement).parentElement;
+                      (group?.children[choices.indexOf(next)] as HTMLElement | undefined)?.focus();
                     },
                   }
                 : {})}
-              style={[
-                styles.choice,
-                selected && styles.selected,
-                focused === choice && styles.focused,
-              ]}>
-              <View style={[styles.radio, selected && styles.selectedRadio]}>
-                {selected ? <View style={styles.dot} /> : null}
-              </View>
-              <PidroText role="label" style={styles.label}>
-                {autonyms[choice]}
-              </PidroText>
-            </PressableFX>
+              style={focused === choice && styles.focused}
+            />
           );
         })}
       </View>
@@ -81,38 +71,6 @@ export function LanguageSelector() {
 
 const styles = StyleSheet.create({
   group: { gap: PidroSpacing.xs, padding: PidroSpacing.sm },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xs },
-  choice: {
-    minHeight: 48,
-    flexGrow: 1,
-    flexBasis: 120,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: PidroSpacing.xs,
-    paddingHorizontal: PidroSpacing.sm,
-    paddingVertical: PidroSpacing.xs,
-    borderRadius: PidroRadii.surface,
-    borderWidth: 1,
-    borderColor: PidroColors.borderStrong,
-    backgroundColor: PidroColors.glass,
-  },
-  selected: { borderColor: PidroColors.cyanBorderStrong, backgroundColor: PidroColors.glassHover },
+  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xxs },
   focused: { outlineWidth: 2, outlineColor: PidroColors.cyanText, outlineOffset: 2 },
-  label: { flexShrink: 1 },
-  radio: {
-    width: 16,
-    height: 16,
-    borderRadius: PidroRadii.full,
-    borderWidth: 1,
-    borderColor: PidroColors.textMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  selectedRadio: { borderColor: PidroColors.cyanText },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: PidroRadii.full,
-    backgroundColor: PidroColors.cyanText,
-  },
 });

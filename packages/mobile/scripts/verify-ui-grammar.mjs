@@ -2419,7 +2419,8 @@ async function assertLocalization(page, testCase, viewport) {
     for (const [index, label] of labels.entries()) {
       const radio = group.getByRole('radio', { name: label, exact: true });
       const box = await radio.boundingBox();
-      assert.ok(box.height >= 48, `${label}: 48pt target`);
+      // Wood and glass like the rules selector (PID-483): the DS 44pt target.
+      assert.ok(box.height >= 44, `${label}: 44pt target`);
       assert.ok(
         box.x >= groupBox.x && box.x + box.width <= groupBox.x + groupBox.width,
         `${label}: radio must stay within the language Surface`
@@ -9242,7 +9243,7 @@ async function assertSwitchInteractions(page, name, screenshotDir) {
     exact: true,
   });
   const second = page.getByRole('switch', {
-    name: gallery ? 'Off example' : 'Haptics',
+    name: gallery ? 'Off example' : 'Vibration',
     exact: true,
   });
   const checked = (control) => control.getAttribute('aria-checked');
@@ -9271,24 +9272,27 @@ async function assertSwitchInteractions(page, name, screenshotDir) {
       .getByTestId('ui-switch-panel')
       .screenshot({ path: resolve(screenshotDir, 'ui-switches.png') });
   } else {
-    // Counting is one choice of two with a line that follows it (PID-451).
+    // Count for me is a switch on the saved choice (PID-483). Its start follows the
+    // account: off for Bengt from the old Pidro, on when nobody is signed in.
     const counting = page.getByTestId('settings-counting');
-    const self = counting.getByRole('radio', { name: 'I count myself', exact: true });
-    const forMe = counting.getByRole('radio', { name: 'Count for me', exact: true });
+    const forMe = counting.getByRole('switch', { name: 'Count for me', exact: true });
+    const saved = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem('settings-storage')).state.countHelp);
+    await counting.getByText('Winning card, trick points, last trick.', { exact: true }).waitFor();
+    const was = (await checked(forMe)) === 'true';
+    assert.equal(was, name === 'device-settings', 'Count for me starts from the account');
     await forMe.click();
-    assert.equal(await checked(forMe), 'true');
-    assert.equal(await checked(self), 'false');
-    await self.click();
-    assert.equal(await checked(self), 'true');
-    assert.equal(await checked(forMe), 'false');
-    await counting
-      .getByText('The table as in the old Pidro: the cards, the bids and the score.')
-      .waitFor();
+    assert.equal(await checked(forMe), String(!was));
+    assert.equal(await saved(), !was, 'Count for me saves countHelp');
+    await forMe.click();
+    assert.equal(await checked(forMe), String(was));
+    assert.equal(await saved(), was, 'Count for me saves countHelp back');
+    await forMe.click();
     await page.reload();
     await first.waitFor();
     assert.equal(await checked(first), 'false', 'Sound preference must survive reload');
-    assert.equal(await checked(second), 'true', 'Haptics must remain unchanged');
-    assert.equal(await checked(self), 'true', 'Counting must survive reload');
+    assert.equal(await checked(second), 'true', 'Vibration must remain unchanged');
+    assert.equal(await checked(forMe), String(!was), 'Count for me must survive reload');
   }
 }
 
@@ -11883,25 +11887,19 @@ async function main() {
           if (testCase.paceSettings) {
             const pace = page.getByTestId('settings-pace');
             await pace.scrollIntoViewIfNeeded();
-            for (const choice of [
-              ...(await page.getByTestId('settings-counting').getByRole('radio').all()),
-              ...(await pace.getByRole('radio').all()),
-            ]) {
-              const box = await choice.boundingBox();
+            const params = new URL(testCase.path, baseUrl).searchParams;
+            const sv = params.get('locale') === 'sv';
+            // Count for me and Wait for me are switches in rows at least 56 tall (PID-483).
+            for (const row of [page.getByTestId('settings-counting'), pace]) {
+              assert.ok((await row.boundingBox()).height >= 56, 'A settings row is 56 tall');
               assert.ok(
-                box.height >= 48,
-                'Every Counting and Pace choice must be at least 48 points tall'
+                (await row.getByRole('switch').boundingBox()).height >= 44,
+                'A switch is a 44pt target'
               );
             }
             if (testCase.path.startsWith('/table-dev')) {
               // Sound is the Settings tab's switch: same words, same saved setting.
-              const sv = new URL(testCase.path, baseUrl).searchParams.get('locale') === 'sv';
               const sound = page.getByRole('switch', { name: sv ? 'Ljud' : 'Sound', exact: true });
-              await page
-                .getByText(sv ? 'Spela spelets ljudeffekter.' : 'Play game sound effects.', {
-                  exact: true,
-                })
-                .waitFor();
               const saved = () =>
                 page.evaluate(
                   () => JSON.parse(localStorage.getItem('settings-storage')).state.soundEnabled
@@ -11914,9 +11912,38 @@ async function main() {
               assert.equal(await sound.getAttribute('aria-checked'), 'true');
               assert.equal(await saved(), true, 'Sound on at the table saves the setting');
             }
-            const own = pace.getByRole('radio').nth(1);
-            await own.click();
-            assert.equal(await own.getAttribute('aria-checked'), 'true');
+            const wait = pace.getByRole('switch', {
+              name: sv ? 'Vänta på mig' : 'Wait for me',
+              exact: true,
+            });
+            const savedPace = () =>
+              page.evaluate(() => JSON.parse(localStorage.getItem('settings-storage')).state.pace);
+            assert.equal(await wait.getAttribute('aria-checked'), 'false');
+            if (testCase.path.startsWith('/table-dev') && params.get('solo') !== 'true') {
+              // With people the table plays quick: the switch says so and cannot change.
+              await pace
+                .getByText(sv ? 'Bord med folk spelar snabbt.' : 'Tables with people play quick.', {
+                  exact: true,
+                })
+                .waitFor();
+              assert.equal(await wait.isDisabled(), true);
+              await wait.dispatchEvent('click');
+              assert.equal(await wait.getAttribute('aria-checked'), 'false');
+            } else {
+              await pace
+                .getByText(
+                  sv
+                    ? 'Botspel: nästa giv väntar på ditt tryck.'
+                    : 'Bot games: the next hand waits for your tap.',
+                  { exact: true }
+                )
+                .waitFor();
+              await wait.click();
+              assert.equal(await wait.getAttribute('aria-checked'), 'true');
+              assert.equal(await savedPace(), 'own', 'Wait for me on saves pace own');
+              await wait.click();
+              assert.equal(await savedPace(), 'quick', 'Wait for me off saves pace quick');
+            }
             assertInsideViewport('Pace', await pace.boundingBox(), caseViewport);
             if (testCase.path.startsWith('/table-dev')) {
               const overflow = await page
