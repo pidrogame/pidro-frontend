@@ -1263,8 +1263,8 @@ export function GameCanvasTable({
             </View>
           ) : null}
 
-          {/* Connection banner, in the notice slot */}
-          {isChannelJoined && (
+          {/* Connection banner, in the notice slot; game over has none, and a closed table still speaks. */}
+          {(isChannelJoined || isGameOver) && (
             <TableFeedback
               notice={controller.actionNotice ?? notice ?? null}
               onDismiss={controller.actionNotice ? controller.dismissActionNotice : onDismissNotice}

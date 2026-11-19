@@ -15,6 +15,20 @@ export function isSoloTable(readiness: ReadinessSnapshot | null, you: Position |
 }
 
 /**
+ * A finished game against three bots (PID-478): Play again needs nobody's word,
+ * so it always deals, in a new table once the server says this one is gone. A
+ * finished table closes about 20 s after its one person's connection drops. A
+ * bot keeping someone's seat is that someone, whose table keeps its rematch.
+ */
+export function playsAgainAlone(readiness: ReadinessSnapshot | null, you: Position | null) {
+  return (
+    readiness?.status === 'finished' &&
+    isSoloTable(readiness, you) &&
+    !Object.values(readiness.seats).some((seat) => seat?.has_reservation)
+  );
+}
+
+/**
  * A finished table someone left: the server reopens it as waiting. A rematch
  * passes through ready, everybody in, on its way to the next game; that is no
  * reopening.

@@ -379,7 +379,9 @@ export const useGameChannel = ({
             setChannelStatus(false, false);
             clearTurnTimer();
             setLegalActions([]);
-            setRole(null);
+            // A table that no longer exists keeps your seat in its last result:
+            // after a game against bots, game over stays up (PID-478).
+            if (terminalGameJoinFailure(reason) !== 'room_unavailable') setRole(null);
             setError(reason);
             channel.leave();
             return;

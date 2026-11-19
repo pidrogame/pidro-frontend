@@ -7,13 +7,18 @@ import { gameRoute } from '@/navigation/gameRoute';
 import { useLobbyStore } from '@/stores/lobby';
 import { apiErrorInfo, localizedError } from '@/utils/apiErrors';
 import { useTranslation, type TranslationKey } from '@/i18n';
+import type { RuleSet } from '@pidro/shared';
 
 export const TABLE_UNKNOWN_ERROR = 'social.quick_unknown' as const;
 
-/** You and three bots, started the same way from Home and from an empty Tables screen. */
+/**
+ * You and three bots, started the same way from Home, an empty Tables screen and
+ * a finished game against bots whose table is gone, which keeps its rules and deals.
+ */
 export function useQuickGame(
   initialError: TranslationKey | null = null,
-  adFixture: AdSheetPhase | null = null
+  adFixture: AdSheetPhase | null = null,
+  again?: { ruleSet?: RuleSet }
 ) {
   useTranslation();
   const ad = useAdOffer('solo', adFixture);
@@ -25,9 +30,9 @@ export function useQuickGame(
   );
 
   const createSinglePlayerRoom = async () => {
-    const response = await createSoloRoom();
+    const response = await createSoloRoom(again?.ruleSet);
     if (response.room) upsertLobbyRoom(response.room, 'my_rejoinable');
-    router.replace(gameRoute(response.code, 'single-player'));
+    router.replace(gameRoute(response.code, 'single-player', Boolean(again)));
   };
 
   const deal = async () => {
@@ -69,6 +74,7 @@ export function useQuickGame(
     start: () => ad.play(deal),
     loading: loading || ad.busy,
     adSheet: ad.sheet,
+    failure,
     error: failure ? localizedError(failure.cause, failure.fallback) : null,
   };
 }

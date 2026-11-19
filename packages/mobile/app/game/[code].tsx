@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLobbyStore } from '@/stores/lobby';
 import { useGameStore } from '@/stores/game';
 import {
+  errorPayload,
   publicPlayerName,
   rematchVote,
   roomWithReadiness,
@@ -65,7 +66,13 @@ import { tableInvitation } from '@/features/invites/tableInvitation';
 import { readingTimeMs } from '@/features/game/readingTime';
 import { typingFor } from '@/features/game/talk';
 import { tableBack, type TableScreen } from '@/features/game/tableBack';
-import { canSwapBot, isReopenedTable, reopenedNotice } from '@/features/game/tableHelp';
+import {
+  canSwapBot,
+  isReopenedTable,
+  playsAgainAlone,
+  reopenedNotice,
+} from '@/features/game/tableHelp';
+import { useQuickGame } from '@/hooks/useQuickGame';
 import { LeaveQuestion } from '@/game/canvas/LeaveQuestion';
 import { TableUtilityWindow } from '@/game/canvas/TableUtilityWindow';
 import { useHardwareBack } from '@/hooks/useFlowBack';
@@ -240,7 +247,8 @@ export default function GameScreen() {
     code,
     origin: originParam,
     fixture,
-  } = useLocalSearchParams<{ code: string; origin?: string; fixture?: string }>();
+    again,
+  } = useLocalSearchParams<{ code: string; origin?: string; fixture?: string; again?: string }>();
   const origin = parseGameOrigin(originParam);
   const exitPath = gameExitPath(origin);
   const router = useRouter();
@@ -279,6 +287,16 @@ export default function GameScreen() {
       }),
     [readiness, isChannelJoined, role]
   );
+  // Play again at the table before was this player's ready (PID-478): the new table deals.
+  const saidReady = useRef<string | null>(null);
+  useEffect(() => {
+    if (again !== '1' || saidReady.current === code || !youPositionAbs) return;
+    if (readiness?.status !== 'waiting' || readiness.ready_players.includes(youPositionAbs)) return;
+    if (!isChannelJoined || role !== 'player') return;
+    saidReady.current = code;
+    // A refused ready leaves the table's own I'm ready.
+    handleReady().catch(() => undefined);
+  }, [again, code, youPositionAbs, readiness, isChannelJoined, role, handleReady]);
   const setSeatStatus = useGameStore((s) => s.setSeatStatus);
   const seatInvitations = useAuthStore((s) => s.seatInvitations);
   const invitation = tableInvitation(seatInvitations, readiness, youPositionAbs, role);
@@ -698,10 +716,31 @@ export default function GameScreen() {
   // game's state arrives on the channel we are already joined to.
   const rematchPendingRef = useRef(false);
   const [rematchPending, setRematchPending] = useState(false);
+  // After a game against bots Play again always deals (PID-478): once the server
+  // says the table is gone, at a new one with its rules, as Home's quick game deals.
+  const alone = playsAgainAlone(readiness, youPositionAbs);
+  // Said by a failed rejoin, or by a rematch the closed table could not take.
+  const [closedRoom, setClosedRoom] = useState<string | null>(null);
+  const tableGone =
+    alone && (closedRoom === code || terminalGameJoinFailure(lastError) === 'room_unavailable');
+  const newTable = useQuickGame(null, null, {
+    ruleSet: readiness?.config?.rule_set ?? room?.config?.rule_set,
+  });
+  // A tap the table could not hear waits for the rejoin to say whether it is still there.
+  const [againWaits, setAgainWaits] = useState(false);
+  useEffect(() => {
+    if (newTable.failure)
+      handleSeatEvent({
+        error: newTable.failure.cause,
+        key: newTable.failure.fallback,
+        variant: 'error',
+      });
+  }, [newTable.failure, handleSeatEvent]);
   const handlePlayAgain = useCallback(
     () =>
       actionTap('rematch', () => {
         if (!readiness || !isChannelJoined || role !== 'player' || rematchPendingRef.current) {
+          if (alone && !isChannelJoined) setAgainWaits(true);
           pushAttempt('rematch').record(
             'blocked',
             rematchPendingRef.current
@@ -719,6 +758,15 @@ export default function GameScreen() {
           ready_epoch: readiness.ready_epoch,
         })
           .catch((error: unknown) => {
+            const body = errorPayload(error);
+            const reason = body.error_code ?? body.reason;
+            // Closed under a channel still open, or a channel the server had already dropped.
+            if (alone && reason === 'room_not_found') {
+              if (code) setClosedRoom(code);
+              return void newTable.start();
+            }
+            if (alone && (reason === 'timeout' || reason === 'unmatched topic'))
+              return void setAgainWaits(true);
             // A stale epoch reply carries the current snapshot, already applied by
             // pushGameAction, so pressing again sends the right epoch.
             handleSeatEvent({ error, key: 'table.rematch.failed', variant: 'warning' });
@@ -728,7 +776,7 @@ export default function GameScreen() {
             setRematchPending(false);
           });
       }),
-    [readiness, isChannelJoined, role, handleSeatEvent]
+    [readiness, isChannelJoined, role, handleSeatEvent, alone, newTable, code]
   );
   // The server counts a solo rematch as the next solo game, so it may need a short ad first (PID-120).
   const adOffer = useAdOffer('solo');
@@ -738,6 +786,14 @@ export default function GameScreen() {
     playAgain.current = handlePlayAgain;
   }, [handlePlayAgain]);
   const handleSoloPlayAgain = () => void adOffer.play(async () => playAgain.current());
+  useEffect(() => {
+    if (!againWaits || !(tableGone || isChannelJoined)) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the rejoin answers the waiting tap once
+    setAgainWaits(false);
+    if (tableGone) void newTable.start();
+    // Still there: the rematch the tap asked for, unless the next game already began.
+    else if (readiness?.status === 'finished') playAgain.current();
+  }, [againWaits, tableGone, isChannelJoined, newTable, readiness?.status]);
   const rematch = rematchVote(readiness, youPositionAbs);
   const tableReopened = isReopenedTable(readiness, hasGameState);
   // Read when the table reopens, so a later room snapshot does not say it twice.
@@ -838,7 +894,7 @@ export default function GameScreen() {
   }
 
   const terminalJoinFailure = terminalGameJoinFailure(lastError);
-  if (terminalJoinFailure) {
+  if (terminalJoinFailure && !tableGone) {
     const destination = exitPath;
     const exit = () => {
       if (code) removeRoom(code);
@@ -969,9 +1025,15 @@ export default function GameScreen() {
           progressionSummary={progressionSummary}
           leagueProgress={leagueProgress}
           onLeave={() => handleLeaveGame()}
-          onPlayAgain={origin === 'single-player' ? handleSoloPlayAgain : handlePlayAgain}
+          onPlayAgain={
+            tableGone
+              ? newTable.start
+              : origin === 'single-player'
+                ? handleSoloPlayAgain
+                : handlePlayAgain
+          }
           rematch={rematch}
-          rematchPending={rematchPending || adOffer.busy}
+          rematchPending={rematchPending || againWaits || adOffer.busy || newTable.loading}
           roomFinished={readiness ? readiness.status === 'finished' : true}
           onHome={() => handleLeaveGame('/home')}
           playAgainLabel={origin === 'single-player' ? t('game.play_again') : undefined}
@@ -994,6 +1056,7 @@ export default function GameScreen() {
           onDismissNotice={dismissNotice}
         />
         <AdSheet {...adOffer.sheet} />
+        <AdSheet {...newTable.adSheet} />
         <AuthSheet
           isOpen={accountSheetOpen}
           reason="postGame"

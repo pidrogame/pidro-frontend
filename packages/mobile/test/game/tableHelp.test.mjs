@@ -4,6 +4,7 @@ import {
   loneTrumpHolder,
   isReopenedTable,
   isSoloTable,
+  playsAgainAlone,
   reopenedNotice,
 } from '../../src/features/game/tableHelp.ts';
 
@@ -48,6 +49,38 @@ describe('table pace', () => {
     expect(isSoloTable({ seats: { ...seats, east: { occupant_type: 'human' } } }, 'south')).toBe(
       false
     );
+  });
+});
+
+describe('Play again after a game against bots (PID-478)', () => {
+  const seats = {
+    north: { occupant_type: 'bot' },
+    south: { occupant_type: 'human' },
+    east: { occupant_type: 'bot' },
+    west: { occupant_type: 'bot' },
+  };
+  const finished = { status: 'finished', seats };
+
+  it('needs nobody else at a finished table of you and three bots', () => {
+    expect(playsAgainAlone(finished, 'south')).toBe(true);
+  });
+
+  it('is a rematch with people: a person seated, or a bot keeping their seat', () => {
+    expect(
+      playsAgainAlone({ ...finished, seats: { ...seats, east: { occupant_type: 'human' } } }, 'south')
+    ).toBe(false);
+    expect(
+      playsAgainAlone(
+        { ...finished, seats: { ...seats, east: { occupant_type: 'bot', has_reservation: true } } },
+        'south'
+      )
+    ).toBe(false);
+  });
+
+  it('is never a spectator, nor a game still being played', () => {
+    expect(playsAgainAlone(finished, null)).toBe(false);
+    expect(playsAgainAlone({ status: 'playing', seats }, 'south')).toBe(false);
+    expect(playsAgainAlone(null, 'south')).toBe(false);
   });
 });
 
