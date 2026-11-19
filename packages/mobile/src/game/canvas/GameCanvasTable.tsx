@@ -1173,7 +1173,7 @@ export function GameCanvasTable({
             )
           ) : null}
           <View
-            pointerEvents="none"
+            pointerEvents="box-none"
             style={{
               position: 'absolute',
               // Beside the menu, out of the felt: the middle is for the cards.
@@ -1182,7 +1182,12 @@ export function GameCanvasTable({
               alignItems: 'center',
             }}>
             <View style={{ alignSelf: 'center' }}>
-              <RuleSetChip ruleSet={ruleSet} flagOnly testID="table-rule-set" />
+              <RuleSetChip
+                ruleSet={ruleSet}
+                flagOnly
+                testID="table-rule-set"
+                onPress={rules.show}
+              />
             </View>
           </View>
           <RulesExplainer

@@ -29,7 +29,7 @@ import { seatRow } from '../../src/features/lobby/seatRow';
 const maija = { user_id: 'maija', display_name: 'Maija', avatar_url: null, presence: 'online' };
 const draft = () => ({ seats: { ...defaultSeats } });
 
-it('opens a public Ostrobothnian table in one tap, with three open seats and no link positions', () => {
+it('opens a public Finnish table in one tap, with three open seats and no link positions', () => {
   expect(newTableRequest('finnish', draft())).toEqual({
     rule_set: 'finnish',
     seats: { seat_2: 'open', seat_3: 'open', seat_4: 'open' },
@@ -117,7 +117,7 @@ it('calls three bots a quick game, not invite-only, and keeps human tables disti
     player: { id: `bot_${id}`, is_bot: true },
   }));
   const room = { host_id: 'host', seats: [host, ...bots] };
-  expect(tableHeader(room)).toBe('Quick game · Ostrobothnian');
+  expect(tableHeader(room)).toBe('Quick game · Finnish');
   const positions = {
     north: 'host',
     east: 'bot_TEST_east',
@@ -138,7 +138,7 @@ it('calls three bots a quick game, not invite-only, and keeps human tables disti
       ])
     ),
   };
-  expect(tableHeader(roomWithReadiness(room, readiness))).toBe('Quick game · Ostrobothnian');
+  expect(tableHeader(roomWithReadiness(room, readiness))).toBe('Quick game · Finnish');
   expect(tableHeader({ ...room, config: { rule_set: 'louisiana' } })).toBe(
     'Quick game · Louisiana'
   );
@@ -147,25 +147,25 @@ it('calls three bots a quick game, not invite-only, and keeps human tables disti
       ...room,
       seats: [host, ...bots.map((seat) => ({ ...seat, player: { id: seat.player.id } }))],
     })
-  ).toBe('Quick game · Ostrobothnian');
+  ).toBe('Quick game · Finnish');
   expect(
     tableHeader({ ...room, seats: [host, ...bots.slice(0, 2), { status: 'free', player: null }] })
-  ).toBe('Listed in Tables · Ostrobothnian');
+  ).toBe('Listed in Tables · Finnish');
   expect(
     tableHeader({
       ...room,
       seats: [host, ...bots.slice(0, 2), { status: 'free', player: null, held_for: maija }],
     })
-  ).toBe('Invite only · Ostrobothnian');
+  ).toBe('Invite only · Finnish');
   expect(
     tableHeader({
       ...room,
       seats: [host, ...bots.slice(0, 2), { status: 'occupied', player: { id: 'maija' } }],
     })
-  ).toBe('Invite only · Ostrobothnian');
+  ).toBe('Invite only · Finnish');
   try {
     setLocale('sv');
-    expect(tableHeader(room)).toBe('Snabbspel · Österbottnisk');
+    expect(tableHeader(room)).toBe('Snabbspel · Finländska');
   } finally {
     setLocale('en');
   }

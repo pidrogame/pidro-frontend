@@ -7,11 +7,11 @@ import { PidroText } from '@/components/ui/PidroText';
 import { Surface } from '@/components/ui/Surface';
 import { TextLink } from '@/components/ui/TextLink';
 import { PidroColors, PidroSpacing } from '@/design/tokens';
-import { shouldExplainLouisiana } from '@/features/rules/ruleSets';
+import { ruleSets, shouldExplainLouisiana } from '@/features/rules/ruleSets';
 import { SUPPORT_EMAIL } from '@/features/auth/classicRecovery';
 import { useSettingsStore } from '@/stores/settings';
 import { useTranslation } from '@/i18n';
-import { RuleSetChip, ruleSetLabel } from './RuleSet';
+import { RuleSetFlag, ruleSetLabel } from './RuleSet';
 
 export function useRulesExplainer(ruleSet: RuleSet, spectator: boolean, fixtureSeen?: boolean) {
   const seen = useSettingsStore((state) => state.hasSeenLouisianaRules);
@@ -50,7 +50,8 @@ export function RulesExplainer({
   const [mailError, setMailError] = useState(false);
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
-  const facts = (['play', 'winner', 'turns', 'bid'] as const).map((fact) =>
+  // What differs from the other rule set comes first: how you play, who sits out, the lowest bid.
+  const facts = (['play', 'turns', 'bid', 'winner'] as const).map((fact) =>
     t(`rules.${fact}.${ruleSet}`)
   );
   return (
@@ -69,11 +70,14 @@ export function RulesExplainer({
               variant="window"
               style={[styles.panel, landscape && styles.widePanel]}
               testID="rules-explainer">
-              <View style={[styles.header, landscape && styles.row]}>
-                <PidroText role="title" accessibilityRole="header">
-                  {t('rules.title')}
+              <View style={styles.header}>
+                <RuleSetFlag ruleSet={ruleSet} height={20} />
+                <PidroText
+                  role="title"
+                  accessibilityRole="header"
+                  testID="rules-explainer-rule-set">
+                  {t(ruleSets[ruleSet].longKey)}
                 </PidroText>
-                <RuleSetChip ruleSet={ruleSet} testID="rules-explainer-rule-set" />
               </View>
               <View style={[styles.facts, landscape && styles.row]}>
                 {facts.map((fact, index) => (
@@ -94,7 +98,8 @@ export function RulesExplainer({
                     try {
                       const values = {
                         rules: ruleSetLabel(ruleSet),
-                        code: tableCode,
+                        // Settings and a table not yet opened have no code.
+                        code: tableCode || '–',
                         facts: facts.join('\n'),
                       };
                       const subject = encodeURIComponent(t('rules.mailSubject', values));
@@ -132,7 +137,7 @@ const styles = StyleSheet.create({
   },
   panel: { width: '100%', maxWidth: 520, padding: PidroSpacing.md, gap: PidroSpacing.md },
   widePanel: { maxWidth: 760 },
-  header: { gap: PidroSpacing.xs },
+  header: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xs },
   facts: { gap: PidroSpacing.md },
   footer: { gap: PidroSpacing.xs },
   row: {

@@ -2050,20 +2050,20 @@ const allCases = [
     name: 'table-invitation',
     path: '/table-dev?phase=playing&role=player&trick=bots&invitation=partner',
     testId: 'table-invitation',
-    invitation: 'Ostrobothnian · as Bertil’s partner',
+    invitation: 'Finnish · as Bertil’s partner',
   },
   {
     name: 'table-invitation-bidding',
     path: '/table-dev?phase=bidding&role=player&bids=round&invitation=opponent',
     testId: 'bidding-window',
-    invitation: 'Ostrobothnian · as Bertil’s opponent',
+    invitation: 'Finnish · as Bertil’s opponent',
   },
   // Upright on a notched phone: under the score and the menu, below the island.
   {
     name: 'table-invitation-island',
     path: '/table-dev?phase=playing&role=player&trick=bots&invitation=partner&safeArea=island',
     testId: 'table-invitation',
-    invitation: 'Ostrobothnian · as Bertil’s partner',
+    invitation: 'Finnish · as Bertil’s partner',
     // No 360×640 phone has an island. There, under Android's bars, the card
     // still covers East's and West's faces: open after PID-470.
     skipViewports: ['landscape', 'compact-landscape', 'compact-portrait'],
@@ -2072,7 +2072,7 @@ const allCases = [
     name: `table-invitation-${safeArea}`,
     path: `/table-dev?phase=playing&role=player&trick=bots&invitation=rules&safeArea=${safeArea}`,
     testId: 'table-invitation',
-    invitation: 'Ostrobothnian',
+    invitation: 'Finnish',
     // As above: no 360×640 phone has an island on its side.
     skipViewports: ['portrait', 'compact-portrait'],
     insets: safeArea === 'island-left' ? { left: 59, right: 0 } : { left: 0, right: 59 },
@@ -2332,10 +2332,14 @@ async function assertLocalization(page, testCase, viewport) {
   if (!testCase.locale) return;
   if (testCase.words) {
     const sv = testCase.locale === 'sv';
-    const label = sv ? 'Österbottnisk' : 'Ostrobothnian';
+    const label = sv ? 'Finländska' : 'Finnish';
     const target = page.getByTestId(testCase.testId);
     if (testCase.words === 'header') {
-      assert.equal(await target.getAttribute('aria-label'), label);
+      // The header's flag is a button that opens the rules (PID-479).
+      assert.equal(
+        await target.getAttribute('aria-label'),
+        sv ? 'Finländska regler' : 'Finnish rules'
+      );
     } else if (!['bots', 'loss'].includes(testCase.words)) {
       await target.getByText(label, { exact: true }).first().waitFor();
     }
@@ -4256,19 +4260,20 @@ async function assertFocused(locator, message) {
   }
 }
 
-const ruleLabels = { finnish: 'Ostrobothnian', louisiana: 'Louisiana' };
+const ruleLabels = { finnish: 'Finnish', louisiana: 'Louisiana' };
+// What differs from the other rule set comes first (PID-479).
 const ruleFacts = {
   finnish: [
     'Only trumps are played, including the same-color five.',
+    "Out of trumps, you're out of the hand.",
+    'Lowest bid is 6.',
     'The highest trump wins the trick.',
-    'A player with no trumps sits out for the rest of the hand.',
-    'The minimum bid is 6.',
   ],
   louisiana: [
-    'Non-trumps are played: follow the led suit or play a trump. When trump is led, follow trump if you can.',
-    'The highest trump wins. With no trump, the highest card of the led suit wins.',
+    'You can lead any suit; follow it or trump. When trump is led, follow trump if you can.',
     'Nobody sits out. Every player plays all six tricks.',
-    'The minimum bid is 7.',
+    'Lowest bid is 7.',
+    'The highest trump wins. With no trump, the highest card of the led suit wins.',
   ],
 };
 
@@ -4308,7 +4313,7 @@ async function assertRulePresentation(page, testCase) {
     await selector.waitFor();
     assert.equal(
       await selector
-        .getByRole('button', { name: new RegExp(ruleLabels[ruleSet]) })
+        .getByRole('button', { name: ruleLabels[ruleSet], exact: true })
         .getAttribute('aria-selected'),
       'true'
     );
@@ -4908,7 +4913,11 @@ async function assertFriendsPresentation(page, name) {
 async function assertLobbyPresentation(page, testCase) {
   const fixture = testCase.lobbyFixture;
   if (!fixture) return;
-  assert.equal(await page.getByTestId('lobby-rule-filter').count(), 0);
+  // The rules filter shows only over tables of both kinds (PID-479): these hold only Finnish ones.
+  assert.equal(
+    await page.getByTestId('lobby-rule-filter').count(),
+    ['empty', 'rejoin', 'substitute'].includes(fixture) ? 0 : 1
+  );
   // Upright phones pin Start a table over the list: no box behind it, and md, not lg.
   const start = page.getByTestId('lobby-start');
   const size = page.viewportSize();
@@ -5038,7 +5047,7 @@ async function assertPasswordKeypad(page, testCase, viewport) {
       assert.ok(box.height >= 64, `${testCase.name}: key ${name} is at least 64pt tall`);
     }
     await keypad.getByText('Bertil’s table', { exact: true }).waitFor();
-    await keypad.getByText('Ostrobothnian · Bertil’s partner', { exact: true }).waitFor();
+    await keypad.getByText('Finnish · Bertil’s partner', { exact: true }).waitFor();
     await keypad.getByText('Type the four numbers Bertil gave you.', { exact: true }).waitFor();
     // The fixture answers every password wrong.
     for (const digit of '4821') await key(digit).click();
@@ -5142,7 +5151,7 @@ async function assertCreationPresentation(page, testCase) {
   }
   if (fixture === 'setup' || fixture === 'louisiana') {
     const selected = page.getByRole('radio', {
-      name: fixture === 'louisiana' ? 'Louisiana' : 'Ostrobothnian',
+      name: fixture === 'louisiana' ? 'Louisiana' : 'Finnish',
       exact: true,
     });
     assert.equal(await selected.getAttribute('aria-checked'), 'true');
@@ -5335,7 +5344,7 @@ async function assertRuleInteractions(page, testCase, viewport, screenshotDir) {
     const other = testCase.ruleSet === 'finnish' ? 'louisiana' : 'finnish';
     const button = page
       .getByTestId(testCase.rulesSelector)
-      .getByRole('button', { name: new RegExp(ruleLabels[other]) });
+      .getByRole('button', { name: ruleLabels[other], exact: true });
     await button.click();
     assert.equal(await button.getAttribute('aria-selected'), 'true');
   }
@@ -9294,7 +9303,7 @@ async function assertRowControls(page, name, screenshotDir) {
     .boundingBox();
   assert.ok(sm.height >= 44, 'The sm pill keeps a 44pt target');
   assert.equal(await panel.getByRole('button', { name: 'Adding' }).isDisabled(), true);
-  const finnish = page.getByRole('radio', { name: 'Ostrobothnian', exact: true });
+  const finnish = page.getByRole('radio', { name: 'Finnish', exact: true });
   const louisiana = page.getByRole('radio', { name: 'Louisiana', exact: true });
   assert.equal(await finnish.getAttribute('aria-checked'), 'true');
   await louisiana.click();

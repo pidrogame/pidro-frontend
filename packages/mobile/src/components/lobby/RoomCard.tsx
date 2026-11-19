@@ -25,6 +25,7 @@ export const RoomCard = memo(function RoomCard({
   onLocked,
   onPassword,
   onPlayer,
+  onRules,
 }: {
   room: Room;
   category?: LobbyCategoryKey;
@@ -37,6 +38,8 @@ export const RoomCard = memo(function RoomCard({
   onPassword?: (code: string, position: Position) => void;
   /** A seated player's face opens their sheet (PID-340). */
   onPlayer?: (playerId: string) => void;
+  /** The flag opens the table's rules and never joins it (PID-479). */
+  onRules?: (room: Room) => void;
 }) {
   const { t } = useTranslation();
   useBotCatalogueStore((state) => state.profiles);
@@ -53,6 +56,7 @@ export const RoomCard = memo(function RoomCard({
             ruleSet={room.config?.rule_set ?? 'finnish'}
             compact
             testID={`room-rules-${room.code}`}
+            onPress={onRules && (() => onRules(room))}
           />
         </View>
         <PidroText

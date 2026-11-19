@@ -638,7 +638,7 @@ Upright the root is a centered column (436 on a phone, 660 on an iPad); sideways
 teams sit side by side with `vs` between. Nothing scrolls; the picker's friend list scrolls
 inside itself and shows four whole rows of two on a 390pt-tall phone (`dense` `FriendRow`).
 Add `&safeArea=island-left|island-right` to fake a notch on either side in a browser.
-Setup seats are all open, with Ostrobothnian/Louisiana ActionPill radios. Footer actions
+Setup seats are all open, with Finnish/Louisiana ActionPill radios. Footer actions
 are Open the table, Start the game (three bots), Share the table link (opened),
 and I'm ready (full). The picker has five subtitle-named radios: Anyone, Bot,
 100+ games played, 1000+ games played, With password, plus the deeper A friend row.
@@ -1072,6 +1072,14 @@ not displayed. `rejoin`, `open`, `substitute`, and `watch` isolate each row kind
 player query and offers Clear search. Search is labelled **Find a player** and
 matches human player names, not table names, codes or bots.
 
+PID-479: every card shows its rule set's flag and short name, and a tap on the flag opens
+that table's rules sheet without joining. Fixtures holding both kinds (`list`, `open`,
+`watch`, `badges`, `locked`, `search-empty`, the password states) show the All / Finnish /
+Louisiana filter (`lobby-rule-filter`), which starts on All and keeps its choice to itself;
+`rejoin` and `substitute` hold only Finnish tables, so there is no filter. The live screen
+starts from Settings' Preferred rules and remembers the choice in the settings store; Your
+table is never filtered.
+
 `badges` shows open tables with 100+ and 1000+ chairs for a 1500-game player.
 `locked` shows the same tables for a 40-game player; tap a dimmed chair for the
 five-second inline reason. `watch` includes “Hand 4 · 34 to 21” and older-payload
@@ -1187,7 +1195,7 @@ Grammar cases: `new-table-setup`, `new-table-louisiana`,
 `table-finnish`, `table-louisiana`, `table-louisiana-bidding`, `table-louisiana-explainer`, `table-louisiana-game-over`,
 `table-louisiana-waiting`, `table-louisiana-waiting-explainer`.
 New-table cases use the four sizes documented above; other rule cases run at
-390×844, 844×390 and 667×375. Ostrobothnian playing and waiting
+390×844, 844×390 and 667×375. Finnish playing and waiting
 cases also check badges; playing/waiting reopen the rules from the menu
 and capture an additional `-rules-reopened.png` screenshot.
 
@@ -1196,7 +1204,7 @@ header flag, settings selector, new-table pills, bot waiting room
 (`/table-dev?fixture=finnish&phase=ready-solo`), losing game-over team headings and
 compact lobby badges (`/ui-dev?state=lobby-seats`). The lobby cases also check that
 the longer rule label leaves a clear gap before the seat count.
-They check the red/yellow flag, Ostrobothnian/Österbottnisk and Us/Them (Vi/Dom)
+They check the red/yellow flag, Finnish/Finländska and Us/Them (Vi/Dom)
 at 390×844, 375×667, 844×390 and 768×1024. The internal rule value stays `finnish`.
 
 ---

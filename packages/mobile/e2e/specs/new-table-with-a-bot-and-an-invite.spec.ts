@@ -368,7 +368,7 @@ test('Play on a friend prefills Partner; requirements and a server password surv
   const password = (await response.json()).data.room.seat_password;
   expect(password).toMatch(/^\d{4}$/);
   await expect(page.getByTestId('waiting-table')).toBeVisible();
-  await expect(page.getByTestId('waiting-rule-set')).toHaveText('Listed in Tables · Ostrobothnian');
+  await expect(page.getByTestId('waiting-rule-set')).toHaveText('Listed in Tables · Finnish');
   await expect(page.getByTestId('new-table-seat-west')).toContainText(
     `Waiting… · password ${password}`
   );

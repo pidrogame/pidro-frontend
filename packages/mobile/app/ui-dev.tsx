@@ -133,7 +133,7 @@ function RowControlsGallery() {
       </View>
       <View accessibilityRole="radiogroup" accessibilityLabel="Rules" style={styles.chips}>
         <ActionPill
-          label="Ostrobothnian"
+          label="Finnish"
           selected={rules === 'finnish'}
           onPress={() => setRules('finnish')}
           style={styles.chip}

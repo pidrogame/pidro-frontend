@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import type { LobbyCategoryKey } from '@pidro/shared';
+import type { LobbyCategoryKey, RuleSet } from '@pidro/shared';
 import { lobbyFixture, seatInvitationsFixture } from '@/features/lobby/fixtures';
 import { roomHasUser } from '@/features/lobby/newTable';
 import { filterPlayers, lobbyCounts, seatRequirementMessage } from '@/features/lobby/tableRow';
@@ -20,6 +20,7 @@ import {
   passwordSeatWords,
   type PasswordEntry,
 } from '@/features/lobby/passwordSeat';
+import { filterLobby, lobbyHasBothRuleSets, lobbyRuleSetFilter } from '@/features/rules/ruleSets';
 import { pickProfile } from '@/game/canvas/layout';
 import { captureAnalytics } from '@/analytics/PostHogAnalytics';
 import { lobbyApi } from '@/api/lobby';
@@ -28,6 +29,8 @@ import { PasswordKeypadSheet } from '@/components/lobby/PasswordKeypadSheet';
 import { Modal } from '@/components/ui/Modal';
 import { RoomCard } from '@/components/lobby/RoomCard';
 import { PlayerSheet } from '@/components/profile/PlayerSheet';
+import { RuleSetSelector } from '@/components/rules/RuleSet';
+import { RulesExplainer } from '@/components/rules/RulesExplainer';
 import { SeatInvitations } from '@/components/invites/SeatInvitations';
 import { OpenChair } from '@/components/lobby/OpenChair';
 import { AuthFlowButton, AuthFlowHeading } from '@/components/auth/AuthFlow';
@@ -45,6 +48,7 @@ import { useQuickGame } from '@/hooks/useQuickGame';
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useAuthStore } from '@/stores/auth';
 import { useLobbyStore } from '@/stores/lobby';
+import { useSettingsStore } from '@/stores/settings';
 import type { Position, Room } from '@/types/lobby';
 import { apiErrorInfo, localizedError } from '@/utils/apiErrors';
 import { useTranslation, formatNumber, type TranslationKey } from '@/i18n';
@@ -109,6 +113,14 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   const [rowErrors, setRowErrors] = useState<Record<string, LobbyFailure | undefined>>({});
   const [joining, setJoining] = useState<string | null>(null);
   const [sheetPlayer, setSheetPlayer] = useState<string | null>(null);
+  const [rulesRoom, setRulesRoom] = useState<Room | null>(null);
+  const preferred = useSettingsStore((state) => state.preferredRuleSet);
+  const savedFilter = useSettingsStore((state) => state.lobbyRuleSetFilter);
+  const saveFilter = useSettingsStore((state) => state.setLobbyRuleSetFilter);
+  // A fixture starts on All and keeps its choice to itself.
+  const [fixtureFilter, setFixtureFilter] = useState<RuleSet | 'all'>('all');
+  const filter = fixture ? fixtureFilter : lobbyRuleSetFilter(preferred, savedFilter);
+  const shown = filterLobby(lobby, filter, user?.id);
   const [passwordSeat, setPasswordSeat] = useState<{
     code: string;
     position: Position;
@@ -226,10 +238,10 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   );
   const activeRoom = activeRooms[0] ?? null;
   // Fallback player labels depend on the current locale, so do not cache them.
-  const openTables = filterPlayers(lobby.open_tables, query);
-  const rejoinableTables = filterPlayers(lobby.my_rejoinable, query);
-  const substituteTables = filterPlayers(lobby.substitute_needed, query);
-  const watchTables = filterPlayers(lobby.spectatable, query);
+  const openTables = filterPlayers(shown.open_tables, query);
+  const rejoinableTables = filterPlayers(shown.my_rejoinable, query);
+  const substituteTables = filterPlayers(shown.substitute_needed, query);
+  const watchTables = filterPlayers(shown.spectatable, query);
   const visibleTableCount =
     rejoinableTables.length + openTables.length + substituteTables.length + watchTables.length;
   const hasQuery = query.trim().length > 0;
@@ -240,7 +252,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
     !hasQuery &&
     !isUnavailable &&
     activeRooms.length === 0 &&
-    Object.values(lobby).every((tables) => tables.length === 0);
+    Object.values(shown).every((tables) => tables.length === 0);
 
   const loadLobby = useCallback(async () => {
     if (fixture) return;
@@ -423,7 +435,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
             })}
           </PidroText>
           <PidroText role="metadata" tone="soft">
-            {lobbyCounts(lobby)}
+            {lobbyCounts(shown)}
           </PidroText>
         </View>
         {!portraitPhone && !isEmptyLobby ? search : null}
@@ -438,6 +450,22 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
         </BevelButton>
       </View>
       {portraitPhone && !isEmptyLobby ? search : null}
+      {lobbyHasBothRuleSets(lobby, user?.id) ? (
+        // One row that may run into the side margin (Swedish needs it), never a second row.
+        <ScrollView
+          testID="lobby-rule-filter"
+          accessibilityLabel={t('social.rules')}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filter}
+          contentContainerStyle={styles.filterRow}>
+          <RuleSetSelector
+            value={filter}
+            onChange={fixture ? setFixtureFilter : saveFilter}
+            includeAll
+          />
+        </ScrollView>
+      ) : null}
 
       <View style={styles.content}>
         <SeatInvitations fixture={seatInvitationsFixture(fixtureParam)} scrollable />
@@ -535,6 +563,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
                           error={failureText(rowErrors[room.code])}
                           onAction={handleRowAction}
                           onPlayer={setSheetPlayer}
+                          onRules={setRulesRoom}
                         />
                       </View>
                     ))}
@@ -552,6 +581,14 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
       </View>
 
       <PlayerSheet playerId={sheetPlayer} presence="online" onClose={() => setSheetPlayer(null)} />
+      {rulesRoom ? (
+        <RulesExplainer
+          ruleSet={rulesRoom.config?.rule_set ?? 'finnish'}
+          tableCode={rulesRoom.code}
+          open
+          onClose={() => setRulesRoom(null)}
+        />
+      ) : null}
       {passwordSeat ? (
         <PasswordKeypadSheet
           words={passwordSeat.words}
@@ -730,6 +767,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   tabletShell: { paddingHorizontal: 48, paddingTop: 32 },
+  filter: { flexGrow: 0, marginHorizontal: -20 },
+  filterRow: { paddingHorizontal: 20 },
   headerCounts: { width: 170 },
   searchIcon: { position: 'absolute', left: 13, top: 13 },
   eyebrow: { textTransform: 'uppercase', letterSpacing: 1, fontWeight: '900', fontSize: 11 },

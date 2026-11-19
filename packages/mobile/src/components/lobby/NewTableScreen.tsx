@@ -26,6 +26,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PidroText } from '@/components/ui/PidroText';
 import { ScreenShell } from '@/components/ui/ScreenShell';
 import { TextLink } from '@/components/ui/TextLink';
+import { RuleSetChip } from '@/components/rules/RuleSet';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { WatchingBadge } from '@/components/game/WatchingBadge';
@@ -620,13 +621,28 @@ export function NewTableScreen({
           />
         ))}
       </View>
-      <PidroText
-        role="metadata"
-        tone="soft"
-        align={wide || tablet ? 'right' : 'center'}
-        style={phoneLandscape && styles.rulesLine}>
-        {t(`social.${ruleSet}_detail`)}
-      </PidroText>
+      <View
+        style={[
+          styles.detail,
+          wide || tablet ? styles.detailEnd : styles.detailCenter,
+          phoneLandscape && styles.rulesLine,
+        ]}>
+        {/* Under the pills the flag takes its full 44pt, so its target never covers them. */}
+        <RuleSetChip
+          ruleSet={ruleSet}
+          flagOnly
+          testID="new-table-rules-flag"
+          onPress={rules.show}
+          style={styles.flagRoomy}
+        />
+        <PidroText
+          role="metadata"
+          tone="soft"
+          align={wide || tablet ? 'right' : 'center'}
+          style={styles.shrink}>
+          {t(`social.${ruleSet}_detail`)}
+        </PidroText>
+      </View>
     </View>
   );
   const align = phoneLandscape ? 'left' : 'center';
@@ -810,9 +826,21 @@ export function NewTableScreen({
                   {room ? tableTitle(room, you) : t('new_table.title')}
                 </PidroText>
                 {room && (
-                  <PidroText testID="waiting-rule-set" role="metadata" tone="soft">
-                    {tableHeader(room)}
-                  </PidroText>
+                  <View style={styles.detail}>
+                    <RuleSetChip
+                      ruleSet={ruleSet}
+                      flagOnly
+                      testID="waiting-rules-flag"
+                      onPress={rules.show}
+                    />
+                    <PidroText
+                      testID="waiting-rule-set"
+                      role="metadata"
+                      tone="soft"
+                      style={styles.shrink}>
+                      {tableHeader(room)}
+                    </PidroText>
+                  </View>
                 )}
               </View>
               {(wide || tablet || talking) && (room ? rulesLink : rulesChoice)}
@@ -930,14 +958,12 @@ export function NewTableScreen({
       </ScreenShell>
       {isSpectator && <WatchingBadge bottom={insets.bottom + PidroSpacing.xs} />}
       <TableFeedback notice={notice ?? null} top={insets.top + 72} onDismiss={onDismissNotice} />
-      {room && (
-        <RulesExplainer
-          ruleSet={ruleSet}
-          tableCode={room.code}
-          open={rules.open}
-          onClose={rules.dismiss}
-        />
-      )}
+      <RulesExplainer
+        ruleSet={ruleSet}
+        tableCode={room?.code ?? ''}
+        open={rules.open}
+        onClose={rules.dismiss}
+      />
       {selected && editable && !occupied && (
         <SeatPickerContainer
           key={selected}
@@ -1035,6 +1061,11 @@ const styles = StyleSheet.create({
   rulesTablet: { alignItems: 'flex-end', gap: 8 },
   rulesRow: { flexDirection: 'row-reverse', alignItems: 'center', gap: 12, flexShrink: 1 },
   rulesLine: { flexShrink: 1 },
+  detail: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  detailCenter: { justifyContent: 'center' },
+  detailEnd: { justifyContent: 'flex-end' },
+  flagRoomy: { marginHorizontal: 0, marginVertical: 0 },
+  shrink: { flexShrink: 1 },
   pills: { flexDirection: 'row', gap: 8 },
   pill: { flex: 1 },
   teams: { gap: 12 },

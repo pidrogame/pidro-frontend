@@ -64,7 +64,7 @@ try {
             await page.getByTestId(`new-table-seat-${position}`).innerText(),
             /Anyone|Open/
           );
-        const finnish = screen.getByRole('radio', { name: 'Ostrobothnian', exact: true });
+        const finnish = screen.getByRole('radio', { name: 'Finnish', exact: true });
         const louisiana = screen.getByRole('radio', { name: 'Louisiana', exact: true });
         assert.equal(await finnish.getAttribute('aria-checked'), 'true');
         await louisiana.click();

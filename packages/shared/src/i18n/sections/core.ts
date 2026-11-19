@@ -91,32 +91,32 @@ export const en = {
   'table.rematch.tableChanged':
     'The table changed. Press Play again once more.',
   'table.rematch.failed': 'The rematch did not go through. Try again.',
-  'rules.finnish': 'Ostrobothnian',
+  'rules.finnish': 'Finnish',
   'rules.louisiana': 'Louisiana',
+  'rules.long.finnish': 'Finnish rules',
+  'rules.long.louisiana': 'Louisiana rules',
   'rules.all': 'All',
   'rules.preferred': 'Preferred rules',
-  'rules.description.finnish': 'Only trumps are played. Minimum bid 6.',
-  'rules.description.louisiana': 'Follow suit, nobody sits out. Minimum bid 7.',
+  'rules.description.finnish': 'Only trumps are played. Lowest bid is 6.',
+  'rules.description.louisiana': 'Lead any suit, nobody sits out. Lowest bid is 7.',
   'rules.empty': 'No %{rules} tables match this filter.',
   'rules.emptySearch': 'No %{rules} tables match your search.',
   'rules.searchHint':
     'Try another name or code, or show all rules without clearing your search.',
   'rules.showAll': 'Show all rules',
-  'rules.title': 'Rules at this table',
   'rules.menu': 'Table rules',
   'rules.play.louisiana':
-    'Non-trumps are played: follow the led suit or play a trump. When trump is led, follow trump if you can.',
+    'You can lead any suit; follow it or trump. When trump is led, follow trump if you can.',
   'rules.winner.louisiana':
     'The highest trump wins. With no trump, the highest card of the led suit wins.',
   'rules.turns.louisiana':
     'Nobody sits out. Every player plays all six tricks.',
-  'rules.bid.louisiana': 'The minimum bid is 7.',
+  'rules.bid.louisiana': 'Lowest bid is 7.',
   'rules.play.finnish':
     'Only trumps are played, including the same-color five.',
   'rules.winner.finnish': 'The highest trump wins the trick.',
-  'rules.turns.finnish':
-    'A player with no trumps sits out for the rest of the hand.',
-  'rules.bid.finnish': 'The minimum bid is 6.',
+  'rules.turns.finnish': "Out of trumps, you're out of the hand.",
+  'rules.bid.finnish': 'Lowest bid is 6.',
   'rules.feedback': 'Not the rules you play? Tell us',
   'rules.done': 'Got it',
   'rules.mailSubject': 'Pidro rules feedback — %{rules} — table %{code}',
@@ -219,21 +219,22 @@ export const sv: Record<keyof typeof en, string> = {
   'table.rematch.tableChanged':
     'Bordet har ändrats. Tryck på Spela igen en gång till.',
   'table.rematch.failed': 'Returmatchen kunde inte startas. Försök igen.',
-  'rules.finnish': 'Österbottnisk',
+  'rules.finnish': 'Finländska',
   'rules.louisiana': 'Louisiana',
+  'rules.long.finnish': 'Finländska regler',
+  'rules.long.louisiana': 'Louisiana-regler',
   'rules.all': 'Alla',
   'rules.preferred': 'Föredragna regler',
   'rules.description.finnish': 'Endast trumf spelas. Lägsta bud är 6.',
-  'rules.description.louisiana': 'Följ färg, ingen står över. Lägsta bud är 7.',
+  'rules.description.louisiana': 'Spela ut vilken färg som helst, ingen står över. Lägsta bud är 7.',
   'rules.empty': 'Inga bord med %{rules} regler matchar filtret.',
   'rules.emptySearch': 'Inga bord med %{rules} regler matchar sökningen.',
   'rules.searchHint':
     'Prova ett annat namn eller en annan kod, eller visa alla regler utan att rensa sökningen.',
   'rules.showAll': 'Visa alla regler',
-  'rules.title': 'Regler vid bordet',
   'rules.menu': 'Bordets regler',
   'rules.play.louisiana':
-    'Även andra färger än trumf spelas: följ den utspelade färgen eller spela trumf. Om trumf spelas ut måste du följa trumf om du kan.',
+    'Du får spela ut vilken färg som helst; följ den eller spela trumf. Om trumf spelas ut måste du följa trumf om du kan.',
   'rules.winner.louisiana':
     'Högsta trumfen vinner. Utan trumf vinner det högsta kortet i den utspelade färgen.',
   'rules.turns.louisiana':
@@ -241,7 +242,7 @@ export const sv: Record<keyof typeof en, string> = {
   'rules.bid.louisiana': 'Lägsta bud är 7.',
   'rules.play.finnish': 'Endast trumf spelas, inklusive femman i samma färg.',
   'rules.winner.finnish': 'Högsta trumfen vinner sticket.',
-  'rules.turns.finnish': 'En spelare utan trumf står över resten av given.',
+  'rules.turns.finnish': 'Utan trumf är du ute ur given.',
   'rules.bid.finnish': 'Lägsta bud är 6.',
   'rules.feedback': 'Spelar du med andra regler? Berätta för oss',
   'rules.done': 'Jag förstår',

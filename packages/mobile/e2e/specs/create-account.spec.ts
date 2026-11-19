@@ -49,7 +49,7 @@ test('a new player creates an account, stays signed in, and signs out @responsiv
   await page.waitForURL(/\/welcome$/);
 });
 
-test('a new account opens an Ostrobothnian table that another player can find with two open chairs @responsive', async ({
+test('a new account opens a Finnish table that another player can find with two open chairs @responsive', async ({
   page,
   player,
   browser,
@@ -64,7 +64,7 @@ test('a new account opens an Ostrobothnian table that another player can find wi
   await expect(
     form
       .getByRole('radiogroup', { name: 'Rules', exact: true })
-      .getByRole('radio', { name: 'Ostrobothnian', exact: true })
+      .getByRole('radio', { name: 'Finnish', exact: true })
   ).toHaveAttribute('aria-checked', 'true');
   await expect(form.getByTestId('new-table-seat-north')).toHaveText('YouHost');
   await expect(form.getByTestId('new-table-seat-south')).toHaveAccessibleName(
@@ -91,7 +91,7 @@ test('a new account opens an Ostrobothnian table that another player can find wi
   await page.waitForURL(/\/game\/[A-Z0-9]+$/);
   const code = tableCode(page);
   await expect(page.getByTestId('waiting-table').last()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId('waiting-rule-set').last()).toContainText('Ostrobothnian');
+  await expect(page.getByTestId('waiting-rule-set').last()).toContainText('Finnish');
 
   // A separate context has neither the host's auth nor its cached lobby data.
   // Keep the host connected so the server lists this waiting table.
@@ -106,7 +106,7 @@ test('a new account opens an Ostrobothnian table that another player can find wi
     await visitor.goto('/lobby');
     const table = visitor.getByTestId(`lobby-table-${code}`);
     await expect(table).toBeVisible({ timeout: 30_000 });
-    await expect(table.getByTestId(`room-rules-${code}`)).toContainText('Ostrobothnian');
+    await expect(table.getByTestId(`room-rules-${code}`)).toContainText('Finnish');
     await expect(table.getByText(player.name, { exact: true })).toBeVisible();
     const chairs = table.getByRole('button', { name: /^Join .* seat$/ });
     await expect(chairs).toHaveCount(2);

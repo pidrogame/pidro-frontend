@@ -66,12 +66,12 @@ describe('tableInvitationLine', () => {
     setLocale('en');
     const finnish = { ...later, rule_set: 'finnish' };
     expect(tableInvitationLine({ ...finnish, join_as: 'partner' }, 'Bertil')).toBe(
-      'Ostrobothnian · as Bertil’s partner'
+      'Finnish · as Bertil’s partner'
     );
     expect(tableInvitationLine({ ...finnish, join_as: 'opponent' }, 'Bertil')).toBe(
-      'Ostrobothnian · as Bertil’s opponent'
+      'Finnish · as Bertil’s opponent'
     );
-    expect(tableInvitationLine(finnish, 'Bertil')).toBe('Ostrobothnian');
+    expect(tableInvitationLine(finnish, 'Bertil')).toBe('Finnish');
   });
 });
 

@@ -2,7 +2,8 @@ import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useCallback, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import type { RuleSet } from '@pidro/shared';
-import { RuleSetSelector } from '@/components/rules/RuleSet';
+import { RuleSetChip, RuleSetSelector } from '@/components/rules/RuleSet';
+import { RulesExplainer } from '@/components/rules/RulesExplainer';
 import { ruleSetFixture } from '@/features/rules/fixtures';
 import { useTranslation } from '@/i18n';
 import { LanguageSelector } from './LanguageSelector';
@@ -56,9 +57,12 @@ export function SettingsScreen({
   const tells = useAuthStore((state) => canTell(state.user));
   const preferredRuleSet = useSettingsStore((state) => state.preferredRuleSet);
   const setPreferredRuleSet = useSettingsStore((state) => state.setPreferredRuleSet);
+  const setLobbyRuleSetFilter = useSettingsStore((state) => state.setLobbyRuleSetFilter);
   const { fixture } = useLocalSearchParams<{ fixture?: string }>();
   const initialFixture = ruleSetFixture(fixture);
   const [fixtureChoice, setFixtureChoice] = useState<RuleSet | undefined>();
+  const ruleSet = initialFixture ? (fixtureChoice ?? initialFixture) : preferredRuleSet;
+  const [rulesOpen, setRulesOpen] = useState(false);
   const tell = __DEV__ ? tellFixture(fixture) : null;
   const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
   const [toast, setToast] = useState<string | null>(null);
@@ -123,10 +127,37 @@ export function SettingsScreen({
             <Surface variant="subtle" style={styles.rulesRow} testID="settings-preferred-rules">
               <PidroText role="label">{t('rules.preferred')}</PidroText>
               <RuleSetSelector
-                value={initialFixture ? (fixtureChoice ?? initialFixture) : preferredRuleSet}
-                onChange={initialFixture ? setFixtureChoice : setPreferredRuleSet}
+                value={ruleSet}
+                onChange={
+                  initialFixture
+                    ? setFixtureChoice
+                    : (choice) => {
+                        if (choice === preferredRuleSet) return;
+                        // Tables starts from the new choice too (PID-479).
+                        setPreferredRuleSet(choice);
+                        setLobbyRuleSetFilter(choice);
+                      }
+                }
               />
+              <View style={styles.rulesLine}>
+                <RuleSetChip
+                  ruleSet={ruleSet}
+                  flagOnly
+                  testID="settings-rules-flag"
+                  onPress={() => setRulesOpen(true)}
+                  style={styles.flagRoomy}
+                />
+                <PidroText role="metadata" tone="muted" style={styles.grow}>
+                  {t(`rules.description.${ruleSet}`)}
+                </PidroText>
+              </View>
             </Surface>
+            <RulesExplainer
+              ruleSet={ruleSet}
+              tableCode=""
+              open={rulesOpen}
+              onClose={() => setRulesOpen(false)}
+            />
             <SettingRow
               title={t('settings.sound')}
               subtitle={t('settings.soundHint')}
@@ -247,6 +278,10 @@ const styles = StyleSheet.create({
   languageColumn: { flexGrow: 1, flexBasis: 280, minWidth: 0 },
   preferencesColumn: { flexGrow: 1, flexBasis: 280, minWidth: 0, gap: PidroSpacing.sm },
   rulesRow: { gap: PidroSpacing.xs, padding: PidroSpacing.sm },
+  rulesLine: { flexDirection: 'row', alignItems: 'center', gap: PidroSpacing.xxs },
+  grow: { flex: 1 },
+  // Under the selector the flag takes its full 44pt, so its target never covers it.
+  flagRoomy: { marginHorizontal: 0, marginVertical: 0 },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: PidroSpacing.xs },
   row: {
     minHeight: 72,
