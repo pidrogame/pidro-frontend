@@ -101,7 +101,7 @@ const SIDE_SEAT_AIR = 5 + 8;
  */
 const NORTH_SEAT_STACK = { phone: 104, tablet: 118 } as const;
 /** A landscape phone's side seat, as SeatLayer stacks it: avatar, level chip, name and status. */
-const LANDSCAPE_SIDE_SEAT = 99;
+export const LANDSCAPE_SIDE_SEAT = 99;
 /** One of North's card backs, as SeatLayer draws them. */
 // Opponents' backs are big enough to count at a glance: veterans read the
 // second deal off them (how many each drew), not just that cards are there.
@@ -962,6 +962,105 @@ export const pileCardW = (L: TableLayout) =>
 /** How wide North's or your front-row pile spreads at most, in faces. */
 const FRONT_PILE_SPAN = 3.4;
 
+/** The least of a killed trump that shows under the next: its rank corner (PID-481). */
+export const RANK_SHOWN = 0.2;
+/**
+ * How wide `n` killed trumps up to `w` draw, and where they start and step
+ * along their line (PID-481), measured from `from` toward where they run: up
+ * to 0.44 of a card apart, at least a third within `room`. To stay within
+ * `reach` they start up to `back` further back, then close up, down to a rank
+ * corner, and then draw smaller, as thrown backs do.
+ */
+function killedLine(n: number, w: number, room: number, reach: number, back = 0) {
+  if (n < 2) return { w, start: -Math.min(back, Math.max(0, w - reach)), step: 0 };
+  let step = Math.max(w * THROW_SHOWN, Math.min(w * 0.44, (room - w) / (n - 1)));
+  const shift = Math.min(back, Math.max(0, w + (n - 1) * step - reach));
+  if (w + (n - 1) * step > reach + shift)
+    step = Math.max(w * RANK_SHOWN, (reach + shift - w) / (n - 1));
+  if (w + (n - 1) * step > reach + shift) {
+    w = (reach + shift) / (1 + (n - 1) * RANK_SHOWN);
+    step = w * RANK_SHOWN;
+  }
+  return { w, start: -shift, step };
+}
+
+/** A seat's played cards this hand, `n` of them, as one box. */
+function pileBox(L: TableLayout, rel: RelativePosition, n: number) {
+  const cards = Array.from({ length: n }, (_, i) => {
+    const c = playedCardTarget(L, rel, i, n, 1);
+    const [w, h] = [L.cardW * c.scale, L.cardW * c.scale * CARD_RATIO];
+    return c.rot
+      ? { x: c.x, y: c.y, hx: h / 2, hy: w / 2 }
+      : { x: c.x, y: c.y, hx: w / 2, hy: h / 2 };
+  });
+  return {
+    left: Math.min(...cards.map((c) => c.x - c.hx)),
+    right: Math.max(...cards.map((c) => c.x + c.hx)),
+    top: Math.min(...cards.map((c) => c.y - c.hy)),
+  };
+}
+
+/**
+ * Landscape iPads (PID-481): their packs' spots lie where East's and West's
+ * piles reach late in a hand, so the killed trumps lie in the felt beside
+ * their seat's pile instead. East's and West's down the side of their stack,
+ * from under their seat to above yours; yours left of West's pile, above your
+ * seat; North's under its seat, right of its pile and above East's, as large
+ * as that leaves room for, short of East's seat at its widest.
+ */
+function tabletKilledSpot(L: TableLayout, rel: RelativePosition, i: number, n: number, w: number) {
+  const pack = packSpot(L, 'south');
+  const packW = northBackWidth(L.cardW, false);
+  const yours = { bottom: pack.y + (packW * CARD_RATIO) / 2 };
+  const top = (cardW: number) => yours.bottom - cardW * CARD_RATIO;
+  if (rel === 'east' || rel === 'west') {
+    const east = rel === 'east';
+    const inner = sideStackInner(L.cardW, east ? L.insets.right : L.insets.left) + TRICK_GAP;
+    const foot = top(w) - TRICK_GAP;
+    const band = foot - sideStacks(L).top;
+    const line = killedLine(n, w, band, band);
+    const h = line.w * CARD_RATIO;
+    const k = east ? i : n - 1 - i;
+    return {
+      x: east ? L.width - inner - h / 2 : inner + h / 2,
+      y: foot - line.w / 2 - (line.start + k * line.step),
+      rot: ((east ? -1 : 1) * Math.PI) / 2,
+      w: line.w,
+    };
+  }
+  if (rel === 'south') {
+    const from = pack.x - packW / 2;
+    const left = sideStackInner(L.cardW, L.insets.left) + TRICK_GAP;
+    const reach = pileBox(L, 'west', 6).left - TRICK_GAP - from;
+    const line = killedLine(n, w, reach, reach, from - left);
+    return {
+      x: from + line.start + i * line.step + line.w / 2,
+      y: yours.bottom - (line.w * CARD_RATIO) / 2,
+      rot: 0,
+      w: line.w,
+    };
+  }
+  const bandTop = L.top + 8 + AVATAR_SIZE[L.profile] + TRICK_GAP;
+  const bandBottom = pileBox(L, 'east', 6).top - TRICK_GAP;
+  const small = Math.min(w, (bandBottom - bandTop) / CARD_RATIO);
+  const from = pileBox(L, 'north', 6).right + TRICK_GAP;
+  const eastSeat =
+    L.width -
+    L.insets.right -
+    TRICK_GAP -
+    AVATAR_SIZE[L.profile] -
+    seatNameGap(L.profile) -
+    landscapeNameReach(L, 'east', { insets: L.insets });
+  const reach = eastSeat - TRICK_GAP - from;
+  const line = killedLine(n, small, reach, reach);
+  return {
+    x: from + line.start + i * line.step + line.w / 2,
+    y: bandBottom - (line.w * CARD_RATIO) / 2,
+    rot: 0,
+    w: line.w,
+  };
+}
+
 /**
  * Where card `i` of the `n` trumps a seat killed over six lies from the start
  * of play to the end of the hand (PID-481): on its pack's spot (`packSpot`),
@@ -970,30 +1069,44 @@ const FRONT_PILE_SPAN = 3.4;
  * each showing its rank and suit, as far as it can within what the full pack
  * would cover: a row of standing cards from its left edge, or at East and
  * West, lying sideways as their pack does, a column from its foot, each
- * card's index clear of the next.
+ * card's index clear of the next. A long run closes up, to rank corners, and
+ * then draws smaller, to stay on the screen; landscape phones' East and West
+ * short of their seat. Landscape iPads have their own spots (`tabletKilledSpot`).
  */
 export function killedSpot(L: TableLayout, rel: RelativePosition, i: number, n: number) {
   const pack = packSpot(L, rel);
   const packW = northBackWidth(L.cardW, compactNorth(L));
   const full = packRise(packW, 52);
   const w = Math.min(packW, L.cardW * L.trick.pileScale * TRAIL_SCALE);
-  const h = w * CARD_RATIO;
-  // Closing up within the pack's room, never past a third of a card (THROW_SHOWN).
-  const step = (room: number) =>
-    n > 1 ? Math.max(w * THROW_SHOWN, Math.min(w * 0.44, (room - w) / (n - 1))) : 0;
+  if (L.profile === 'tablet-landscape') return tabletKilledSpot(L, rel, i, n, w);
   // The pack's bottom back, standing or lying sideways.
   const [packX, packY] = pack.sideways ? [packW * CARD_RATIO, packW] : [packW, packW * CARD_RATIO];
   if (rel === 'north' || rel === 'south') {
-    const s = step(packX + full * 0.55);
-    const y = pack.y + packY / 2 - h / 2;
-    return { x: pack.x - packX / 2 + w / 2 + i * s, y, rot: 0, w };
+    const from = pack.x - packX / 2;
+    const reach = L.width - L.insets.right - KILLED_EDGE - from;
+    const line = killedLine(n, w, packX + full * 0.55, reach);
+    return {
+      x: from + line.start + i * line.step + line.w / 2,
+      y: pack.y + packY / 2 - (line.w * CARD_RATIO) / 2,
+      rot: 0,
+      w: line.w,
+    };
   }
   // East's index lies at the card's foot, West's at its top (PID-388).
-  const s = step(packY + full);
+  // Landscape phones' run short of the seat above their pack.
   const foot = pack.y + packY / 2;
-  const y = rel === 'west' ? foot - w / 2 - (n - 1 - i) * s : foot - w / 2 - i * s;
-  return { x: pack.x, y, rot: ((rel === 'east' ? -1 : 1) * Math.PI) / 2, w };
+  const top = L.front ? foot - packY - full - TRICK_GAP : L.top + KILLED_EDGE;
+  const line = killedLine(n, w, packY + full, foot - top);
+  const k = rel === 'west' ? n - 1 - i : i;
+  return {
+    x: pack.x,
+    y: foot - line.w / 2 - (line.start + k * line.step),
+    rot: ((rel === 'east' ? -1 : 1) * Math.PI) / 2,
+    w: line.w,
+  };
 }
+/** How near the screen's edge, or the table's top, killed trumps may run. */
+const KILLED_EDGE = 4;
 
 /** A thrown back shows at least this much of itself, as Classic's do (PID-452). */
 export const THROW_SHOWN = 1 / 3;

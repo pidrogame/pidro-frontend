@@ -549,7 +549,10 @@ does for you, under the same late draw: your card lies over your earlier one in 
 `killed=on` (PID-475) puts a trump you killed over six face up on your pack spot, and
 `killed=west` two of West's on West's; they lie there all hand (PID-481), and the hand log
 says "West killed 8♠ 4♠". The same `killed=on|west` works on the table fixtures that play
-(`fixture=piles&cards=6`, `talk-*`). `table-play-onto-killed` taps your card, and
+(`fixture=piles&cards=6`, `talk-*`). There `killed=all` gives every seat two, and
+`killed=nine-north|east|south|west` that seat nine, the most it may spread: on a landscape
+iPad each seat's lie beside its pile, clear of East's and West's late cards, and nine close
+up to rank corners on the screen at 360×640 and in landscape. `table-play-onto-killed` taps your card, and
 `table-draw-kill-north` (`deal=draw&kill=north`) has North lead; in no frame does the played
 card touch the killed one, and it is still up once the card has landed.
 `reply=burst` puts opponent updates 80 ms apart;

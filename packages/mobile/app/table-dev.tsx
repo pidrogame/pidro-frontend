@@ -231,10 +231,26 @@ function pileTrick(cards: number, led: boolean, out: boolean, next: boolean): Fi
     next: next ? [{ player: 'west', card: pileCard(at + 3) }] : undefined,
   };
 }
-/** `killed=on|west` at a playing table (PID-481): you, or West, killed trumps over six. */
+/**
+ * `killed=on|west` at a playing table (PID-481): you, or West, killed trumps
+ * over six. `all`: every seat killed two; `nine-north|east|south|west`: that
+ * seat nine, more than a hand of trumps can lose, to show the most its cards
+ * may spread. As one card draws only once, they come from the cards the piles
+ * and your hand leave out; the table draws 36 face up (`useCardSprites`).
+ */
+const KILL_FREE = PILE_SUITS.flatMap((suit) =>
+  [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2].map((rank) => ({ rank, suit }))
+).filter((c) =>
+  Array.from({ length: 32 }, (_, i) => pileCard(i)).every(
+    (p) => p.rank !== c.rank || p.suit !== c.suit
+  )
+);
+const SEATS = ['north', 'east', 'south', 'west'] as const;
 const KILLED: Record<string, Partial<Record<Position, Card[]>>> = {
   on: { south: [heart(8)] },
   west: { west: [heart(7), heart(6)] },
+  all: Object.fromEntries(SEATS.map((p, i) => [p, KILL_FREE.slice(i * 2, i * 2 + 2)])),
+  ...Object.fromEntries(SEATS.map((p) => [`nine-${p}`, { [p]: KILL_FREE.slice(0, 9) }])),
 };
 const TRICKS: Record<string, FixtureTrick> = {
   full: { taken: [], current: [...BOT_TRICK, play('south', 14)], hand: BOT_TRICK_HAND.slice(1) },

@@ -27,6 +27,8 @@ import {
   pileCardW,
   pileSpacing,
   killedSpot,
+  RANK_SHOWN,
+  LANDSCAPE_SIDE_SEAT,
   PILE_TRAIL_SCALE,
   laidPileTarget,
   playedCardTarget,
@@ -569,22 +571,35 @@ describe('killed trumps lie on their seat’s pack spot all hand (PID-481)', () 
         )
       )
     );
+  // East's and West's backs, along the screen's edges.
+  const stacks = (L) => {
+    const { backW, top, maxHeight } = sideStacks(L);
+    const bottom = top + maxHeight;
+    return [
+      { left: L.insets.left, right: L.insets.left + backW, top, bottom },
+      { left: L.width - L.insets.right - backW, right: L.width - L.insets.right, top, bottom },
+    ];
+  };
   for (const [width, height, insets] of [
     [360, 640, { top: 24, bottom: 48, left: 0, right: 0 }],
     [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
     [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }],
     [768, 1024, { top: 24, bottom: 20, left: 0, right: 0 }],
     [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [667, 375, { top: 0, bottom: 0, left: 0, right: 0 }],
     [1024, 768, { top: 24, bottom: 20, left: 0, right: 0 }],
+    [1180, 820, { top: 24, bottom: 20, left: 0, right: 0 }],
+    [1366, 1024, { top: 24, bottom: 20, left: 0, right: 0 }],
   ]) {
-    it(`lays up to three on the pack's room, smaller than a played card, each index showing, clear of every pile, on ${width}×${height}`, () => {
+    it(`lays up to nine smaller than a played card, each index showing, on screen and clear of every pile, on ${width}×${height}`, () => {
       const upright = height > width;
       const L = computeLayout(width, height, insets, upright ? 60 : 0, 0);
+      const ipad = L.profile === 'tablet-landscape';
       const w = northBackWidth(L.cardW, compactNorth(L));
       const h = w * (110 / 78);
       const rise = (packLayers(52) - 1) * w * PACK_STEP;
+      const obstacles = played(L).concat(ipad ? stacks(L) : []);
       for (const rel of ['north', 'east', 'south', 'west']) {
-        const piles = played(L);
         const pack = packSpot(L, rel);
         const [pw, ph] = pack.sideways ? [h, w] : [w, h];
         const room = {
@@ -593,24 +608,34 @@ describe('killed trumps lie on their seat’s pack spot all hand (PID-481)', () 
           top: pack.y - ph / 2 - rise,
           bottom: pack.y + ph / 2,
         };
-        for (let n = 1; n <= 3; n++) {
+        for (let n = 1; n <= 9; n++) {
           const spots = Array.from({ length: n }, (_, i) => killedSpot(L, rel, i, n));
           for (const spot of spots) {
             const b = box(spot);
-            // One in the pack's room; more may run a card's third each past it, still on screen.
+            expect(b.left, `${rel} ${n}`).toBeGreaterThanOrEqual(insets.left);
+            expect(b.right, `${rel} ${n}`).toBeLessThanOrEqual(width - insets.right);
+            expect(b.top, `${rel} ${n}`).toBeGreaterThanOrEqual(insets.top);
+            expect(b.bottom, `${rel} ${n}`).toBeLessThanOrEqual(height - insets.bottom);
+            expect(spot.w).toBeLessThan(L.cardW * L.trick.pileScale);
+            for (const card of obstacles)
+              expect(apart(b, card), `${rel} ${n} on a pile`).toBe(true);
+            // Landscape phones' East and West run short of the seat above their pack.
+            if (L.sidesUnder && (rel === 'east' || rel === 'west'))
+              expect(b.top, `${rel} ${n} on its seat`).toBeGreaterThanOrEqual(
+                landscapeSideSeatTop(L, rel, LANDSCAPE_SIDE_SEAT) + LANDSCAPE_SIDE_SEAT - 0.01
+              );
+            // Up to three lie in the pack's room, more running a card's third each past it;
+            // landscape iPads' late piles reach their packs' spots, so theirs lie beside them.
+            if (ipad || n > 3) continue;
             const over = ((n - 1) * spot.w) / 3;
             expect(b.left, `${rel} ${n}`).toBeGreaterThanOrEqual(room.left - 0.01);
             expect(b.right, `${rel} ${n}`).toBeLessThanOrEqual(
-              Math.min(n === 1 ? room.right : room.right + over, width - insets.right) + 0.01
+              (n === 1 ? room.right : room.right + over) + 0.01
             );
             expect(b.top, `${rel} ${n}`).toBeGreaterThanOrEqual(
-              Math.max(n === 1 ? room.top : room.top - over, insets.top) - 0.01
+              (n === 1 ? room.top : room.top - over) - 0.01
             );
             expect(b.bottom, `${rel} ${n}`).toBeLessThanOrEqual(room.bottom + 0.01);
-            expect(spot.w).toBeLessThan(L.cardW * L.trick.pileScale);
-            // Open (PID-481): a landscape iPad's pack spots reach a hand's late piles.
-            if (L.profile === 'tablet-landscape') continue;
-            for (const card of piles) expect(apart(b, card), `${rel} ${n} on a pile`).toBe(true);
           }
           // Your own and North's stand; East's and West's lie as their backs do.
           expect(
@@ -622,10 +647,11 @@ describe('killed trumps lie on their seat’s pack spot all hand (PID-481)', () 
           ).toBe(true);
           // Each card shows a third of itself past the next, which lies over it:
           // rightward in a row, up East's column toward its foot's index, down West's.
+          // Within half a point; more than three may close up to rank corners (Marcel, 2026-11-19).
           const along = (s) => (rel === 'east' ? -s.y : rel === 'west' ? s.y : s.x);
           for (let i = 1; i < n; i++)
-            expect(along(spots[i]) - along(spots[i - 1])).toBeGreaterThanOrEqual(
-              spots[i].w / 3 - 0.01
+            expect(along(spots[i]) - along(spots[i - 1]), `${rel} ${n}`).toBeGreaterThanOrEqual(
+              spots[i].w * (n <= 3 ? 1 / 3 : RANK_SHOWN) - 0.5
             );
         }
       }
