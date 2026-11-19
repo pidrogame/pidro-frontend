@@ -1077,8 +1077,8 @@ that table's rules sheet without joining. Fixtures holding both kinds (`list`, `
 `watch`, `badges`, `locked`, `search-empty`, the password states) show the All / Finnish /
 Louisiana filter (`lobby-rule-filter`), which starts on All and keeps its choice to itself;
 `rejoin` and `substitute` hold only Finnish tables, so there is no filter. The live screen
-starts from Settings' Preferred rules and remembers the choice in the settings store; Your
-table is never filtered.
+starts on All until the player chooses, in the filter or Settings' Preferred rules, and
+remembers that choice in the settings store; tables you sit at are never filtered.
 
 `badges` shows open tables with 100+ and 1000+ chairs for a 1500-game player.
 `locked` shows the same tables for a 40-game player; tap a dimmed chair for the

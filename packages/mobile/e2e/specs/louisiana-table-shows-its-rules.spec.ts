@@ -64,7 +64,6 @@ test('a Louisiana table shows its rules and explains them only once @responsive'
   // connected while finding the table from another tab on the same device.
   const seatedPage = page;
   page = await page.context().newPage();
-  // A Finnish player's filter (PID-479) still lists the Louisiana table they sit at.
   await page.goto('/lobby');
   await expect(page.getByTestId('lobby-screen')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId(`room-rules-${first}`)).toContainText('Louisiana');

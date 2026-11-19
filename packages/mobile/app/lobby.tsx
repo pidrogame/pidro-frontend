@@ -114,12 +114,11 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   const [joining, setJoining] = useState<string | null>(null);
   const [sheetPlayer, setSheetPlayer] = useState<string | null>(null);
   const [rulesRoom, setRulesRoom] = useState<Room | null>(null);
-  const preferred = useSettingsStore((state) => state.preferredRuleSet);
   const savedFilter = useSettingsStore((state) => state.lobbyRuleSetFilter);
   const saveFilter = useSettingsStore((state) => state.setLobbyRuleSetFilter);
   // A fixture starts on All and keeps its choice to itself.
   const [fixtureFilter, setFixtureFilter] = useState<RuleSet | 'all'>('all');
-  const filter = fixture ? fixtureFilter : lobbyRuleSetFilter(preferred, savedFilter);
+  const filter = fixture ? fixtureFilter : lobbyRuleSetFilter(savedFilter);
   const shown = filterLobby(lobby, filter, user?.id);
   const [passwordSeat, setPasswordSeat] = useState<{
     code: string;

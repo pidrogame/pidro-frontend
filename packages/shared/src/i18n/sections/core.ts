@@ -120,6 +120,7 @@ export const en = {
   'rules.feedback': 'Not the rules you play? Tell us',
   'rules.done': 'Got it',
   'rules.mailSubject': 'Pidro rules feedback — %{rules} — table %{code}',
+  'rules.mailSubjectNoTable': 'Pidro rules feedback — %{rules}',
   'rules.mailBody':
     'Table: %{code}\nRules: %{rules}\n\n%{facts}\n\nThe rules we play instead:\n',
   'rules.mailError':
@@ -247,6 +248,7 @@ export const sv: Record<keyof typeof en, string> = {
   'rules.feedback': 'Spelar du med andra regler? Berätta för oss',
   'rules.done': 'Jag förstår',
   'rules.mailSubject': 'Synpunkter på Pidro-regler — %{rules} — bord %{code}',
+  'rules.mailSubjectNoTable': 'Synpunkter på Pidro-regler — %{rules}',
   'rules.mailBody':
     'Bord: %{code}\nRegler: %{rules}\n\n%{facts}\n\nReglerna vi spelar med i stället:\n',
   'rules.mailError':

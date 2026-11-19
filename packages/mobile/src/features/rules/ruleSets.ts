@@ -12,8 +12,9 @@ export const ruleSets: Record<RuleSet, { labelKey: TranslationKey; longKey: Tran
   louisiana: { labelKey: 'rules.louisiana', longKey: 'rules.long.louisiana' },
 };
 
-export function lobbyRuleSetFilter(preferred: RuleSet, saved: RuleSet | 'all' | null) {
-  return saved ?? preferred;
+/** Tables shows every table until the player chooses, in Tables or in Settings (PID-479). */
+export function lobbyRuleSetFilter(saved: RuleSet | 'all' | null) {
+  return saved ?? 'all';
 }
 
 export function filterRuleSet(rooms: Room[], filter: RuleSet | 'all'): Room[] {

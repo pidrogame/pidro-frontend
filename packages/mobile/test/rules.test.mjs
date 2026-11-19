@@ -84,16 +84,21 @@ test('the filter shows only when the tables it would filter hold both rule sets'
   expect(lobbyHasBothRuleSets(mine)).toBe(true);
 });
 
-test('the lobby follows preference until a filter is saved, including All and legacy rooms', () => {
+test('an untouched lobby shows All until a filter is saved, including legacy rooms', () => {
   const oldRoom = { code: 'OLD', status: 'waiting' };
   const finnish = normalizeRoom({ code: 'FI', config: { rule_set: 'finnish' } });
   const louisiana = normalizeRoom({ code: 'LA', config: { rule_set: 'louisiana' } });
   const rooms = [louisiana, oldRoom, finnish];
   expect(normalizeRoom(oldRoom).config?.rule_set).toBe('finnish');
-  expect(filterRuleSet(rooms, lobbyRuleSetFilter('finnish', null))).toEqual([oldRoom, finnish]);
-  expect(filterRuleSet(rooms, lobbyRuleSetFilter('louisiana', null))).toEqual([louisiana]);
-  expect(filterRuleSet(rooms, lobbyRuleSetFilter('louisiana', 'all'))).toEqual(rooms);
-  expect(lobbyRuleSetFilter('louisiana', 'finnish')).toBe('finnish');
+  // Nothing saved, whatever the untouched Preferred rules default says: every table.
+  expect(
+    createSettingsStore({ storage: memoryStorage() }).getState().lobbyRuleSetFilter
+  ).toBeNull();
+  expect(lobbyRuleSetFilter(null)).toBe('all');
+  expect(filterRuleSet(rooms, lobbyRuleSetFilter(null))).toEqual(rooms);
+  expect(filterRuleSet(rooms, lobbyRuleSetFilter('finnish'))).toEqual([oldRoom, finnish]);
+  expect(filterRuleSet(rooms, lobbyRuleSetFilter('louisiana'))).toEqual([louisiana]);
+  expect(lobbyRuleSetFilter('all')).toBe('all');
 });
 
 // ads_aware: this build can show the ad the server may ask for (402 AD_REQUIRED, PID-120).
@@ -109,6 +114,19 @@ test('Quick game creates a solo table with exactly the preferred rules', () => {
     ads_aware: true,
   });
 });
+
+function memoryStorage() {
+  let value = null;
+  return {
+    getItem: () => value,
+    setItem: (_key, next) => {
+      value = next;
+    },
+    removeItem: () => {
+      value = null;
+    },
+  };
+}
 
 test('device preferences and a dismissed Louisiana explanation survive rehydration', async () => {
   let value = null;

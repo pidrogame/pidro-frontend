@@ -102,7 +102,9 @@ export function RulesExplainer({
                         code: tableCode || '–',
                         facts: facts.join('\n'),
                       };
-                      const subject = encodeURIComponent(t('rules.mailSubject', values));
+                      const subject = encodeURIComponent(
+                        t(tableCode ? 'rules.mailSubject' : 'rules.mailSubjectNoTable', values)
+                      );
                       const body = encodeURIComponent(t('rules.mailBody', values));
                       await Linking.openURL(
                         `mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`
