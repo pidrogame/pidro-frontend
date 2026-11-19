@@ -887,7 +887,8 @@ export default function GameCanvasDev({
         <>
           <Scoreboard
             scores={scores}
-            youPosition="south"
+            youPosition={viewer === 'spectator' ? null : 'south'}
+            players={players}
             history={
               scoreFixture === 'history' || fixture === 'scores'
                 ? handHistory('north_south').slice(0, 9)

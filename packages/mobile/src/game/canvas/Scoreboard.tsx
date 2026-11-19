@@ -32,7 +32,7 @@ import { PidroBevel, PidroColors, PidroFonts, PidroRadii, PidroSpacing } from '@
 import type { Position } from '@/types/lobby';
 import type { PointsSide } from '@/features/game/points';
 import { isStillCapture } from '@/utils/stillCapture';
-import type { ServerHandSummary } from '@pidro/shared';
+import type { RelativePlayerView, ServerHandSummary } from '@pidro/shared';
 import type { Suit } from '@/types/game';
 import { SUIT_SYMBOLS } from '@/utils/cards';
 import { SuitTile } from '@/components/game/SuitTile';
@@ -160,6 +160,7 @@ export function teams(scores: Scores, you: Position | null) {
 export function Scoreboard({
   scores,
   youPosition,
+  players = [],
   history,
   roomCode = null,
   top = 0,
@@ -177,6 +178,8 @@ export function Scoreboard({
 }: {
   scores: Scores;
   youPosition: Position | null;
+  /** Who sits where, to name each hand's bidder. */
+  players?: readonly Pick<RelativePlayerView, 'absolutePosition' | 'username'>[];
   history?: readonly ServerHandSummary[];
   roomCode?: string | null;
   top?: number;
@@ -344,6 +347,7 @@ export function Scoreboard({
         <HandHistory
           history={history}
           viewer={youPosition}
+          players={players}
           onClose={() => setIsOpen(false)}
           onOpenLog={
             logInPanel

@@ -30,6 +30,7 @@ import {
   type HandResultView,
 } from '@/features/game/handResult';
 import { PIDRO_POINTS, type PointsSide } from '@/features/game/points';
+import { screenSeatKey } from '@/features/seatName';
 import type { Card, ServerLastHand } from '@/types/game';
 import type { Position } from '@/types/lobby';
 import { getCardImage } from '@/utils/cardImages';
@@ -193,7 +194,7 @@ export function HandResultPanel({
 
   const name = (position: Position) =>
     Object.values(seats).find((seat) => seat?.absolutePosition === position)?.username ??
-    t(`table.position.${position}`);
+    t(screenSeatKey(position, viewerOf(seats)));
   const spectator = view.outcome === 'made' || view.outcome === 'missed';
   // A spectator's trays are N/S and E/W, in the same colours as their names.
   const trayLabelColor = (tray: HandResultTray) =>

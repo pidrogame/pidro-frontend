@@ -72,7 +72,6 @@ export function tableNoticeText(notice: TableNotice): string {
     return t(notice.key, {
       ...notice.params,
       name: notice.seat.name || t('game.notice_player'),
-      position: notice.seat.position ? t(`table.position.${notice.seat.position}`) : '',
     });
   }
   return notice.key ? t(notice.key, notice.params) : (notice.message ?? '');

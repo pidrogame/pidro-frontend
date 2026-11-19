@@ -95,10 +95,17 @@ describe('buildHandLog', () => {
     );
     expect(
       texts(build({ players: seats, killed, currentTrick: [play('west', 9, 'hearts')] }))
-    ).toEqual(['You killed K♥', 'west killed 7♥ 4♥', 'west plays 9♥']);
+    ).toEqual(['You killed K♥', 'West killed 7♥ 4♥', 'West plays 9♥']);
+    // The seat is where they sit on your screen, not the server's: from North, West is on your right.
+    const fromNorth = players('north').map((p) =>
+      p.absolutePosition === 'west' ? { ...p, username: null } : p
+    );
+    expect(texts(build({ players: fromNorth, currentTrick: [play('west', 9, 'hearts')] }))).toEqual(
+      ['East plays 9♥']
+    );
     setLocale('sv');
     expect(texts(build({ killed }))).toEqual(['Du dödade K♥', 'Nora dödade 7♥ 4♥']);
-    expect(texts(build({ players: seats, killed }))).toContain('väster dödade 7♥ 4♥');
+    expect(texts(build({ players: seats, killed }))).toContain('Väst dödade 7♥ 4♥');
     // Nothing killed, or an older server: no line.
     expect(texts(build({ killed: {} }))).toEqual([]);
     expect(texts(build({ killed: null }))).toEqual([]);

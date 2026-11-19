@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { useSeatDecisions } from '@pidro/shared';
+import type { Position, useSeatDecisions } from '@pidro/shared';
 import { TABLE_HEADER, useTableReserves } from '@/game/canvas/TableChrome';
 import {
   enqueueTableNotice,
@@ -20,7 +20,7 @@ import {
   type TableNotice,
 } from '@/game/tableNotices';
 import { useTranslation } from '@/i18n';
-import { localizedError } from '@pidro/shared';
+import { localizedError, mapAbsoluteToRelative } from '@pidro/shared';
 import { PidroColors, PidroRadii, PidroSpacing } from '@/design/tokens';
 import { isStillCapture } from '@/utils/stillCapture';
 import { PidroText } from '@/components/ui/PidroText';
@@ -53,8 +53,11 @@ export function useTableNotices(roomCode: string) {
 /** Explicit review, not a blocking alert. Deferring never resolves a server decision. */
 export function TableSeatDecision({
   decisions,
+  viewer,
 }: {
   decisions: ReturnType<typeof useSeatDecisions>;
+  /** The seat is named as the viewer sees it, not by the server's compass. */
+  viewer: Position | null;
 }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
@@ -93,7 +96,11 @@ export function TableSeatDecision({
                 : t('game.unnamed_player_left')}
             </Text>
             <Text className="mt-1 text-sm text-amber-200 capitalize">
-              {t('game.position_seat', { position: t(`table.position.${decision.position}`) })}
+              {t('game.position_seat', {
+                position: t(
+                  `table.position.${mapAbsoluteToRelative(decision.position, viewer ?? 'south')}`
+                ),
+              })}
             </Text>
             {decisions.error && (
               <Text accessibilityLiveRegion="polite" className="mt-4 text-sm text-red-200">

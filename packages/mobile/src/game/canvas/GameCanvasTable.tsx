@@ -794,9 +794,7 @@ export function GameCanvasTable({
           plays: lastTrick.plays.map(({ holder, card }) => {
             const seat = model.seats[holder];
             return {
-              name: seat?.isYou
-                ? t('game.you')
-                : (seat?.username ?? t(`table.position.${seat?.absolutePosition ?? 'north'}`)),
+              name: seat?.isYou ? t('game.you') : (seat?.username ?? t(`game.seat_${holder}`)),
               card,
               took: holder === lastTrick.winner,
             };
@@ -1217,6 +1215,7 @@ export function GameCanvasTable({
             <Scoreboard
               scores={tableState?.scores ?? null}
               youPosition={youPositionAbs}
+              players={viewModel?.players}
               history={tableState?.hand_history}
               roomCode={viewModel?.roomCode ?? room.code}
               top={headerTop(insets.top)}

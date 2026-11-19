@@ -1,7 +1,12 @@
 import { useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { SUIT_SYMBOLS, type Position, type ServerHandSummary } from '@pidro/shared';
+import {
+  SUIT_SYMBOLS,
+  type Position,
+  type RelativePlayerView,
+  type ServerHandSummary,
+} from '@pidro/shared';
 import { BevelButton } from '@/components/ui/BevelButton';
 import { PidroText } from '@/components/ui/PidroText';
 import { TextLink } from '@/components/ui/TextLink';
@@ -18,18 +23,20 @@ import { formatNumber, useTranslation } from '@/i18n';
 export function HandHistory({
   history,
   viewer,
+  players,
   onClose,
   onOpenLog,
 }: {
   history: readonly ServerHandSummary[] | null | undefined;
   viewer: Position | null;
+  players: readonly Pick<RelativePlayerView, 'absolutePosition' | 'username'>[];
   onClose: () => void;
   onOpenLog?: () => void;
 }) {
   const { t } = useTranslation();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const rows = handHistoryRows(history, viewer);
+  const rows = handHistoryRows(history, viewer, players);
   const pageSize = Math.max(
     1,
     Math.min(8, Math.floor((height - insets.top - insets.bottom - 210) / 58))
@@ -82,7 +89,7 @@ export function HandHistory({
               <PidroText role="label">{`${labels[row.ours ? 0 : 1]} ${row.bid}${row.trump ? ` ${SUIT_SYMBOLS[row.trump]}` : ''}`}</PidroText>
               <PidroText
                 role="metadata"
-                tone="soft">{`${t(`table.position.${row.bidder}`)} · ${t(row.made ? 'game.history_made' : 'game.history_missed')}`}</PidroText>
+                tone="soft">{`${row.bidder} · ${t(row.made ? 'game.history_made' : 'game.history_missed')}`}</PidroText>
             </View>
             <PidroText role="label" style={styles.figures}>
               {pair(row.captured)}

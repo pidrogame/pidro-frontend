@@ -1066,7 +1066,7 @@ export default function GameScreen() {
             router.push('/(auth)/claim-classic');
           }}
         />
-        <TableSeatDecision key={room.code} decisions={decisions} />
+        <TableSeatDecision key={room.code} decisions={decisions} viewer={youPositionAbs} />
         {invitation ? (
           <TableInvitation
             key={`${invitation.code}-${invitation.position}`}

@@ -1352,6 +1352,7 @@ function TableDevHarness() {
           />
           {params.feedback === 'owner' && (
             <TableSeatDecision
+              viewer={viewerPosition}
               decisions={{
                 decision:
                   params.feedback === 'owner' && dismissed < 3

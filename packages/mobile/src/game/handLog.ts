@@ -17,6 +17,7 @@ import type {
 import { isNorthSouthTeam, t, type TranslationKey, type TranslationValues } from '@pidro/shared';
 import type { Position } from '@/types/lobby';
 import { getRankLabel, SUIT_SYMBOLS } from '@/utils/cards';
+import { screenSeatKey, tableSeatName } from '@/features/seatName';
 
 export type HandLogKind = 'bid' | 'trump' | 'kill' | 'play' | 'trick' | 'two' | 'result';
 
@@ -116,23 +117,15 @@ export function presentHandLogEntry(entry: HandLogEntry): HandLogEntry {
 export function buildHandLog(input: HandLogInput): HandLogGroup[] {
   const you = input.players.find((player) => player.isYou);
   const yourTeam = you ? teamOf(you.absolutePosition) : null;
-  const names = new Map<Position, string>();
-  for (const player of input.players) {
-    names.set(
-      player.absolutePosition,
-      player.isYou
-        ? t('game.you')
-        : (player.username ?? t(`table.position.${player.absolutePosition}`))
-    );
-  }
-  const name = (position: Position) => names.get(position) ?? t(`table.position.${position}`);
-  const isYou = (position: Position) => you?.absolutePosition === position;
+  const viewer = you?.absolutePosition ?? null;
+  const name = (position: Position) => tableSeatName(position, input.players, viewer);
+  const isYou = (position: Position) => position === viewer;
   const nameKey = (position: Position): TranslationKey | undefined =>
     isYou(position)
       ? 'game.you'
       : input.players.find((p) => p.absolutePosition === position)?.username
         ? undefined
-        : `table.position.${position}`;
+        : screenSeatKey(position, viewer);
   const ours = (team: TeamKey) => (yourTeam ? team === yourTeam : null);
   // "We" / "They" from your side; spectators see the table's sides.
   const sideKey = (team: TeamKey): TranslationKey =>

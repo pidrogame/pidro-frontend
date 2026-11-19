@@ -76,7 +76,7 @@ function displayName(player: RelativePlayerView): string {
   if (player.username) return player.username;
   if (player.seatStatus === 'bot_substitute' || player.seatStatus === 'permanent_bot')
     return t('game.bot');
-  return t(`table.position.${player.absolutePosition}`);
+  return t(`game.seat_${player.relativePosition}`);
 }
 
 const teamOf = (player: RelativePlayerView): TeamKey =>
@@ -762,6 +762,7 @@ export function GameOverOverlay({
         <HandHistory
           history={history}
           viewer={you?.absolutePosition ?? null}
+          players={viewModel.players}
           onClose={() => setHistoryOpen(false)}
         />
       ) : null}
