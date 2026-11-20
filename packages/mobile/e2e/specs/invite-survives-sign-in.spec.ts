@@ -20,8 +20,6 @@ test('an invite survives sign in and ends at that table', async ({ page, player 
   for (const position of ['north', 'south', 'east', 'west']) {
     await expect(page.getByTestId(`new-table-seat-${position}`)).toBeVisible();
   }
-  await expect(page.getByRole('button', { name: 'Share the table link', exact: true })).toHaveCount(
-    0
-  );
+  await expect(page.getByRole('button', { name: 'Share the link', exact: true })).toHaveCount(0);
   await expect(page.getByTestId('waiting-table').getByText('You', { exact: true })).toBeVisible();
 });

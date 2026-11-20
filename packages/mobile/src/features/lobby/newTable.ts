@@ -239,10 +239,14 @@ export function tableHeader(room: Room): string {
   });
 }
 
-export function waitingFooter(room: Room, canManage: boolean, readyCount: number) {
-  const full = (['north', 'east', 'south', 'west'] as const).every(
+function tableFull(room: Room): boolean {
+  return (['north', 'east', 'south', 'west'] as const).every(
     (position) => !!room.positions?.[position]
   );
+}
+
+export function waitingFooter(room: Room, canManage: boolean, readyCount: number) {
+  const full = tableFull(room);
   const dropped =
     room.seats?.filter((seat) => seatedHuman(seat) && seat.connectionStatus === 'reconnecting') ??
     [];
@@ -271,19 +275,20 @@ export function waitingFooter(room: Room, canManage: boolean, readyCount: number
 }
 
 /**
- * PID-457: the line over the host's Start now with bots, or null for no offer. The server's
- * `bots_offer_in_ms` counts from when it arrived (`elapsedMs` since); null never offers. A
- * seat held for a friend is not open, so held seats alone offer nothing.
+ * PID-487: the quiet links under the seats while the table fills, or null once it is full.
+ * Share the link for whoever may change the seats; Start with bots for the host whenever the
+ * server would fill a seat, which is whenever `bots_offer_in_ms` is not null, however long it
+ * says to wait (PID-457). A seat held for a friend is not open, so held seats alone offer none.
  */
-export function botsOffer(
+export function tableLinks(
   room: Room,
   you: string,
-  offerInMs: number | null | undefined,
-  elapsedMs: number
-): string | null {
-  if (!you || room.host_id !== you || offerInMs == null || elapsedMs < offerInMs) return null;
-  const open = room.seats?.filter((seat) => !seat.player && !seat.held_for).length ?? 0;
-  return open >= 1 && open <= 3 ? t(`new_table.bots_open_${open as 1 | 2 | 3}`) : null;
+  canManage: boolean,
+  offerInMs: number | null | undefined
+): { bots: boolean } | null {
+  if (!canManage || tableFull(room)) return null;
+  const open = room.seats?.some((seat) => !seat.player && !seat.held_for) ?? false;
+  return { bots: !!you && room.host_id === you && offerInMs != null && open };
 }
 
 /**

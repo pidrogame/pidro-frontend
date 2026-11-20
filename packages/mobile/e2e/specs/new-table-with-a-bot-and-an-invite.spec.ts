@@ -62,7 +62,7 @@ test('a bot and two open seats share a table link without a name form or seat bi
   const firstMint = page.waitForResponse(
     (response) => response.url().endsWith('/invites') && response.request().method() === 'POST'
   );
-  await page.getByRole('button', { name: 'Share the table link', exact: true }).click();
+  await page.getByRole('button', { name: 'Share the link', exact: true }).click();
   await expect(page.getByTestId('invite-window')).toBeVisible();
   await expect(page.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Copy link', exact: true })).toBeVisible();

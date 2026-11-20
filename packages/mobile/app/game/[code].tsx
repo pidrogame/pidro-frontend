@@ -1109,7 +1109,7 @@ export default function GameScreen() {
             await runRoomControl(() => lobbyApi.setSeat(room.code, position, seat), true);
         }}
         onKickPlayer={handleKickPlayer}
-        botsCountdown={readiness ?? undefined}
+        botsOfferInMs={readiness?.bots_offer_in_ms}
         onStartWithBots={async () => {
           if (!canManage) return;
           const filled = await runRoomControl(() => lobbyApi.fillWithBots(room.code), true);

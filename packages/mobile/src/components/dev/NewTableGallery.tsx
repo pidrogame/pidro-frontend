@@ -77,14 +77,15 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
   // `talk*` (PID-418): `talk-opened` before anyone came, `talk-full` all four ready,
   // `talk-typing` the field focused, `talk-guest` / `talk-teen` who cannot type,
   // `talk-filtered` refuses what is typed; `talk-bots` (PID-420) has bots in the other three
-  // seats, so nobody reads talk until a seat opens. `talk-offer*` (PID-457): the bots offer is
-  // due, with two seats open (the board), `-one` (Maija held), `-three` (the host alone),
-  // `-error` (the fill fails) and `-guest` (Kalle, not the host, is offered nothing).
+  // seats, so nobody reads talk until a seat opens. `talk-offer*` (PID-457, PID-487): the server
+  // would fill the open seats, its two minutes not yet run: two seats open (the board), `-one`
+  // (Maija held), `-three` (the host alone), `-error` (the fill fails) and `-guest` (Kalle, not
+  // the host, is offered nothing).
   const talking = fixture.startsWith('talk');
   const bots = fixture === 'talk-bots';
   const offer = fixture.startsWith('talk-offer');
   const alone = fixture === 'talk-offer-three';
-  const [countdown, setCountdown] = useState(offer ? { bots_offer_in_ms: 0 } : undefined);
+  const [offerIn, setOfferIn] = useState(offer ? 120000 : null);
   const [ready, setReady] = useState<Position[]>(
     fixture === 'talk-full'
       ? ['east', 'west', 'south']
@@ -246,7 +247,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
         fixtureBots={BOT_CATALOGUE}
         youPlayerId={fixture === 'guest' || fixture === 'talk-offer-guest' ? 'kalle' : 'host'}
         canManage={fixture !== 'guest' && fixture !== 'talk-offer-guest'}
-        botsCountdown={countdown}
+        botsOfferInMs={offerIn}
         // The fixture's server: a bot in each open seat, then the host's ready, as the app asks.
         onStartWithBots={async () => {
           await new Promise((resolve) => setTimeout(resolve, 600));
@@ -267,7 +268,7 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
                 : seat
             ),
           }));
-          setCountdown(undefined);
+          setOfferIn(null);
           setReady((current) => [...current, ...open.map((seat) => seat.position!), 'north']);
         }}
         onLeave={() => {}}

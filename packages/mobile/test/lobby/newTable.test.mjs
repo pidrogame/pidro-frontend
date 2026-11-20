@@ -4,7 +4,6 @@ import {
   assignedFriendIds,
   botChoices,
   botLine,
-  botsOffer,
   chooseFriend,
   chooseSeat,
   createFailure,
@@ -19,6 +18,7 @@ import {
   seatChanges,
   seatPersona,
   tableFooter,
+  tableLinks,
   tableHeader,
   tableTitle,
   talkOpens,
@@ -639,11 +639,12 @@ it('says who sat down or left, never a bot, you, or whoever the host removed', (
   }
 });
 
-// PID-457: after the server's wait, the host alone is offered bots for the open seats.
-it('offers the host bots once the countdown has run, counting open seats and never held ones', () => {
+// PID-487: Share the link and Start with bots under the seats from the first second; once
+// every seat is taken they go and I'm ready takes the footer.
+it('shows the links at once, Start with bots whenever the server would fill, none at a full table', () => {
   const vacant = { occupant_type: 'vacant', status: null, user_id: null, held_for: null };
   const person = (user_id) => ({ ...vacant, occupant_type: 'human', status: 'connected', user_id });
-  const snapshot = (seats, bots_offer_in_ms) => ({
+  const snapshot = (seats) => ({
     room_id: 'r1',
     ready_epoch: 3,
     snapshot_revision: 9,
@@ -651,41 +652,32 @@ it('offers the host bots once the countdown has run, counting open seats and nev
     positions: Object.fromEntries(Object.entries(seats).map(([at, seat]) => [at, seat.user_id])),
     seats,
     ready_players: [],
-    bots_offer_in_ms,
   });
   const table = (seats) => roomWithReadiness({ code: 'TEST', host_id: 'host' }, snapshot(seats));
-  const kalle = table({
-    north: person('host'),
-    east: person('kalle'),
-    south: vacant,
-    west: vacant,
-  });
-  // The wait is counted from the value's arrival: a millisecond short offers nothing.
-  expect(botsOffer(kalle, 'host', 120000, 119999)).toBeNull();
-  expect(botsOffer(kalle, 'host', 120000, 120000)).toBe('Two seats are still open.');
-  // Off, an older server, or someone who is not the host: never.
-  expect(botsOffer(kalle, 'host', null, 1e9)).toBeNull();
-  expect(botsOffer(kalle, 'host', undefined, 1e9)).toBeNull();
-  expect(botsOffer(kalle, 'kalle', 0, 1e9)).toBeNull();
-  expect(botsOffer({ ...kalle, host_id: undefined }, '', 0, 1e9)).toBeNull();
   const alone = table({ north: person('host'), east: vacant, south: vacant, west: vacant });
-  expect(botsOffer(alone, 'host', 0, 0)).toBe('Three seats are still open.');
-  // Maija's seat is hers: one seat is open, and once a bot sits there, none.
+  const kalle = table({ north: person('host'), east: person('kalle'), south: vacant, west: vacant });
+  // Two minutes still to wait on the server's old offer: both links, now. Due (0) is the same.
+  expect(tableLinks(alone, 'host', true, 120000)).toEqual({ bots: true });
+  expect(tableLinks(kalle, 'host', true, 120000)).toEqual({ bots: true });
+  expect(tableLinks(kalle, 'host', true, 0)).toEqual({ bots: true });
+  // Null (nothing to fill, or off) or an older server without it: Share alone.
+  expect(tableLinks(kalle, 'host', true, null)).toEqual({ bots: false });
+  expect(tableLinks(kalle, 'host', true, undefined)).toEqual({ bots: false });
+  // Kalle may not change the seats, so he gets neither; a manager who is not the host, no bots.
+  expect(tableLinks(kalle, 'kalle', false, 120000)).toBeNull();
+  expect(tableLinks(kalle, 'kalle', true, 120000)).toEqual({ bots: false });
+  // Maija's seat is hers: one seat is open, and once a bot sits there, none to fill.
   const held = {
     ...vacant,
     held_for: { user_id: 'maija', display_name: 'Maija', avatar_url: null },
   };
   const bot = { ...vacant, occupant_type: 'bot', status: 'connected', user_id: 'bot_west' };
   const withMaija = { north: person('host'), east: person('kalle'), south: held };
-  expect(botsOffer(table({ ...withMaija, west: vacant }), 'host', 0, 5)).toBe(
-    'One seat is still open.'
-  );
-  expect(botsOffer(table({ ...withMaija, west: bot }), 'host', 0, 5)).toBeNull();
-  try {
-    setLocale('sv');
-    expect(botsOffer(kalle, 'host', 0, 0)).toBe('Två platser är fortfarande lediga.');
-    expect(botsOffer(alone, 'host', 0, 0)).toBe('Tre platser är fortfarande lediga.');
-  } finally {
-    setLocale('en');
-  }
+  expect(tableLinks(table({ ...withMaija, west: vacant }), 'host', true, 0)).toEqual({ bots: true });
+  expect(tableLinks(table({ ...withMaija, west: bot }), 'host', true, 0)).toEqual({ bots: false });
+  // Full: no links, and the footer is I'm ready, even if a stale snapshot still offered bots.
+  const full = table({ north: person('host'), east: person('kalle'), south: bot, west: bot });
+  expect(tableLinks(full, 'host', true, 120000)).toBeNull();
+  expect(waitingFooter(full, true, 3)).toEqual({ full: true, ready: true, line: '3 of 4 ready' });
+  expect(waitingFooter(kalle, true, 1).ready).toBe(false);
 });

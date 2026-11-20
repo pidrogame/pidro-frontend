@@ -74,7 +74,7 @@ try {
       const footer = {
         setup: 'Open the table',
         bots: 'Start the game',
-        opened: 'Share the table link',
+        opened: 'Share the link',
         ready: "I'm ready",
       }[fixture];
       if (footer) {

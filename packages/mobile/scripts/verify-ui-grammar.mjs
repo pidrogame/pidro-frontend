@@ -1272,7 +1272,7 @@ const allCases = [
     'talk',
     // PID-420: bots in the other three seats: no field or faces, the quiet line instead.
     'talk-bots',
-    // PID-457: the host's bots offer is due, two seats open, the talk's field still in view.
+    // PID-487: Share the link and Start with bots under the seats, two open, the field in the footer.
     'talk-offer',
   ].map((fixture) => ({
     name: `new-table-${fixture}`,
@@ -5144,7 +5144,7 @@ async function assertCreationPresentation(page, testCase) {
   const footer = {
     setup: 'Open the table',
     bots: 'Start the game',
-    opened: 'Share the table link',
+    opened: 'Share the link',
     ready: "I'm ready",
   }[fixture];
   if (footer) await page.getByRole('button', { name: footer, exact: true }).waitFor();

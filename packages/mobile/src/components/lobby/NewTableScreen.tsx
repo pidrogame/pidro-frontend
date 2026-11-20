@@ -30,7 +30,7 @@ import { RuleSetChip } from '@/components/rules/RuleSet';
 import { RulesExplainer, useRulesExplainer } from '@/components/rules/RulesExplainer';
 import { TableFeedback } from '@/components/game/TableFeedback';
 import { WatchingBadge } from '@/components/game/WatchingBadge';
-import { PidroFonts, PidroLayout, PidroSpacing } from '@/design/tokens';
+import { PidroColors, PidroFonts, PidroLayout, PidroSpacing } from '@/design/tokens';
 import { loadCatalogue } from '@/features/bots';
 import { talkRefusal, type Said, type TalkItem } from '@/features/game/talk';
 import { talkText } from '@/components/game/TableTalk';
@@ -40,7 +40,6 @@ import { assignedRoomPlayerIds } from '@/features/invites/hostControls';
 import {
   assignedFriendIds,
   botChoices,
-  botsOffer,
   chooseFriend,
   chooseSeat,
   defaultSeats,
@@ -54,6 +53,7 @@ import {
   seatPersona,
   seatChanges,
   tableFooter,
+  tableLinks,
   talkOpens,
   tableHeader,
   tableTitle,
@@ -127,8 +127,8 @@ interface Props {
   talk?: WaitingTalk;
   /** Fixtures: the field focused, the seats folded. */
   initialTyping?: boolean;
-  /** PID-457: the snapshot carrying `bots_offer_in_ms`, a new object each time one arrives. */
-  botsCountdown?: { bots_offer_in_ms?: number | null };
+  /** The readiness snapshot's `bots_offer_in_ms`: not null while the server would fill a seat. */
+  botsOfferInMs?: number | null;
   /** The host's one tap: bots in the open seats, then the host's ready. */
   onStartWithBots?: () => Promise<void>;
 }
@@ -165,7 +165,7 @@ export function NewTableScreen({
   onDismissDeclined,
   talk,
   initialTyping = false,
-  botsCountdown,
+  botsOfferInMs,
   onStartWithBots,
 }: Props) {
   const { t } = useTranslation();
@@ -482,7 +482,6 @@ export function NewTableScreen({
     }
   };
   const footer = room ? waitingFooter(room, editable, readyPlayers.length) : null;
-  const full = !!footer?.full;
   const isYouReady = !!youPosition && readyPlayers.includes(youPosition);
   const [readyBusy, setReadyBusy] = useState(false);
   const readyBusyRef = useRef(false);
@@ -509,21 +508,10 @@ export function NewTableScreen({
       setReadyBusy(false);
     }
   };
-  // PID-457: a timer runs for `bots_offer_in_ms` from each snapshot's arrival; once it has run,
-  // the offer is due. Anything changed at the table brings a new snapshot and starts it again.
-  const offerIn = botsCountdown?.bots_offer_in_ms;
-  const [ranDown, setRanDown] = useState<object>();
-  useEffect(() => {
-    if (offerIn == null) return;
-    const timer = setTimeout(() => setRanDown(botsCountdown), offerIn);
-    return () => clearTimeout(timer);
-  }, [botsCountdown, offerIn]);
-  const offer =
-    room && editable && offerIn != null
-      ? botsOffer(room, you, offerIn, ranDown === botsCountdown ? offerIn : 0)
-      : null;
-  // The fill and then the host's ready, one confirm; a refusal stays inline and so does the offer.
-  // It says nothing once the offer has gone: the table changed, or I'm ready took its place.
+  // PID-487: Share the link and Start with bots under the seats from the first second.
+  const links = room ? tableLinks(room, you, editable, botsOfferInMs) : null;
+  // The fill and then the host's ready, one confirm; a refusal stays inline and so does the link.
+  // It says nothing once the link has gone: the table changed, or I'm ready took its place.
   const [botsError, setBotsError] = useState<string>();
   const startWithBots = async () => {
     if (!onStartWithBots || readyBusyRef.current || controlsBusy) return;
@@ -572,8 +560,8 @@ export function NewTableScreen({
     />
   );
   const kickPlayer = selectedLive?.player;
-  // A small or sideways phone has no room above the seats: the card takes the share
-  // button's place and says what the status line would.
+  // A small or sideways phone has no room above the seats: the card goes in the footer and
+  // says what the status line would.
   const declinedCard = showDeclined && (
     <NoticeCard
       testID="seat-declined-notice"
@@ -647,8 +635,7 @@ export function NewTableScreen({
   );
   const align = phoneLandscape ? 'left' : 'center';
   const readyAction = !isSpectator && !!footer?.ready && !!onReady;
-  const footerCard =
-    (compact || phoneLandscape) && !!room && !!declinedCard && !readyAction && !offer;
+  const footerCard = (compact || phoneLandscape) && !!room && !!declinedCard && !readyAction;
   const joining = joiningName && (
     <PidroText role="metadata" align={align} accessibilityLiveRegion="polite">
       {t('table.joining', { name: joiningName })}
@@ -672,48 +659,53 @@ export function NewTableScreen({
       disabled={readyDisabled || isYouReady || readyBusy}
       onPress={() => void confirmReady()}
     />
-  ) : offer ? (
-    // A small or sideways phone keeps the seats and the field: the buttons get smaller (sideways
-    // in today's column beside the talk), and the help line yields.
-    <View testID="bots-offer" style={[styles.offer, phoneLandscape && styles.offerTight]}>
-      <PidroText role="label" align="center" accessibilityLiveRegion="polite">
-        {offer}
-      </PidroText>
-      <BevelButton
-        testID="start-with-bots"
-        label={t('new_table.start_with_bots')}
-        size={phoneLandscape ? 'sm' : compact ? 'md' : 'lg'}
-        fullWidth
-        loading={readyBusy}
-        disabled={readyBusy || controlsBusy}
-        onPress={() => void startWithBots()}
-      />
-      <BevelButton
-        label={t('new_table.share')}
-        material="glass"
-        size={phoneLandscape ? 'sm' : compact ? 'md' : 'lg'}
-        fullWidth
-        disabled={controlsBusy}
-        onPress={onOpenInvite}
-      />
-      {!compact && !phoneLandscape && (
-        <PidroText role="metadata" tone="soft" align="center">
-          {t('new_table.bots_help')}
+  ) : footerCard ? (
+    declinedCard
+  ) : null;
+  // Two quiet links of equal weight, side by side under the seats; a sideways phone that talks
+  // has no height for them there, so they sit beside the field, where I'm ready would.
+  const linksBeside = talking && phoneLandscape;
+  // A fill the server refused says so under its link. Large text wraps each label in place.
+  // Without talk to give way, a small phone's footer card takes the links' place, as it did Share's.
+  const linkRow = links && !(footerCard && !talking) && (
+    <View style={styles.linkBlock}>
+      <View testID="waiting-links" style={styles.links}>
+        <TextLink
+          testID="share-link"
+          icon="share"
+          label={t('new_table.share_link')}
+          accessibilityRole="button"
+          disabled={controlsBusy}
+          onPress={() => onOpenInvite?.()}
+          style={styles.link}
+        />
+        {links.bots && (
+          <>
+            <View aria-hidden style={styles.linkDivider} />
+            <TextLink
+              testID="start-with-bots"
+              icon="bot"
+              label={t('new_table.start_with_bots')}
+              accessibilityRole="button"
+              disabled={readyBusy || controlsBusy}
+              onPress={() => void startWithBots()}
+              style={styles.link}
+            />
+          </>
+        )}
+      </View>
+      {links.bots && botsError && (
+        <PidroText
+          testID="waiting-error"
+          role="metadata"
+          tone="danger"
+          align="center"
+          accessibilityRole="alert">
+          {botsError}
         </PidroText>
       )}
     </View>
-  ) : footerCard ? (
-    declinedCard
-  ) : !isSpectator && editable && !full ? (
-    <BevelButton
-      label={t('new_table.share')}
-      material="glass"
-      size="lg"
-      fullWidth
-      disabled={controlsBusy}
-      onPress={onOpenInvite}
-    />
-  ) : null;
+  );
   // While talking, the rows say who is waiting and who is ready; the line speaks only for news.
   const footerLine = (!talking || footer?.news) && (
     <PidroText role="metadata" tone="soft" align={align} accessibilityLiveRegion="polite">
@@ -721,17 +713,14 @@ export function NewTableScreen({
     </PidroText>
   );
   const failureLine =
-    error || readyError || (!selected && pickerError) || (offer && botsError) ? (
+    error || readyError || (!selected && pickerError) ? (
       <PidroText
         testID="waiting-error"
         role="metadata"
         tone="danger"
         align={align}
         accessibilityRole="alert">
-        {error ||
-          (readyError
-            ? localizedError(readyError, 'game.ready_failed')
-            : (!selected && pickerError) || botsError)}
+        {error || (readyError ? localizedError(readyError, 'game.ready_failed') : pickerError)}
       </PidroText>
     ) : null;
   // Typing gets the field (and the faces once it is focused); a guest or a 13 to 17 the faces alone.
@@ -860,14 +849,18 @@ export function NewTableScreen({
               if (talking && rows !== heights.rows)
                 setHeights((previous) => ({ ...previous, rows }));
             }}
-            style={[styles.teams, compact && styles.compactTeams, wide && styles.columns]}>
-            <TeamSection team="yours" style={wide && styles.column}>
-              {order.slice(0, 2).map((position, index) => row(position, index))}
-            </TeamSection>
-            <VsDivider between={wide ? 'columns' : 'rows'} />
-            <TeamSection team="opponents" style={wide && styles.column}>
-              {order.slice(2).map((position, index) => row(position, index + 2))}
-            </TeamSection>
+            // The links are measured and folded with the rows: the talk rises by both.
+            style={[styles.teams, compact && styles.compactTeams]}>
+            <View style={[styles.teams, compact && styles.compactTeams, wide && styles.columns]}>
+              <TeamSection team="yours" style={wide && styles.column}>
+                {order.slice(0, 2).map((position, index) => row(position, index))}
+              </TeamSection>
+              <VsDivider between={wide ? 'columns' : 'rows'} />
+              <TeamSection team="opponents" style={wide && styles.column}>
+                {order.slice(2).map((position, index) => row(position, index + 2))}
+              </TeamSection>
+            </View>
+            {!linksBeside && linkRow}
           </Animated.View>
         )}
         {talking && !phoneLandscape && (
@@ -918,6 +911,7 @@ export function NewTableScreen({
                 {nudge}
                 {closed}
               </View>
+              {!folded && linkRow}
               {!folded && !footerCard && action && <View style={styles.action}>{action}</View>}
             </>
           ) : talking && !tablet && !phoneLandscape ? (
@@ -1083,7 +1077,9 @@ const styles = StyleSheet.create({
   footerEnd: { alignItems: 'flex-end' },
   stretch: { alignSelf: 'stretch' },
   action: { width: 300 },
-  offer: { alignSelf: 'stretch', gap: 8 },
-  offerTight: { gap: 4 },
+  linkBlock: { gap: 4 },
+  links: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  link: { flexShrink: 1 },
+  linkDivider: { width: 1, height: 20, backgroundColor: PidroColors.border },
   confirm: { gap: 12 },
 });
