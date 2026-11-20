@@ -2389,6 +2389,7 @@ async function assertLocalization(page, testCase, viewport) {
             'Alexandria the Long-Named Player',
             'AlexandriaLongName',
             'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…',
+            'Hmmm… well… right… so… hmm… well… right…',
           ].includes(node.textContent)
       )
       .filter(

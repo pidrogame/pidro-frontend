@@ -60,13 +60,24 @@ describe('a bot thinking aloud on its turn', () => {
   const lines = ['Nå, nå…', 'Tja…', 'Hmm, hmm…'];
   const hands = Array.from({ length: 200 }, (_, hand) => hand);
 
-  it('says a catalogue character’s own lines, in every language, the same for every phone', () => {
+  it('says a catalogue character’s own lines, the same for every phone', () => {
     const picks = hands.map((hand) => thinkingLine('DEV01', hand, saga.id, { ...saga, lines }));
     expect(new Set(picks)).toEqual(new Set(lines));
     setLocale('sv');
     expect(hands.map((hand) => thinkingLine('DEV01', hand, saga.id, { ...saga, lines }))).toEqual(
       picks
     );
+  });
+
+  it('thinks in the language this phone picked, switching with it (PID-488)', () => {
+    const english = ['Well, well…', 'Right…', 'Hmm, hmm…'];
+    const both = { ...saga, lines: english, lines_sv: lines };
+    const say = () => hands.map((hand) => thinkingLine('DEV01', hand, saga.id, both));
+    expect(new Set(say())).toEqual(new Set(english));
+    setLocale('sv');
+    expect(new Set(say())).toEqual(new Set(lines));
+    setLocale('en');
+    expect(new Set(say())).toEqual(new Set(english));
   });
 
   it('keeps the three devs exactly as before until the catalogue gives them lines', () => {

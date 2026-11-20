@@ -200,7 +200,8 @@ Gun's warm line at East and Marcel's 👍 at West; `sheet` opens the hand of
 words, with no typing box, since no other person reads it. Antti's face opens
 his card with **Quiet Antti’s words**, which hushes his `bot:antti` lines.
 PID-405 adds `character=saga`: North, your partner, is Saga, a catalogue
-character who plays `search` and thinks in her own five catalogue lines. The
+character who plays `search` and thinks in her own five catalogue lines, English
+`lines` or, at `locale=sv`, her Swedish `lines_sv` (PID-488). The
 last is 40 characters, the most allowed: the nameplate cuts it short, and in
 landscape North says the plain turn text instead. Her sheet says she plays the
 odds, while the three devs, without a strategy, play the honest game.

@@ -49,7 +49,14 @@ export const BOT_CHARACTER = {
     tempo: 'steady',
     home: 'finland' as const,
     // The last is as long as the catalogue allows: the nameplate cuts it short.
-    lines: ['Nå, nå…', 'Tja…', 'Hmm, hmm…', 'Jaha…', 'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…'],
+    lines: [
+      'Well, well…',
+      'Right…',
+      'Hmm, hmm…',
+      'Let’s see…',
+      'Hmmm… well… right… so… hmm… well… right…',
+    ],
+    lines_sv: ['Nå, nå…', 'Tja…', 'Hmm, hmm…', 'Jaha…', 'Hmmm… nå… jaha… tja… hmm… nå… jaha… tja…'],
   },
 };
 

@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from 'bun:test';
-import { botPlay, botPortrait, normalizeBotProfiles, resolveBotProfile } from '../src/utils/bots';
+import { botLines, botPlay, botPortrait, normalizeBotProfiles, resolveBotProfile } from '../src/utils/bots';
 import { catalogs } from '../src/i18n/catalogs';
 import { seatPlayerName } from '../src/utils/playerName';
 import { normalizeRoom } from '../src/utils/rooms';
@@ -81,7 +81,26 @@ test('the catalogue keeps how a character plays, sounds and thinks, and drops ju
   expect(old).toStrictEqual(saga);
   for (const bad of ['Nå…', [], [' ', ''], { 0: 'Nå…' }]) {
     expect(normalizeBotProfiles([{ ...saga, lines: bad }])[0].lines).toBeUndefined();
+    expect(normalizeBotProfiles([{ ...saga, lines_sv: bad }])[0].lines_sv).toBeUndefined();
   }
+  expect(normalizeBotProfiles([{ ...saga, lines: ['Well…'], lines_sv: ['Nå…', 7] }])[0]).toStrictEqual({
+    ...saga,
+    lines: ['Well…'],
+    lines_sv: ['Nå…'],
+  });
+});
+
+test('a bot thinks in the player’s language: Swedish when it has some, else English', () => {
+  const lines = ['Well…', 'Hmm…'];
+  const lines_sv = ['Nå…', 'Tja…', 'Jaha…'];
+  expect(botLines({ lines, lines_sv }, 'sv')).toEqual(lines_sv);
+  expect(botLines({ lines, lines_sv }, 'en')).toEqual(lines);
+  for (const none of [undefined, [], [' '], 'Nå…']) {
+    expect(botLines({ lines, lines_sv: none }, 'sv')).toEqual(lines);
+  }
+  expect(botLines({ lines_sv }, 'en')).toBeUndefined();
+  expect(botLines({ lines_sv }, 'sv')).toEqual(lines_sv);
+  expect(botLines(null, 'sv')).toBeUndefined();
 });
 
 test('the sheet says a search character plays the odds, anything else the honest game', () => {

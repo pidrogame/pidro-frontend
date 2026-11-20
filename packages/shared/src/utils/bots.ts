@@ -1,3 +1,4 @@
+import { getLocale, type Locale } from '../i18n';
 import type { TranslationKey } from '../i18n/catalogs';
 import type { BotProfile } from '../types/lobby';
 
@@ -15,8 +16,9 @@ export function normalizeBotProfiles(value: unknown): BotProfile[] {
         typeof profile.description === 'string' &&
         typeof profile.avatar_url === 'string',
     )
-    .map(({ id, name, description, avatar_url, strategy, tempo, home, lines, enabled }) => {
-      const own = botLines({ lines });
+    .map(({ id, name, description, avatar_url, strategy, tempo, home, lines, lines_sv, enabled }) => {
+      const own = ownLines(lines);
+      const ownSv = ownLines(lines_sv);
       return {
         id,
         name,
@@ -26,15 +28,26 @@ export function normalizeBotProfiles(value: unknown): BotProfile[] {
         ...(typeof tempo === 'string' && { tempo }),
         ...((home === 'anywhere' || home === 'finland' || home === 'louisiana') && { home }),
         ...(own && { lines: own }),
+        ...(ownSv && { lines_sv: ownSv }),
         ...(typeof enabled === 'boolean' && { enabled }),
       };
     });
 }
 
-/** A character's own thinking lines, also from a seat's snapshot, which nothing normalizes. */
-export function botLines(profile?: { lines?: unknown } | null): string[] | undefined {
-  const lines = Array.isArray(profile?.lines)
-    ? profile.lines
+/**
+ * A character's own thinking lines in the player's language (PID-488): Swedish when it has
+ * any, else English. Also from a seat's snapshot, which nothing normalizes.
+ */
+export function botLines(
+  profile?: { lines?: unknown; lines_sv?: unknown } | null,
+  locale: Locale = getLocale(),
+): string[] | undefined {
+  return (locale === 'sv' && ownLines(profile?.lines_sv)) || ownLines(profile?.lines);
+}
+
+function ownLines(value: unknown): string[] | undefined {
+  const lines = Array.isArray(value)
+    ? value
         .filter((line): line is string => typeof line === 'string' && line.trim() !== '')
         .slice(0, 8)
     : [];

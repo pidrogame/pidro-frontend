@@ -316,7 +316,7 @@ const voice = (id: string, name: string, line: string) => ({
   bot_persona: id,
   username: name,
   display_name: name,
-  bot_profile: { ...BOT_CHARACTER.bot_profile, id, name, lines: [line] },
+  bot_profile: { ...BOT_CHARACTER.bot_profile, id, name, lines: [line], lines_sv: [line] },
 });
 const GOSTA = voice('2d9a1c3e-0b6f-4e57-9a11-6c0e2f1b7a40', 'Gösta', 'Jaså.');
 const STIG = voice('7f3e8b21-5c4d-4a9e-8b02-1d6f9e3c5a71', 'Stig', 'Så där ja.');

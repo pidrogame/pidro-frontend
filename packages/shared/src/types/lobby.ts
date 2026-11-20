@@ -17,8 +17,10 @@ export interface BotProfile {
   strategy?: string;
   tempo?: string;
   home?: 'anywhere' | 'finland' | 'louisiana';
-  /** Its own thinking lines at the table (PID-404), at most eight. */
+  /** Its own thinking lines at the table (PID-404), at most eight, in English (PID-488). */
   lines?: string[];
+  /** The same in Swedish (PID-488); a bot without them says its English ones. */
+  lines_sv?: string[];
   /** Off for a character no longer offered; still listed so a seated face resolves (PID-410). */
   enabled?: boolean;
 }
