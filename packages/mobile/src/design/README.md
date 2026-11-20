@@ -183,7 +183,7 @@ enters and leaves above the tab pill. Sheet: `/ui-dev?state=components`.
 | Screen scaffold                | `ScreenShell` (+ `ScreenHeader` for sub-screens)                        |
 | Account-flow screen            | `AuthFlowScreen` + `AuthFlowWindow`, `AuthFlowButton`, `AuthFlowNotice` |
 | Back out of a sub-screen       | `BackButton` (round glass, 44 on phones, 48 on tablets)                 |
-| Quiet text action              | `TextLink` (cyan, 800, always a 44px target)                            |
+| Quiet text action              | `TextLink` (cyan, 800, always a 44px target, optional leading `icon`)   |
 | Row action, rules choice chip  | `ActionPill` (light cyan; `gold` answers someone; `selected` for chips) |
 | Remove a row                   | `DismissButton` (borderless 44px ×; label names what it dismisses)      |
 | A count on a tab or a title    | `CountBadge` (red; `online` green with a dot; hides at 0, `99+`)        |

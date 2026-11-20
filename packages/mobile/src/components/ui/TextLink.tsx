@@ -1,10 +1,13 @@
 import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { PidroColors, PidroFonts, PidroLayout } from '@/design/tokens';
+import { Icon, type IconName } from './Icon';
 import { PidroText } from './PidroText';
 import { PressableFX } from './PressableFX';
 
 export interface TextLinkProps {
   label: string;
+  /** A glyph before the label, in the label's cyan. */
+  icon?: IconName;
   onPress: () => void;
   /** 14 inside a form, 15 under a window, 16 on tablets. */
   size?: 14 | 15 | 16;
@@ -21,6 +24,7 @@ export interface TextLinkProps {
  */
 export function TextLink({
   label,
+  icon,
   onPress,
   size = 15,
   disabled = false,
@@ -37,9 +41,10 @@ export function TextLink({
       disabled={disabled}
       onPress={onPress}
       testID={testID}
-      style={[styles.target, disabled && styles.disabled, style]}>
+      style={[styles.target, !!icon && styles.row, disabled && styles.disabled, style]}>
+      {icon && <Icon name={icon} size={size + 2} color={PidroColors.cyanText} />}
       <PidroText
-        style={[styles.label, { fontSize: size, lineHeight: size + 6 }]}
+        style={[styles.label, !!icon && styles.shrink, { fontSize: size, lineHeight: size + 6 }]}
         maxFontSizeMultiplier={1.4}>
         {label}
       </PidroText>
@@ -54,6 +59,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  // Beside an icon a label that runs out of room wraps instead of pushing past its row.
+  shrink: {
+    flexShrink: 1,
   },
   label: {
     fontFamily: PidroFonts.ui,
