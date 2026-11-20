@@ -17,6 +17,7 @@ it('renders reconnect status only offline and card backs at every spectator seat
   mock.module('react-native', () => ({
     View: view,
     Text: view,
+    Pressable: view,
     Image: ({ source }) => h('img', { src: source.uri }),
     Platform: { OS: 'web' },
     PixelRatio: { get: () => 2 },
