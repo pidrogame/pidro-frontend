@@ -1326,14 +1326,14 @@ export function GameCanvasTable({
             />
           )}
 
-          {/* Until this phone has decoded the cards: quiet, in the notice slot, never holding the game. */}
+          {/* Until this phone has decoded the cards: quiet, never holding the game; sideways below the header (PID-485). */}
           {loading != null || textures.loading ? (
             <View
               testID="table-loading"
-              style={[styles.bannerWrap, reserves.noticeSlot]}
+              style={[styles.bannerWrap, reserves.headerSlot]}
               pointerEvents="none">
-              {/* Upright it floats over your seat (PID-393): on the panel the dock gave it. */}
-              <View style={!reserves.landscape && styles.noticePanel}>
+              {/* On the panel the dock gave it (PID-393), sideways too (PID-485). */}
+              <View style={styles.noticePanel}>
                 <LeagueProgress
                   progress={loading ?? textures.loaded}
                   label={t('game.loading')}
@@ -1344,15 +1344,21 @@ export function GameCanvasTable({
             </View>
           ) : null}
 
-          {/* Connection banner, in the notice slot; game over has none, and a closed table still speaks. */}
+          {/* Connection banner, in the notice slot (below the header while you pick trump); game over has none, and a closed table still speaks. */}
           {(isChannelJoined || isGameOver) && (
             <TableFeedback
               notice={actionNotice ?? notice ?? null}
+              picking={showTrumpSelection}
               onDismiss={actionNotice ? dismissActionNotice : onDismissNotice}
             />
           )}
           {!isGameOver && (
-            <View style={[styles.bannerWrap, reserves.noticeSlot]} pointerEvents="box-none">
+            <View
+              style={[
+                styles.bannerWrap,
+                showTrumpSelection ? reserves.headerSlot : reserves.noticeSlot,
+              ]}
+              pointerEvents="box-none">
               <ConnectionBanner isConnected={isChannelJoined} />
             </View>
           )}

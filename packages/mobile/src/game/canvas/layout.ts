@@ -620,6 +620,37 @@ const sideSeatReach = (cardH: number) => SIDE_SEAT_GAP + SIDE_SEAT_WIDTH + TRICK
  */
 export const landscapeSouthY = (L: Pick<TableLayout, 'front' | 'hand' | 'bottom' | 'profile'>) =>
   L.front ? Math.min(L.hand.cy, L.bottom - LEVEL_HANG - 4 - AVATAR_SIZE[L.profile] / 2) : L.hand.cy;
+/** The narrowest a landscape phone's notice gets: "Marcel's turn" on one line. */
+const NOTICE_LEAST = 160;
+/**
+ * Landscape (PID-485): where a table notice stands, over your seat. Its
+ * bottom-left corner is held and it reaches right at most to `right`. Phones
+ * have your hand under it, so it stands over that too, from West's backs to
+ * your trick row at its widest; iPads have the room left of a full hand,
+ * your pack and killed trumps above it. A phone's three lines just fit
+ * between West's played card and your seat, so it stands 4pt over its badge;
+ * where a nav bar leaves it under NOTICE_LEAST, it reaches over your earlier
+ * cards, never your card on the trick.
+ */
+export function landscapeNoticeBox(L: TableLayout) {
+  const seatTop = landscapeSouthY(L) - AVATAR_SIZE[L.profile] / 2 - BADGE_RISE;
+  if (L.front) {
+    const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L);
+    const trickRow = Math.max(trailReach(L.cardW), (L.cardW * FRONT_PILE_SPAN) / 2);
+    const left = sideStackInner(L.cardW, L.insets.left) + TRICK_GAP;
+    const card = L.front.south.x - (L.cardW * L.trick.pileScale) / 2 - TRICK_GAP;
+    return {
+      left,
+      right: Math.min(card, Math.max(L.front.south.x - trickRow - TRICK_GAP, left + NOTICE_LEAST)),
+      bottom: Math.min(seatTop, handTop) - 4,
+    };
+  }
+  return {
+    left: L.insets.left + TRICK_GAP,
+    right: handLeft(L, FULL_HAND) - TRICK_GAP,
+    bottom: seatTop - 4,
+  };
+}
 /** Landscape South's avatar shares the scoreboard divider's axis, ~70pt in. */
 export const LANDSCAPE_SOUTH_LEFT = 70;
 /** The least of South's name a landscape hand leaves room for. */

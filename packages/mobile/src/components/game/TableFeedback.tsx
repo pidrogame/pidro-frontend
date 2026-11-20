@@ -153,10 +153,13 @@ export function TableSeatDecision({
 export function TableFeedback({
   notice,
   top,
+  picking,
   onDismiss,
 }: {
   notice: TableNotice | null;
   top?: number;
+  /** You are picking trump: sideways the notice keeps clear of the picker. */
+  picking?: boolean;
   /** A tap closes the notice early. */
   onDismiss?: () => void;
 }) {
@@ -164,7 +167,7 @@ export function TableFeedback({
   const message = notice ? tableNoticeText(notice) : '';
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { landscape, noticeSlot } = useTableReserves();
+  const { landscape, noticeSlot, headerSlot } = useTableReserves();
 
   useEffect(() => {
     // UI grammar holds the notice it caught; a tap still closes it.
@@ -190,7 +193,10 @@ export function TableFeedback({
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.noticeOverlay, top === undefined ? noticeSlot : { top }]}>
+      style={[
+        styles.noticeOverlay,
+        top !== undefined ? { top } : picking ? headerSlot : noticeSlot,
+      ]}>
       {notice ? (
         <PressableFX
           testID="table-feedback"
@@ -208,13 +214,14 @@ export function TableFeedback({
           }}
           style={[
             {
-              width: noticeWidth,
               minHeight: landscape ? 44 : 52,
               justifyContent: 'center',
               paddingVertical: PidroSpacing.xs,
             },
-            // Upright it floats over your seat (PID-393): on the panel the dock gave it.
-            !landscape && top === undefined && styles.panel,
+            // Sideways it fits its words, up to the width it has upright, and wraps (PID-485).
+            landscape && top === undefined ? { maxWidth: 360 } : { width: noticeWidth },
+            // Over your seat (PID-393, PID-485 sideways): on the panel the dock gave it.
+            top === undefined && styles.panel,
           ]}>
           {/* 14pt (PID-485): at 12 the words were easy to miss. */}
           <PidroText role="label" align="center" tone="default">

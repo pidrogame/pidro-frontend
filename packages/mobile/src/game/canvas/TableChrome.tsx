@@ -9,7 +9,7 @@ import { Platform, useWindowDimensions, type ViewStyle } from 'react-native';
 import { useSafeAreaFrame, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PidroLayout, PidroSpacing } from '@/design/tokens';
 import { SCORE_PLAQUE_HEIGHT } from './Scoreboard';
-import { computeLayout, southRow } from './layout';
+import { computeLayout, landscapeNoticeBox, southRow } from './layout';
 
 /** Gap between the safe top and the header row, and the reserve's breathing room. */
 export const HEADER_INSET = PidroSpacing.xs;
@@ -46,21 +46,36 @@ export interface TableReserves {
   bottomReserve: number;
   /** Where notices and the connection banner float: never over the header, your hand or another seat. */
   noticeSlot: ViewStyle;
+  /**
+   * Landscape, the felt below the header row, between the side seats: for what
+   * the slot over your seat has no room for, a trump picker or the watching
+   * badge, and the loading bar, which answers no tap (PID-485). Upright, the slot.
+   */
+  headerSlot: ViewStyle;
 }
 
 export function useTableReserves({ top = TABLE_HEADER }: { top?: number } = {}): TableReserves {
   const { width, height } = useTableSize();
   const insets = useSafeAreaInsets();
   const landscape = width > height;
+  const L = computeLayout(width, height, insets, landscape ? 0 : top);
+  const box = landscape ? landscapeNoticeBox(L) : null;
+  // Portrait: over your seat row, only while it shows, never over the hand
+  // under it (PID-464). Landscape: over your seat too, from its left
+  // (PID-485), where a player who just tapped is looking.
+  const noticeSlot: ViewStyle = box
+    ? {
+        left: box.left,
+        right: width - box.right,
+        bottom: height - box.bottom,
+        alignItems: 'flex-start',
+      }
+    : { bottom: height - southRow(L).bottom };
   return {
     landscape,
     topReserve: landscape ? 0 : top,
     bottomReserve: 0,
-    // Portrait: over your seat row, only while it shows, never over the hand
-    // under it (PID-464). Landscape: the felt below the header row, between
-    // the side seats, where North no longer sits.
-    noticeSlot: landscape
-      ? { top: insets.top + TABLE_HEADER + PidroSpacing.xs }
-      : { bottom: height - southRow(computeLayout(width, height, insets, top)).bottom },
+    noticeSlot,
+    headerSlot: landscape ? { top: insets.top + TABLE_HEADER + PidroSpacing.xs } : noticeSlot,
   };
 }

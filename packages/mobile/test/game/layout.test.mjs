@@ -12,6 +12,7 @@ import {
   handStep,
   LANDSCAPE_SOUTH_LEFT,
   landscapeNameReach,
+  landscapeNoticeBox,
   landscapeNorthLeft,
   landscapeNorthShift,
   MENU_SLOT,
@@ -1280,6 +1281,48 @@ describe('landscape: your played card lands above your hand', () => {
       const pileBottom = south.y + (L.cardH * south.scale) / 2;
       const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2;
       expect(pileBottom).toBeLessThanOrEqual(handTop - 8 + 0.5);
+    });
+  }
+});
+
+describe('landscape: a notice stands over your seat, clear of the cards (PID-485)', () => {
+  const R = 110 / 78;
+  for (const [width, height, insets] of [
+    [640, 360, { top: 0, bottom: 0, left: 48, right: 0 }],
+    [667, 375, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [780, 360, { top: 0, bottom: 0, left: 0, right: 0 }],
+    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }],
+    [1180, 820, { top: 24, bottom: 20, left: 0, right: 0 }],
+    [1024, 768, { top: 0, bottom: 0, left: 0, right: 0 }],
+  ]) {
+    it(`on ${width}×${height} ${JSON.stringify(insets)}`, () => {
+      const L = computeLayout(width, height, insets);
+      const box = landscapeNoticeBox(L);
+      const face = landscapeSouthY(L) - AVATAR_SIZE[L.profile] / 2;
+      // Over your face and its badge, and left of where your seat starts.
+      expect(box.bottom).toBeLessThan(face - 3);
+      expect(box.left).toBeLessThan(insets.left + LANDSCAPE_SOUTH_LEFT);
+      expect(box.right - box.left).toBeGreaterThanOrEqual(160);
+      if (L.front) {
+        // Clear of West's backs beside it and your card on the trick; over your hand.
+        expect(box.left).toBeGreaterThan(sideStackInner(L.cardW, insets.left));
+        const yours = playedCardTarget(L, 'south', 0, 1);
+        expect(box.right).toBeLessThan(yours.x - (L.cardW * yours.scale) / 2);
+        const handTop = L.hand.cy - (L.cardH * handScale(L.profile)) / 2 - handLift(L);
+        expect(box.bottom).toBeLessThan(handTop);
+        // Three lines (72pt) stand under West's played card.
+        const west = playedCardTarget(L, 'west', 0, 1);
+        expect(box.bottom - 72).toBeGreaterThan(west.y + (L.cardW * west.scale) / 2);
+        // Where there is room, clear of your five earlier cards too.
+        const trail = trailSpot(L, 'south', 5);
+        if (insets.left === 0 && width > 700)
+          expect(box.right).toBeLessThan(trail.x - (L.cardW * trail.scale) / 2);
+      } else {
+        // Left of a full hand, and two lines (52pt) under your own killed trumps.
+        expect(box.right).toBeLessThan(handLeft(L, 9));
+        const killed = killedSpot(L, 'south', 0, 2);
+        expect(box.bottom - 52).toBeGreaterThan(killed.y + (killed.w * R) / 2);
+      }
     });
   }
 });

@@ -4,18 +4,19 @@ import { useTranslation } from '@/i18n';
 import { useTableReserves } from '@/game/canvas/TableChrome';
 
 /**
- * Lives in the notice slot, yielding to connection and action feedback, or
+ * Sideways it lives below the header row (`headerSlot`, too wide for the slot
+ * over your seat), yielding to connection and action feedback, or
  * `bottom` points up from the foot (the waiting room, which has no hand).
  */
 export function WatchingBadge({ bottom }: { bottom?: number }) {
   const { t } = useTranslation();
-  const { noticeSlot } = useTableReserves();
+  const { headerSlot } = useTableReserves();
   return (
     <View
       testID="watching-badge"
       pointerEvents="none"
       className="absolute inset-x-0 z-50 items-center"
-      style={bottom === undefined ? noticeSlot : { bottom }}>
+      style={bottom === undefined ? headerSlot : { bottom }}>
       <View
         accessible
         accessibilityLabel={t('game.watching_accessibility')}
