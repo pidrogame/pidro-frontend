@@ -1737,6 +1737,26 @@ describe('a 32-character name in every seat stays in its own place (PID-232)', (
           `${n} cards`
         );
       }
+      // Out of trumps (PID-485): your one folded pile leaves your plate room for
+      // “Out of trumps” (96pt and the plate's 13.5), clear of the pile and the trick.
+      const outReach = landscapeNameReach(L, 'south', { insets, southCards: 9, southOut: true });
+      expect(outReach).toBeGreaterThanOrEqual(110);
+      const southLeft = insets.left + LANDSCAPE_SOUTH_LEFT;
+      expectApart(
+        {
+          south: {
+            left: southLeft,
+            right: southLeft + size + gap + outReach,
+            top: L.hand.cy - size / 2,
+            bottom: L.hand.cy + size / 2,
+          },
+        },
+        [
+          ['your folded cards', handBox(L, 1)],
+          ...playedCards(L).map((card) => ['a played card', card]),
+        ],
+        'out of trumps'
+      );
     });
   }
 

@@ -150,9 +150,13 @@ quiet notices, or `spectator&role=spectator` for all four hands of card backs.
 PID-364 adds `late-tap` ("Too late, the trick moved on."), `away-one` (10♠ was
 played for you while you were away) and `away-out&out=you&botTurn=north` (10♠
 and 5♥, and you are out: your cards folded). `early-tap&botTurn=north` is Marcel's
-turn: tapping your card says nothing, the card shakes and settles and his shine
-lights once (a still capture holds it lit). `out-tap&out=you&botTurn=north`: you
-are out, and a tap on your folded cards does nothing at all. Each notice goes
+turn: the first tap on your card says "Marcel's turn" ("Marcels tur"), the card
+shakes and settles and his shine lights once (a still capture holds it lit); more
+taps while he is on turn do nothing, not even a render (PID-485). `&moveTurn=6000`
+passes the turn to East 6 s in: the notice goes on that frame, and the next tap
+names East. `out-tap&out=you&botTurn=north`: you are out, your plate says "Out of
+trumps", and the first tap on your folded cards in the hand says "You are out of
+trumps. New cards next hand."; more taps do nothing. Each notice goes
 through the real queue (PID-427): it leaves after `noticeHoldMs`, and a tap closes it.
 PID-462: `/table-dev?phase=declaring&feedback=late-tap&noticeAt=5000` queues the
 notice 5 s after the table shows; tap a suit before then and the dev table's
@@ -160,9 +164,12 @@ refusal (it has no channel) is an action notice that covers it. The covered
 notice's time waits, so it still gets its full time once the refusal goes.
 `table-flaky-{offline,auto-card,auto-pass,auto-bid,late-card,late-tap,away-one,away-out,early-tap,out-tap,spectator}-{en,sv}`
 checks the band, no scrolling, and all four spectators' hands at 390×844, 375×667,
-844×390 and 768×1024; the tap cases tap a card and sample its position every
-frame. `table-flaky-early-tap-reduced` holds the card still under reduced motion;
-the shine still lights. These are presentation fixtures; socket-drop verification
+844×390 and 768×1024; the tap cases tap ten times in two seconds, sample the card's
+position every frame and count the table's renders (`__pidroTableRenders`), on the
+iPad Air 11 (820×1180 and 1180×820) instead of 768×1024.
+`table-flaky-early-tap-turn` moves the turn under the band.
+`table-flaky-early-tap-reduced` holds the card still under reduced motion;
+the shine and the band still show. These are presentation fixtures; socket-drop verification
 uses the real game route and local backend.
 
 The sweep (PID-364): `/table-dev?deal=hand&sweep=on&count=on|off` has Eli (East)

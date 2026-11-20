@@ -190,6 +190,12 @@ newsCases.push({
   authFixture: guestAuthFixture,
 });
 
+// The iPad Air 11 a tester waited on (PID-485), on the same tablet shards.
+const IPAD_AIR_11 = {
+  'tablet-portrait': { width: 820, height: 1180 },
+  'tablet-landscape': { width: 1180, height: 820 },
+};
+
 // iPad portrait and landscape for game over, on CI's existing tablet shards.
 const GAME_OVER_TABLETS = {
   'tablet-portrait': { width: 834, height: 1194 },
@@ -1536,8 +1542,19 @@ const allCases = [
               ? 'seat-north'
               : 'table-feedback',
       flaky: state,
+      // PID-485: where the tester waited, an iPad Air 11 both ways.
+      ...((state === 'early-tap' || state === 'out-tap') && { viewports: IPAD_AIR_11 }),
     }))
   ),
+  // PID-485: the turn moves to East 6 s in, under the band that named Marcel.
+  {
+    name: 'table-flaky-early-tap-turn',
+    path: '/table-dev?phase=playing&fixture=flaky-early-tap&role=player&locale=en&botTurn=north&moveTurn=6000',
+    locale: 'en',
+    testId: 'seat-north',
+    flaky: 'early-tap',
+    turnMoves: true,
+  },
   // PID-364: with reduced motion the card holds still; the seat on turn still lights.
   {
     name: 'table-flaky-early-tap-reduced',
@@ -2488,14 +2505,31 @@ function boxesOverlap(a, b) {
 }
 
 /**
- * PID-364: Marcel (North) is on turn. Your tap on a card answers without words:
- * the card shakes and settles, and his shine lights (a still capture holds it lit).
- * Out for the hand, a tap on your folded cards does nothing at all.
+ * PID-364, PID-485: Marcel (North) is on turn. Ten taps on your card in two
+ * seconds: the first shakes it, lights his shine once (a still capture holds it
+ * lit) and says “Marcel's turn”; the other nine do nothing, the table not even
+ * rendering again. Out for the hand, your plate says “Out of trumps” and the
+ * first tap on your folded cards says why; the rest do nothing.
  */
 async function assertBlockedTap(page, testCase) {
   const out = testCase.flaky === 'out-tap';
+  const sv = testCase.locale === 'sv';
+  const said = out
+    ? sv
+      ? 'Du har slut på trumf. Nya kort nästa giv.'
+      : 'You are out of trumps. New cards next hand.'
+    : sv
+      ? 'Marcels tur'
+      : "Marcel's turn";
   await page.getByTestId(`rendered-hand-card-count-${out ? 0 : 2}`).waitFor({ state: 'attached' });
   await page.waitForTimeout(1_500);
+  if (out)
+    assert.ok(
+      (await page.getByTestId('seat-south').innerText()).includes(
+        sv ? 'Slut på trumf' : 'Out of trumps'
+      ),
+      `${testCase.name}: your plate says out of trumps`
+    );
   // Every seat's light is at full strength (PID-450); a nudge lights a second glow over it.
   const shine = () =>
     page
@@ -2506,8 +2540,9 @@ async function assertBlockedTap(page, testCase) {
   const hand = (await page.evaluate(() => window.__pidroCardMotion()))
     .filter((sprite) => sprite.kind === 'hand')
     .sort((a, b) => a.x - b.x);
+  const box = out ? await getStableBox(page.getByTestId('seat-south-folded-tap'), page) : null;
   const spot = out
-    ? await getStableBox(page.getByTestId('seat-south-folded'), page)
+    ? { x: box.x + box.width / 2, y: box.y + box.height / 2 }
     : { x: hand[0].x - (hand[0].width * hand[0].scale) / 2 + 4, y: hand[0].y - 4 };
   const key = hand[0]?.key;
   await page.evaluate((key) => {
@@ -2515,30 +2550,84 @@ async function assertBlockedTap(page, testCase) {
     const started = performance.now();
     const sample = () => {
       const sprite = window.__pidroCardMotion().find((s) => s.key === key);
-      if (sprite) xs.push(sprite.x);
-      if (performance.now() - started < 700) requestAnimationFrame(sample);
+      if (sprite) xs.push({ t: performance.now(), x: sprite.x });
+      if (performance.now() - started < 2_600) requestAnimationFrame(sample);
       else window.__pidroShake = xs;
     };
     requestAnimationFrame(sample);
   }, key);
-  await page.mouse.click(
-    out ? spot.x + spot.width / 2 : spot.x,
-    out ? spot.y + spot.height / 2 : spot.y
-  );
+  const renders = [];
+  const bands = [];
+  const firstTap = await page.evaluate(() => performance.now());
+  for (let tap = 0; tap < 10; tap++) {
+    await page.mouse.click(spot.x, spot.y);
+    await page.waitForTimeout(tap === 0 ? 100 : 0);
+    renders.push(await page.evaluate(() => window.__pidroTableRenders));
+    bands.push(await page.getByTestId('table-feedback').allInnerTexts());
+    await page.waitForTimeout(tap === 0 ? 100 : 200);
+  }
   await page.waitForFunction(() => window.__pidroShake);
   const xs = await page.evaluate(() => window.__pidroShake);
-  assert.equal(await page.getByTestId('table-feedback').count(), 0, `${testCase.name}: no words`);
+  for (const band of bands) assert.deepEqual(band, [said], `${testCase.name}: one notice`);
+  assert.equal(
+    renders.at(-1),
+    renders[0],
+    `${testCase.name}: taps 2 to 10 rendered the table ${renders.at(-1) - renders[0]} times`
+  );
   if (out) {
     assert.equal(xs.length, 0, `${testCase.name}: no card of yours to shake`);
     assert.equal(await shine(), 0, `${testCase.name}: North's shine stays quiet`);
+    console.log(
+      `${testCase.name}: one notice, ${JSON.stringify(said)}; no renders after the first`
+    );
     return;
   }
-  const swing = Math.max(...xs.map((x) => Math.abs(x - xs[0])));
+  const rest = xs[0].x;
+  const swing = Math.max(...xs.map(({ x }) => Math.abs(x - rest)));
+  // The first tap's shake is over 300 ms after it lands; a swing from 420 ms on is a later
+  // tap's (the second lands at about 200 ms and would swing until about 500).
+  const later = Math.max(
+    0,
+    ...xs.filter(({ t }) => t > firstTap + 420).map(({ x }) => Math.abs(x - rest))
+  );
   if (testCase.reducedMotion) assert.equal(swing, 0, `${testCase.name}: the card holds still`);
   else assert.ok(swing >= 2, `${testCase.name}: the card shook only ${swing.toFixed(1)}px`);
-  assert.ok(Math.abs(xs.at(-1) - xs[0]) < 0.5, `${testCase.name}: the card settled back`);
+  assert.ok(later < 0.5, `${testCase.name}: the card shook again (${later.toFixed(1)}px)`);
   assert.equal(await shine(), 1, `${testCase.name}: North's shine lit`);
-  console.log(`${testCase.name}: shook ${swing.toFixed(1)}px and settled; North lit; no words`);
+  if (testCase.turnMoves) await assertNoticeLeavesWithTurn(page, testCase, spot);
+  console.log(
+    `${testCase.name}: one shake of ${swing.toFixed(1)}px over ${xs.length} frames; one notice; no renders after the first`
+  );
+}
+
+/** PID-485: the frame East's light comes on, the band naming Marcel is gone; a tap names East. */
+async function assertNoticeLeavesWithTurn(page, testCase, spot) {
+  await page.evaluate(() => {
+    const frames = [];
+    window.__pidroTurnFrames = frames;
+    const sample = () => {
+      const lit = ['north', 'east'].filter((rel) =>
+        document.querySelector(`[data-testid="seat-${rel}"] [data-testid="turn-light"]`)
+      );
+      const band = document.querySelector('[data-testid="table-feedback"]')?.innerText ?? null;
+      frames.push({ lit: lit.join(), band });
+      if (lit.join() !== 'east') requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.waitForFunction(() => window.__pidroTurnFrames?.at(-1)?.lit === 'east', null, {
+    timeout: 10_000,
+  });
+  const frames = await page.evaluate(() => window.__pidroTurnFrames);
+  for (const frame of frames.filter(({ lit }) => lit !== 'north'))
+    assert.equal(frame.band, null, `${testCase.name}: ${JSON.stringify(frame)}`);
+  assert.ok(
+    frames.some(({ lit, band }) => lit === 'north' && band === "Marcel's turn"),
+    `${testCase.name}: the band was up until the turn moved`
+  );
+  await page.mouse.click(spot.x, spot.y);
+  await page.getByTestId('table-feedback').getByText("Player's turn", { exact: true }).waitFor();
+  console.log(`${testCase.name}: band gone on the frame East lit; a tap then named East`);
 }
 
 /** PID-364: Eli's seat line through the sweep, every frame until the result (or 1.5 s held). */
@@ -10893,9 +10982,18 @@ async function main() {
         if (
           testCase.sweep === 'on' ||
           (testCase.arrivals && testCase.arrivals !== 'unpressed') ||
-          (testCase.reducedMotion && testCase.flaky)
+          (testCase.reducedMotion && testCase.flaky) ||
+          testCase.turnMoves
         )
           return viewport.name === 'portrait';
+        if (testCase.flaky && testCase.viewports === IPAD_AIR_11)
+          return [
+            'portrait',
+            'small-portrait',
+            'landscape',
+            'tablet-portrait',
+            'tablet-landscape',
+          ].includes(viewport.name);
         if (
           testCase.news ||
           testCase.league ||

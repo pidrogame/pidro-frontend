@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  blockedTapNudges,
+  blockedTapAnswer,
   optimisticPlay,
   turnLight,
 } from '../../src/features/game/playPresentation.ts';
@@ -88,13 +88,37 @@ describe('turn-light presentation', () => {
   });
 });
 
-describe('a tap the table did not play (PID-364)', () => {
-  it('answers with the card and the turn light, unless your card is on its way or the cards are being dealt', () => {
-    const calm = { inFlight: false, dealing: false };
-    for (const reason of ['not_your_turn', 'invalid_action', 'invalid_phase'])
-      expect(blockedTapNudges(reason, calm)).toBe(true);
-    expect(blockedTapNudges('pending', calm)).toBe(false);
-    expect(blockedTapNudges('not_your_turn', { inFlight: true, dealing: false })).toBe(false);
-    expect(blockedTapNudges('invalid_phase', { inFlight: false, dealing: true })).toBe(false);
+describe('a tap the table did not play (PID-364, PID-485)', () => {
+  const calm = { inFlight: false, dealing: false, turn: 'north', answered: null };
+
+  it('names the seat on turn on the first tap of a wait, and does nothing on the rest', () => {
+    expect(blockedTapAnswer('not_your_turn', calm)).toBe('name');
+    expect(blockedTapAnswer('not_your_turn', { ...calm, answered: 'north' })).toBe('nothing');
+  });
+
+  it('starts a new wait when the turn has moved to another seat', () => {
+    expect(blockedTapAnswer('not_your_turn', { ...calm, turn: 'east', answered: 'north' })).toBe(
+      'name'
+    );
+  });
+
+  it('keeps a greyed card on your own turn wordless, and every tap of it shaking', () => {
+    const yours = { ...calm, turn: 'south', answered: null };
+    expect(blockedTapAnswer('invalid_action', yours)).toBe('nudge');
+    expect(blockedTapAnswer('invalid_action', yours)).toBe('nudge');
+    // A late "not your turn" on your own lit plate never names you.
+    expect(blockedTapAnswer('not_your_turn', yours)).toBe('nudge');
+  });
+
+  it('does nothing while a finished trick settles and no seat is lit yet', () => {
+    expect(blockedTapAnswer('not_your_turn', { ...calm, turn: null })).toBe('nothing');
+    // A greyed card is still answered: it is your turn, only the card is wrong.
+    expect(blockedTapAnswer('invalid_action', { ...calm, turn: null })).toBe('nudge');
+  });
+
+  it('does nothing while your card is on its way, the tap is pending, or the cards are dealt', () => {
+    expect(blockedTapAnswer('pending', calm)).toBe('nothing');
+    expect(blockedTapAnswer('not_your_turn', { ...calm, inFlight: true })).toBe('nothing');
+    expect(blockedTapAnswer('invalid_phase', { ...calm, dealing: true })).toBe('nothing');
   });
 });

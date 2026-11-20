@@ -88,6 +88,32 @@ it('says a tap was late, and what was played for you while you were away (PID-36
   );
 });
 
+it('says whose turn it is by the name on their plate, and why your cards are folded (PID-485)', () => {
+  const turn = (name) =>
+    tableNoticeText({ key: 'game.turn_of', seat: { name }, turn: 'north', variant: 'warning' });
+  const out = () => tableNoticeText({ key: 'game.out_notice', variant: 'warning' });
+  try {
+    setLocale('en');
+    expect(turn('Marcel')).toBe("Marcel's turn");
+    expect(turn(null)).toBe("A player's turn");
+    expect(out()).toBe('You are out of trumps. New cards next hand.');
+    setLocale('sv');
+    expect(turn('Marcel')).toBe('Marcels tur');
+    expect(out()).toBe('Du har slut på trumf. Nya kort nästa giv.');
+  } finally {
+    setLocale('en');
+  }
+  // One wait's notice is not the next one's, even when both seats go by the same name.
+  const north = {
+    key: 'game.turn_of',
+    seat: { name: 'Player' },
+    turn: 'north',
+    variant: 'warning',
+  };
+  const east = { ...north, turn: 'east' };
+  expect(enqueueTableNotice(enqueueTableNotice([], north, 'R'), east, 'R')).toHaveLength(2);
+});
+
 describe('table notice queue', () => {
   it('coalesces only consecutive exact repeats', () => {
     const first = enqueueTableNotice([], notice('Disconnected'), 'ROOM');

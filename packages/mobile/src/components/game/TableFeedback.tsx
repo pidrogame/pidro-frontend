@@ -216,7 +216,8 @@ export function TableFeedback({
             // Upright it floats over your seat (PID-393): on the panel the dock gave it.
             !landscape && top === undefined && styles.panel,
           ]}>
-          <PidroText role="metadata" align="center" tone="default">
+          {/* 14pt (PID-485): at 12 the words were easy to miss. */}
+          <PidroText role="label" align="center" tone="default">
             {message}
           </PidroText>
         </PressableFX>

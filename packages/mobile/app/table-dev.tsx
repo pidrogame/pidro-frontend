@@ -928,6 +928,7 @@ function TableDevHarness() {
     playerName?: string;
     notice?: string;
     noticeAt?: string;
+    moveTurn?: string;
     names?: string;
     safeArea?: string;
     pass?: string;
@@ -1102,6 +1103,7 @@ function TableDevHarness() {
             phase={phase}
             feedback={fixture?.startsWith('flaky-') ? fixture.slice(6) : params.feedback}
             noticeAt={Number(params.noticeAt) || 0}
+            moveTurn={Number(params.moveTurn) || 0}
             canPass={params.pass !== 'disabled'}
             deal={params.deal}
             dealer={fixture === 'talk-deal-bidding' ? 'south' : params.dealer}
@@ -1414,6 +1416,7 @@ function RolePreview({
   phase,
   feedback,
   noticeAt,
+  moveTurn,
   canPass,
   deal,
   dealer,
@@ -1456,6 +1459,8 @@ function RolePreview({
   feedback?: string;
   /** `noticeAt=3000`: the flaky notice arrives 3 s after the table shows (PID-462). */
   noticeAt?: number;
+  /** `moveTurn=6000`: 6 s after the table shows, the turn passes to East (PID-485). */
+  moveTurn?: number;
   canPass: boolean;
   deal?: string;
   dealer?: string;
@@ -1531,6 +1536,15 @@ function RolePreview({
     }, noticeAt);
     return () => clearTimeout(timer);
   }, [Table, addFlakyNotice, feedback, noticeAt]);
+  useEffect(() => {
+    if (!Table || !moveTurn) return;
+    const timer = setTimeout(() => {
+      const store = useGameStore.getState();
+      console.log('[TableDev] the turn passes to East');
+      store.setServerState({ ...store.serverState!, current_player: 'east' });
+    }, moveTurn);
+    return () => clearTimeout(timer);
+  }, [Table, moveTurn]);
   const tableRoom = status
     ? STATUS_ROOMS[status]
     : teamsHand

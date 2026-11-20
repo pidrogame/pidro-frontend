@@ -60,7 +60,7 @@ import {
   PLAY_CARD_TRAVEL_MS,
 } from './animationTiming';
 import { catchUpPace } from '@/features/game/catchUp';
-import { blockedTapNudges } from '@/features/game/playPresentation';
+import { blockedTapAnswer } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { useSeatBacks, type Arriving } from './useCardSprites';
@@ -320,6 +320,11 @@ function useTurnTimerProgress(
   };
 }
 
+/** The seat whose plate is lit, if any. */
+const litTurn = (model: TableModel) =>
+  (Object.keys(model.seats) as RelativePosition[]).find((rel) => model.seats[rel]?.isCurrentTurn) ??
+  null;
+
 function TimedSeatLayer({
   seats,
   dealerRel,
@@ -340,6 +345,7 @@ function TimedSeatLayer({
   held,
   bid,
   said,
+  onFoldedTap,
   arrivingRef,
 }: {
   seats: TableModel['seats'];
@@ -361,6 +367,7 @@ function TimedSeatLayer({
   held: ComponentProps<typeof SeatLayer>['held'];
   bid: ComponentProps<typeof SeatLayer>['bid'];
   said: ComponentProps<typeof SeatLayer>['said'];
+  onFoldedTap: ComponentProps<typeof SeatLayer>['onFoldedTap'];
   arrivingRef: RefObject<((seats: TableModel['seats'], arriving: Arriving) => void) | null>;
 }) {
   const [shown, onCounted] = useSeatBacks(seats);
@@ -405,6 +412,7 @@ function TimedSeatLayer({
       held={held}
       bid={bid}
       said={said}
+      onFoldedTap={onFoldedTap}
       onProfile={Object.fromEntries(
         players
           .filter(
@@ -639,7 +647,10 @@ export function GameCanvasTable({
   );
   const turnTimer = useGameStore((state) => state.turnTimer);
   // A tap the table did not play: the card shakes, the seat on turn lights, a light tick.
+  // Waiting on another seat, the first tap also names it; the rest do nothing (PID-485).
   const [nudge, setNudge] = useState(0);
+  const answered = useRef<RelativePosition | null>(null);
+  const onTurn = useRef<{ turn: RelativePosition | null; name?: string | null }>({ turn: null });
   const playedAt = useRef(0);
   const { handlePlayCard } = controller;
   const sendPlay = useCallback(
@@ -654,15 +665,65 @@ export function GameCanvasTable({
       controller.isPlayingCard || Date.now() < playedAt.current + PLAY_CARD_TRAVEL_MS;
     // The deal, the sort and the second deal all count: the cards are still moving.
     const dealing = presented.dealStage != null;
-    if (!blockedTapNudges(reason, { inFlight, dealing })) return;
+    const { turn, name } = onTurn.current;
+    const answer = blockedTapAnswer(reason, {
+      inFlight,
+      dealing,
+      turn,
+      answered: answered.current,
+    });
+    if (answer === 'nothing') return;
     playSelectionHaptic();
     setNudge((count) => count + 1);
+    if (answer !== 'name' || !turn) return;
+    answered.current = turn;
+    controller.addActionNotice?.({
+      key: 'game.turn_of',
+      seat: { name },
+      turn,
+      variant: 'warning',
+    });
   };
   const playPresentation = usePlayPresentation(presented, sendPlay, turnTimer, onBlockedPlay);
+  // Dev only (PID-485): checks count the table's renders, to see a waiting tap costs none.
+  useEffect(() => {
+    if (!__DEV__) return;
+    const counted = globalThis as { __pidroTableRenders?: number };
+    counted.__pidroTableRenders = (counted.__pidroTableRenders ?? 0) + 1;
+  });
   const model = useMemo(
     () => (held ? { ...playPresentation.model, held } : playPresentation.model),
     [playPresentation.model, held]
   );
+  // The seat whose plate is lit. When it changes, a wait is over: its notice goes
+  // in the same render, and the next tap is answered afresh. A light still on the
+  // seat that just played (its card landing) is not the server's turn: no name yet.
+  const lit = litTurn(model);
+  const litName = lit ? model.seats[lit]?.username : null;
+  const waitingOn = lit === model.currentTurnRelative ? lit : null;
+  useLayoutEffect(() => {
+    onTurn.current = { turn: waitingOn, name: litName };
+  }, [waitingOn, litName]);
+  useLayoutEffect(() => {
+    answered.current = null;
+  }, [lit]);
+  // A notice that no longer holds: another seat's turn, or new cards dealt to you.
+  const { actionNotice: queued, dismissActionNotice, addActionNotice } = controller;
+  const stale =
+    (queued?.turn !== undefined && queued.turn !== lit) ||
+    (queued?.key === 'game.out_notice' && !model.seats.south?.out);
+  const actionNotice = stale ? null : queued;
+  useEffect(() => {
+    if (stale) dismissActionNotice?.();
+  }, [stale, dismissActionNotice]);
+  // Out of trumps, the first tap on your folded cards in a hand says why they lie there.
+  const outHand = tableState?.hand_number ?? tableState?.round_number ?? 0;
+  const outSaid = useRef<number | null>(null);
+  const onFoldedTap = useCallback(() => {
+    if (outSaid.current === outHand) return;
+    outSaid.current = outHand;
+    addActionNotice?.({ key: 'game.out_notice', variant: 'warning' });
+  }, [outHand, addActionNotice]);
   const isBiddingTurn = controller.phase === 'bidding' && controller.isYourTurn;
   const facesReady = useHandPresentationReady(serverModel.yourHand, textures, isBiddingTurn);
   // A held loading bar is a phone still decoding: its hand is not ready either.
@@ -1042,6 +1103,7 @@ export function GameCanvasTable({
             )}
             held={model.held}
             said={talking ? said : undefined}
+            onFoldedTap={onFoldedTap}
             bid={
               !dealing &&
               [
@@ -1071,7 +1133,7 @@ export function GameCanvasTable({
           {talking &&
           isChannelJoined &&
           !notice &&
-          !controller.actionNotice &&
+          !actionNotice &&
           loading == null &&
           !textures.loading ? (
             <View
@@ -1285,8 +1347,8 @@ export function GameCanvasTable({
           {/* Connection banner, in the notice slot; game over has none, and a closed table still speaks. */}
           {(isChannelJoined || isGameOver) && (
             <TableFeedback
-              notice={controller.actionNotice ?? notice ?? null}
-              onDismiss={controller.actionNotice ? controller.dismissActionNotice : onDismissNotice}
+              notice={actionNotice ?? notice ?? null}
+              onDismiss={actionNotice ? dismissActionNotice : onDismissNotice}
             />
           )}
           {!isGameOver && (
@@ -1305,7 +1367,7 @@ export function GameCanvasTable({
                 onRules={rules.show}
               />
               {/* Upright, over South's backs at the foot: the notice slot would hide its name. */}
-              {isSpectator && isChannelJoined && !notice && !controller.actionNotice && (
+              {isSpectator && isChannelJoined && !notice && !actionNotice && (
                 <WatchingBadge
                   bottom={reserves.landscape ? undefined : insets.bottom + PidroSpacing.xs}
                 />

@@ -158,6 +158,22 @@ describe('the plate under a seat (PID-450)', () => {
     expect(seatPlate(out, { onTurn: false, isYou: false })).toEqual({ plate: 'out', text: 'Out' });
   });
 
+  it('says “Out of trumps” on your own plate, “Out” on everyone else’s (PID-485)', () => {
+    const yours = seatLine(seat({ out: true, isYou: true }));
+    expect(yours).toMatchObject({ text: 'Out of trumps', short: 'Out of trumps', tone: 'out' });
+    expect(seatPlate(yours, { onTurn: false, isYou: true })).toEqual({
+      plate: 'out',
+      text: 'Out of trumps',
+    });
+    expect(seatLine(seat({ out: true, isYou: false, isTeammate: true }), null, true)?.text).toBe(
+      'Out'
+    );
+    // Your last card still on the table says what it was, as anyone's does.
+    expect(seatLine(seat({ out: true, isYou: true, lastPlayedCard: kingOfHearts }))?.text).toBe(
+      'Plays K♥'
+    );
+  });
+
   it('keeps a seat out until the hand ends, whatever the table says of it meanwhile', () => {
     // The trick it did not play in, the turn passing on, a Pidro taken: still Out.
     for (const meanwhile of [playing, { text: 'Won the trick' }, null]) {
@@ -172,6 +188,7 @@ describe('the plate under a seat (PID-450)', () => {
     try {
       expect(seatPlate(playing, { onTurn: true, isYou: true })?.text).toBe('Din tur');
       expect(seatLine(seat({ out: true }))?.text).toBe('Ute');
+      expect(seatLine(seat({ out: true, isYou: true }))?.text).toBe('Slut på trumf');
     } finally {
       setLocale('en');
     }

@@ -8,7 +8,7 @@ import {
   getRankLabel,
   type Suit,
 } from '@pidro/shared';
-import type { Card } from '@/types/game';
+import type { Card, RelativePosition } from '@/types/game';
 import { readingTimeMs } from '@/features/game/readingTime';
 
 export type TableNotice = {
@@ -20,6 +20,8 @@ export type TableNotice = {
   autoTurn?: { scope: 'room' | 'you'; action?: Record<string, unknown> };
   /** Cards played for you while you were away, and whether that left you out of the hand. */
   away?: { cards: Card[]; out: boolean };
+  /** Whose turn it names (PID-485): it goes the moment that seat's turn does. */
+  turn?: RelativePosition;
   /** Compatibility for development fixtures only. Runtime producers use keys. */
   message?: string;
 };
@@ -150,6 +152,7 @@ function identity(notice: TableNotice): string {
     notice.variant,
     notice.seat?.name,
     notice.seat?.position,
+    notice.turn,
     notice.autoTurn?.scope,
     notice.autoTurn &&
       Object.entries(notice.autoTurn.action ?? {}).sort(([a], [b]) => a.localeCompare(b)),

@@ -49,6 +49,7 @@ export type GameTableController = {
   canSelectHand: boolean;
   isPlayingCard: boolean;
   actionNotice?: TableNotice | null;
+  addActionNotice?: (notice: TableNotice) => void;
   dismissActionNotice?: () => void;
   getCardCountForPlayer: (absPosition: Position | null) => number | null;
   handlePlayCard: (card: Card) => Promise<boolean>;
@@ -231,6 +232,7 @@ export function useGameTableController(): GameTableController {
     canSelectHand,
     isPlayingCard,
     actionNotice,
+    addActionNotice: addNotice,
     dismissActionNotice,
     getCardCountForPlayer,
     handlePlayCard,

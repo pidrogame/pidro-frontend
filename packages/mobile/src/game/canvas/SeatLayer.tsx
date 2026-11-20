@@ -22,6 +22,7 @@ import {
   Image,
   PixelRatio,
   Platform,
+  Pressable,
   StyleSheet,
   View,
   type ImageSourcePropType,
@@ -198,6 +199,8 @@ type Props = {
   said?: Partial<
     Record<RelativePosition, (at: SaidAt, ring: number, clear?: Clearance) => ReactNode>
   >;
+  /** A tap on your folded cards, out of trumps (PID-485). */
+  onFoldedTap?: () => void;
 };
 
 /** A box grown by `dx` each side and `dy` above and below. */
@@ -228,6 +231,7 @@ export function SeatLayer({
   held = HELD_STYLE,
   bid,
   said,
+  onFoldedTap,
 }: Props) {
   useTranslation();
   const out = REL.map((rel) => !!seats[rel]?.out);
@@ -297,6 +301,7 @@ export function SeatLayer({
     landscapeNameReach(L, rel, {
       insets,
       southCards: seats.south?.cardCount ?? 9,
+      southOut: !!seats.south?.isYou && !!seats.south.out,
       northBacks,
     });
   // Tight North's avatar stays on the table's axis, its name running right.
@@ -643,6 +648,7 @@ export function SeatLayer({
             facePx={facePx}
             count={thrown}
             folded={foldingHand}
+            onPress={foldingHand && rel === 'south' && seats.south?.isYou ? onFoldedTap : undefined}
             animate={!foldingHand || folding.includes(rel)}
             fromStep={
               rel === 'south'
@@ -704,8 +710,9 @@ export function SeatLayer({
             }
             style={[
               tight && rel === 'south' && data.isYou
-                ? // Room for "Your turn" on its plate.
-                  { width: size * 2 }
+                ? // Room for "Your turn" on its plate, and out, the centre column for
+                  // "Out of trumps" (PID-485): nothing sits beside you then.
+                  { width: data.out ? centerColumn : size * 2 }
                 : L.sidesUnder && (rel === 'east' || rel === 'west')
                   ? { width: L.sideSeatWidth ?? SIDE_SEAT_WIDTH }
                   : seatWidth(rel),
@@ -1229,9 +1236,11 @@ function ThrownPile({
   faces,
   facePx = 0,
   square = false,
+  onPress,
 }: {
   rel: RelativePosition;
   count: number;
+  onPress?: () => void;
   /** Landscape phones lay a pile square, as Classic does, to keep its gaps (PID-307). */
   square?: boolean;
   /** Face up: the thrower's own, or killed trumps (PID-306). */
@@ -1250,11 +1259,12 @@ function ThrownPile({
   const [moving] = useState(animate && !reducedMotion);
   const cardH = cardW * (110 / 78);
   const sideways = rel === 'east' || rel === 'west';
+  const tap = { width: Math.max(44, cardW * (1 + 0.1 * (count - 1))), height: Math.max(44, cardH) };
   return (
     <Animated.View
       testID={folded ? `seat-${rel}-folded` : `second-deal-thrown-${rel}`}
       accessibilityElementsHidden
-      pointerEvents="none"
+      pointerEvents={onPress ? 'box-none' : 'none'}
       exiting={folded ? undefined : FadeOut.duration(SECOND_DEAL_FLIGHT_MS)}
       style={StyleSheet.absoluteFill}>
       {Array.from({ length: count }, (_, i) => {
@@ -1293,6 +1303,20 @@ function ThrownPile({
           />
         );
       })}
+      {onPress ? (
+        // Where the folded cards lie, and never under 44 points.
+        <Pressable
+          testID={`seat-${rel}-folded-tap`}
+          accessible={false}
+          onPress={onPress}
+          style={{
+            position: 'absolute',
+            left: from.x - tap.width / 2,
+            top: from.y - tap.height / 2,
+            ...tap,
+          }}
+        />
+      ) : null}
     </Animated.View>
   );
 }

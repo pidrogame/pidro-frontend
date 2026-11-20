@@ -675,9 +675,13 @@ export function landscapeNameReach(
     insets,
     southCards = FULL_HAND,
     northBacks = 6,
-  }: { insets: Insets; southCards?: number; northBacks?: number }
+    southOut = false,
+  }: { insets: Insets; southCards?: number; northBacks?: number; southOut?: boolean }
 ): number {
-  const most = L.profile.startsWith('tablet') ? 160 : 104;
+  // Out of trumps, your hand is one folded pile and your plate says so in full (PID-485).
+  const out = rel === 'south' && southOut;
+  if (out) southCards = 1;
+  const most = L.profile.startsWith('tablet') ? 160 : out ? 124 : 104;
   const seat = AVATAR_SIZE[L.profile] + seatNameGap(L.profile);
   const side = rel === 'east' || rel === 'west';
   const room =

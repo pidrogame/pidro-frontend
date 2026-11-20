@@ -20,14 +20,13 @@ export type SeatLine = {
 
 /**
  * Out of trumps: the seat sits back, its line says so on a navy plate until
- * the hand ends, and it lights up once as it goes out (PID-450).
+ * the hand ends, and it lights up once as it goes out (PID-450). Yours says
+ * it in full (PID-485): "Out" alone did not say where your hand went.
  */
-const outLine = (): SeatLine => ({
-  text: t('game.out'),
-  short: t('game.out'),
-  tone: 'out',
-  pulse: 'out',
-});
+const outLine = (isYou: boolean): SeatLine => {
+  const text = t(isYou ? 'game.out_of_trumps' : 'game.out');
+  return { text, short: text, tone: 'out', pulse: 'out' };
+};
 
 /**
  * The plate under a seat's name and line (PID-450): lit for the seat on turn,
@@ -85,6 +84,7 @@ export function seatLine(
     lastPlayedCard: { card: Card } | null;
     out: boolean;
     isTeammate: boolean;
+    isYou?: boolean;
   },
   override?: SeatLine | null,
   firstHand = false
@@ -95,7 +95,7 @@ export function seatLine(
     const c = seat.lastPlayedCard.card;
     return playsLine(`${getRankLabel(c.rank)}${SUIT_SYMBOLS[c.suit]}`);
   }
-  if (seat.out) return outLine();
+  if (seat.out) return outLine(!!seat.isYou);
   if (override) return override;
   return firstHand && seat.isTeammate ? { text: t('game.your_partner'), tone: 'quiet' } : null;
 }
