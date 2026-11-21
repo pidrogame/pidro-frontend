@@ -121,6 +121,36 @@ describe('provider authentication API', () => {
     });
   });
 
+  it("sends Apple's one-time code with the identity token, and nothing when Apple gave none", async () => {
+    const signedIn = { status: 200, data: { data: { token: 'session', user } } };
+    const withCode = providerApi(signedIn);
+    const withoutCode = providerApi(signedIn);
+
+    await withCode.auth.providerLogin(
+      'apple',
+      { type: 'identity_token', token: 'apple-token', authorizationCode: 'apple-code' },
+      'install-1'
+    );
+    await withoutCode.auth.providerLogin(
+      'apple',
+      { type: 'identity_token', token: 'apple-token' },
+      'install-1'
+    );
+
+    // The body as axios puts it on the wire.
+    const wire = (body: unknown) => JSON.parse(JSON.stringify(body));
+    expect(withCode.calls[0].path).toBe('/api/v1/auth/apple');
+    expect(wire(withCode.calls[0].body)).toStrictEqual({
+      identity_token: 'apple-token',
+      authorization_code: 'apple-code',
+      install_id: 'install-1',
+    });
+    expect(wire(withoutCode.calls[0].body)).toStrictEqual({
+      identity_token: 'apple-token',
+      install_id: 'install-1',
+    });
+  });
+
   it('normalizes Classic matches and expected 401 responses', async () => {
     const claim = {
       classic_found: true as const,

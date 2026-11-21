@@ -477,7 +477,12 @@ export default function ClaimClassicScreen() {
         const installId = user ? undefined : await getInstallId();
         const result = await classicApi.verify(
           credential.provider === 'apple'
-            ? { method: 'apple', identity_token: credential.token, install_id: installId }
+            ? {
+                method: 'apple',
+                identity_token: credential.token,
+                authorization_code: credential.authorizationCode,
+                install_id: installId,
+              }
             : {
                 method: 'facebook',
                 ...facebookCredentialRequest(credential.credential),

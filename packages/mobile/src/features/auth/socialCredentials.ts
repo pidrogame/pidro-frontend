@@ -2,7 +2,7 @@ import type { AuthProvider, FacebookCredential } from '@/api/auth';
 import { t, type TranslationKey } from '@pidro/shared';
 
 export type SocialCredentialResult =
-  | { status: 'success'; provider: 'apple'; token: string }
+  | { status: 'success'; provider: 'apple'; token: string; authorizationCode?: string }
   | { status: 'success'; provider: 'facebook'; credential: FacebookCredential }
   | { status: 'cancelled'; provider: AuthProvider }
   | { status: 'failure'; provider: AuthProvider; message: string; messageKey?: TranslationKey };
@@ -70,7 +70,8 @@ export async function requestFacebookCredential(
 
 export interface SocialCredentialDependencies {
   platform: string;
-  appleSignIn: () => Promise<string | null>;
+  /** Apple's one-time code lets the server revoke the account's Apple tokens at deletion. */
+  appleSignIn: () => Promise<{ identityToken: string | null; authorizationCode: string | null }>;
   facebookSignIn: () => Promise<{ cancelled: boolean; credential: FacebookCredential | null }>;
 }
 
@@ -104,7 +105,7 @@ export async function requestSocialCredential(
 
   try {
     if (provider === 'apple') {
-      const token = await resolvedDependencies.appleSignIn();
+      const { identityToken: token, authorizationCode } = await resolvedDependencies.appleSignIn();
       if (!token) {
         return {
           status: 'failure',
@@ -113,7 +114,12 @@ export async function requestSocialCredential(
           messageKey: 'auth.apple_token',
         };
       }
-      return { status: 'success', provider, token };
+      return {
+        status: 'success',
+        provider,
+        token,
+        ...(authorizationCode ? { authorizationCode } : {}),
+      };
     }
 
     const result = await resolvedDependencies.facebookSignIn();

@@ -258,14 +258,14 @@ describe('account localization', () => {
     setLocale('sv');
     const result = await requestSocialCredential('apple', {
       platform: 'ios',
-      appleSignIn: async () => null,
+      appleSignIn: async () => ({ identityToken: null, authorizationCode: null }),
       facebookSignIn: async () => ({ cancelled: true, credential: null }),
     });
     expect(result.message).toBe(t('auth.apple_token'));
     expect(result.messageKey).toBe('auth.apple_token');
     const cancelled = await requestSocialCredential('facebook', {
       platform: 'ios',
-      appleSignIn: async () => null,
+      appleSignIn: async () => ({ identityToken: null, authorizationCode: null }),
       facebookSignIn: async () => ({ cancelled: true, credential: null }),
     });
     expect(cancelled).toEqual({ status: 'cancelled', provider: 'facebook' });

@@ -5,7 +5,7 @@ const { facebookNativeModulesLoaded, requestFacebookCredential, requestSocialCre
 
 const dependencies = (overrides = {}) => ({
   platform: 'ios',
-  appleSignIn: async () => 'apple-token',
+  appleSignIn: async () => ({ identityToken: 'apple-token', authorizationCode: 'apple-code' }),
   facebookSignIn: async () => ({
     cancelled: false,
     credential: { type: 'access_token', token: 'facebook-token' },
@@ -19,12 +19,32 @@ describe('social credential helper', () => {
       status: 'success',
       provider: 'apple',
       token: 'apple-token',
+      authorizationCode: 'apple-code',
     });
     expect(await requestSocialCredential('facebook', dependencies())).toEqual({
       status: 'success',
       provider: 'facebook',
       credential: { type: 'access_token', token: 'facebook-token' },
     });
+  });
+
+  it('signs in with Apple without a one-time code, but never without an identity token', async () => {
+    expect(
+      await requestSocialCredential(
+        'apple',
+        dependencies({
+          appleSignIn: async () => ({ identityToken: 'apple-token', authorizationCode: null }),
+        })
+      )
+    ).toStrictEqual({ status: 'success', provider: 'apple', token: 'apple-token' });
+    expect(
+      await requestSocialCredential(
+        'apple',
+        dependencies({
+          appleSignIn: async () => ({ identityToken: null, authorizationCode: 'apple-code' }),
+        })
+      )
+    ).toMatchObject({ status: 'failure', provider: 'apple', messageKey: 'auth.apple_token' });
   });
 
   it('keeps Apple and Facebook cancellation silent and typed', async () => {

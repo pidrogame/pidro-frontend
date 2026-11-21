@@ -69,7 +69,9 @@ export type FacebookCredential =
   | { type: 'access_token'; token: string }
   | { type: 'authentication_token'; token: string; nonce: string };
 
-export type ProviderCredential = { type: 'identity_token'; token: string } | FacebookCredential;
+export type ProviderCredential =
+  | { type: 'identity_token'; token: string; authorizationCode?: string }
+  | FacebookCredential;
 
 export interface ClassicPreview {
   name: string;
@@ -133,6 +135,8 @@ export type ProviderAuthRequest = SignUpExtras &
   (
     | {
         identity_token: string;
+        /** Apple's one-time code; the server trades it for a token it revokes at deletion. */
+        authorization_code?: string;
         access_token?: never;
         authentication_token?: never;
         nonce?: never;
@@ -141,6 +145,7 @@ export type ProviderAuthRequest = SignUpExtras &
     | {
         access_token: string;
         identity_token?: never;
+        authorization_code?: never;
         authentication_token?: never;
         nonce?: never;
         install_id: string;
@@ -149,6 +154,7 @@ export type ProviderAuthRequest = SignUpExtras &
         authentication_token: string;
         nonce: string;
         identity_token?: never;
+        authorization_code?: never;
         access_token?: never;
         install_id: string;
       }
@@ -195,7 +201,7 @@ export function createAuthApi(api: ApiClient) {
   ): Promise<ProviderLoginResponse> => {
     const credentials =
       credential.type === 'identity_token'
-        ? { identity_token: credential.token }
+        ? { identity_token: credential.token, authorization_code: credential.authorizationCode }
         : credential.type === 'access_token'
           ? { access_token: credential.token }
           : { authentication_token: credential.token, nonce: credential.nonce };

@@ -112,7 +112,11 @@ export function useAuth() {
         const outcome = await authApi.providerLogin(
           provider,
           credential.provider === 'apple'
-            ? { type: 'identity_token', token: credential.token }
+            ? {
+                type: 'identity_token',
+                token: credential.token,
+                authorizationCode: credential.authorizationCode,
+              }
             : credential.credential,
           installId,
           { ...storedAgeTerms(), ...pendingFriendSlug() }

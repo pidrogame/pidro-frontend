@@ -39,7 +39,7 @@ export interface ClassicVerification {
 
 export type ClassicVerifyRequest =
   | { method: 'password'; login: string; password: string; install_id?: string }
-  | { method: 'apple'; identity_token: string; install_id?: string }
+  | { method: 'apple'; identity_token: string; authorization_code?: string; install_id?: string }
   | ({ method: 'facebook'; install_id?: string } & (
       | { access_token: string; authentication_token?: never; nonce?: never }
       | { authentication_token: string; nonce: string; access_token?: never }

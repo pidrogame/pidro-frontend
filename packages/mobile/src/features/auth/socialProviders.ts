@@ -27,12 +27,12 @@ function facebookNativeModuleLoaded(): boolean {
   return facebookNativeModulesLoaded(Platform.OS, NativeModules);
 }
 
-async function appleSignIn(): Promise<string | null> {
+async function appleSignIn() {
   const AppleAuthentication = await import('expo-apple-authentication');
-  const credential = await AppleAuthentication.signInAsync({
+  const { identityToken, authorizationCode } = await AppleAuthentication.signInAsync({
     requestedScopes: [AppleAuthentication.AppleAuthenticationScope.EMAIL],
   });
-  return credential.identityToken;
+  return { identityToken, authorizationCode };
 }
 
 async function facebookSignIn(): Promise<{
