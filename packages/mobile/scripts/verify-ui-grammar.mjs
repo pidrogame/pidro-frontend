@@ -718,6 +718,12 @@ const allCases = [
     locale,
     startupUpdate: true,
   })),
+  ...['en', 'sv'].map((locale) => ({
+    name: `update-required-${locale}`,
+    path: `/ui-dev?state=update-required&locale=${locale}`,
+    testId: 'update-required-screen',
+    locale,
+  })),
   ...['en', 'sv'].flatMap((locale) =>
     ['home', 'settings'].map((screen) => ({
       name: `store-update-notice-${screen}-${locale}`,

@@ -20,6 +20,7 @@ import { useAuthStore } from '@/stores/auth';
 import { CtaBadge } from '@/components/home/CtaBadge';
 import { LeagueProgress } from '@/components/home/LeagueProgress';
 import { UpdatingScreen } from '@/components/shell/UpdatingScreen';
+import { UpdateRequiredScreen } from '@/components/shell/UpdateRequiredScreen';
 import { RatingPlaque } from '@/components/home/RatingPlaque';
 import { Icon, type IconName } from '@/components/ui/Icon';
 import { TalkSpeech } from '@/components/game/TableTalk';
@@ -604,6 +605,8 @@ function UiDevHarness() {
   if (state === 'claim-classic') return <ClaimClassicScreen />;
   if (state === 'welcome') return <WelcomeSheetView onPlay={noop} />;
   if (state === 'updating') return <UpdatingFixture applying={params.fixture === 'applying'} />;
+  if (state === 'update-required')
+    return <UpdateRequiredScreen url="https://example.invalid/pidro-ios" />;
   if (state === 'settings')
     return (
       <FixtureInsets preset={params.safeArea}>

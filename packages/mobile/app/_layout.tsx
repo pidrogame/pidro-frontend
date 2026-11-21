@@ -3,7 +3,8 @@ import '../global.css';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import * as Font from 'expo-font';
-import { Stack } from 'expo-router';
+import { nativeApplicationVersion, nativeBuildVersion } from 'expo-application';
+import { Stack, usePathname } from 'expo-router';
 import Head from 'expo-router/head';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
@@ -22,6 +23,9 @@ import { useLocaleBootstrap } from '../src/i18n';
 import { PidroColors } from '../src/design/tokens';
 import { useStartupUpdate } from '../src/hooks/useStartupUpdate';
 import { UpdatingScreen } from '../src/components/shell/UpdatingScreen';
+import { UpdateRequiredScreen } from '../src/components/shell/UpdateRequiredScreen';
+import { requiredStoreUpdate } from '../src/features/appUpdate';
+import { useLobbyStore } from '../src/stores/lobby';
 import { configurePurchases, syncPurchasesOnce } from '../src/features/premium/purchases';
 import { refreshPremium } from '../src/features/premium/premium';
 import { usePurchaserIdentity } from '../src/features/premium/usePurchaserIdentity';
@@ -87,6 +91,17 @@ export default function RootLayout() {
     ageBand,
     user
   );
+  const pathname = usePathname();
+  const updateRequired = useLobbyStore((state) => state.updateRequired);
+  const storeUrls = useLobbyStore((state) => state.nativeStoreUrls);
+  // Every lobby join (cold start, return to foreground) brings it; a hand in play finishes first.
+  const requiredUpdateUrl = requiredStoreUpdate(
+    Platform.OS,
+    { version: nativeApplicationVersion, build: nativeBuildVersion },
+    updateRequired,
+    storeUrls,
+    pathname
+  );
   const reduceMotion = useReducedMotion();
   const menuAnimation = reduceMotion ? 'none' : 'slide_from_right';
 
@@ -96,7 +111,8 @@ export default function RootLayout() {
   usePurchaserIdentity();
 
   const ready = fontsReady && authHydrated && ageGateHydrated && localeReady;
-  const routerMounted = ready && !startupUpdate.waiting && !startupUpdate.updating;
+  const routerMounted =
+    ready && !startupUpdate.waiting && !startupUpdate.updating && !requiredUpdateUrl;
   const userId = user?.id;
   // Taps open their link once the Stack below is mounted.
   useEffect(() => (routerMounted ? listenForPush() : undefined), [routerMounted]);
@@ -119,6 +135,10 @@ export default function RootLayout() {
         {fontsReady && localeReady && startupUpdate.updating ? (
           <View style={styles.content} onLayout={hideSplash}>
             <UpdatingScreen progress={startupUpdate.progress} />
+          </View>
+        ) : ready && !startupUpdate.waiting && requiredUpdateUrl ? (
+          <View style={styles.content} onLayout={hideSplash}>
+            <UpdateRequiredScreen url={requiredUpdateUrl} />
           </View>
         ) : ready && !startupUpdate.waiting ? (
           <View collapsable={false} style={styles.content} onLayout={hideSplash}>

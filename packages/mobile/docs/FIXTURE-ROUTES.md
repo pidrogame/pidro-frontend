@@ -785,6 +785,17 @@ cases `friend-notice-*` check containment, touch targets, tab clearance and queu
 order at 390×844, 375×667, 844×390 and 768×1024. Browser sizes do not certify
 native safe-area measurement.
 
+## Required update (PID-500)
+
+`/ui-dev?state=update-required&locale=en|sv` is the hard stop the root layout shows
+instead of the app when the lobby join's `update_required` names a version (and build)
+above this install's. One Update button opens the nudge's store URL (`example.invalid`
+here); there is no Later, close or back. It waits while the player is on `/game/…` and
+never blocks without an answer from the server. Grammar cases `update-required-en|sv`
+(testIDs `update-required-screen`, `update-required-action`) were proved at 390×844 and
+the TCL's 360×780; the release matrix adds the locale sizes. The root swap itself (no
+navigator, Android back, a notification tap) is native release work.
+
 ## Startup updates (PID-362)
 
 `/ui-dev?state=updating&fixture=downloaded&locale=en|sv` holds the real startup screen

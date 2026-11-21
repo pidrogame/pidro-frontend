@@ -259,6 +259,8 @@ export const UI_VIEWPORTS = [
     safeArea: 'android',
     cases: [
       ...statusSeatCases,
+      'update-required-en',
+      'update-required-sv',
       ...teamCases,
       'welcome',
       'welcome-sv',
