@@ -1527,7 +1527,7 @@ UI_CASES=settings-test-ad UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-
 Settings → Premium sits between Account and About the app, and only for a player the
 server says has Premium (`premium`, `premium_until`, `premium_source` on the session
 user). A player it says has none sees no panel, only a quiet **Restore purchases** link
-at the very bottom, under About the app, where the store is available; before the
+under About the app, above Terms and Privacy, where the store is available; before the
 server has said, neither shows. The fixture swaps in a made-up answer and shows the
 phone's screen on Expo web, where the real panel only says "Premium is managed in the
 Pidro app on your phone." The fixture's Restore purchases never reaches RevenueCat.

@@ -583,7 +583,7 @@ const allCases = [
     testAd: true,
   },
   // PID-124: Settings → Premium only with Premium, the phone's panel and the web's line;
-  // without it, a quiet Restore purchases link at the bottom.
+  // without it, a quiet Restore purchases link near the bottom.
   ...['en', 'sv'].flatMap((locale) => [
     ...['none', 'until', 'lifetime', 'restoring'].map((premium) => ({
       name: `settings-premium-${premium}-${locale}`,
@@ -4036,7 +4036,7 @@ async function assertTestAd(page) {
 }
 
 // The panel is only for a player with Premium: the server's answer, Restore busy while it
-// runs, Manage for the store. Without Premium, no panel and a Restore link at the bottom.
+// runs, Manage for the store. Without Premium, no panel and a Restore link near the bottom.
 async function assertPremium(page, { premium, locale }, viewport) {
   const sv = locale === 'sv';
   const restoreName = sv ? 'Återställ köp' : 'Restore purchases';
@@ -4056,13 +4056,27 @@ async function assertPremium(page, { premium, locale }, viewport) {
     assert.ok(box.height >= 44, `${premium}: Restore is ${box.height}px tall`);
     const about = await page.getByTestId('app-update-section').boundingBox();
     assert.ok(box.y >= about.y + about.height, 'Restore comes after About the app');
+    // PID-497: Terms, Privacy and the version close Settings, right under Restore.
+    const legalGroup = page.getByTestId('settings-about');
+    for (const name of sv
+      ? ['Användarvillkor', 'Integritetspolicy']
+      : ['Terms of Use', 'Privacy Policy']) {
+      const row = await getStableBox(legalGroup.getByRole('link', { name, exact: true }), page);
+      assert.ok(row.height >= 44, `${name} is ${row.height}px tall`);
+    }
+    assert.match(await page.getByTestId('settings-version').innerText(), /^Version \d+\.\d+\.\d+/);
+    const legal = await legalGroup.boundingBox();
+    assert.ok(box.y + box.height <= legal.y, 'Restore comes before Terms and Privacy');
     const last = await page.getByTestId('settings-screen').evaluate((root) => {
       const shown = [...root.querySelectorAll('[data-testid]')].filter(
         (node) => node.getBoundingClientRect().height > 0
       );
       return Math.max(...shown.map((node) => node.getBoundingClientRect().bottom));
     });
-    assert.ok(box.y + box.height >= last - 1, 'Restore is the last thing on Settings');
+    assert.ok(
+      legal.y + legal.height >= last - 1,
+      'Terms and Privacy are the last thing on Settings'
+    );
     assertInsideViewport('Restore purchases', box, viewport);
     await waitForScreenshotReady(page);
     return;

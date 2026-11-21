@@ -32,6 +32,11 @@ it('each switch in Settings and at the table changes the setting its old control
     useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
   }));
   mock.module('expo-router', () => ({ useLocalSearchParams: () => ({}) }));
+  mock.module('expo-application', () => ({
+    nativeApplicationVersion: null,
+    nativeBuildVersion: null,
+  }));
+  mock.module('expo-web-browser', () => ({ openBrowserAsync: async () => {} }));
   // The switch's own contract: a labelled control that asks for the other value.
   mock.module('../src/components/ui/PidroSwitch.tsx', () => ({
     PidroSwitch: ({ accessibilityLabel, value, disabled, onValueChange }) =>
@@ -44,6 +49,7 @@ it('each switch in Settings and at the table changes the setting its old control
   }));
   for (const [path, names] of [
     ['../src/components/ui/PidroText.tsx', ['PidroText']],
+    ['../src/components/ui/PressableFX.tsx', ['PressableFX']],
     ['../src/components/ui/ScreenShell.tsx', ['ScreenShell']],
     ['../src/components/ui/Surface.tsx', ['Surface']],
     ['../src/components/ui/StillLayer.tsx', ['StillLayer']],

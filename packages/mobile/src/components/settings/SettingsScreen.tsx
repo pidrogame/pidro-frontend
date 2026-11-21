@@ -1,13 +1,17 @@
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useCallback, useState } from 'react';
 import { useLocalSearchParams } from 'expo-router';
+import * as Application from 'expo-application';
+import * as WebBrowser from 'expo-web-browser';
 import type { RuleSet } from '@pidro/shared';
 import { RuleSetChip, RuleSetSelector } from '@/components/rules/RuleSet';
 import { RulesExplainer } from '@/components/rules/RulesExplainer';
 import { ruleSetFixture } from '@/features/rules/fixtures';
 import { useTranslation } from '@/i18n';
 import { LanguageSelector } from './LanguageSelector';
+import { Icon } from '@/components/ui/Icon';
 import { PidroText } from '@/components/ui/PidroText';
+import { PressableFX } from '@/components/ui/PressableFX';
 import { PidroSwitch } from '@/components/ui/PidroSwitch';
 import { ScreenHeader } from '@/components/ui/ScreenHeader';
 import { ScreenShell } from '@/components/ui/ScreenShell';
@@ -23,7 +27,9 @@ import { PremiumSection, RestorePurchasesLink } from '@/components/settings/Prem
 import { PrivacyChoicesRow } from '@/components/settings/PrivacyChoicesRow';
 import { FeedbackSheet } from '@/components/feedback/FeedbackSheet';
 import { TellRow } from '@/components/feedback/TellRow';
-import { PidroSpacing } from '@/design/tokens';
+import { APP_CONFIG, LEGAL_URLS } from '@/constants/config';
+import { PidroColors, PidroSpacing } from '@/design/tokens';
+import { appUpdateFixture } from '@/features/appUpdate';
 import { canTell, tellFixture } from '@/features/feedback';
 import { useCountHelp } from '@/hooks/useCountHelp';
 import { useAuthStore } from '@/stores/auth';
@@ -66,6 +72,10 @@ export function SettingsScreen({
   const [tellOpen, setTellOpen] = useState(Boolean(tell?.sheet));
   const [toast, setToast] = useState<string | null>(null);
   const dismissToast = useCallback(() => setToast(null), []);
+  // A fixture shows a release build's version and build on web.
+  const release = appUpdateFixture(fixture);
+  const version = release?.version ?? Application.nativeApplicationVersion ?? APP_CONFIG.version;
+  const build = release ? release.build : Application.nativeBuildVersion;
 
   const changeHidden = (hidden: boolean) => {
     setLeagueFailed(false);
@@ -174,6 +184,30 @@ export function SettingsScreen({
         <PrivacyChoicesRow fixture={__DEV__ && fixture === 'privacy-choices'} />
         <AppUpdateSection />
         <RestorePurchasesLink fixture={fixture} onToast={setToast} />
+        {/* About, last and quiet: the pages sign-up agreed to, and which app this is. */}
+        <Surface variant="window" style={styles.panel} padded testID="settings-about">
+          {(
+            [
+              ['settings.terms', LEGAL_URLS.terms],
+              ['auth.privacy', LEGAL_URLS.privacy],
+            ] as const
+          ).map(([label, url]) => (
+            <PressableFX
+              key={url}
+              accessibilityRole="link"
+              onPress={() => void WebBrowser.openBrowserAsync(url)}>
+              <Surface variant="subtle" style={styles.row}>
+                <PidroText role="label" style={styles.grow}>
+                  {t(label)}
+                </PidroText>
+                <Icon name="chevron-right" size={20} color={PidroColors.cyanText} />
+              </Surface>
+            </PressableFX>
+          ))}
+          <PidroText role="metadata" tone="muted" selectable testID="settings-version">
+            {`${t('update.version')} ${version}${build ? ` (${build})` : ''}`}
+          </PidroText>
+        </Surface>
         <Modal
           isOpen={hideConfirm}
           onClose={() => !leagueBusy && setHideConfirm(false)}
