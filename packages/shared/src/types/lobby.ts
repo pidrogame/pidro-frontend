@@ -162,6 +162,11 @@ export interface Room {
   available_positions?: Position[];
 }
 
+/** The lobby join's hard stop (PID-500): below this, the app asks for a store update. Null is off. */
+export type UpdateRequired = Partial<
+  Record<'android' | 'ios', { version: string | null; build: string | number | null } | null>
+>;
+
 export type LobbyCategoryKey =
   'my_rejoinable' | 'open_tables' | 'substitute_needed' | 'spectatable';
 

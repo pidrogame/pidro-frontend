@@ -138,6 +138,10 @@ export const en = {
   "update.check": "Check for updates",
   "update.notice": "A new version is ready",
   "update.storeNotice": "A new version is in the store",
+  "update.requiredTitle": "Time to update",
+  "update.requiredBody":
+    "This version of Pidro is too old to play. Update to keep playing; it takes a minute.",
+  "update.requiredAction": "Update",
   "update.openStore": "Open store",
   "update.restart": "Restart",
   "update.dismiss": "Dismiss",
@@ -353,6 +357,10 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "update.check": "Sök efter uppdateringar",
   "update.notice": "En ny version är klar",
   "update.storeNotice": "En ny version finns i butiken",
+  "update.requiredTitle": "Dags att uppdatera",
+  "update.requiredBody":
+    "Den här versionen av Pidro är för gammal för att spela. Uppdatera för att fortsätta, det tar en minut.",
+  "update.requiredAction": "Uppdatera",
   "update.openStore": "Öppna butiken",
   "update.restart": "Starta om",
   "update.dismiss": "Stäng",

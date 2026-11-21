@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'bun:test';
-import { setLocale } from '@pidro/shared';
+import { setLocale, t, useLobbyStore } from '@pidro/shared';
 import {
   channelLabel,
+  requiredStoreUpdate,
   runningUpdate,
   nativeStoreUpdate,
   updateBuildLine,
@@ -63,6 +64,81 @@ it('on the minimum version, a build below the minimum build gets the nudge', () 
   expect(nudge('ios', '3.2.9', '14', { versions: minimums.versions })).toBe(urls.ios);
   expect(nudge('ios', '3.3.0', null)).toBeNull();
   expect(nudge('ios', '3.3.0', '14', { ...minimums, builds: { ios: 'soon' } })).toBeNull();
+});
+
+describe('the required update (PID-500)', () => {
+  const urls = { ios: 'https://example.test/testflight', android: 'https://example.test/play' };
+  const stop = (
+    platform,
+    version,
+    build,
+    required,
+    { pathname = '/home', storeUrls = urls } = {}
+  ) => requiredStoreUpdate(platform, { version, build }, required, storeUrls, pathname);
+
+  it('stops a version below the required one, by numbers, not text', () => {
+    const required = { ios: { version: '3.10.0', build: null }, android: null };
+    expect(stop('ios', '3.9.9', '99', required)).toBe(urls.ios);
+    expect(stop('ios', '3.4.0', '1', required)).toBe(urls.ios);
+    expect(stop('ios', '3.10.0', '1', required)).toBeNull();
+    expect(stop('ios', '3.11.0', '1', required)).toBeNull();
+    expect(stop('ios', '4.0.0', '1', required)).toBeNull();
+  });
+
+  it('on the required version, stops a build below a required build', () => {
+    const required = {
+      ios: { version: '3.4.0', build: '60' },
+      android: { version: '3.4.0', build: 12 },
+    };
+    expect(stop('ios', '3.4.0', '59', required)).toBe(urls.ios);
+    expect(stop('ios', '3.4.0', '9', required)).toBe(urls.ios);
+    expect(stop('ios', '3.4.0', '60', required)).toBeNull();
+    expect(stop('ios', '3.4.0', '100', required)).toBeNull();
+    // The version decides first; a build from the server may come as a number.
+    expect(stop('ios', '3.4.1', '1', required)).toBeNull();
+    expect(stop('android', '3.4.0', '11', required)).toBe(urls.android);
+    expect(stop('android', '3.4.0', '12', required)).toBeNull();
+    // Without a required build, the same version is enough.
+    expect(stop('ios', '3.4.0', '1', { ios: { version: '3.4.0', build: null } })).toBeNull();
+  });
+
+  it('null is off, per platform', () => {
+    const iosOnly = { ios: { version: '9.0.0', build: null }, android: null };
+    expect(stop('android', '1.0.0', '1', iosOnly)).toBeNull();
+    expect(stop('ios', '1.0.0', '1', { ios: { version: null, build: '99' } })).toBeNull();
+    expect(stop('ios', '1.0.0', '1', { ios: null, android: null })).toBeNull();
+    expect(stop('web', '1.0.0', '1', iosOnly)).toBeNull();
+  });
+
+  it('never blocks without an answer from the server or a store to send the player to', () => {
+    // A lobby join that failed (offline, server down) leaves the store as it starts.
+    expect(stop('ios', '1.0.0', '1', useLobbyStore.getState().updateRequired)).toBeNull();
+    // A server without the field, or one that sends null.
+    expect(stop('ios', '1.0.0', '1', undefined)).toBeNull();
+    expect(stop('ios', '1.0.0', '1', null)).toBeNull();
+    const required = { ios: { version: '9.0.0', build: null } };
+    expect(stop('ios', '1.0.0', '1', required, { storeUrls: {} })).toBeNull();
+    expect(stop('ios', null, null, required)).toBeNull();
+  });
+
+  it('waits while the player is at a table', () => {
+    const required = { ios: { version: '9.0.0', build: null } };
+    expect(stop('ios', '1.0.0', '1', required, { pathname: '/game/7KQ4M2XB' })).toBeNull();
+    // Back out of the table, in the lobby or at Home, it stops them.
+    expect(stop('ios', '1.0.0', '1', required, { pathname: '/lobby' })).toBe(urls.ios);
+    expect(stop('ios', '1.0.0', '1', required, { pathname: '/home' })).toBe(urls.ios);
+  });
+
+  it('says it in English and Swedish', () => {
+    expect(t('update.requiredTitle')).toBe('Time to update');
+    setLocale('sv');
+    try {
+      expect(t('update.requiredTitle')).toBe('Dags att uppdatera');
+      expect(t('update.requiredAction')).toBe('Uppdatera');
+    } finally {
+      setLocale('en');
+    }
+  });
 });
 
 describe('the update card', () => {

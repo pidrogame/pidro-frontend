@@ -1,4 +1,4 @@
-import { formatDate, t } from '@pidro/shared';
+import { formatDate, t, type UpdateRequired } from '@pidro/shared';
 
 export const STARTUP_UPDATE_LIMIT_MS = 5000;
 
@@ -48,6 +48,29 @@ export function nativeStoreUpdate(
   if (difference >= 0) return current[difference]! < required[difference]! ? nudge : null;
   const [have, need] = [build(installed.build), build(minimums.builds?.[platform])];
   return have !== null && need !== null && have < need ? nudge : null;
+}
+
+/**
+ * The hard stop's store URL: the nudge's compare against the server's required version
+ * (and build, when set) for this platform. Null is off, and so is nothing from the server:
+ * a lobby that never answered never blocks. It waits while the player is at a table.
+ */
+export function requiredStoreUpdate(
+  platform: string,
+  installed: { version: string | null; build: string | null },
+  required: UpdateRequired | null | undefined,
+  storeUrls: PerPlatform,
+  pathname: string
+) {
+  if (pathname.startsWith('/game') || (platform !== 'android' && platform !== 'ios')) return null;
+  const minimum = required?.[platform];
+  if (!minimum?.version) return null;
+  const build = minimum.build == null ? undefined : String(minimum.build);
+  const versions = { [platform]: minimum.version };
+  return (
+    nativeStoreUpdate(platform, installed, { versions, builds: { [platform]: build } }, storeUrls)
+      ?.url ?? null
+  );
 }
 
 /** Beta testers update an iPhone in TestFlight; nowhere to update has no label. */

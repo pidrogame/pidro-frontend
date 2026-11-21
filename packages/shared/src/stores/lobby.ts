@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { LobbyCategories, LobbyCategoryKey, Room } from '../types/lobby';
+import type { LobbyCategories, LobbyCategoryKey, Room, UpdateRequired } from '../types/lobby';
 import { emptyLobbyCategories, flattenLobbyCategories, lobbyCategoryKeys } from '../utils/rooms';
 
 interface LobbyStats {
@@ -14,6 +14,7 @@ interface LobbyState {
   minimumNativeBuilds: Partial<Record<'android' | 'ios', string>>;
   nativeStoreUrls: Partial<Record<'android' | 'ios', string>>;
   nativeUpdatePopup: boolean;
+  updateRequired: UpdateRequired;
   stats: LobbyStats;
   isLoading: boolean;
   error: string | null;
@@ -37,6 +38,7 @@ const initialState = {
   minimumNativeBuilds: {},
   nativeStoreUrls: {},
   nativeUpdatePopup: false,
+  updateRequired: {},
   stats: {
     online_players: 0,
     active_games: 0,
