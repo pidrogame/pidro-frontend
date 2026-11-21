@@ -17,6 +17,7 @@ import {
   friendsMeta,
   discoveryRowState,
   followFriendLists,
+  appInstallUrl,
   friendLinkMessage,
   friendLinkRequest,
   sheetRelation,
@@ -354,17 +355,26 @@ describe('Friends presentation', () => {
   });
 
   test('your link message uses your slug, with the app install page as fallback and the current language', () => {
-    expect(friendLinkMessage('sanna-7KQ')).toEqual({
-      url: 'https://www.pidro.online/play/sanna-7KQ',
-      message: 'Come play Pidro with me: https://www.pidro.online/play/sanna-7KQ',
-    });
+    for (const variant of ['beta', 'production'])
+      expect(friendLinkMessage('sanna-7KQ', variant)).toEqual({
+        url: 'https://www.pidro.online/play/sanna-7KQ',
+        message: 'Come play Pidro with me: https://www.pidro.online/play/sanna-7KQ',
+      });
     for (const slug of [undefined, null, ''])
-      expect(friendLinkMessage(slug)).toEqual({
+      expect(friendLinkMessage(slug, 'beta')).toEqual({
         url: 'https://www.pidro.online/beta',
         message: 'Come play Pidro with me: https://www.pidro.online/beta',
       });
+    // Only the production app sends friends to the store; any other build keeps the beta page.
+    expect(appInstallUrl('production')).toBe('https://www.pidro.online/get');
+    for (const variant of ['beta', 'development', undefined])
+      expect(appInstallUrl(variant)).toBe('https://www.pidro.online/beta');
+    expect(friendLinkMessage(null, 'production')).toEqual({
+      url: 'https://www.pidro.online/get',
+      message: 'Come play Pidro with me: https://www.pidro.online/get',
+    });
     setLocale('sv');
-    expect(friendLinkMessage('pekka').message).toBe(
+    expect(friendLinkMessage('pekka', 'production').message).toBe(
       'Kom och spela Pidro med mig: https://www.pidro.online/play/pekka'
     );
   });

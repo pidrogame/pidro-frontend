@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Constants from 'expo-constants';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   localizedError,
@@ -27,7 +28,7 @@ import { ScreenShell } from '@/components/ui/ScreenShell';
 import { Toast } from '@/components/ui/Toast';
 import { PidroBevel, PidroFonts, PidroSpacing } from '@/design/tokens';
 import {
-  APP_INSTALL_URL,
+  appInstallUrl,
   classicFriendsMessage,
   friendAction,
   friendLinkMessage,
@@ -154,7 +155,9 @@ export default function FriendsScreen() {
             setShareError(false);
             try {
               await Share.share({
-                message: t('friends.share_app_message', { url: APP_INSTALL_URL }),
+                message: t('friends.share_app_message', {
+                  url: appInstallUrl(Constants.expoConfig?.extra?.variant),
+                }),
               });
             } catch {
               setShareError(true);
@@ -180,7 +183,10 @@ export default function FriendsScreen() {
           onPress: async () => {
             setLinkShareError(false);
             try {
-              await Share.share({ message: friendLinkMessage(user?.share_slug).message });
+              await Share.share({
+                message: friendLinkMessage(user?.share_slug, Constants.expoConfig?.extra?.variant)
+                  .message,
+              });
             } catch {
               setLinkShareError(true);
             }

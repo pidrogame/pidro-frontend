@@ -2,7 +2,7 @@ import type { FeedbackAnswer, FeedbackAsk, FeedbackAskKind, FeedbackRequest } fr
 import { apiErrorInfo } from '@/utils/apiErrors';
 
 /**
- * Beta feedback goes straight to Marcel: a note posted from the Tell us sheet,
+ * Feedback goes straight to Marcel: a note posted from the Tell us sheet,
  * or, when that fails, a mail. The details stay in English: they are read by
  * the team, not the player.
  */
@@ -22,8 +22,11 @@ export interface FeedbackDetails {
 /** The words survive closing the sheet, until they are sent. */
 export const draft = { body: '', email: '' };
 
-/** The mail starts with the player's words, or room to write, then the details. */
-export function feedbackMailto(details: FeedbackDetails, body = ''): string {
+/**
+ * The mail starts with the player's words, or room to write, then the details.
+ * Only the production app drops "beta" from the subject.
+ */
+export function feedbackMailto(details: FeedbackDetails, body = '', variant?: string): string {
   const known = (value: string | null) => value || 'unknown';
   const lines = [
     `App version: ${known(details.appVersion)}`,
@@ -35,7 +38,8 @@ export function feedbackMailto(details: FeedbackDetails, body = ''): string {
   ];
   // RFC 6068: line breaks in a mailto body are CRLF.
   const mail = [...(body.trim() ? body.trim().split(/\r?\n/) : ['']), '', ...lines].join('\r\n');
-  return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent('Pidro beta feedback')}&body=${encodeURIComponent(mail)}`;
+  const subject = variant === 'production' ? 'Pidro feedback' : 'Pidro beta feedback';
+  return `mailto:${FEEDBACK_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(mail)}`;
 }
 
 /**

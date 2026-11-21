@@ -167,6 +167,7 @@ export const en = {
   "news.welcomeTitle": "Welcome to the new Pidro",
   "news.welcomeBody":
     "This is a test version. You're one of the first to play it, and it's still being built.",
+  "news.welcomeBodyLaunch": "The game you know, built new from the ground up. I'm glad you're here.",
   "news.today": "Here today",
   "news.todayBody":
     "Finnish and Louisiana rules, tables with friends, table talk, weekly leagues, and bots that fill an empty chair.",
@@ -387,6 +388,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "news.welcomeTitle": "Välkommen till nya Pidro",
   "news.welcomeBody":
     "Det här är en testversion. Du är en av de första som spelar den, och den är inte färdig än.",
+  "news.welcomeBodyLaunch": "Spelet du känner, byggt nytt från grunden. Kul att du är här.",
   "news.today": "Redan nu",
   "news.todayBody":
     "Finländska regler och Louisiana-regler, bord med vänner, bordsprat, veckoligor och bottar som fyller en tom plats.",

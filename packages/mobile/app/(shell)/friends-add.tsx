@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Share, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Constants from 'expo-constants';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { FriendDiscovery } from '@/components/friends/FriendDiscovery';
 import { InfoCard } from '@/components/friends/InfoCard';
@@ -95,7 +96,10 @@ export default function AddFriendScreen() {
             onPress: async () => {
               setShareError(false);
               try {
-                await Share.share({ message: friendLinkMessage(user?.share_slug).message });
+                await Share.share({
+                  message: friendLinkMessage(user?.share_slug, Constants.expoConfig?.extra?.variant)
+                    .message,
+                });
               } catch {
                 setShareError(true);
               }

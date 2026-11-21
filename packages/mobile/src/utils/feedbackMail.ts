@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
 import * as Application from 'expo-application';
+import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Updates from 'expo-updates';
 import { publicPlayerName } from '@pidro/shared';
@@ -26,7 +27,9 @@ export function feedbackDetails(): FeedbackDetails {
 /** Opens a new mail to Marcel. False when no mail app took it, so the caller shows the address. */
 export async function openFeedbackMail(body?: string): Promise<boolean> {
   try {
-    await Linking.openURL(feedbackMailto(feedbackDetails(), body));
+    await Linking.openURL(
+      feedbackMailto(feedbackDetails(), body, Constants.expoConfig?.extra?.variant)
+    );
     return true;
   } catch {
     return false;

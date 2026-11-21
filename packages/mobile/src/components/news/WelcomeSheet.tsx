@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { usePathname } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { BevelButton } from '@/components/ui/BevelButton';
@@ -83,6 +84,8 @@ const LINES: { icon: IconName; color: string; title: TranslationKey; body: Trans
 
 export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
   const { t, locale } = useTranslation();
+  // The store app is the finished game and takes Classic's place; the beta stays a test version.
+  const production = Constants.expoConfig?.extra?.variant === 'production';
   // A guest has no Tell us (PID-348): the mail is the way to write.
   const guest = useAuthStore((state) => Boolean(state.user?.guest));
   const [photoFailed, setPhotoFailed] = useState(false);
@@ -150,7 +153,7 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
         </PidroText>
       </View>
       <PidroText role="body" tone="soft">
-        {t('news.welcomeBody')}
+        {t(production ? 'news.welcomeBodyLaunch' : 'news.welcomeBody')}
       </PidroText>
     </View>
   );
@@ -217,7 +220,7 @@ export function WelcomeSheetView({ onPlay }: { onPlay: () => void }) {
     />
   );
 
-  const classic = (
+  const classic = production ? null : (
     <PidroText role="metadata" tone="muted" style={styles.classic}>
       {t('news.classic')}
     </PidroText>

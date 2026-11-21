@@ -34,6 +34,14 @@ describe('feedback mail', () => {
     const mail = parse(feedbackMailto(details));
     expect(mail.address).toBe('mailto:marcel@pidro.online');
     expect(mail.subject).toBe('Pidro beta feedback');
+    expect(parse(feedbackMailto(details, '', 'beta')).subject).toBe('Pidro beta feedback');
+    expect(parse(feedbackMailto(details, '', 'development')).subject).toBe('Pidro beta feedback');
+  });
+
+  it('drops "beta" from the subject only in the production app', () => {
+    const mail = parse(feedbackMailto(details, 'Lovely', 'production'));
+    expect(mail.subject).toBe('Pidro feedback');
+    expect(mail.body).toStartWith('Lovely\r\n\r\nApp version: 1.0.0');
   });
 
   it('leaves two empty lines to write in, then every detail', () => {
