@@ -74,4 +74,8 @@ jobs:
         working-directory: packages/mobile
         env:
           NODE_OPTIONS: --max-old-space-size=8192 --require ./scripts/tailwind-v3-resolve.cjs
+          # Source maps for the update (scripts/sentry-sourcemaps.mjs); missing, it skips.
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: bold-video-2f64371a6
+          SENTRY_PROJECT: pidro-mobile
         run: node scripts/publish-beta.mjs "$SHA"

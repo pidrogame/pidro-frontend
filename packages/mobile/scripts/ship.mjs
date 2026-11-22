@@ -14,6 +14,8 @@
  * only). Requires an authenticated `gh` and `eas` CLI.
  */
 import { execSync, spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { uploadSourceMaps } from './sentry-sourcemaps.mjs';
 
 const mode = process.argv[2];
 const wait = process.argv.includes('--wait');
@@ -94,7 +96,16 @@ const command =
   mode === 'ota'
     ? [
         'eas',
-        ['update', '--channel', 'production', '--message', subject, '--environment', 'production'],
+        [
+          'update',
+          '--channel',
+          'production',
+          '--message',
+          subject,
+          '--environment',
+          'production',
+          '--emit-metadata',
+        ],
       ]
     : ['eas', ['build', '--platform', 'ios', '--profile', 'production']];
 
@@ -109,4 +120,11 @@ const result = spawnSync(command[0], command[1], {
   stdio: 'inherit',
   env: { ...process.env, APP_VARIANT: 'production' },
 });
+// Needs SENTRY_AUTH_TOKEN, SENTRY_ORG and SENTRY_PROJECT in the shell; without them it says so.
+if (mode === 'ota' && result.status === 0) {
+  const { expo } = JSON.parse(readFileSync('app.json', 'utf8'));
+  uploadSourceMaps({ variant: 'production', version: expo.version }).forEach((line) =>
+    console.log(line)
+  );
+}
 process.exit(result.status ?? 1);

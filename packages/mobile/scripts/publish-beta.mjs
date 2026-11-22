@@ -14,6 +14,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { checkCommits } from './ota-check.mjs';
+import { uploadSourceMaps } from './sentry-sourcemaps.mjs';
 import { updateName } from '../src/features/updateName.mjs';
 
 const API = 'app.pidro.online';
@@ -235,12 +236,18 @@ function main(sha) {
     const id = updates[platform]?.group;
     return `group [\`${id}\`](https://expo.dev/accounts/${expo.owner}/projects/${expo.slug}/updates/${id})`;
   };
-  const pointsAtProduction = publishing.every(({ platform }) => {
-    const dir = `dist/_expo/static/js/${platform}`;
-    return readdirSync(dir).some(
-      (file) => file.endsWith('.hbc') && readFileSync(`${dir}/${file}`).includes(API)
-    );
-  });
+  const bundlesInclude = (pattern) =>
+    publishing.every(({ platform }) => {
+      const dir = `dist/_expo/static/js/${platform}`;
+      return readdirSync(dir).some(
+        (file) => file.endsWith('.hbc') && pattern.test(readFileSync(`${dir}/${file}`, 'latin1'))
+      );
+    });
+  const pointsAtProduction = bundlesInclude(new RegExp(API.replaceAll('.', '\\.')));
+  // The DSN comes from EAS's production environment; without it the update reports nothing.
+  const crashReports = bundlesInclude(/@o\d+\.ingest(\.\w+)?\.sentry\.io\//)
+    ? 'Crash reports: the Sentry DSN is in the bundle.'
+    : 'Crash reports: **off**, no Sentry DSN in the bundle (`EXPO_PUBLIC_SENTRY_DSN` in EAS `production`).';
 
   if (!pointsAtProduction) {
     summary(
@@ -252,6 +259,7 @@ function main(sha) {
     process.exit(1);
   }
 
+  const sourceMaps = uploadSourceMaps({ variant: 'beta', version: expo.version });
   summary(
     `### Beta update published: ${name}`,
     '',
@@ -260,6 +268,8 @@ function main(sha) {
       `- ${NAMES[platform]}: runtime \`${updates[platform]?.runtimeVersion}\`, rides on build ${buildName(build)}, on top of \`${short(base)}\`, ${group(platform)}`,
       ...flagged.map((reason) => `  - looked native, but the fingerprint matches: \`${reason}\``),
     ]),
+    `- ${crashReports}`,
+    ...sourceMaps.map((line) => `- ${line}`),
     ...(publishing.length < PLATFORMS.length ? ['', ...notPublishedLines(plans)] : [])
   );
   // EAS works out the runtime again when it publishes; it must be the one checked above.

@@ -1,6 +1,7 @@
 const path = require('path');
 const Module = require('module');
-const { getDefaultConfig } = require('expo/metro-config');
+// Expo's defaults, plus a debug ID in every bundle so Sentry matches its source map.
+const { getSentryExpoConfig } = require('@sentry/react-native/metro');
 
 const projectRoot = __dirname;
 const workspaceRoot = path.resolve(projectRoot, '../..');
@@ -34,7 +35,7 @@ if (!process.env.NODE_OPTIONS?.includes('tailwind-v3-resolve.cjs')) {
 
 const { withNativeWind } = require('nativewind/metro');
 
-const config = getDefaultConfig(projectRoot);
+const config = getSentryExpoConfig(projectRoot);
 
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
