@@ -56,7 +56,7 @@ Trunk-based: no pull requests.
 ## Load-bearing paths
 
 A diff touching any of these gets one independent review before the push
-(`coderabbit review --plain`, `codex review`, or a separate skeptical pass):
+(`codex review`, or a separate skeptical pass):
 
 - Design tokens and UI primitives: `packages/mobile/src/design/`,
   `packages/mobile/src/components/ui/`
