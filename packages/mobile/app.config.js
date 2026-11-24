@@ -95,6 +95,18 @@ module.exports = ({ config }) => {
         mode: isStoreBuild ? 'production' : 'development',
       },
     ],
+    // Uploads dSYMs, the Android mapping and the embedded bundle's source maps
+    // to Sentry with the store build (SENTRY_AUTH_TOKEN from EAS). Production
+    // only: adding it to the beta would change the beta's fingerprint, and beta
+    // updates would stop reaching the beta builds already on phones.
+    ...(isProduction
+      ? [
+          [
+            '@sentry/react-native/expo',
+            { organization: 'bold-video-2f64371a6', project: 'pidro-mobile' },
+          ],
+        ]
+      : []),
   ];
 
   return {
