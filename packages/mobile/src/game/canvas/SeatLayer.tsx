@@ -347,6 +347,12 @@ export function SeatLayer({
     : tableTop + 8;
   const stacks = sideStacks(L);
   const sideBackW = stacks.backW;
+  // A side hand folds where it was held; under 375pt that is up against the
+  // edge, so there it stays whole on screen, PidroSpacing.xs in from it (PID-506).
+  const sideFold =
+    width < 375
+      ? Math.max(sideBackW * 0.7, (sideBackW * 0.82 * (110 / 78)) / 2 + PidroSpacing.xs)
+      : sideBackW * 0.7;
   const stackedSeat = tight
     ? size
     : size +
@@ -632,8 +638,8 @@ export function SeatLayer({
                         ? (insets.left + sideStackInner(L.cardW, insets.left)) / 2
                         : width - (insets.right + sideStackInner(L.cardW, insets.right)) / 2
                       : rel === 'west'
-                        ? insets.left + sideBackW * 0.7
-                        : width - insets.right - sideBackW * 0.7,
+                        ? insets.left + sideFold
+                        : width - insets.right - sideFold,
                     y: sideStackCy,
                   };
         // Faces in the canvas's art for them (PID-467): yours by your hand's size.
