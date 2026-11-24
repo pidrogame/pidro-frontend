@@ -37,7 +37,7 @@ const withOptionalWifi = (config) =>
     const manifest = mod.modResults.manifest;
     manifest['uses-feature'] = [
       ...(manifest['uses-feature'] ?? []).filter(
-        (feature) => feature.$['android:name'] !== 'android.hardware.wifi',
+        (feature) => feature.$['android:name'] !== 'android.hardware.wifi'
       ),
       { $: { 'android:name': 'android.hardware.wifi', 'android:required': 'false' } },
     ];
