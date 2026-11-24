@@ -64,7 +64,7 @@ import { blockedTapAnswer } from '@/features/game/playPresentation';
 import { T } from './tokens';
 import GameCanvas from './GameCanvas';
 import { useSeatBacks, type Arriving } from './useCardSprites';
-import { SeatLayer, type SeatTurn } from './SeatLayer';
+import { CENTER_COLUMN, SeatLayer, type SeatTurn } from './SeatLayer';
 import {
   choosingTrumpLine,
   cutLine,
@@ -928,13 +928,20 @@ export function GameCanvasTable({
   );
   // A sheet left open when talk stops (game over, a seat to a bot) must not reopen later.
   if (!talking && talk.sheet) talk.open(null);
-  const talkPlace: TalkPlace = layout.profile.startsWith('tablet') ? 'column' : 'corner';
+  // An upright iPad's band stands inside East's backs, right of your seat's
+  // column; a tablet too narrow for it there takes the phones' bubble (PID-506).
+  const columnRight = sideStackInner(layout.cardW, insets.right) + TRICK_GAP;
+  const column =
+    layout.profile === 'tablet-landscape' ||
+    (layout.profile === 'tablet-portrait' &&
+      width - columnRight - TALK_COLUMN >= (width + CENTER_COLUMN.tablet) / 2 + TRICK_GAP);
+  const talkPlace: TalkPlace = column ? 'column' : 'corner';
   // Upright phones (PID-393): the bubble's centre level with your avatar's,
   // at the right end of your seat row over your hand (PID-464), the avatar
   // alone on a tight phone, above its name and line otherwise. What it
   // offers grows out of it as a tail (PID-396), into the room left of it,
   // short of your avatar and its turn light by a small step.
-  const upright = layout.profile === 'phone-portrait';
+  const upright = layout.profile.endsWith('portrait') && !column;
   const yourSize = layout.tight ? TIGHT_AVATAR : AVATAR_SIZE[layout.profile];
   const yours = avatarParts(yourSize, { seat: true });
   const row = southRow(layout);
@@ -1145,7 +1152,7 @@ export function GameCanvasTable({
                     ? {
                         // An upright iPad's band stands on your seat row (PID-464),
                         // inside East's backs: a greeting's two words rise above it.
-                        right: sideStackInner(layout.cardW, insets.right) + TRICK_GAP,
+                        right: columnRight,
                         bottom: height - row.bottom,
                         width: TALK_COLUMN,
                       }

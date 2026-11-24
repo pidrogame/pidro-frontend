@@ -284,7 +284,7 @@ export function SeatLayer({
   // names kept a step off the screen edge. Landscape caps the label's reach
   // and leaves the turn light room, as the boards do.
   const gap = seatNameGap(L.profile);
-  const centerColumn = tablet ? 200 : 156;
+  const centerColumn = CENTER_COLUMN[tablet ? 'tablet' : 'phone'];
   const sideColumn = Math.min(
     tablet ? 150 : 112,
     (width - insets.left - insets.right - centerColumn) / 2 - PidroSpacing.xs
@@ -1506,3 +1506,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
 });
+
+/** North's and your name and plate stay in this column, centred on the seat. */
+export const CENTER_COLUMN = { tablet: 200, phone: 156 };
