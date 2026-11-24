@@ -381,6 +381,30 @@ function ProfileContent() {
                     </View>
                   </PressableFX>
                 </Surface>
+                {classic ? (
+                  <PressableFX
+                    testID="profile-classic-row"
+                    accessibilityRole="button"
+                    onPress={() => setBadgesOpen(true)}
+                    style={[styles.accountRow, styles.classicRow]}>
+                    <Coin material="wood" size={48} rim={3} style={styles.inlineCoin}>
+                      <Icon name="spade" size={20} color={PidroBevel.textGold} />
+                    </Coin>
+                    <View style={styles.accountCopy}>
+                      <PidroText role="label">
+                        {classicSince
+                          ? t('profile.classic_years', {
+                              from: String(classicSince),
+                              to: String(new Date().getFullYear()),
+                            })
+                          : t('profile.classic_app')}
+                      </PidroText>
+                      <PidroText role="metadata" tone="soft">
+                        {classicRecordLine(classic)}
+                      </PidroText>
+                    </View>
+                  </PressableFX>
+                ) : null}
                 {veteran?.xp != null ? (
                   <Surface variant="window" padded style={styles.xp} testID="profile-xp">
                     <View style={styles.xpTop}>
@@ -501,30 +525,7 @@ function ProfileContent() {
                     </View>
                   </Surface>
                 ) : null}
-                {classic ? (
-                  <PressableFX
-                    testID="profile-classic-row"
-                    accessibilityRole="button"
-                    onPress={() => setBadgesOpen(true)}
-                    style={[styles.accountRow, styles.classicRow]}>
-                    <Coin material="wood" size={48} rim={3} style={styles.inlineCoin}>
-                      <Icon name="spade" size={20} color={PidroBevel.textGold} />
-                    </Coin>
-                    <View style={styles.accountCopy}>
-                      <PidroText role="label">
-                        {classicSince
-                          ? t('profile.classic_years', {
-                              from: String(classicSince),
-                              to: String(new Date().getFullYear()),
-                            })
-                          : t('profile.classic_app')}
-                      </PidroText>
-                      <PidroText role="metadata" tone="soft">
-                        {classicRecordLine(classic)}
-                      </PidroText>
-                    </View>
-                  </PressableFX>
-                ) : identity ? (
+                {!classic && identity ? (
                   <Surface variant="panel" padded style={styles.claim}>
                     <View style={styles.claimHeading}>
                       <PidroText role="label">{t('profile.classic_app')}</PidroText>

@@ -743,7 +743,8 @@ browser Back can still leave, but its server result updates the matching session
 Bengt from `Status-Profile`, with no server: Legend ★4 (prestige 4, 366,127 of 500,000
 XP to the fifth star), Old Pidro since 2011 with 38,536 games, 40,612 games and 55% in
 all, 18 friends with 2 on, and four of fourteen medals earned. Grammar case
-`profile-legend` checks the board's copy, the shelf order (earned first, then locked),
+`profile-legend` checks the board's copy, the Old Pidro row right under the record
+(PID-509), the shelf order (earned first, then locked),
 **All 14 ›**, touch targets, and that **Blocked players** in the Account row opens
 Blocked players, at 390×844, 375×667, 844×390 and 768×1024.
 

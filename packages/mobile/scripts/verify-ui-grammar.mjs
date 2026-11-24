@@ -5375,6 +5375,14 @@ async function assertLegendProfile(page, viewport) {
       exact: true,
     })
     .waitFor();
+  // A veteran's Old Pidro years sit right under the record, as on the store page (PID-509).
+  const [recordBox, classicBox, xpBox] = await Promise.all(
+    [record, classic, xp].map((node) => node.boundingBox())
+  );
+  assert.ok(
+    recordBox.y + recordBox.height <= classicBox.y && classicBox.y + classicBox.height <= xpBox.y,
+    'Old Pidro sits between the record and the XP'
+  );
   for (const id of ['profile-avatar-button', 'profile-classic-chip', 'profile-friends-cell'])
     assertInsideViewport(id, await page.getByTestId(id).boundingBox(), viewport);
   await assertMinimumTouchTargets(page, 'profile-legend', viewport);
