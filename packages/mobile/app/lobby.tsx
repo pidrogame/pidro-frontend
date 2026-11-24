@@ -90,16 +90,19 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   const { width, height } = useWindowDimensions();
   const profile = pickProfile(width, height);
   const portraitPhone = profile === 'phone-portrait';
-  const columns = portraitPhone ? 1 : profile === 'tablet-landscape' ? 3 : 2;
   const tablet = profile.startsWith('tablet');
-  // A 7" tablet upright leaves the header's search too short for its placeholder,
-  // and a card too narrow for its status beside its button (PID-506).
-  const searchBelow = portraitPhone || (profile === 'tablet-portrait' && width < 700);
-  // A card's width: the shell's inside its safe area and padding, shared by the
-  // columns of the grid (which reaches 5 past each side), less the cell's padding.
+  // The width the cards share: the shell's inside its safe area and padding. The
+  // grid reaches 5 past each side and each cell pads its card by 5 (PID-506).
   const insets = useSafeAreaInsets();
   const shell = Math.min(width - insets.left - insets.right, 1194) - (tablet ? 96 : 40);
-  const narrowCards = (shell + 10) / columns - 10 < 340;
+  // As many columns as leave each card a 360pt phone's card or wider, up to three;
+  // a narrower card has no room for its four seats. One column stacks like a phone,
+  // the search under the header.
+  const columns = Math.max(1, Math.min(3, Math.floor((shell + 10) / (PHONE_CARD + 10))));
+  const searchBelow = columns === 1;
+  // Your own table spans the row; under 340 a card's status goes under its button.
+  const narrow = (category: LobbyCategoryKey) =>
+    (category === 'my_rejoinable' ? shell : (shell + 10) / columns - 10) < 340;
   const user = useAuthStore((state) => state.user);
   const {
     rooms: storedRooms,
@@ -559,7 +562,12 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
                   </View>
                   <View style={styles.roomGrid}>
                     {tables.map((room) => (
-                      <View key={room.code} style={{ width: `${100 / columns}%`, padding: 5 }}>
+                      <View
+                        key={room.code}
+                        style={{
+                          width: category === 'my_rejoinable' ? '100%' : `${100 / columns}%`,
+                          padding: 5,
+                        }}>
                         <RoomCard
                           room={room}
                           category={category}
@@ -572,7 +580,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
                           onAction={handleRowAction}
                           onPlayer={setSheetPlayer}
                           onRules={setRulesRoom}
-                          narrow={narrowCards}
+                          narrow={narrow(category)}
                         />
                       </View>
                     ))}
@@ -765,6 +773,9 @@ function EmptyLobby({
     </ScrollView>
   );
 }
+
+/** A card on a 360pt phone: the narrowest that seats four (PID-506). */
+const PHONE_CARD = 320;
 
 const styles = StyleSheet.create({
   alertActions: { gap: PidroSpacing.xs },

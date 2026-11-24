@@ -78,7 +78,9 @@ async function equalRows(page, selector, checkGrid = false) {
   );
   if (checkGrid) {
     const { width, height } = page.viewportSize();
-    const columns = width < height && width < 600 ? 1 : width > height && height >= 600 ? 3 : 2;
+    // As many columns as leave each card a 360pt phone's 320 or more (PID-506).
+    const shell = Math.min(width, 1194) - (Math.min(width, height) >= 600 ? 96 : 40);
+    const columns = Math.max(1, Math.min(3, Math.floor((shell + 10) / 330)));
     assert.equal(new Set(boxes.map((box) => Math.round(box.x))).size, columns, 'grid column count');
   }
   assert.ok(
