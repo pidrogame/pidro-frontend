@@ -26,6 +26,7 @@ export const RoomCard = memo(function RoomCard({
   onPassword,
   onPlayer,
   onRules,
+  narrow = false,
 }: {
   room: Room;
   category?: LobbyCategoryKey;
@@ -40,11 +41,28 @@ export const RoomCard = memo(function RoomCard({
   onPlayer?: (playerId: string) => void;
   /** The flag opens the table's rules and never joins it (PID-479). */
   onRules?: (room: Room) => void;
+  /** Too narrow for the status line between the flag and a button: it goes under them (PID-506). */
+  narrow?: boolean;
 }) {
   const { t } = useTranslation();
   useBotCatalogueStore((state) => state.profiles);
   const row = tableRow(room, category, gamesPlayed);
   const mine = category === 'my_rejoinable';
+  const below = narrow && !!row.button;
+  const status = (
+    <PidroText
+      role="label"
+      style={[
+        styles.status,
+        category === 'spectatable'
+          ? styles.playing
+          : category === 'substitute_needed'
+            ? styles.amber
+            : styles.gold,
+      ]}>
+      {row.status}
+    </PidroText>
+  );
   return (
     <Surface
       testID={`lobby-table-${room.code}`}
@@ -59,18 +77,7 @@ export const RoomCard = memo(function RoomCard({
             onPress={onRules && (() => onRules(room))}
           />
         </View>
-        <PidroText
-          role="label"
-          style={[
-            styles.status,
-            category === 'spectatable'
-              ? styles.playing
-              : category === 'substitute_needed'
-                ? styles.amber
-                : styles.gold,
-          ]}>
-          {row.status}
-        </PidroText>
+        {below ? null : status}
         <View style={[styles.side, styles.action]}>
           {row.button ? (
             <BevelPressable
@@ -87,6 +94,7 @@ export const RoomCard = memo(function RoomCard({
           ) : null}
         </View>
       </View>
+      {below ? status : null}
       <View style={styles.seats}>
         {row.seats.map((seat, index) => {
           const content = (

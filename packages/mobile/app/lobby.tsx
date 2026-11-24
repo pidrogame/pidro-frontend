@@ -47,6 +47,7 @@ import { PidroBevel, PidroColors, PidroLayout, PidroSpacing } from '@/design/tok
 import { useQuickGame } from '@/hooks/useQuickGame';
 import { useProfileIdentity } from '@/hooks/useProfileIdentity';
 import { useAuthStore } from '@/stores/auth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLobbyStore } from '@/stores/lobby';
 import { useSettingsStore } from '@/stores/settings';
 import type { Position, Room } from '@/types/lobby';
@@ -91,6 +92,14 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   const portraitPhone = profile === 'phone-portrait';
   const columns = portraitPhone ? 1 : profile === 'tablet-landscape' ? 3 : 2;
   const tablet = profile.startsWith('tablet');
+  // A 7" tablet upright leaves the header's search too short for its placeholder,
+  // and a card too narrow for its status beside its button (PID-506).
+  const searchBelow = portraitPhone || (profile === 'tablet-portrait' && width < 700);
+  // A card's width: the shell's inside its safe area and padding, shared by the
+  // columns of the grid (which reaches 5 past each side), less the cell's padding.
+  const insets = useSafeAreaInsets();
+  const shell = Math.min(width - insets.left - insets.right, 1194) - (tablet ? 96 : 40);
+  const narrowCards = (shell + 10) / columns - 10 < 340;
   const user = useAuthStore((state) => state.user);
   const {
     rooms: storedRooms,
@@ -397,7 +406,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
   };
 
   const search = (
-    <View style={!portraitPhone && styles.search}>
+    <View style={!searchBelow && styles.search}>
       <Input
         compact
         value={query}
@@ -427,7 +436,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
           }}>
           <Icon name="arrow-left" size={22} />
         </BevelButton>
-        <View style={portraitPhone ? styles.headerTitle : styles.headerCounts}>
+        <View style={searchBelow ? styles.headerTitle : styles.headerCounts}>
           <PidroText role="label" numberOfLines={1}>
             {t('social.playing_now', {
               number: formatNumber(fixture ? 104 : stats.online_players),
@@ -437,8 +446,8 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
             {lobbyCounts(shown)}
           </PidroText>
         </View>
-        {!portraitPhone && !isEmptyLobby ? search : null}
-        {!portraitPhone && isEmptyLobby ? <View style={styles.headerTitle} /> : null}
+        {!searchBelow && !isEmptyLobby ? search : null}
+        {!searchBelow && isEmptyLobby ? <View style={styles.headerTitle} /> : null}
         <BevelButton
           material={portraitPhone ? 'glass' : 'wood'}
           size={portraitPhone ? 'icon' : 'sm'}
@@ -448,7 +457,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
           <Icon name="plus" size={22} />
         </BevelButton>
       </View>
-      {portraitPhone && !isEmptyLobby ? search : null}
+      {searchBelow && !isEmptyLobby ? search : null}
       {lobbyHasBothRuleSets(lobby, user?.id) ? (
         // One row that may run into the side margin (Swedish needs it), never a second row.
         <ScrollView
@@ -563,6 +572,7 @@ function LobbyContent({ fixture }: { fixture: ReturnType<typeof lobbyFixture> })
                           onAction={handleRowAction}
                           onPlayer={setSheetPlayer}
                           onRules={setRulesRoom}
+                          narrow={narrowCards}
                         />
                       </View>
                     ))}
