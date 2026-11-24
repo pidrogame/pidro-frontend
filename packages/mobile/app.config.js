@@ -1,3 +1,5 @@
+const { withAndroidManifest } = require('expo/config-plugins');
+
 const variants = {
   production: {
     name: 'Pidro',
@@ -27,6 +29,20 @@ const GOOGLE_SAMPLE_ADS = {
   EXPO_PUBLIC_ADMOB_REWARDED_IOS: 'ca-app-pub-3940256099942544/1712485313',
   EXPO_PUBLIC_ADMOB_REWARDED_ANDROID: 'ca-app-pub-3940256099942544/5224354917',
 };
+
+// expo-network asks for ACCESS_WIFI_STATE, and Google Play reads that as "wifi required",
+// which hides the app from devices without wifi. Wifi is optional: say so in the manifest.
+const withOptionalWifi = (config) =>
+  withAndroidManifest(config, (mod) => {
+    const manifest = mod.modResults.manifest;
+    manifest['uses-feature'] = [
+      ...(manifest['uses-feature'] ?? []).filter(
+        (feature) => feature.$['android:name'] !== 'android.hardware.wifi',
+      ),
+      { $: { 'android:name': 'android.hardware.wifi', 'android:required': 'false' } },
+    ];
+    return mod;
+  });
 
 module.exports = ({ config }) => {
   // Default variant. Until the public launch every build that does not say
@@ -105,6 +121,7 @@ module.exports = ({ config }) => {
             '@sentry/react-native/expo',
             { organization: 'bold-video-2f64371a6', project: 'pidro-mobile' },
           ],
+          withOptionalWifi,
         ]
       : []),
   ];
