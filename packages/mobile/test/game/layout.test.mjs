@@ -649,10 +649,14 @@ describe('killed trumps lie on their seat’s pack spot all hand (PID-481)', () 
           // Each card shows a third of itself past the next, which lies over it:
           // rightward in a row, up East's column toward its foot's index, down West's.
           // Within half a point; more than three may close up to rank corners (Marcel, 2026-11-19).
+          // PID-507: on 1024×768 and 1180×820 iPads on their side, North's pile of six now
+          // runs right into their room: they close up to rank corners, and on 1024×768 draw
+          // as small as 18pt (a ticket of its own).
+          const squeezed = rel === 'north' && ipad && width < 1280;
           const along = (s) => (rel === 'east' ? -s.y : rel === 'west' ? s.y : s.x);
           for (let i = 1; i < n; i++)
             expect(along(spots[i]) - along(spots[i - 1]), `${rel} ${n}`).toBeGreaterThanOrEqual(
-              spots[i].w * (n <= 3 ? 1 / 3 : RANK_SHOWN) - 0.5
+              spots[i].w * (n <= 3 && !squeezed ? 1 / 3 : RANK_SHOWN) - 0.5
             );
         }
       }
@@ -945,6 +949,74 @@ describe('on tablets the cards use the room (PID-453)', () => {
         lifted - held - TRICK_GAP + 0.01
       );
       expect(stacks.top).toBeLessThanOrEqual(stacks.lowestTop);
+      // PID-507: a seat's earlier cards each show their whole rank and suit,
+      // where the art draws them (0.36 of a card across, 0.58 down from its
+      // top-left corner), past every newer card of its pile; seven cards (a
+      // seat that kept seven trumps) beside six, each pile still clear of the
+      // others, of the trump mark, of East's and West's backs and of a lifted
+      // card of yours, on screen.
+      const sideBacks = [L.insets.left, L.width - L.insets.right].map((edge, i) => {
+        const inner = sideStackInner(L.cardW, i ? L.insets.right : L.insets.left);
+        return { x: i ? L.width - inner : 0, y: stacks.top, w: inner, h: stacks.maxHeight };
+      });
+      const seats = ['north', 'east', 'south', 'west'];
+      const cardBox = (t, [x0, y0, x1, y1] = [0, 0, 1, 1]) => {
+        const [w, h] = [L.cardW * t.scale, L.cardH * t.scale];
+        const corners = [
+          [x0, y0],
+          [x1, y1],
+        ].map(([u, v]) => {
+          const [lx, ly] = [(u - 0.5) * w, (v - 0.5) * h];
+          return [
+            t.x + lx * Math.cos(t.rot) - ly * Math.sin(t.rot),
+            t.y + lx * Math.sin(t.rot) + ly * Math.cos(t.rot),
+          ];
+        });
+        const xs = corners.map((c) => c[0]);
+        const ys = corners.map((c) => c[1]);
+        const [x, y] = [Math.min(...xs), Math.min(...ys)];
+        return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+      };
+      for (const long of [null, ...seats])
+        for (const n of [2, 4, 6]) {
+          const piles = seats.map((rel) => {
+            const count = rel === long ? n + 1 : n;
+            const cards = Array.from({ length: count }, (_, i) =>
+              playedCardTarget(L, rel, i, count, 1)
+            );
+            const said = `${rel}, ${count} cards`;
+            for (const [i, card] of cards.entries())
+              for (const newer of cards.slice(i + 1))
+                expect(
+                  apart(cardBox(card, [0, 0, 0.36, 0.58]), cardBox(newer)),
+                  `${said}: card ${i}'s index`
+                ).toBeGreaterThanOrEqual(0);
+            const boxes = cards.map((card) => cardBox(card));
+            const x = Math.min(...boxes.map((b) => b.x));
+            const y = Math.min(...boxes.map((b) => b.y));
+            const pile = {
+              x,
+              y,
+              w: Math.max(...boxes.map((b) => b.x + b.w)) - x,
+              h: Math.max(...boxes.map((b) => b.y + b.h)) - y,
+            };
+            // Clear of a lifted card of yours, though nearer than a single card's 8pt. A
+            // seventh card at East on a tablet on its side may reach it, your hand all but
+            // played (a ticket of its own).
+            if (count < 7 || rel !== 'east' || L.profile === 'tablet-portrait')
+              expect(pile.y + pile.h, `${said} and your hand`).toBeLessThanOrEqual(lifted + 0.01);
+            expect(apart(pile, mark), `${said} and the trump mark`).toBeGreaterThanOrEqual(
+              TRICK_GAP - 0.01
+            );
+            for (const back of sideBacks)
+              expect(apart(pile, back), `${said} and the side backs`).toBeGreaterThan(0);
+            expect(x >= 0 && y >= tableTop && x + pile.w <= width, `${said} on screen`).toBe(true);
+            return [said, pile];
+          });
+          for (const [i, [said, pile]] of piles.entries())
+            for (const [other, otherPile] of piles.slice(i + 1))
+              expect(apart(pile, otherPile), `${said} and ${other}`).toBeGreaterThan(0);
+        }
       // Landscape North shows as much of its backs as before.
       if (L.profile === 'tablet-landscape') {
         const old = before(width, height);
@@ -984,10 +1056,6 @@ describe('on tablets the cards use the room (PID-453)', () => {
             w: backW + lean * 0.55,
             h: backW * R + lean,
           };
-      const sideBacks = [L.insets.left, L.width - L.insets.right].map((edge, i) => {
-        const inner = sideStackInner(L.cardW, i ? L.insets.right : L.insets.left);
-        return { x: i ? L.width - inner : 0, y: stacks.top, w: inner, h: stacks.maxHeight };
-      });
       for (const [i, pile] of piles.entries()) {
         expect(pile.y + pile.h).toBeLessThanOrEqual(lifted + 0.01);
         for (const other of [...piles.slice(i + 1), packBox, ...sideBacks])

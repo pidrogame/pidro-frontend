@@ -790,10 +790,15 @@ const PHONE_PILE_SCALE = 0.89;
  */
 const PHONE_PILE_STEP = 0.26;
 const PHONE_PILE_LEAST = 0.16;
-/** Upright phones: a seat's earlier cards, behind its newest, as a share of its size. */
+/** Upright phones and tablets: a seat's earlier cards, behind its newest, as a share of its size. */
 export const PILE_TRAIL_SCALE = 0.8;
 /** Upright phones: between a pile and the next pile, or your seat row. */
 const PILE_GAP = 2;
+/**
+ * Tablets (PID-507): how much of each earlier card in a pile shows, as a
+ * share of its width. The card art's rank and suit end 0.36 across it.
+ */
+const INDEX_SHOWN = 0.38;
 /** Played cards shrink a little where the trick circle has to. */
 const COMPACT_PILE_SCALE = 0.72;
 const LANDSCAPE_PILE_SCALE = 0.8;
@@ -825,8 +830,9 @@ const pileHalfSpan = (L: TableLayout) =>
 /**
  * Where card `index` of a seat's `count` played cards this hand lies. On
  * upright phones its newest `live` lie at full size (`trickOnCross`), the
- * earlier ones behind them a little smaller (PID-381); elsewhere `live` is
- * not used.
+ * earlier ones behind them a little smaller (PID-381); on tablets only its
+ * newest (PID-507), so a laid hand keeps the room `pileBox` gives the
+ * killed trumps. Landscape phones do not use `live`.
  */
 export function playedCardTarget(
   L: TableLayout,
@@ -900,21 +906,33 @@ export function playedCardTarget(
       scale: index >= count - live ? pileScale : pileScale * PILE_TRAIL_SCALE,
     };
   }
+  // Tablets (PID-507): as upright phones, a seat's newest card lies at full
+  // size and its earlier ones behind it a little smaller, each showing
+  // INDEX_SHOWN of itself, its rank and suit. The piles turn one way round
+  // the circle, each into its own corner, so none reaches another's index:
+  // North's runs right from its point, East's down, yours left and West's up.
+  // All but North's keep their newest on their point; North's starts where
+  // one card on it would.
+  const big = L.cardW * pileScale;
+  const width = (i: number) => (i === count - 1 ? big : big * PILE_TRAIL_SCALE);
+  // From the newest card's centre back to this one's, and the whole pile's.
+  let back = (big - width(index)) / 2;
+  for (let i = index; i < count - 1; i++) back += width(i) * INDEX_SHOWN;
+  let shown = 0;
+  for (let i = 0; i < count - 1; i++) shown += width(i) * INDEX_SHOWN;
   const x =
     rel === 'west'
       ? L.trick.cx - across
       : rel === 'east'
         ? L.trick.cx + across
-        : L.trick.cx + off * spacing;
-  // East's -90° rotation puts its rank edge at the bottom. Spread upward
-  // so newer cards (drawn on top) leave that edge visible on older cards.
+        : L.trick.cx + (rel === 'north' ? shown : 0) - back;
   const y =
     rel === 'north'
       ? L.trick.cy - L.trick.r
       : rel === 'south'
         ? L.trick.cy + L.trick.r
-        : L.trick.cy + off * spacing * (rel === 'east' ? -1 : 1);
-  return { x, y, rot, scale: pileScale };
+        : L.trick.cy + (rel === 'east' ? back : -back);
+  return { x, y, rot, scale: width(index) / L.cardW };
 }
 
 /**
