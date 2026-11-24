@@ -1,4 +1,4 @@
-import { emptyLobbyCategories, POSITION_TO_INDEX } from '@pidro/shared';
+import { emptyLobbyCategories, POSITION_TO_INDEX, t } from '@pidro/shared';
 import type { BotProfile, LobbyCategories, Position, Room, SeatInvitation } from '@pidro/shared';
 import { friendNoticeFixture } from '../friends/fixtures';
 import { answerEntry, emptyEntry, type PasswordEntry } from './passwordSeat';
@@ -256,7 +256,8 @@ function room(code: string, names: (string | null)[], louisiana = false, playing
             id: `${code}-${positions[index]}`,
             ...(name === 'Bot'
               ? { is_bot: true, ...BOT_CREW[bots++ % 3] }
-              : { username: name, ...fixtureLevel(name) }),
+              : // Your own seat is you, in your language.
+                { username: name === 'You' ? t('game.you') : name, ...fixtureLevel(name) }),
           }
         : null,
     })),

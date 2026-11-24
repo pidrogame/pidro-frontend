@@ -5,6 +5,7 @@ import { InviteLinkModal } from '@/components/invites/InviteLinkModal';
 import type { Said } from '@/features/game/talk';
 import { BOT_CATALOGUE } from '@/features/lobby/fixtures';
 import { defaultSeats, type TableDraft } from '@/features/lobby/newTable';
+import { useTranslation } from '@/i18n';
 
 const friends: FriendPlayer[] = [
   { user_id: 'maija', display_name: 'Maija', avatar_url: null, presence: 'online' },
@@ -74,6 +75,7 @@ const FULL_TALK: Said[] = [
 ];
 
 export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
+  const { t } = useTranslation();
   // `talk*` (PID-418): `talk-opened` before anyone came, `talk-full` all four ready,
   // `talk-typing` the field focused, `talk-guest` / `talk-teen` who cannot type,
   // `talk-filtered` refuses what is typed; `talk-bots` (PID-420) has bots in the other three
@@ -288,10 +290,10 @@ export function NewTableGallery({ fixture = 'setup' }: { fixture?: string }) {
                     ? []
                     : fixture === 'talk-full'
                       ? [
-                          { at: 4, text: 'Maija sat down' },
-                          { at: 5, text: 'Ville sat down' },
+                          { at: 4, text: t('waiting_talk.sat_down', { name: 'Maija' }) },
+                          { at: 5, text: t('waiting_talk.sat_down', { name: 'Ville' }) },
                         ]
-                      : [{ at: 0, text: 'Kalle sat down' }],
+                      : [{ at: 0, text: t('waiting_talk.sat_down', { name: 'Kalle' }) }],
                 draft: fixture === 'talk-typing' ? 'Perfect, I’ll heat it' : undefined,
                 // The fixture's server echoes what it takes, as the channel's `talk` push does.
                 send: async (item) =>
