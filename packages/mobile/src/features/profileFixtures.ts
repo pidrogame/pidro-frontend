@@ -7,25 +7,25 @@ import type {
   ProfileIdentity,
 } from '@pidro/shared';
 
-/** Fourteen medals, the first four earned: the shelf on `Status-Profile`. */
+/** Fourteen medals, the first four earned: the shelf on `Status-Profile`. The last four are the board's, unknown to the server. */
 const MEDALS = [
-  'Homerun',
-  'Win Streak',
-  'Partnership',
-  'Full House',
-  'Unstoppable',
-  'Player',
-  'The Winner',
-  'Ace',
-  'The Loser',
-  'Forcer',
-  'Grand Slam',
-  'Comeback',
-  'Shutout',
-  'Marathon',
+  ['homerun', 'Homerun'],
+  ['winstreak', 'Win Streak'],
+  ['partnership', 'Partnership'],
+  ['full_house', 'Full House'],
+  ['unstoppable', 'Unstoppable'],
+  ['player', 'Player'],
+  ['winner', 'The Winner'],
+  ['ace', 'Ace'],
+  ['the_loser', 'The Loser'],
+  ['forcer', 'Forcer'],
+  ['grand_slam', 'Grand Slam'],
+  ['comeback', 'Comeback'],
+  ['shutout', 'Shutout'],
+  ['marathon', 'Marathon'],
 ];
-const catalog: AchievementCatalogEntry[] = MEDALS.map((name, index) => ({
-  key: name.toLowerCase().replace(/\W+/g, '_'),
+const catalog: AchievementCatalogEntry[] = MEDALS.map(([key, name], index) => ({
+  key,
   name,
   description: name,
   tier: 1,
@@ -85,13 +85,13 @@ export function profileFixture(
 
 /** Kalle's seven medals, oldest first, the newest Homerun (`Tap a seat`, PID-406). */
 const kalleMedals: Achievement[] = [
-  ['ace', 'Ace', 'Took the ace of trumps in a trick.'],
-  ['the_loser', 'The Loser', 'Lost a game. It happens to everyone.'],
-  ['player', 'Player', 'Played a first game.'],
-  ['winstreak', 'Win Streak', 'Won three games in a row.'],
-  ['partnership', 'Partnership', 'Won ten games with the same partner.'],
-  ['full_house', 'Full House', 'Played a game with three friends.'],
-  ['homerun', 'Homerun', 'Bid 14 and made it.'],
+  ['ace', 'Ace', 'Win a game while the opposing team finishes at 0 or below.'],
+  ['the_loser', 'The Loser', 'Finish a game with your team in negative points.'],
+  ['player', 'Player', 'Finish 10 games.'],
+  ['winstreak', 'Win Streak', 'Win 3 games in a row.'],
+  ['partnership', 'Partnership', 'Win 10 games with the same partner.'],
+  ['full_house', 'Full House', 'Take all 14 points in a single hand.'],
+  ['homerun', 'Homerun', 'Bid 14 and make it.'],
 ].map(([key, name, description], index) => ({
   key,
   name,

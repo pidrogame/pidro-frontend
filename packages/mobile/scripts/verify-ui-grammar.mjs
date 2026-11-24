@@ -4496,7 +4496,7 @@ async function assertFriendsPresentation(page, name) {
       '10,420',
       '53%',
       '7 of 10',
-      'Newest: Homerun. Bid 14 and made it.',
+      'Newest: Homerun. Bid 14 and make it.',
       'You two: 23 games together',
       '14 won as partners · 4 of 9 against each other',
       'Add friend',

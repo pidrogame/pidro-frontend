@@ -8,6 +8,7 @@ import {
   MORE,
   medalBox,
   medalShelf,
+  medalWords,
   monthName,
   presenceLine,
   seatTitle,
@@ -237,17 +238,17 @@ describe('the player sheet', () => {
   it('shows the four newest medals first, says the newest, and names the rest', () => {
     // Earned oldest first, as the server sends them.
     const list = [
-      'Ace',
-      'Forcer',
-      'The Loser',
-      'Win Streak',
-      'Partnership',
-      'Full House',
-      'Homerun',
-    ].map((name, index) => ({
-      key: name.toLowerCase().replace(/\W+/g, '_'),
+      ['ace', 'Ace', 'Win a game while the opposing team finishes at 0 or below.'],
+      ['forcer', 'Forcer', 'As dealer, be forced to bid 6 and still make it.'],
+      ['the_loser', 'The Loser', 'Finish a game with your team in negative points.'],
+      ['winstreak', 'Win Streak', 'Win 3 games in a row.'],
+      ['partnership', 'Partnership', 'Win 10 games with the same partner.'],
+      ['full_house', 'Full House', 'Take all 14 points in a single hand.'],
+      ['homerun', 'Homerun', 'Bid 14 and make it.'],
+    ].map(([key, name, description], index) => ({
+      key,
       name,
-      description: `${name} done.`,
+      description,
       tier: 1,
       awarded_at: `2026-10-0${index + 1}T12:00:00Z`,
     }));
@@ -259,19 +260,23 @@ describe('the player sheet', () => {
       'Win Streak',
     ]);
     expect(box.more.map((medal) => medal.name)).toEqual(['The Loser', 'Forcer', 'Ace']);
-    expect(box.line).toBe('Newest: Homerun. Homerun done.');
-    expect(medalBox(list, 'partnership').line).toBe('Partnership: Partnership done.');
+    expect(box.line).toBe('Newest: Homerun. Bid 14 and make it.');
+    expect(medalBox(list, 'partnership').line).toBe(
+      'Partnership: Win 10 games with the same partner.'
+    );
     expect(medalBox(list, MORE).line).toBe('Also earned: The Loser, Forcer and Ace.');
     // A key that is not on a coin, such as one in the rest, says the newest.
-    expect(medalBox(list, 'ace').line).toBe('Newest: Homerun. Homerun done.');
+    expect(medalBox(list, 'ace').line).toBe('Newest: Homerun. Bid 14 and make it.');
     // Four or fewer: no "+N", and one is the newest.
     expect(medalBox(list.slice(0, 4)).more).toEqual([]);
-    expect(medalBox(list.slice(0, 1), MORE).line).toBe('Newest: Ace. Ace done.');
+    expect(medalBox(list.slice(0, 1), MORE).line).toBe(
+      'Newest: Ace. Win a game while the opposing team finishes at 0 or below.'
+    );
     expect(medalBox([])).toBeNull();
     expect(medalBox(undefined)).toBeNull();
     setLocale('sv');
     try {
-      expect(medalBox(list.slice(0, 6), MORE).line).toBe('Har också fått: Forcer och Ace.');
+      expect(medalBox(list.slice(0, 6), MORE).line).toBe('Har också fått: Tvingad och Ess.');
     } finally {
       setLocale('en');
     }
@@ -290,5 +295,51 @@ describe('the player sheet', () => {
     expect(
       togetherLines({ games: 0, won_as_partners: 0, against_games: 0, against_won: 0 })
     ).toBeNull();
+  });
+});
+
+describe('medals and titles in Swedish (PID-506)', () => {
+  const homerun = { key: 'homerun', name: 'Homerun', description: 'Bid 14 and make it.' };
+  // A medal the server may add before the app knows it.
+  const grandSlam = { key: 'grand_slam', name: 'Grand Slam', description: 'Win every hand.' };
+  const catalog = [homerun, { key: 'winstreak', name: 'Win Streak' }, grandSlam].map(
+    (medal, index) => ({ description: '', ...medal, tier: 1, earned: index === 0 })
+  );
+
+  it('names a medal by its key, and keeps the server’s words for a key it does not know', () => {
+    setLocale('sv');
+    try {
+      expect(medalWords(homerun)).toEqual({
+        key: 'homerun',
+        name: 'Fullträff',
+        description: 'Bjud 14 och klara budet.',
+      });
+      expect(medalWords(grandSlam)).toEqual(grandSlam);
+      expect(
+        medalShelf([{ ...homerun, tier: 1, awarded_at: '' }], catalog).medals.map((m) => m.name)
+      ).toEqual(['Fullträff', 'Segersvit', 'Grand Slam']);
+      expect(medalBox([{ ...homerun, tier: 1, awarded_at: '' }]).line).toBe(
+        'Senaste: Fullträff. Bjud 14 och klara budet.'
+      );
+    } finally {
+      setLocale('en');
+    }
+    expect(medalWords(homerun)).toEqual(homerun);
+    expect(medalWords(grandSlam)).toEqual(grandSlam);
+  });
+
+  it('names a title by the server’s word for it, its stars kept', () => {
+    setLocale('sv');
+    try {
+      expect(titleLine({ level: 12, title: 'Apprentice', prestige: 0 }).text).toBe('Lärling');
+      expect(sheetTitle({ level: 99, prestige: 0, title: 'Grandmaster' }).text).toBe(
+        'Stormästare · Nivå 99'
+      );
+      expect(titleLine({ level: 100, title: 'Legend', prestige: 4 }).text).toBe('Legend ★4');
+      expect(veteranTitle('Champion')).toBeNull();
+    } finally {
+      setLocale('en');
+    }
+    expect(veteranTitle('Champion')).toBe('Champion');
   });
 });

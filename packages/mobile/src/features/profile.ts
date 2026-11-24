@@ -4,6 +4,7 @@ import {
   type PinChoice,
   type PlayerSheet,
   type ProfileIdentity,
+  catalogs,
   t,
   formatNumber,
   formatDate,
@@ -173,6 +174,25 @@ export function seatTitle(
 }
 
 /**
+ * A medal in the player's language, by its key (PID-506). The server words its
+ * medals in English; one the app does not know yet keeps the server's words.
+ */
+export function medalWords<M extends Pick<Achievement, 'key' | 'name' | 'description'>>(
+  medal: M
+): M {
+  const [name, description] = ['name', 'description'].map(
+    (part) => `achievement.${medal.key}.${part}`
+  );
+  const known = (key: string) => Object.prototype.hasOwnProperty.call(catalogs.en, key);
+  if (!known(name) || !known(description)) return medal;
+  return {
+    ...medal,
+    name: t(name as TranslationKey),
+    description: t(description as TranslationKey),
+  };
+}
+
+/**
  * Someone's medals box (PID-406): the four newest coins, newest first, a
  * "+N" for the rest, and the line under them. Nothing tapped says the newest;
  * a coin says its own; "+N" names the rest. Empty when they earned none.
@@ -182,7 +202,7 @@ export function medalBox(
   picked: string | null = null
 ): { coins: Achievement[]; more: Achievement[]; line: string } | null {
   if (!list.length) return null;
-  const newest = [...list].reverse();
+  const newest = list.map(medalWords).reverse();
   const coins = newest.slice(0, 4);
   const more = newest.slice(4);
   const coin = coins.find((medal) => medal.key === picked);
@@ -259,8 +279,8 @@ export function medalShelf(
   const earnedKeys = new Set(earned.map((medal) => medal.key));
   const locked = catalog.filter((medal) => !medal.earned && !earnedKeys.has(medal.key));
   const all: ShelfMedal[] = [
-    ...earned.map(({ key, name }) => ({ key, name, earned: true })),
-    ...locked.map(({ key, name }) => ({ key, name, earned: false })),
+    ...earned.map((medal) => ({ key: medal.key, name: medalWords(medal).name, earned: true })),
+    ...locked.map((medal) => ({ key: medal.key, name: medalWords(medal).name, earned: false })),
   ];
   return { medals: all.slice(0, size), total: all.length };
 }
