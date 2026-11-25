@@ -155,6 +155,7 @@ export const en = {
   "auth.help": "Help",
   "auth.privacy": "Privacy Policy",
   "auth.support": "Contact support",
+  "auth.support_mail_failed": "Could not open your mail app. Write to us at %{email}.",
   "auth.terms": "Terms",
   "auth.terms_agreement":
     "By continuing you agree to our %{terms} and %{privacy}.",
@@ -425,6 +426,7 @@ export const sv: Record<keyof typeof en, TranslationEntry> = {
   "auth.help": "Hjälp",
   "auth.privacy": "Integritetspolicy",
   "auth.support": "Kontakta supporten",
+  "auth.support_mail_failed": "Din e-postapp kunde inte öppnas. Skriv till oss på %{email}.",
   "auth.terms": "Villkor",
   "auth.terms_agreement":
     "Genom att fortsätta godkänner du våra %{terms} och vår %{privacy}.",

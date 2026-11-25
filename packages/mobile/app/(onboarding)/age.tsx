@@ -19,6 +19,7 @@ import {
   PidroSpacing,
   PidroSwitchTokens,
 } from '@/design/tokens';
+import { SUPPORT_EMAIL } from '@/features/auth/classicRecovery';
 import { reconcileAge } from '@/features/onboarding/reconcileAge';
 import { entryDestination, needsAgeGate } from '@/navigation/initialRoute';
 import { useAgeGateStore } from '@/stores/ageGate';
@@ -88,6 +89,8 @@ export default function AgeScreen() {
   );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // No mail app on the phone: show the address instead of a dead link.
+  const [mailFailed, setMailFailed] = useState(false);
   const autoSubmitStarted = useRef(false);
 
   const finish = useCallback(
@@ -196,9 +199,16 @@ export default function AgeScreen() {
           <View style={styles.dot} />
           <HelpLink
             label={t('auth.support')}
-            onPress={() => Linking.openURL('mailto:support@pidro.net')}
+            onPress={() =>
+              void Linking.openURL(`mailto:${SUPPORT_EMAIL}`).catch(() => setMailFailed(true))
+            }
           />
         </View>
+        {mailFailed ? (
+          <PidroText role="body" align="center" selectable accessibilityLiveRegion="polite">
+            {t('auth.support_mail_failed', { email: SUPPORT_EMAIL })}
+          </PidroText>
+        ) : null}
       </ScreenShell>
     );
   }
