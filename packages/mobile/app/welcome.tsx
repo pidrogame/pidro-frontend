@@ -476,7 +476,8 @@ const styles = StyleSheet.create({
   inviteCopy: { flex: 1, minWidth: 0 },
   offline: { padding: PidroSpacing.sm, borderColor: PidroColors.gold },
   error: { padding: PidroSpacing.sm },
-  door: { alignItems: 'center', gap: 2 },
+  // Shrinks to the button, so a long name in "Continue as" wraps instead of running off.
+  door: { flexShrink: 1, alignItems: 'center', gap: 2 },
   woodTitle: {
     fontFamily: PidroFonts.display,
     fontWeight: '400',
