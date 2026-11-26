@@ -27,6 +27,11 @@ export interface ClassicAlreadyClaimed {
   sign_in_method: ClassicClaimMethod | null;
   /** When it was moved; only a Sign in with its old password says (PID-455). */
   claimed_at?: string | null;
+  /**
+   * A moved password account's email, masked (`s•••@example.com`), or null without one.
+   * The answer's ticket then emails it a sign-in link (PID-513).
+   */
+  email_hint?: string | null;
 }
 
 export interface ClassicVerification {
@@ -86,6 +91,17 @@ export interface ClassicSignInCode {
   email_hint: string;
 }
 
+/** The ticket from Sign in with a moved account's old password (PID-513). */
+export interface ClassicSignInLinkRequest {
+  ticket: string;
+  install_id: string;
+}
+
+export interface ClassicSignInLink {
+  /** The address the link went to, masked by the server. */
+  email_hint: string;
+}
+
 export interface ClassicVerifySignInCodeRequest extends ClassicSignInCodeRequest {
   code: string;
 }
@@ -137,6 +153,19 @@ export function createClassicApi(api: ApiClient) {
         '/api/v1/classic/sign-in-code/verify',
         request,
         { preserveSessionOnUnauthorized: true }
+      );
+      return response.data.data;
+    },
+
+    /**
+     * Emails the moved account's owner the link to choose a new password. The ticket is
+     * bound to this install, not to a guest here, so it goes without the session.
+     */
+    sendSignInLink: async (request: ClassicSignInLinkRequest): Promise<ClassicSignInLink> => {
+      const response = await api.post<{ data: ClassicSignInLink }>(
+        '/api/v1/classic/sign-in-link',
+        request,
+        { preserveSessionOnUnauthorized: true, withoutSession: true }
       );
       return response.data.data;
     },

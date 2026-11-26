@@ -102,11 +102,15 @@ export interface AlreadyClaimedView {
   /**
    * Signed in with the old password of an account already moved (PID-455): when it
    * moved, how it signs in now, and the provider button that does it, if any.
+   * A password owner with an email gets the wood "Email me a link" to that masked
+   * address, Try again under it; without one, Try again and "Can't sign in?" (PID-513).
    */
   moved?: {
     on: string;
     sentence: 'auth.moved_password' | 'auth.moved_apple' | 'auth.moved_facebook' | 'auth.moved';
     provider: 'apple' | 'facebook' | null;
+    emailHint: string | null;
+    help: boolean;
   };
 }
 
@@ -144,6 +148,8 @@ export function alreadyClaimedView({
             on: alreadyClaimed.claimed_at,
             sentence: method ? `auth.moved_${method}` : 'auth.moved',
             provider: method === 'apple' || method === 'facebook' ? method : null,
+            emailHint: password ? (alreadyClaimed.email_hint ?? null) : null,
+            help: password && !alreadyClaimed.email_hint,
           }
         : undefined,
   };

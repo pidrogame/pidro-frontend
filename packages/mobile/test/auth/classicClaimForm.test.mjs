@@ -301,3 +301,53 @@ describe('a Classic account another Pidro account already owns', () => {
     expect(view('password', null, 0, undefined).forgot).toBe(true);
   });
 });
+
+describe('the old password of a moved account (PID-513)', () => {
+  const moved = (sign_in_method, extra = {}) => ({
+    sign_in_method,
+    claimed_at: '2026-11-03T10:00:00Z',
+    ...extra,
+  });
+  const view = (alreadyClaimed, user = null) =>
+    alreadyClaimedView({ alreadyClaimed, user, guestGames: 0, login: 'ThunderThor88' }).moved;
+
+  it('a password owner with an email: the wood button emails a link to the masked address', () => {
+    const answer = moved('password', { email_hint: 's•••@example.com' });
+    expect(view(answer)).toEqual({
+      on: '2026-11-03T10:00:00Z',
+      sentence: 'auth.moved_password',
+      provider: null,
+      emailHint: 's•••@example.com',
+      help: false,
+    });
+    // A guest signs in from here too, so they get the same link.
+    const guest = { username: 'guest_7KQ4M2XB', guest: true };
+    expect(view(answer, guest).emailHint).toBe('s•••@example.com');
+  });
+
+  it('a password owner without an email, or an older answer: Try again, and "Can\'t sign in?"', () => {
+    for (const answer of [moved('password', { email_hint: null }), moved('password')]) {
+      expect(view(answer)).toMatchObject({ provider: null, emailHint: null, help: true });
+    }
+  });
+
+  it('Apple, Facebook or an unknown way in: no link and no help, whatever the answer carries', () => {
+    for (const method of ['apple', 'facebook']) {
+      expect(view(moved(method, { email_hint: 's•••@example.com' }))).toMatchObject({
+        provider: method,
+        emailHint: null,
+        help: false,
+      });
+    }
+    expect(view(moved(null, { email_hint: 's•••@example.com' }))).toMatchObject({
+      provider: null,
+      emailHint: null,
+      help: false,
+    });
+  });
+
+  it("a saved account on this phone is not offered a link to someone else's address", () => {
+    const saved = { username: 'bengt', guest: false };
+    expect(view(moved('password', { email_hint: 's•••@example.com' }), saved)).toBeUndefined();
+  });
+});

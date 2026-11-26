@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Keyboard, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Keyboard, StyleSheet, View } from 'react-native';
 import {
   useFocusEffect,
   useIsFocused,
@@ -83,6 +83,9 @@ type Fixture =
   | 'moved'
   | 'moved-apple'
   | 'moved-facebook'
+  | 'moved-email'
+  | 'moved-no-email'
+  | 'moved-sent'
   | 'details'
   | 'rename-details'
   | 'taken';
@@ -170,6 +173,11 @@ export default function ClaimClassicScreen() {
                         ? ('facebook' as const)
                         : ('password' as const),
                   claimed_at: '2026-11-03T10:00:00Z',
+                  ...(fixture === 'moved-email' || fixture === 'moved-sent'
+                    ? { email_hint: 's•••@example.com' }
+                    : fixture === 'moved-no-email'
+                      ? { email_hint: null }
+                      : {}),
                 },
               }
             : {}),
@@ -233,6 +241,10 @@ export default function ClaimClassicScreen() {
     fixture === 'taken' ? { username: 'auth.name_taken', email: 'auth.email_taken' } : {}
   );
   const [busy, setBusy] = useState(false);
+  // Where "Email me a link" sent a moved account's sign-in link, as the server masked it.
+  const [linkSentTo, setLinkSentTo] = useState<string | null>(
+    fixture === 'moved-sent' ? 's•••@example.com' : null
+  );
   const [error, setError] = useState<TranslationKey | null>(null);
   const [requestFailure, setRequestFailure] = useState<{
     error: unknown;
@@ -310,6 +322,34 @@ export default function ClaimClassicScreen() {
       }),
     [movedLogin, router]
   );
+
+  // The moved answer's ticket proves the old password, so the link goes to the account it
+  // moved to, whatever Classic login was typed (PID-513).
+  // A ref, so a quick second tap can't send a second mail before the screen says busy.
+  const sending = useRef(false);
+  const sendLink = useCallback(async () => {
+    if (sending.current || fixture || !verification) return;
+    sending.current = true;
+    setBusy(true);
+    setRequestFailure(null);
+    try {
+      const sent = await classicApi.sendSignInLink({
+        ticket: verification.ticket,
+        install_id: await getInstallId(),
+      });
+      setLinkSentTo(sent.email_hint);
+      AccessibilityInfo.announceForAccessibility(
+        t('auth.link_sent_to', { email: sent.email_hint })
+      );
+    } catch (requestError) {
+      // A spent ticket can't send again; the old password on Sign in brings a fresh one.
+      if (DEAD_TICKET_CODES.has(apiErrorInfo(requestError).code ?? '')) tryAgain();
+      else setRequestFailure({ error: requestError, fallback: 'auth.reset_request_failed' });
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  }, [fixture, t, tryAgain, verification]);
 
   const movedMethod = claimed?.moved ? (alreadyClaimed?.sign_in_method ?? 'unknown') : null;
   useEffect(() => {
@@ -685,7 +725,9 @@ export default function ClaimClassicScreen() {
       : 'auth.claim_method'
     : alreadyClaimed
       ? claimed?.moved
-        ? 'auth.moved_title'
+        ? linkSentTo
+          ? 'auth.check_inbox'
+          : 'auth.moved_title'
         : 'auth.already_in_pidro'
       : !details
         ? 'auth.classic_found'
@@ -766,17 +808,20 @@ export default function ClaimClassicScreen() {
             />
           </>
         ) : claimed?.moved ? (
-          claimed.forgot ? (
+          linkSentTo ? undefined : claimed.moved.emailHint ? (
             <TextLink
-              label={t('auth.moved_forgot')}
+              label={t('auth.try_again')}
               size={metrics.link}
               style={layout === 'landscape' ? undefined : styles.centerLink}
-              onPress={() =>
-                router.push({
-                  pathname: '/(auth)/forgot-password',
-                  params: claimed.login ? { identifier: claimed.login } : {},
-                })
-              }
+              disabled={busy}
+              onPress={tryAgain}
+            />
+          ) : claimed.moved.help ? (
+            <TextLink
+              label={t('auth.moved_help')}
+              size={metrics.link}
+              style={layout === 'landscape' ? undefined : styles.centerLink}
+              onPress={() => router.push('/(auth)/classic-help')}
             />
           ) : undefined
         ) : claimed ? (
@@ -1022,10 +1067,31 @@ export default function ClaimClassicScreen() {
             </Surface>
             {claimed?.moved ? (
               <>
-                <PidroText role="body" tone="soft" align="center" style={metrics.body}>
-                  {t(claimed.moved.sentence, movedOn(claimed.moved.on))}
+                <PidroText
+                  role="body"
+                  tone="soft"
+                  align="center"
+                  style={metrics.body}
+                  accessibilityLiveRegion="polite">
+                  {linkSentTo
+                    ? t('auth.link_sent_to', { email: linkSentTo })
+                    : t(claimed.moved.sentence, movedOn(claimed.moved.on))}
                 </PidroText>
-                {claimed.moved.provider ? (
+                {linkSentTo ? (
+                  <AuthFlowButton
+                    testID="classic-forward"
+                    label={t('auth.back_sign_in')}
+                    material="glass"
+                    onPress={tryAgain}
+                  />
+                ) : claimed.moved.emailHint ? (
+                  <AuthFlowButton
+                    testID="classic-forward"
+                    label={t('auth.email_link')}
+                    loading={busy}
+                    onPress={() => void sendLink()}
+                  />
+                ) : claimed.moved.provider ? (
                   <AuthProviderButtons
                     showEmail={false}
                     only={claimed.moved.provider}

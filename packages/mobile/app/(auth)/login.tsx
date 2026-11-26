@@ -139,7 +139,6 @@ export default function LoginScreen() {
     <AuthFlowScreen
       testID="login-screen"
       headerTitle={t('auth.sign_in')}
-      title={t('auth.welcome_back')}
       body={t('auth.sign_in_intro')}
       onBack={goBack}
       aside={
@@ -170,7 +169,7 @@ export default function LoginScreen() {
           <View style={landscape && styles.fieldLandscape}>
             <Input
               ref={identifierRef}
-              label={t('auth.sign_in_identifier')}
+              label={t('auth.identifier')}
               value={identifier}
               onChangeText={(next) => {
                 setIdentifier(next);
@@ -223,7 +222,7 @@ export default function LoginScreen() {
           </View>
         </View>
         <TextLink
-          label={t('auth.sign_in_forgot')}
+          label={t('auth.forgot')}
           size={layout === 'tablet' ? 15 : 14}
           style={styles.forgot}
           onPress={() =>

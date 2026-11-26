@@ -185,7 +185,7 @@ export default function WelcomeScreen() {
   if (!screen || (waitsForProviders && !providers)) return <Background />;
 
   const known = screen.kind === 'known' ? screen.player : null;
-  // Apple or Facebook signs in directly where this phone offers it; elsewhere, Continue as them.
+  // Apple or Facebook signs in directly where this phone offers it; elsewhere, Sign in.
   const provider =
     known && known.method !== 'password' && (fixtureProviders || providers?.[known.method])
       ? known.method
@@ -292,7 +292,7 @@ export default function WelcomeScreen() {
           ) : known ? (
             <BevelButton
               testID="welcome-have-account"
-              accessibilityLabel={t('auth.continue_as', { name: known.name })}
+              accessibilityLabel={t('auth.sign_in')}
               material="wood"
               size="md"
               fullWidth
@@ -304,7 +304,7 @@ export default function WelcomeScreen() {
                   params: { email: known.name, focus: 'password' },
                 });
               }}>
-              <DoorLabel title={t('auth.continue_as', { name: known.name })} wood tablet={tablet} />
+              <DoorLabel title={t('auth.sign_in')} wood tablet={tablet} />
             </BevelButton>
           ) : (
             // One door for every account, old or new: Sign in finds either (PID-455).
@@ -476,8 +476,7 @@ const styles = StyleSheet.create({
   inviteCopy: { flex: 1, minWidth: 0 },
   offline: { padding: PidroSpacing.sm, borderColor: PidroColors.gold },
   error: { padding: PidroSpacing.sm },
-  // Shrinks to the button, so a long name in "Continue as" wraps instead of running off.
-  door: { flexShrink: 1, alignItems: 'center', gap: 2 },
+  door: { alignItems: 'center', gap: 2 },
   woodTitle: {
     fontFamily: PidroFonts.display,
     fontWeight: '400',

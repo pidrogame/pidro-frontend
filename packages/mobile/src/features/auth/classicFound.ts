@@ -21,7 +21,7 @@ export function handleClassicFound(
   pendingClaim = {
     method,
     login: typed?.login,
-    password: claim.ticket ? typed?.password : undefined,
+    password: claim.ticket && !claim.already_claimed ? typed?.password : undefined,
     verification: classicVerification(claim),
   };
 }

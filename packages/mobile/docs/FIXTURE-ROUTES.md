@@ -879,11 +879,19 @@ and that no text, link or button overlaps another.
 password of an account already moved, signed out, verified as ThunderThor88 and moved on
 3 November: "That's your old password" over the Classic card and "You moved this account to
 the new Pidro on 3 November…" ending "…and chose a new password then.", "…and sign in with
-Apple." or "…with Facebook." A password owner gets the wood "Try again" (back to Sign in,
-name kept, cursor in the empty password) and "Forgot it? Email me a link" under the window,
-into Forgot password with the name filled in; an Apple or Facebook owner gets only that
+Apple." or "…with Facebook." A password owner gets "Try again" (back to Sign in, name kept,
+cursor in the empty password) and the emailed link below; an Apple or Facebook owner gets only that
 provider's button. Header back is Try again. The date is the language's own ("den 3 november");
 for Swedish use `/ui-dev?state=claim-classic&fixture=moved&locale=sv`.
+
+PID-513 swaps the password owner's buttons by whether the moved account has an email
+(`already_claimed.email_hint`). `moved-email` (s•••@example.com) has the wood "Email me a
+link", which sends the account's sign-in link in one tap (`POST /classic/sign-in-link` with the
+answer's ticket; a fixture sends nothing), and "Try again" under the window. `moved-sent` is the
+answer: "Check your email", "We sent a sign-in link to s•••@example.com" under the card and a
+glass "Back to sign in" (Try again). `moved-no-email` keeps the wood "Try again" with "Can't sign
+in?" under the window, into Classic help. `moved` is an older answer without the field, and
+looks the same as `moved-no-email`. Apple and Facebook owners are unchanged.
 "Yes, that's me" opens details only when the claim needs something typed; otherwise
 it claims directly. Header back goes details → preview → method, or login → method.
 For Swedish use `/ui-dev?state=claim-classic&fixture=password&locale=sv`.
@@ -1623,11 +1631,11 @@ UI_CASES=ad-sheet-offer-en,ad-sheet-loading-en,ad-sheet-dismissed-en,ad-sheet-un
 
 ## First screen (PID-454, PID-456)
 
-`/welcome` has two doors, **I've played before** (to Sign in, old or new) and **Quick
+`/welcome` has two doors, **I have an account** (to Sign in, old or new) and **Quick
 game**, and the **Create a free account** link. A phone someone signed in on keeps one
 record, `known-player:v1` in local storage (name, picture, sign-in method; no password or
-token), and greets them instead: their picture, "Welcome back", **Continue as <name>** (to
-Sign in with the name filled in), Quick game and **Not you? Use another account**. With the method `apple` or
+token), and greets them instead: their picture, "Welcome back", **Sign in** with the name
+filled in, Quick game and **Not you? Use another account**. With the method `apple` or
 `facebook` the door is that provider's button; `/welcome?fixture=providers` forces those
 buttons on in the browser. Grammar cases `welcome-known`, `welcome-known-sv`,
 `welcome-known-long` (a 20-character name), `welcome-known-apple` and

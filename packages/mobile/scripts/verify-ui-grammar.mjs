@@ -3475,12 +3475,12 @@ async function assertClassicLogin(page, testCase, viewport) {
     const door = page.getByRole('button', {
       name: !method
         ? sv
-          ? 'Jag har spelat förut. Logga in på ditt konto.'
-          : "I've played before. Sign in to your account."
+          ? 'Jag har ett konto. Från gamla Pidro eller nya.'
+          : 'I have an account. From the old Pidro or the new one.'
         : method === 'password'
           ? sv
-            ? `Fortsätt som ${testCase.knownPlayer.name}`
-            : `Continue as ${testCase.knownPlayer.name}`
+            ? 'Logga in'
+            : 'Sign in'
           : `Continue with ${method === 'apple' ? 'Apple' : 'Facebook'}`,
       exact: true,
     });
@@ -5584,7 +5584,7 @@ async function assertSingleSubmit(page, submitField, endpoint, expectedPayload, 
 
 async function assertAuthFormInteractions(page, name, viewport) {
   if (name === 'login') {
-    const identifier = page.getByLabel('Player name or email', { exact: true });
+    const identifier = page.getByLabel('Username or email', { exact: true });
     const password = page.getByLabel('Password', { exact: true });
     // Sign in sends the install, so a password only the old Pidro knows finds that account.
     // A stored id that is not a v4 UUID is replaced, so the seeded one has to be one.
