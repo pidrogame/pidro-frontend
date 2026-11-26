@@ -268,7 +268,7 @@ async function signInThroughUi(page, username) {
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
 
-  const userField = page.getByLabel('Username or email', { exact: true });
+  const userField = page.getByLabel('Player name or email', { exact: true });
   const passField = page.getByLabel('Password', { exact: true });
   const signIn = page.getByRole('button', { name: 'Sign in' });
   await userField.waitFor({ timeout: 30_000 });

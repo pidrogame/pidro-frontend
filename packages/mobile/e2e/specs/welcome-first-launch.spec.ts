@@ -7,8 +7,8 @@ test('the welcome screen offers an account, a quick game and a new account, and 
   await page.goto('/');
   const welcome = new WelcomeWindow(page);
   await expect(welcome.root).toBeVisible({ timeout: 30_000 });
-  await expect(welcome.haveAccount).toContainText('I have an account');
-  await expect(welcome.haveAccount).toContainText('From the old Pidro or the new one');
+  await expect(welcome.haveAccount).toContainText("I've played before");
+  await expect(welcome.haveAccount).toContainText('Sign in to your account');
   await expect(welcome.quickGame).toContainText('Quick game');
   await expect(welcome.quickGame).toContainText('You and three bots, no sign-up');
   await expect(welcome.createAccount).toBeVisible();
