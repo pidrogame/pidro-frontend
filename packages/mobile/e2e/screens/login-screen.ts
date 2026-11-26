@@ -7,11 +7,11 @@ export class LoginScreen extends Screen {
   }
 
   get identifier() {
-    return this.field('Username or email');
+    return this.field('Player name or email');
   }
 
   get forgotPassword() {
-    return this.text('Forgot password?');
+    return this.text('Forgot your password or name?');
   }
 
   async signIn(identifier: string, password: string) {
