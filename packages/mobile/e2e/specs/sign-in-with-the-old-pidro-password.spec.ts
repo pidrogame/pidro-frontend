@@ -35,7 +35,8 @@ test('Sign in takes the old Pidro name and password, and tells a moved account i
     await expect(claim.text('That’s your old password')).toBeVisible();
     await expect(claim.text(/chose a new password then\.$/)).toBeVisible();
     expect((await sessionOf(page))?.user ?? null).toBeNull();
-    await claim.button('Try again').click();
+    await expect(claim.button('Email me a link')).toBeVisible();
+    await claim.root.getByRole('link', { name: 'Try again', exact: true }).click();
     await expect(login.identifier).toHaveValue(player.classicLogin);
     await expect(login.field('Password')).toBeFocused();
   });

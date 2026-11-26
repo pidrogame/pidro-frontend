@@ -123,7 +123,7 @@ export async function claimClassic(player: Player, login = player.classicLogin) 
     }),
     200,
     'classic claim'
-  )) as { token: string; user: { id: string } };
+  )) as { token: string; user: { id: string; email: string } };
 }
 
 /** A host with a table open for one more player, and the invite to it. */
