@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { selectChecks } from '../../scripts/ci-affected.mjs';
 import { partitionCases, verifyCoverage } from '../../scripts/ui-shards.mjs';
 
+// The scripts read UI_* settings; a developer's shell must not change what these tests see.
+const shell = { PATH: process.env.PATH, HOME: process.env.HOME, TMPDIR: tmpdir() };
+
 describe('visual partitions', () => {
   const cases = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id }));
   const costs = { a: 12, b: 10, c: 8, d: 6, e: 4, f: 2 };
@@ -53,7 +56,7 @@ test("the release test's partitions cover every unfiltered viewport/case exactly
   const script = fileURLToPath(new URL('../../scripts/verify-ui-grammar.mjs', import.meta.url));
   const list = (partition) => {
     const result = spawnSync(process.execPath, [script, '--list'], {
-      env: { ...process.env, UI_PARTITION: partition, UI_CASES: '', UI_VIEWPORTS: '' },
+      env: { ...shell, UI_PARTITION: partition },
       encoding: 'utf8',
     });
     expect(result.status).toBe(0);
@@ -63,7 +66,9 @@ test("the release test's partitions cover every unfiltered viewport/case exactly
   const configured = selectChecks({ full: true, cases: [], ids: expected })
     .shards.map(({ partition }) => partition)
     .filter(Boolean);
-  expect(configured).toEqual(Array.from({ length: 15 }, (_, index) => `${index + 1}/15`));
+  // However many the release run takes, they are 1/N..N/N.
+  expect(configured.length).toBeGreaterThan(0);
+  expect(configured).toEqual(configured.map((_, index) => `${index + 1}/${configured.length}`));
   const partitions = configured.map(list);
   expect(partitions.every((items) => items.length > 0)).toBe(true);
   expect(new Set(expected).size).toBe(expected.length);
@@ -78,7 +83,7 @@ test('the actual pixel comparison fails when captures are missing', () => {
       process.execPath,
       [fileURLToPath(new URL('../../scripts/compare-ui-baselines.mjs', import.meta.url))],
       {
-        env: { ...process.env, UI_SHOT_DIR: directory },
+        env: { ...shell, UI_SHOT_DIR: directory },
         encoding: 'utf8',
       }
     );
@@ -96,7 +101,7 @@ test('a partial run compares only what it captured, and still catches drift ther
     spawnSync(
       process.execPath,
       [fileURLToPath(new URL('../../scripts/compare-ui-baselines.mjs', import.meta.url))],
-      { env: { ...process.env, UI_SHOT_DIR: directory, UI_DIFF_PARTIAL: '1' }, encoding: 'utf8' }
+      { env: { ...shell, UI_SHOT_DIR: directory, UI_DIFF_PARTIAL: '1' }, encoding: 'utf8' }
     );
   try {
     mkdirSync(join(directory, 'portrait'));

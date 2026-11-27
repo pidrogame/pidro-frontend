@@ -47,7 +47,8 @@ function gate(checks, { wait = false, nextChecks } = {}) {
     [script, 'ota', '--dry-run', ...(wait ? ['--wait'] : [])],
     {
       cwd: directory,
-      env: { ...process.env, PATH: `${directory}:${process.env.PATH}` },
+      // Only the fakes and the system: nothing from a developer's shell (GH_TOKEN, CI…).
+      env: { PATH: `${directory}:${process.env.PATH}`, HOME: process.env.HOME, TMPDIR: tmpdir() },
       encoding: 'utf8',
       timeout: 5000,
     }

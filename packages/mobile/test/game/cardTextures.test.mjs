@@ -35,7 +35,13 @@ function onScreen(width, height, scale, probe = 'null') {
       }));
       `,
     ],
-    { cwd: `${import.meta.dir}/../..`, stdout: 'pipe', stderr: 'pipe' }
+    {
+      cwd: `${import.meta.dir}/../..`,
+      // Nothing from a developer's shell reaches the mocked screen.
+      env: { PATH: process.env.PATH, HOME: process.env.HOME },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    }
   );
   if (result.exitCode !== 0) throw new Error(result.stderr.toString());
   return JSON.parse(result.stdout.toString().trim().split('\n').pop());
