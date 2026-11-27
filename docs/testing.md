@@ -133,10 +133,22 @@ attempts and focused repetition counts; retry success does not erase a failure.
   need no app captures. Unknown paths or missing base use smoke, **never full fallback**.
   This is bounded regression coverage, not exhaustive impact analysis: the author
   must still prove the changed state, including new cases outside the sample.
-- **Manual `full=true` (default):** complete unit suite, all UI cases/viewports and
-  behavioral suites, full Game e2e, every Account journey and expiry check. Only this
-  mode earns **Frontend ready (full)**, required on the exact candidate by `ship.mjs`
-  for production. Manual full runs do not publish beta updates.
+- **Manual `full=true` (default):** the full run. It runs before every production
+  update: `ship.mjs` requires its **Frontend ready (full)** on the exact candidate.
+  Manual full runs do not publish beta updates. It covers:
+  - every unit test (137 files);
+  - every UI case at the sizes where it can break: each screen at 390×844 in English,
+    Swedish where the words are long, and the table, first screen and sign-in also
+    at 360×640, landscape (844×390) and tablet (768×1024). That is 300 cases, 343
+    screenshots, compared against their baselines;
+  - the behavior suites (readiness, table chrome, seat decisions, dealing, lobby, new
+    table, waiting seats, game over);
+  - Game e2e (an invited game, a rematch and a dropped-socket rejoin) and the
+    Account journeys (21 files, 2 shards), both against the backend's `main`.
+
+  Cost: about 10 minutes from start to green and 40 machine-minutes, 29 of them for
+  the UI jobs (three matrix shards and one behavior job side by side). Before PID-514
+  it was 17 minutes and 144 machine-minutes.
 
 Push selection still compares against the last successful `main` push: cancellation
 must not discard untested changes. Static build/type/lint/dependency checks and the
