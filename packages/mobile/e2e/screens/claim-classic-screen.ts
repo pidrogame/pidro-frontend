@@ -13,6 +13,13 @@ export class ClaimClassicScreen extends Screen {
 
   constructor(page: Page) {
     super(page, 'claim-classic-screen');
+    // Whichever asked, this form or Sign in, the last answer says what Classic offers.
+    page.on('response', (response) => {
+      if (!verifyAnswer(response)) return;
+      this.offered = response.ok()
+        ? response.json().then((body) => body.data.classic?.new_account ?? null)
+        : Promise.resolve(null);
+    });
   }
 
   get found() {
@@ -37,9 +44,6 @@ export class ClaimClassicScreen extends Screen {
     await this.field('Username or email').fill(login);
     await this.field('Password').fill(password);
     const answered = this.page.waitForResponse(verifyAnswer);
-    this.offered = answered.then(async (response) =>
-      response.ok() ? ((await response.json()).data.classic?.new_account ?? null) : null
-    );
     await this.button('Find my account').click();
     return answered;
   }

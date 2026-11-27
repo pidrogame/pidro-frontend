@@ -63,8 +63,10 @@ test('a bot and two open seats share a table link without a name form or seat bi
     (response) => response.url().endsWith('/invites') && response.request().method() === 'POST'
   );
   await page.getByRole('button', { name: 'Share the link', exact: true }).click();
-  await expect(page.getByTestId('invite-window')).toBeVisible();
-  await expect(page.getByRole('textbox')).toHaveCount(0);
+  const inviteWindow = page.getByTestId('invite-window');
+  await expect(inviteWindow).toBeVisible();
+  // The window asks for no name; the table's talk box behind it is not the window's.
+  await expect(inviteWindow.getByRole('textbox')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Copy link', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Share', exact: true })).toBeVisible();
   const minted = await firstMint;
@@ -85,6 +87,8 @@ test('a bot and two open seats share a table link without a name form or seat bi
     picker.getByRole('radio', {
       name: new RegExp(`^${title.replace('+', '\\+')}${title === 'With password' ? digits : ''},`),
     });
+  // East got its bot when the table opened.
+  let seated = 'Bot';
   for (const [title, seat, row] of [
     ['1000+ games played', { type: 'open', min_games: 1000 }, /Waiting…$/],
     ['With password', { type: 'open', min_games: 0, password: true }, /password \d{4}$/],
@@ -92,6 +96,11 @@ test('a bot and two open seats share a table link without a name form or seat bi
     ['Bot', 'ai', /Ready$/],
   ] as const) {
     await east.click();
+    // A bot seat opens on who sits there; the way back leads to the other choices.
+    if (seated === 'Bot') {
+      await expect(picker.getByTestId('bot-picker')).toBeVisible();
+      await picker.getByRole('link', { name: /^‹ / }).click();
+    }
     const sent = page.waitForResponse(
       (response) =>
         response.request().method() === 'PUT' &&
@@ -113,6 +122,7 @@ test('a bot and two open seats share a table link without a name form or seat bi
     }
     await expect(choice(title)).toBeChecked();
     await cancelPicker(page);
+    seated = title;
   }
   expect(digits).toMatch(/^ \d{4}$/);
 
