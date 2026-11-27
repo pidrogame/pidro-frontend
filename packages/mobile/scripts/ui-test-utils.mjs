@@ -131,6 +131,32 @@ export async function waitForScreenshotReady(page) {
     undefined,
     { timeout: 5000 }
   );
+  // The table's cards move on the canvas, not as CSS animations: wait until they
+  // have stood still for 400ms (a deal, a hand sorting under its new trump, whose
+  // mark pops meanwhile). A card that never settles leaves it to the 5s limit.
+  await page
+    .waitForFunction(
+      () => {
+        const read = globalThis.__pidroCardMotion;
+        if (!read) return true;
+        const now = JSON.stringify(
+          read().map((s) => [
+            s.key,
+            Math.round(s.x),
+            Math.round(s.y),
+            s.rotation.toFixed(3),
+            s.opacity.toFixed(2),
+          ])
+        );
+        const still = globalThis.__pidroStill;
+        if (still?.cards !== now)
+          globalThis.__pidroStill = { cards: now, since: performance.now() };
+        return still?.cards === now && performance.now() - still.since >= 400;
+      },
+      undefined,
+      { timeout: 5000, polling: 100 }
+    )
+    .catch(() => {});
   await page.evaluate(
     () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
   );
