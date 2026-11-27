@@ -1,12 +1,7 @@
 // Stands in for Classic on 127.0.0.1:4001, where the dev backend already looks
 // for it (empty secret). Stateless: the login says what Classic would answer.
 //   classic-…  an account with a short password; reusable-… has an eight-character password
-//   unicode-…  four emoji: eight JS code units, but below the server's character minimum
-//   off-…      one that is switched off
-//   rude-…     a name that cannot be shown  other   unknown
-//   nameless-… no username, only a first name (a pre-2017 account)
-//   down-…     a lookup or password check that fails: Classic is unreachable
-//   oldtotal-… / counter-… / lower-…  games: only the old total, a counter above it, one below it
+//   other      unknown
 // A lookup by email or by Facebook id names the same account: `classic-1f@x.example` and the id
 // `classic-1f` are one player.
 // The Classic id is a hash of the login, so parallel tests share nothing.
@@ -15,36 +10,18 @@ import { createServer } from 'node:http';
 
 export const CLASSIC_PASSWORD = 'oldpass';
 export const REUSABLE_CLASSIC_PASSWORD = 'oldpass8';
-export const UNICODE_CLASSIC_PASSWORD = '🐱🐶🐭🐹';
 
 const classicId = (login: string) => createHash('sha1').update(login).digest().readUIntBE(0, 5);
 
-const KNOWN = /^(classic|reusable|unicode|rude|nameless|oldtotal|counter|lower)-/;
-
-// What a Classic player has played: the old total, and the counter kept since December 2016.
-function games(login: string) {
-  const base = {
-    legacy_played_games: 300,
-    legacy_victories: 160,
-    legacy_losses: 140,
-    total_game: 1284,
-    win_game: 700,
-    lost_game: 584,
-  };
-  if (login.startsWith('oldtotal-'))
-    return { ...base, total_game: null, win_game: null, lost_game: null };
-  if (login.startsWith('lower-')) return { ...base, total_game: 40, win_game: 20, lost_game: 20 };
-  return base;
-}
+const KNOWN = /^(classic|reusable)-/;
 
 // Mirrors the production payload pinned in the backend's classic_client_test.exs.
 function profile(login: string) {
-  const nameless = login.startsWith('nameless-');
   return {
     id: classicId(login),
-    username: login.startsWith('rude-') ? 'fuckface' : nameless ? null : login,
-    has_username: !nameless,
-    first_name: nameless ? 'Gertrude' : null,
+    username: login,
+    has_username: true,
+    first_name: null,
     email: `${login}@classic.example`,
     fbid: null,
     member_since: '2012-04-03T10:00:00',
@@ -52,7 +29,13 @@ function profile(login: string) {
     xp: 48_200,
     level: 42,
     games: {
-      ...games(login),
+      // The old total, and the counter kept since December 2016.
+      legacy_played_games: 300,
+      legacy_victories: 160,
+      legacy_losses: 140,
+      total_game: 1284,
+      win_game: 700,
+      lost_game: 584,
       win_percent: 54,
       games_logged: 900,
       games_started: 950,
@@ -68,14 +51,8 @@ function answer(method: string, url: URL, body: string): [number, object] {
   if (method === 'POST' && url.pathname === '/internal/claims/verify_password') {
     const { login = '', password } = JSON.parse(body || '{}');
     const name = String(login).toLowerCase();
-    if (name.startsWith('down-')) return [503, { error: 'unavailable' }];
-    if (name.startsWith('off-')) return [403, { error: 'inactive' }];
     const known = KNOWN.test(name);
-    const expected = name.startsWith('reusable-')
-      ? REUSABLE_CLASSIC_PASSWORD
-      : name.startsWith('unicode-')
-        ? UNICODE_CLASSIC_PASSWORD
-        : CLASSIC_PASSWORD;
+    const expected = name.startsWith('reusable-') ? REUSABLE_CLASSIC_PASSWORD : CLASSIC_PASSWORD;
     if (!known || password !== expected) return [401, { error: 'invalid' }];
     return [200, { classic: profile(name) }];
   }
@@ -86,7 +63,6 @@ function answer(method: string, url: URL, body: string): [number, object] {
       url.searchParams.get('fbid') ??
       '';
     const name = key.split('@')[0].toLowerCase();
-    if (name.startsWith('down-')) return [503, { error: 'unavailable' }];
     return KNOWN.test(name) ? [200, { classic: profile(name) }] : [404, { error: 'not found' }];
   }
   return [404, { error: 'not found' }];

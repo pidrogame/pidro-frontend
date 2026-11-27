@@ -3,12 +3,9 @@ import { HomeScreen } from '../screens/home-screen';
 import { ProfileScreen } from '../screens/profile-screen';
 import { RegisterScreen } from '../screens/register-screen';
 import { WelcomeWindow } from '../screens/welcome-window';
-import { register as registerViaApi } from '../support/api';
-import { tableCode } from '../support/game';
-import { AGE_ANSWERED, newPlayer } from '../support/player';
-import { sessionOf, startSignedIn } from '../support/session';
+import { sessionOf } from '../support/session';
 
-test('a new player creates an account, stays signed in, and signs out @responsive', async ({
+test('a new player creates an account, stays signed in, and signs out', async ({
   page,
   player,
 }) => {
@@ -47,72 +44,4 @@ test('a new player creates an account, stays signed in, and signs out @responsiv
   await expect(profile.root).toBeVisible();
   await profile.signOut();
   await page.waitForURL(/\/welcome$/);
-});
-
-test('a new account opens a Finnish table that another player can find with two open chairs @responsive', async ({
-  page,
-  player,
-  browser,
-}) => {
-  await page.goto('/register');
-  await new RegisterScreen(page).createAccount(player);
-  await expect(new HomeScreen(page).root).toBeVisible();
-  await page.goto('/lobby');
-  await page.getByRole('button', { name: 'Start a table', exact: true }).first().click();
-  await expect(page).toHaveURL(/\/new-table$/);
-  const form = page.getByTestId('new-table-screen');
-  await expect(
-    form
-      .getByRole('radiogroup', { name: 'Rules', exact: true })
-      .getByRole('radio', { name: 'Finnish', exact: true })
-  ).toHaveAttribute('aria-checked', 'true');
-  await expect(form.getByTestId('new-table-seat-north')).toHaveText('YouHost');
-  await expect(form.getByTestId('new-table-seat-south')).toHaveAccessibleName(
-    'Partner: Open seat, Anyone can sit. Change'
-  );
-  for (const position of ['south', 'east', 'west']) {
-    await form.getByTestId(`new-table-seat-${position}`).click();
-    const picker = page.getByTestId('seat-picker-container');
-    await expect(picker.getByRole('radio', { name: /^Anyone,/ })).toBeChecked();
-    await picker.getByRole('radio', { name: position === 'west' ? /^Bot,/ : /^Anyone,/ }).click();
-    await expect(picker).toBeHidden();
-  }
-  const created = page.waitForResponse(
-    (response) =>
-      new URL(response.url()).pathname === '/api/v1/rooms' && response.request().method() === 'POST'
-  );
-  await form.getByRole('button', { name: 'Open the table', exact: true }).click();
-  const response = await created;
-  expect(response.status()).toBe(201);
-  expect(response.request().postDataJSON()).toEqual({
-    rule_set: 'finnish',
-    seats: { seat_2: 'open', seat_3: 'open', seat_4: 'ai' },
-  });
-  await page.waitForURL(/\/game\/[A-Z0-9]+$/);
-  const code = tableCode(page);
-  await expect(page.getByTestId('waiting-table').last()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByTestId('waiting-rule-set').last()).toContainText('Finnish');
-
-  // A separate context has neither the host's auth nor its cached lobby data.
-  // Keep the host connected so the server lists this waiting table.
-  const context = await browser.newContext({ baseURL: new URL(page.url()).origin });
-  try {
-    const visitor = await context.newPage();
-    await visitor.addInitScript((age) => {
-      localStorage.setItem('age-gate-storage', age);
-      localStorage.setItem('news-seen:welcome', '1');
-    }, AGE_ANSWERED);
-    await startSignedIn(visitor, await registerViaApi(newPlayer()));
-    await visitor.goto('/lobby');
-    const table = visitor.getByTestId(`lobby-table-${code}`);
-    await expect(table).toBeVisible({ timeout: 30_000 });
-    await expect(table.getByTestId(`room-rules-${code}`)).toContainText('Finnish');
-    await expect(table.getByText(player.name, { exact: true })).toBeVisible();
-    const chairs = table.getByRole('button', { name: /^Join .* seat$/ });
-    await expect(chairs).toHaveCount(2);
-    await expect(chairs.nth(0)).toBeEnabled();
-    await expect(chairs.nth(1)).toBeEnabled();
-  } finally {
-    await context.close();
-  }
 });

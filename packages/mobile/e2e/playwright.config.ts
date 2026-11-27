@@ -1,8 +1,5 @@
 import { defineConfig } from '@playwright/test';
 
-// The second run (ci.sh) keeps its own results beside the first.
-const run = process.env.E2E_RUN ?? '';
-
 export default defineConfig({
   testDir: './specs',
   globalSetup: ['./support/classic-stand-in.ts', './support/identity-stand-in.ts'],
@@ -13,10 +10,10 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   reporter: [
     ['list'],
-    ['html', { outputFolder: `report${run}`, open: 'never' }],
-    ['json', { outputFile: `journeys${run}.json` }],
+    ['html', { outputFolder: 'report', open: 'never' }],
+    ['json', { outputFile: 'journeys.json' }],
   ],
-  outputDir: `results${run}`,
+  outputDir: 'results',
   use: {
     baseURL: process.env.MOBILE_BASE_URL ?? 'http://localhost:8081',
     video: 'on',

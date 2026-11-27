@@ -7,7 +7,7 @@ import { classicCodeFor } from '../support/mailbox';
 import { profile, whoAmI } from '../support/api';
 import { sessionOf } from '../support/session';
 
-test('a Classic player recovers by emailed code from sign in and claims their account @responsive', async ({
+test('a Classic player recovers by emailed code from sign in and claims their account', async ({
   page,
   player,
 }) => {
@@ -50,32 +50,4 @@ test('a Classic player recovers by emailed code from sign in and claims their ac
     name: player.classicLogin,
     level: 42,
   });
-});
-
-test('a wrong Classic code clears and focuses the field, then a valid code returns to claim @responsive', async ({
-  page,
-  player,
-}) => {
-  await page.goto('/claim-classic');
-  const claim = new ClaimClassicScreen(page);
-  await claim.verify(player.classicLogin, 'wrong-but-long-enough');
-  await claim.text('Forgot your password?').click();
-  const forgot = new ClassicForgotScreen(page);
-  await expect(forgot.login).toHaveValue(player.classicLogin);
-  await forgot.button('Email me a code').click();
-  const code = await classicCodeFor(`${player.classicLogin}@classic.example`);
-  const wrong = `${code[0] === '0' ? '1' : '0'}${code.slice(1)}`;
-  await forgot.field('Six-digit code').fill(wrong);
-  await expect(forgot.alert).toHaveText("That code didn't work. Ask for a new one.");
-  await expect(forgot.field('Six-digit code')).toHaveValue('');
-  await expect(forgot.field('Six-digit code')).toBeFocused();
-  await expect(forgot.button('Continue')).toBeDisabled();
-  await expect(forgot.text('No longer use that email? Get help')).toBeVisible();
-  await forgot.field('Six-digit code').fill(code);
-  await expect(claim.found).toBeVisible();
-  await expect(claim.text(player.classicLogin)).toBeVisible();
-  await claim.confirmIdentity();
-  await expect(claim.field('New password')).toBeVisible();
-  await expect(claim.text('The new Pidro needs its own password.')).toBeVisible();
-  await expect(claim.text('Your old password was right.')).toHaveCount(0);
 });

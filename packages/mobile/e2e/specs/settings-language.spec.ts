@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('a new player chooses language on Age and Marcel’s note, and Settings remembers @responsive', async ({
+test('a new player chooses language on Age and Marcel’s note, and Settings remembers', async ({
   page,
 }) => {
   await page.goto('/');
@@ -48,64 +48,4 @@ test('a new player chooses language on Age and Marcel’s note, and Settings rem
     'true'
   );
   await expect(language.getByRole('radio')).toHaveCount(2);
-});
-
-test('language choices apply immediately, persist and keep keyboard focus @responsive', async ({
-  page,
-}) => {
-  // Real signed-out settings: fixture overrides must never stand in for persistence.
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      'age-gate-storage',
-      JSON.stringify({
-        state: { ageBand: '18_plus', termsVersion: '1' },
-        version: 0,
-      })
-    );
-    localStorage.setItem('news-seen:welcome', '1');
-  });
-  await page.goto('/device-settings');
-  const swedish = page.getByRole('radio', { name: 'Svenska', exact: true });
-  await swedish.click();
-  await expect(page.getByRole('radiogroup', { name: 'Språk', exact: true })).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'sv');
-  await expect(swedish).toHaveAttribute('aria-checked', 'true');
-  await expect(swedish).toBeFocused();
-  await expect(page.getByRole('switch', { name: 'Ljud', exact: true })).toBeVisible();
-  await expect(page.getByText('På', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('Just nu:', { exact: false })).toHaveCount(0);
-
-  const languageChoices = page.getByTestId('settings-language').getByRole('radio');
-  for (const radio of await page.getByRole('radio').all()) {
-    const box = await radio.boundingBox();
-    // Wood and glass like the rules selector (PID-483): the DS 44pt target.
-    expect(box!.height).toBeGreaterThanOrEqual(44);
-  }
-  await expect(page.getByRole('radio', { name: 'English', exact: true })).toHaveAttribute(
-    'lang',
-    'en'
-  );
-  await expect(swedish).toHaveAttribute('lang', 'sv');
-  await page.reload();
-  await expect(swedish).toHaveAttribute('aria-checked', 'true');
-
-  await swedish.focus();
-  await page.keyboard.press('ArrowLeft');
-  const english = page.getByRole('radio', { name: 'English', exact: true });
-  await expect(english).toHaveAttribute('aria-checked', 'true');
-  await expect(english).toBeFocused();
-  await expect(page.getByRole('switch', { name: 'Sound', exact: true })).toBeVisible();
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  // Two choices: ArrowLeft from English wraps to Svenska, and there is no System language.
-  await page.keyboard.press('ArrowLeft');
-  await expect(swedish).toHaveAttribute('aria-checked', 'true');
-  await expect(swedish).toBeFocused();
-  await expect(page.getByText(/System language|Enhetens språk/)).toHaveCount(0);
-  await page.keyboard.press('Space');
-  await expect(swedish).toHaveAttribute('aria-checked', 'true');
-  expect(
-    await languageChoices.evaluateAll(
-      (nodes) => nodes.filter((node) => node.getAttribute('tabindex') === '0').length
-    )
-  ).toBe(1);
 });

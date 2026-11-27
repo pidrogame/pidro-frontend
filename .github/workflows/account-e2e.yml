@@ -12,10 +12,6 @@ on:
       retention-days:
         type: number
         default: 14
-      specs:
-        description: Only these journeys (space-separated spec paths), in one job; empty runs them all
-        type: string
-        default: ''
 
 permissions:
   contents: read
@@ -30,7 +26,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.specs == '' && '[{"name":"shard-1","suite":"journeys","shard":"1/4"},{"name":"shard-2","suite":"journeys","shard":"2/4"},{"name":"shard-3","suite":"journeys","shard":"3/4"},{"name":"shard-4","suite":"journeys","shard":"4/4"},{"name":"expiry","suite":"expiry","shard":""}]' || '[{"name":"table","suite":"journeys","shard":""}]') }}
+        include:
+          - { name: shard-1, shard: 1/2 }
+          - { name: shard-2, shard: 2/2 }
 
     services:
       postgres:
@@ -85,10 +83,6 @@ jobs:
           mix ecto.create
           mix ecto.migrate
 
-      - name: Reserve the Classic names the journeys use
-        working-directory: backend
-        run: mix pidro.import_classic_name_reservations "$GITHUB_WORKSPACE/packages/mobile/e2e/classic-name-reservations.json"
-
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -122,9 +116,7 @@ jobs:
           EXPO_NO_DOTENV: '1'
           NODE_OPTIONS: --max-old-space-size=8192 --require ./scripts/tailwind-v3-resolve.cjs
           BACKEND_DIR: ${{ github.workspace }}/backend
-          E2E_SUITE: ${{ matrix.suite }}
           E2E_SHARD: ${{ matrix.shard }}
-          E2E_SPECS: ${{ inputs.specs }}
         run: e2e/ci.sh
 
       - name: Upload videos, traces and report

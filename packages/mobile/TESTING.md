@@ -126,21 +126,17 @@ the multiplayer UI game at CI pacing.
 
 ## Account journeys (the "Account e2e" CI job)
 
-`e2e/` holds the account journeys (age gate, welcome and Home, guest, create account,
-sign in, forgot password, saving a guest, claiming a Classic account, invites, dropped
-connections) on `@playwright/test`. They drive the real Expo web client against a real
-local backend, and each leaves a video; a failing one also leaves a trace. The `phone`
-project (390×844) runs all of them; `landscape` (844×390) and `tablet` (820×1180) run
-the ones tagged `@responsive` in their title. A journey tagged `@gap` asserts what the
-app does today where a product fix is still open; the spec names the ticket.
+`e2e/` holds the account journeys on `@playwright/test`: one per thing a player does, end
+to end. They drive the real Expo web client against a real local backend, and each leaves a
+video; a failing one also leaves a trace. The `phone` project (390×844) runs all of them;
+`landscape` (844×390) and `tablet` (820×1180) run only the ones tagged `@responsive` in their
+title, the sign-in and Classic claim forms. Layout at other sizes belongs to the UI checks.
 
 What the suite starts or needs besides Expo web and the backend:
 
 - A stand-in for Classic on `127.0.0.1:4001`, where the dev backend already looks for it
-  (empty secret). The login says what Classic answers: `classic-…` exists, `off-…` is
-  switched off, `rude-…` has a name that cannot be shown, `nameless-…` has no username,
-  `oldtotal-…`, `counter-…` and `lower-…` differ in the games they played. The suite
-  starts it itself.
+  (empty secret). The login says what Classic answers: `classic-…` and `reusable-…` exist.
+  The suite starts it itself.
 - A stand-in for Apple's key server and for Facebook on `127.0.0.1:4002`. It makes an RSA
   key at startup and signs the Apple identity tokens and Facebook Limited Login tokens the
   journeys ask for; it answers the Graph calls for a classic Facebook access token. The
@@ -151,25 +147,19 @@ What the suite starts or needs besides Expo web and the backend:
   journey instead of the native sheet (`src/features/auth/e2eProviders.ts`). The seam lives
   only in a development bundle (`__DEV__`), and CI fails if a production export holds
   `__pidroE2E`.
-- One reserved Classic name, `ReservedRita`, for the journeys where a name belongs to a
-  Classic player. Load it into the database once, before the backend starts (insert only,
-  so running it again is harmless): from `pidro_backend`,
-  `mix pidro.import_classic_name_reservations <path to packages/mobile/e2e/classic-name-reservations.json>`.
 - The old web client on `127.0.0.1:5173`, because the reset email links to it and the
   journeys follow that link.
 - The backend with game pacing, so a bot game is over in under a minute: the journeys that
   need a finished game play it out with `scripts/autoplay-full-game.mjs --token`.
 
-Journeys tagged `@second-run` need a backend with lifetimes of a second
-(`CLASSIC_CLAIM_TICKET_TTL_SECONDS=1`, `PASSWORD_RESET_TTL_SECONDS=1`). Both runs use
-`PASSWORD_RESET_DEBUG_TOKENS=false`. `e2e/ci.sh` runs the suite twice, restarting the backend
-in between; `bun run e2e:accounts:second-run` is the second run. The weekly workflow runs the
-same script against `main` and keeps its artifact for 90 days.
+The backend runs with `PASSWORD_RESET_DEBUG_TOKENS=false`, so a journey reads its reset
+link from the dev mailbox. The manual Account regression workflow runs the same `e2e/ci.sh`
+against `main` and keeps its artifact for 90 days.
 
 To run it on spare ports without touching your daily backend:
 
 ```bash
-# Terminal 1, from pidro_backend (load the reserved name first, see above)
+# Terminal 1, from pidro_backend
 PORT=4100 PASSWORD_RESET_DEBUG_TOKENS=false \
 LIFECYCLE_TURN_TIMER_BID_MS=1200 LIFECYCLE_TURN_TIMER_PLAY_MS=900 \
 LIFECYCLE_CONNECTION_CHECK_INTERVAL_MS=1000 LIFECYCLE_TURN_PAUSE_BUDGET_MS=1000 \

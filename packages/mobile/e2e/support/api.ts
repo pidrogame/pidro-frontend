@@ -45,15 +45,6 @@ export async function register(player: Player) {
   return expectStatus(result, 201, 'register') as Promise<{ token: string; user: { id: string } }>;
 }
 
-/** An account from before the age gate: no age answer on the server. */
-export async function registerWithoutAge(player: Player) {
-  const result = await api('/api/v1/auth/register', {
-    method: 'POST',
-    body: { user: { username: player.name, email: player.email, password: player.password } },
-  });
-  return expectStatus(result, 201, 'register') as Promise<{ token: string; user: { id: string } }>;
-}
-
 export async function guest(player: Player) {
   const result = await api('/api/v1/auth/guest', {
     method: 'POST',
@@ -124,29 +115,4 @@ export async function claimClassic(player: Player, login = player.classicLogin) 
     200,
     'classic claim'
   )) as { token: string; user: { id: string; email: string } };
-}
-
-/** A host with a table open for one more player, and the invite to it. */
-export async function inviteToTable(host: Player) {
-  const { token } = await register(host);
-  const room = await expectStatus(
-    await api('/api/v1/rooms', { method: 'POST', token, body: { name: `${host.name} table` } }),
-    201,
-    'create room'
-  );
-  const created = await api(`/api/v1/rooms/${room.code}/invites`, {
-    method: 'POST',
-    token,
-    body: { platform: 'web' },
-  });
-  const { code } = (await expectStatus(created, 201, 'create invite')).invite as { code: string };
-  return { code, room: room.code as string, token };
-}
-
-export async function revokeInvite(token: string, code: string) {
-  await expectStatus(
-    await api(`/api/v1/invites/${code}`, { method: 'DELETE', token }),
-    204,
-    'revoke'
-  );
 }

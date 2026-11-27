@@ -2,7 +2,7 @@
 // APPLE_JWKS_URL, FACEBOOK_JWKS_URL, FACEBOOK_GRAPH_URL, APPLE_AUDIENCE and FACEBOOK_APP_ID pointing
 // here and checks every token exactly as in production; only the key server and the Graph host differ.
 // The key is made at startup and signs the tokens a journey asks for (POST /sign). A classic Facebook
-// access token carries its own identity: `fb.` and the base64url of {id, email?, invalid?}.
+// access token carries its own identity: `fb.` and the base64url of {id, email?}.
 import { createSign, generateKeyPairSync } from 'node:crypto';
 import { createServer } from 'node:http';
 
@@ -32,7 +32,7 @@ function sign(provider: keyof typeof ISSUERS, claims: object) {
   return `${signed}.${signature}`;
 }
 
-type GraphWho = { id: string; email?: string; invalid?: boolean };
+type GraphWho = { id: string; email?: string };
 
 function graph(path: string, query: URLSearchParams): [number, object] {
   const token = query.get('input_token') ?? query.get('access_token') ?? '';
@@ -46,10 +46,9 @@ function graph(path: string, query: URLSearchParams): [number, object] {
     return [
       200,
       {
-        data:
-          who && !who.invalid
-            ? { is_valid: true, app_id: FACEBOOK_APP_ID, user_id: who.id }
-            : { is_valid: false },
+        data: who
+          ? { is_valid: true, app_id: FACEBOOK_APP_ID, user_id: who.id }
+          : { is_valid: false },
       },
     ];
   }

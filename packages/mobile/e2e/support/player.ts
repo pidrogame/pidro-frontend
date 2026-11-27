@@ -6,9 +6,6 @@ export const AGE_ANSWERED = JSON.stringify({
   version: 0,
 });
 
-/** A Classic player's name, kept back by the backend (classic-name-reservations.json). */
-export const RESERVED_CLASSIC_NAME = 'ReservedRita';
-
 /** One identity per test, so tests run in parallel and a rerun needs no reset. */
 export function newPlayer() {
   const id = randomBytes(4).toString('hex');

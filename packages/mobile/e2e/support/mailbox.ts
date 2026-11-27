@@ -43,15 +43,3 @@ export async function resetLinkFor(email: string) {
   if (!link) throw new Error(`no link in: ${mail.text_body}`);
   return link;
 }
-
-export async function resetTokenFor(email: string) {
-  return new URL(await resetLinkFor(email)).searchParams.get('token') as string;
-}
-
-/** The latest email addressed to support whose subject names the player. */
-export function supportMailAbout(name: string) {
-  return latest(
-    (item) => String(item.to).includes('support@') && !!item.subject?.includes(name),
-    `no email to support about ${name} in the dev mailbox`
-  );
-}
