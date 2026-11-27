@@ -2,11 +2,21 @@ import assert from 'node:assert/strict';
 
 // What the UI run looks through (PID-514): every case on a 390×844 phone; the table,
 // the first screens and sign-in also on the smallest phone, landscape and the iPad.
+// The table also on the iPad held sideways, and on an iPhone held sideways with its
+// camera cutout, where East's and West's cards must stay out from under it.
 export const UI_VIEWPORTS = [
   { name: 'portrait', width: 390, height: 844 },
   { name: 'compact-portrait', width: 360, height: 640 },
   { name: 'landscape', width: 844, height: 390 },
   { name: 'tablet-portrait', width: 768, height: 1024 },
+  { name: 'tablet-landscape', width: 1024, height: 768 },
+  {
+    name: 'iphone-insets-landscape',
+    width: 874,
+    height: 402,
+    safeArea: 'iphone-17-landscape',
+    insets: { left: 62, right: 62 },
+  },
 ];
 
 export function assertInsideViewport(name, box, viewport) {

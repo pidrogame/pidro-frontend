@@ -1301,7 +1301,10 @@ cases so future tuning can use measured costs.
 Grammar viewports (PID-514, `UI_VIEWPORTS` in `scripts/ui-test-utils.mjs`): every case on
 `portrait` 390×844; the table, the first screens and sign-in (`EVERY_SIZE` in
 `verify-ui-grammar.mjs`) also on `compact-portrait` 360×640, `landscape` 844×390 and
-`tablet-portrait` 768×1024. A case that guards one size names it in `sizes`. Fixtures in
+`tablet-portrait` 768×1024. The table (`TABLE`) also takes `tablet-landscape` 1024×768,
+and where East and West hold cards (`SIDE_STACKS`) `iphone-insets-landscape` 874×402,
+whose 62pt cutout insets their stacks must stay clear of
+(`assertSideStacksInsideCutouts`). A case that guards one size names it in `sizes`. Fixtures in
 this file stay reachable by URL whether or not a grammar case still captures them;
 `node scripts/verify-ui-grammar.mjs --list-cases` is the case inventory.
 

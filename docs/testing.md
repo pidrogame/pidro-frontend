@@ -139,8 +139,10 @@ attempts and focused repetition counts; retry success does not erase a failure.
   - every unit test (137 files);
   - every UI case at the sizes where it can break: each screen at 390×844 in English,
     Swedish where the words are long, and the table, first screen and sign-in also
-    at 360×640, landscape (844×390) and tablet (768×1024). That is 300 cases, 343
-    screenshots, compared against their baselines;
+    at 360×640, landscape (844×390) and tablet (768×1024); the table also on a tablet
+    held sideways (1024×768) and an iPhone held sideways whose side stacks must keep
+    clear of its camera cutout (874×402). That is 296 cases, 353 screenshots,
+    compared against their baselines;
   - the behavior suites (readiness, table chrome, seat decisions, dealing, lobby, new
     table, waiting seats, game over);
   - Game e2e (an invited game, a rematch and a dropped-socket rejoin) and the

@@ -1900,6 +1900,26 @@ async function assertSweep(page, testCase, viewport) {
   );
 }
 
+// A side stack may bleed off a bare screen edge, never under a camera cutout.
+async function assertSideStacksInsideCutouts(page, testCase, viewport) {
+  const { left, right } = viewport.insets;
+  for (const [position, inset] of [
+    ['west', left],
+    ['east', right],
+  ]) {
+    const stack = page.getByTestId(`seat-${position}-cards`).locator(':scope > div').first();
+    await stack.waitFor({ state: 'visible', timeout: 20_000 });
+    const box = await getStableBox(stack, page);
+    const outside =
+      position === 'west' ? inset - box.x : box.x + box.width - (viewport.width - inset);
+    if (outside > 0.5) {
+      throw new Error(
+        `${testCase.name}: the ${position} card stack reaches ${outside.toFixed(1)}pt into the cutout in ${viewport.name}: ${JSON.stringify(box)}`
+      );
+    }
+  }
+}
+
 async function assertTargetGeometry(page, testCase, viewport) {
   const target = testCase.testId ? page.getByTestId(testCase.testId).first() : null;
   if (target) {
@@ -2019,6 +2039,10 @@ async function assertTargetGeometry(page, testCase, viewport) {
     }
     if (testCase.longNames) {
       await assertNamesFit(page, viewport, testCase.northNameMin);
+    }
+
+    if (viewport.insets && SIDE_STACKS.has(testCase.name)) {
+      await assertSideStacksInsideCutouts(page, testCase, viewport);
     }
   } else if (testCase.text) {
     await page.getByText(testCase.text, { exact: true }).first().waitFor({ timeout: 15_000 });
@@ -9783,26 +9807,36 @@ async function assertLeague(page, testCase, viewport) {
 }
 
 // PID-514: a case is captured once, on a 390×844 phone, unless it names its sizes.
-// The table, the first screens and sign-in also take every size in UI_VIEWPORTS.
-const EVERY_SIZE = new Set([
+// The table, the first screens and sign-in also take the small phone, landscape and
+// the iPad; the table the iPad sideways too, and where East and West hold cards, the
+// iPhone sideways beside its cutout.
+const SIDE_STACKS = new Set([
   'table-playing',
   'table-bidding',
   'table-trump',
-  'table-hand-selection',
-  'table-game-over',
   'table-long-names',
   'table-invitation',
-  'table-count-help',
-  'table-talk-sheet',
-  'welcome',
-  'home',
-  'login',
-  'classic-method',
-  'lobby-list',
 ]);
+const TABLE = new Set([
+  ...SIDE_STACKS,
+  'table-count-help',
+  'table-hand-selection',
+  'table-game-over',
+  'table-talk-sheet',
+]);
+const EVERY_SIZE = new Set([...TABLE, 'welcome', 'home', 'login', 'classic-method', 'lobby-list']);
 const sizesOf = (testCase) =>
   testCase.sizes ??
-  (EVERY_SIZE.has(testCase.name) ? UI_VIEWPORTS.map(({ name }) => name) : ['portrait']);
+  (EVERY_SIZE.has(testCase.name)
+    ? [
+        'portrait',
+        'compact-portrait',
+        'landscape',
+        'tablet-portrait',
+        ...(TABLE.has(testCase.name) ? ['tablet-landscape'] : []),
+        ...(SIDE_STACKS.has(testCase.name) ? ['iphone-insets-landscape'] : []),
+      ]
+    : ['portrait']);
 
 async function main() {
   if (process.argv[2] === '--list-cases') {
