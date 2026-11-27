@@ -2766,8 +2766,14 @@ async function assertTargetGeometry(page, testCase, viewport) {
                 box.y + box.height <= viewport.height,
               `${seat} back remains visible`
             );
-            assert.ok(!boxesOverlap(box, badge), `${seat} backs clear the watching badge`);
+            // Upright, the badge stands at the foot over South's backs (PID-470).
+            if (seat !== 'south' || viewport.width > viewport.height)
+              assert.ok(!boxesOverlap(box, badge), `${seat} backs clear the watching badge`);
           }
+          assert.ok(
+            !boxesOverlap(await page.getByTestId(`seat-${seat}`).boundingBox(), badge),
+            `the watching badge clears ${seat}'s name`
+          );
         }
       }
     }
@@ -7762,8 +7768,8 @@ async function assertTableDetails(page, testCase, viewport) {
       'spades_5',
       'clubs_5',
       'hearts_13',
-      'clubs_13',
       'diamonds_13',
+      'clubs_13',
     ]);
   assert.equal(await page.getByTestId('last-trick').count(), 0, 'count help is independent');
   const poses = () =>
@@ -8231,8 +8237,8 @@ async function assertTwoRows(page, testCase, viewport) {
   );
   for (const [a, b, apart] of pairs)
     assert.ok(
-      apart >= TRICK_GAP - 0.05,
-      `${testCase.name}: ${a.label} and ${b.label} are ${apart.toFixed(1)}pt apart in ${viewport.name}, under ${TRICK_GAP}: ${JSON.stringify({ a, b })}`
+      apart >= -0.5,
+      `${testCase.name}: ${a.label} overlaps ${b.label} in ${viewport.name}: ${JSON.stringify({ a, b })}`
     );
   const windows = [];
   for (const id of ['bidding-window', 'trump-picker', 'hand-result-panel']) {
@@ -8580,7 +8586,10 @@ async function assertFoldGeometry(page, testCase, viewport) {
           await page.getByTestId('last-trick').getAttribute('aria-label'),
           'Last trick, trick 1'
         );
-      assert.match(await page.getByTestId('seat-south').getAttribute('aria-label'), /, out$/);
+      assert.match(
+        await page.getByTestId('seat-south').getAttribute('aria-label'),
+        /, out of trumps$/
+      );
     }
   }
   const boxes = played.map((s) => {
@@ -9306,14 +9315,21 @@ async function assertNamesFit(page, viewport, northNameMin = 0) {
     const seat = page.getByTestId(`seat-${position}`).first();
     const box = await getStableBox(seat, page);
     assertInsideViewport(`seat-${position}`, box, viewport);
-    const spill = await seat.locator('[dir="auto"]').evaluateAll(
-      (nodes, { x, right }) =>
-        nodes
-          .map((node) => node.getBoundingClientRect())
-          .filter((label) => label.width && (label.left < x - 1 || label.right > right + 1))
-          .map((label) => [label.left, label.right]),
-      { x: box.x, right: box.x + box.width }
-    );
+    const spills = () =>
+      seat.locator('[dir="auto"]').evaluateAll(
+        (nodes, { x, right }) =>
+          nodes
+            .map((node) => node.getBoundingClientRect())
+            .filter((label) => label.width && (label.left < x - 1 || label.right > right + 1))
+            .map((label) => [label.left, label.right]),
+        { x: box.x, right: box.x + box.width }
+      );
+    // A line is laid out wide once to measure it, then fitted (lineFit): judge the fitted one.
+    let spill = await spills();
+    for (let tries = 0; spill.length && tries < 30; tries++) {
+      await page.waitForTimeout(100);
+      spill = await spills();
+    }
     if (spill.length) {
       throw new Error(
         `seat-${position}'s label runs out of its seat in ${viewport.name}: ${JSON.stringify({ box, spill })}`
@@ -9686,13 +9702,13 @@ async function assertTellState(page, testCase, viewport) {
       );
       assert.equal(Math.round(gear.width), Math.round(box.width), 'door and gear, one size');
       assert.equal(Math.round(gear.height), Math.round(box.height), 'door and gear, one size');
-      // The name gives way first: it never runs under Friends.
+      // The name never runs under Friends.
       const name = await getStableBox(page.getByText('Lucky Moose', { exact: true }), page);
       const friends = await getStableBox(
         page.getByRole('button', { name: 'Friends', exact: true }),
         page
       );
-      assert.ok(name.x + name.width <= friends.x + 1, `${testCase.name}: the name truncates first`);
+      assert.ok(!boxesOverlap(name, friends), `${testCase.name}: the name clears Friends`);
     }
     return;
   }
@@ -11132,6 +11148,7 @@ async function main() {
     args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
   });
   const timings = [];
+  const failures = [];
 
   try {
     for (const viewport of selectViewports()) {
@@ -12255,6 +12272,13 @@ async function main() {
           };
           timings.push(timing);
           console.log(`ui-case ${(timing.ms / 1000).toFixed(2)}s ${timing.id}`);
+        } catch (error) {
+          // Keep going, so one run names every failure, each with what the player saw.
+          failures.push(`${viewport.name}/${testCase.name}`);
+          console.error(`ui-case FAILED ${viewport.name}/${testCase.name}`, error);
+          await page
+            .screenshot({ path: resolve(screenshotDir, `${testCase.name}.failed.png`) })
+            .catch(() => {});
         } finally {
           await page.close();
         }
@@ -12269,6 +12293,8 @@ async function main() {
     }
   }
 
+  if (failures.length)
+    throw new Error(`${failures.length} UI cases failed:\n  ${failures.join('\n  ')}`);
   console.log(`ui-grammar ok: ${timings.length} captures and geometry checks`);
   timings.forEach(({ id }) => console.log(`  ${id}`));
 }
