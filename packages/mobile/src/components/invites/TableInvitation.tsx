@@ -40,10 +40,11 @@ export function TableInvitation({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  // A phone on its side has no room above North's played card for two rows,
+  // On its side a phone has no room above North's played card for two rows,
   // nor any above a bid, trump or hand window: the card waits for your choice.
   // Neither has a short upright phone once the table has made room for it.
-  const row = width > height && height < 500;
+  // An iPad on its side keeps the one row too, and the table makes room under it.
+  const row = width > height;
   // A tight phone keeps it short: the side seats sit under it (PID-470).
   const table = useTableSize();
   const compact = computeLayout(table.width, table.height, insets, TABLE_HEADER).tight;
