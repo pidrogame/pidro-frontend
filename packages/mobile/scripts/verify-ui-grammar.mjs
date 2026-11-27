@@ -1062,6 +1062,13 @@ const allCases = [
     drawLag: 250,
     ontoKilled: 'south',
   })),
+  {
+    name: 'table-draw-kill-north',
+    path: '/table-dev?deal=draw&kill=north&holdMs=100&dealerHoldMs=100&cardMs=10',
+    testId: 'seat-north',
+    drawLag: 250,
+    ontoKilled: 'north',
+  },
   // PID-476: after a lay-down the laid cards leave the table with the piles,
   // under Classic's points (count help off) and as the result opens (on).
   ...[''].map((count) => ({
