@@ -4833,7 +4833,14 @@ async function assertAuthFormInteractions(page, name, viewport) {
     await page.evaluate(() =>
       localStorage.setItem('install-id:v1', '00000000-0000-4000-8000-000000000455')
     );
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+    // On web every scroll counts as a drag and dismisses the keyboard, so a
+    // small phone's scroll to Sign in has to land before the tap focuses the email.
+    const signIn = page.getByRole('button', { name: 'Sign in', exact: true });
+    await signIn.scrollIntoViewIfNeeded();
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    );
+    await signIn.click();
     await page.getByText('Enter your email or username.', { exact: true }).waitFor();
     await page.getByText('Enter your password.', { exact: true }).waitFor();
     await assertFocused(identifier, `login validation did not focus the email in ${viewport.name}`);
