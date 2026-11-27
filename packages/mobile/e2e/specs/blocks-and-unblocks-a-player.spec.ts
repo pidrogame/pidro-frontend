@@ -5,10 +5,7 @@ import { startSignedIn } from '../support/session';
 
 test.use({ unavailableExpected: true });
 
-test('blocking removes the friendship; unblocking restores nothing', async ({
-  page,
-  player,
-}) => {
+test('blocking removes the friendship; unblocking restores nothing', async ({ page, player }) => {
   const account = await register(player);
   const otherPlayer = newPlayer();
   const other = await register(otherPlayer);
