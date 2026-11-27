@@ -126,7 +126,7 @@ jobs:
       - name: Install Chromium for the UI game
         run: bunx playwright install --with-deps chromium
 
-      - name: Play full games (solo protocol + multiplayer UI with video)
+      - name: Play a game with a guest invited by link (UI with video)
         working-directory: packages/mobile
         env:
           CI: '1'

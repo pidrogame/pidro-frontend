@@ -74,20 +74,17 @@ required; browser viewports are not device proof.
 
 ## Full-game e2e (the CI gate)
 
-`scripts/ci-game-e2e.mjs` plays two complete games against a real backend and
-fails if either one doesn't reach game over:
-
-1. **Solo protocol game** — registers a throwaway account, creates a 3-bot
-   room, and plays first-legal-action to `game_over` (including the
-   `progression_summary` check).
-2. **Multiplayer UI game** — a second account creates a room with one open
-   seat, logs in through the real UI in headless Chromium, and sits at the
-   table while the autoplayer takes the open seat. The server's turn timers
-   auto-play the UI seat, so a full game runs in the actual client — recorded
-   as `game.webm` with milestone screenshots.
+`scripts/ci-game-e2e.mjs` plays one complete game against a real backend, the way a
+friend invited by link would, and fails if it doesn't reach game over: a registered host
+opens a table with two bots and mints an invite; a clean Chromium profile in Swedish opens
+the link, answers the age gate, reads Marcel's welcome and sits down as a nameless guest.
+The host's protocol client and the server's turn timers play the game to its end while the
+guest watches, recorded as `game.webm` with milestone screenshots. Whenever the server sends
+the idle guest away, the guest presses I'm back. At game over the guest presses Play again,
+the host agrees, and the rematch starts in the same room.
 
 CI runs this in the `Game e2e` job (`.github/workflows/game-e2e.yml`, called by
-Frontend CI and by pidro-backend's Deploy workflow before a production deploy): it
+the full Frontend CI run): it
 checks out `marcelfahle/pidro-backend`, boots Phoenix against a Postgres
 service with fast pacing (`LIFECYCLE_BOT_DELAY_MS=60`,
 `LIFECYCLE_TURN_TIMER_BID_MS=1200`, …), starts Expo web, and uploads the video
@@ -121,8 +118,7 @@ node scripts/ci-game-e2e.mjs
 ```
 
 Artifacts land in `screenshots/agent-game-e2e/` (override with
-`E2E_ARTIFACT_DIR`). Expect roughly 35s for the solo game and 2–3 minutes for
-the multiplayer UI game at CI pacing.
+`E2E_ARTIFACT_DIR`). Expect about two minutes at CI pacing.
 
 ## Account journeys (the "Account e2e" CI job)
 
