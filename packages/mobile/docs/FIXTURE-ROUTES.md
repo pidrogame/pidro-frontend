@@ -1634,7 +1634,7 @@ UI_CASES=ad-sheet-offer-en,ad-sheet-loading-en,ad-sheet-dismissed-en,ad-sheet-un
 
 ## First screen (PID-454, PID-456)
 
-`/welcome` has two doors, **I've played before** (to Sign in, old or new) and **Quick
+`/welcome` has two doors, **Sign in** (any account, old or new) and **Quick
 game**, and the **Create a free account** link. A phone someone signed in on keeps one
 record, `known-player:v1` in local storage (name, picture, sign-in method; no password or
 token), and greets them instead: their picture, "Welcome back", **Continue as <name>** (to

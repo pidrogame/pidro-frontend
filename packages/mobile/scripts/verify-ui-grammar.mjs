@@ -2739,8 +2739,8 @@ async function assertClassicLogin(page, testCase, viewport) {
     const door = page.getByRole('button', {
       name: !method
         ? sv
-          ? 'Jag har spelat förut. Logga in på ditt konto.'
-          : "I've played before. Sign in to your account."
+          ? 'Logga in. Jag har redan ett konto.'
+          : 'Sign in. I already have an account.'
         : method === 'password'
           ? sv
             ? `Fortsätt som ${testCase.knownPlayer.name}`
