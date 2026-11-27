@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# The account journeys as CI runs them (account-e2e.yml): the backend, the old web client and
-# Expo web. E2E_SHARD (current/total) runs one shard of them. The backend never puts reset tokens
-# in its answer (PASSWORD_RESET_DEBUG_TOKENS=false).
+# The account journeys as CI runs them (account-e2e.yml): the backend and Expo web. E2E_SHARD
+# (current/total) runs one shard of them. The backend never puts reset tokens in its answer
+# (PASSWORD_RESET_DEBUG_TOKENS=false).
 # Expects the backend checked out and compiled in $BACKEND_DIR, and Postgres up.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -50,16 +50,12 @@ wait_for() {
   exit 1
 }
 
-# The reset email links to the old web client; the journeys follow that link.
-(cd ../web && NODE_OPTIONS= VITE_API_URL=http://127.0.0.1:4000 VITE_WS_URL=ws://127.0.0.1:4000/socket \
-  bun run dev --host 127.0.0.1 --port 5173 > /tmp/pidro-web.log 2>&1) &
 # The only place the flag is set: the Apple and Facebook buttons appear on web and take their
 # answer from the journey.
 EXPO_PUBLIC_E2E=1 bunx expo start --web --port 8081 > /tmp/pidro-expo.log 2>&1 &
 trap 'kill $(jobs -p) 2>/dev/null || true' EXIT
 
 start_backend
-wait_for http://127.0.0.1:5173/ 30 /tmp/pidro-web.log
 wait_for http://127.0.0.1:8081/home 60 /tmp/pidro-expo.log
 
 # Build the bundle now, so the first journey does not wait for Metro.

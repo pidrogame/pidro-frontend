@@ -130,6 +130,5 @@ jobs:
             packages/mobile/e2e/journeys*.json
             /tmp/pidro-backend.log
             /tmp/pidro-expo.log
-            /tmp/pidro-web.log
           if-no-files-found: ignore
           retention-days: ${{ inputs.retention-days }}

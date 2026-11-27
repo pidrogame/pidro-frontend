@@ -2,9 +2,9 @@ import { test, expect } from '../fixtures';
 import { ClaimClassicScreen } from '../screens/claim-classic-screen';
 import { HomeScreen } from '../screens/home-screen';
 import { LoginScreen } from '../screens/login-screen';
-import { WebResetPage } from '../screens/web-reset-page';
+import { ResetPasswordScreen } from '../screens/reset-password-screen';
 import { claimClassic, login as apiLogin } from '../support/api';
-import { resetLinkFor } from '../support/mailbox';
+import { resetScreenFor } from '../support/mailbox';
 import { sessionOf } from '../support/session';
 
 // Signed out, the form asks Sign in's call (PID-455): an account already moved says its old
@@ -37,14 +37,12 @@ test('a Classic account someone already moved says that was the old password, em
   await expect(login.field('Password')).toHaveValue('');
   await expect(login.field('Password')).toBeFocused();
 
-  // The link went to the account it moved to. It sets a new password there, and the app
-  // signs in with it.
-  await page.goto(await resetLinkFor(owner.email));
-  await new WebResetPage(page).setNewPassword(player.newPassword);
-  await expect(page).toHaveURL(/\/home$/);
-  expect((await apiLogin(player, owner.email)).status).toBe(401);
-  await page.goto('/login');
-  await login.signIn(player.classicLogin, player.newPassword);
+  // The link went to the account it moved to. It opens the app's reset screen, sets a new
+  // password there and signs in with it.
+  await page.goto(await resetScreenFor(owner.email));
+  await new ResetPasswordScreen(page).setNewPassword(player.newPassword);
   await expect(new HomeScreen(page).root).toBeVisible();
   expect((await sessionOf(page))?.user?.id).toBe(owner.id);
+  expect((await apiLogin(player, owner.email)).status).toBe(401);
+  expect((await apiLogin(player, player.classicLogin, player.newPassword)).status).toBe(200);
 });

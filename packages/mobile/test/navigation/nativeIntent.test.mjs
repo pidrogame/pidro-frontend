@@ -56,6 +56,36 @@ describe('native invite intent', () => {
     expect(redirectSystemPath({ path: 'https://pidro.online/play/b' })).toBe('/+not-found');
   });
 
+  it("opens a reset email's link on the app's reset screen, with its token", () => {
+    expect(
+      redirectSystemPath({ path: 'https://pidro.online/app/reset-password?token=a%2Bb%2Fc%3D' })
+    ).toBe('/reset-password?token=a%2Bb%2Fc%3D');
+    expect(
+      redirectSystemPath({
+        path: 'https://www.pidro.online/app/reset-password/?from=mail&token=Xy-9_z',
+      })
+    ).toBe('/reset-password?token=Xy-9_z');
+    // Without a token the screen says the link is broken and offers a new one.
+    expect(redirectSystemPath({ path: 'https://pidro.online/app/reset-password' })).toBe(
+      '/reset-password'
+    );
+  });
+
+  it('keeps other /app/ paths, other hosts and the old web link on not-found', () => {
+    expect(redirectSystemPath({ path: 'https://pidro.online/app/settings?token=x' })).toBe(
+      '/+not-found'
+    );
+    expect(redirectSystemPath({ path: 'https://pidro.online/app/reset-password-x?token=x' })).toBe(
+      '/+not-found'
+    );
+    expect(redirectSystemPath({ path: 'https://evil.example/app/reset-password?token=x' })).toBe(
+      '/+not-found'
+    );
+    expect(redirectSystemPath({ path: 'https://play.pidro.online/reset-password?token=x' })).toBe(
+      '/+not-found'
+    );
+  });
+
   it('never lets an outside origin or a release build reach a harness route', () => {
     expect(redirectSystemPath({ path: 'https://evil.example/--/table-dev' })).toBe('/+not-found');
     expect(redirectSystemPath({ path: 'exp://127.0.0.1:8081/--/settings' })).toBe('/+not-found');

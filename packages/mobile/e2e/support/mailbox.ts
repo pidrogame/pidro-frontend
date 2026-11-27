@@ -36,10 +36,14 @@ export async function classicCodeFor(email: string) {
   return code;
 }
 
-/** The link the reset email carries; in dev it points at the old web client. */
-export async function resetLinkFor(email: string) {
+/**
+ * The app's reset screen with the token of the link the reset email carries. On a phone the
+ * link itself opens that screen (app/+native-intent.tsx); in dev it names another host and has
+ * no `/app`, so this takes only the token.
+ */
+export async function resetScreenFor(email: string) {
   const mail = await mailTo(email);
-  const link = /(https?:\/\/\S+token=\S+)/.exec(mail.text_body)?.[1];
-  if (!link) throw new Error(`no link in: ${mail.text_body}`);
-  return link;
+  const token = /\/reset-password\?token=([^\s&]+)/.exec(mail.text_body)?.[1];
+  if (!token) throw new Error(`no reset link in: ${mail.text_body}`);
+  return `/reset-password?token=${token}`;
 }

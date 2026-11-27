@@ -145,14 +145,13 @@ What the suite starts or needs besides Expo web and the backend:
   journey instead of the native sheet (`src/features/auth/e2eProviders.ts`). The seam lives
   only in a development bundle (`__DEV__`), and CI fails if a production export holds
   `__pidroE2E`.
-- The old web client on `127.0.0.1:5173`, because the reset email links to it and the
-  journeys follow that link.
 - The backend with game pacing, so a bot game is over in under a minute: the journeys that
   need a finished game play it out with `scripts/autoplay-full-game.mjs --token`.
 
 The backend runs with `PASSWORD_RESET_DEBUG_TOKENS=false`, so a journey reads its reset
-link from the dev mailbox. The manual Account regression workflow runs the same `e2e/ci.sh`
-against `main` and keeps its artifact for 90 days.
+link from the dev mailbox and opens the app's reset screen with its token, as a phone does.
+The manual Account regression workflow runs the same `e2e/ci.sh` against `main` and keeps
+its artifact for 90 days.
 
 To run it on spare ports without touching your daily backend:
 
@@ -172,11 +171,7 @@ EXPO_PUBLIC_WS_URL=ws://127.0.0.1:4100/socket \
 NODE_OPTIONS="--max-old-space-size=8192 --require ./scripts/tailwind-v3-resolve.cjs" \
 ../../node_modules/.bin/expo start --web --port 8089
 
-# Terminal 3, from packages/web (the port must be 5173: it is in the email link)
-VITE_API_URL=http://127.0.0.1:4100 VITE_WS_URL=ws://127.0.0.1:4100/socket \
-  bun run dev --host 127.0.0.1 --port 5173
-
-# Terminal 4, from packages/mobile
+# Terminal 3, from packages/mobile
 API_BASE_URL=http://127.0.0.1:4100 MOBILE_BASE_URL=http://localhost:8089 \
   bun run e2e:accounts [part of a spec name]
 ```

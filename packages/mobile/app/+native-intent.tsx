@@ -43,6 +43,22 @@ function devFixturePath(path: string): string | null {
   return DEV_FIXTURE_ROUTES.has(name) ? `/${route}` : null;
 }
 
+const SITE_HOSTS = new Set(['pidro.online', 'www.pidro.online']);
+
+/** A reset email's `https://pidro.online/app/reset-password?token=…` opens the reset screen. */
+function resetPasswordPath(path: string): string | null {
+  try {
+    const url = new URL(path);
+    if (url.protocol !== 'https:' || !SITE_HOSTS.has(url.hostname)) return null;
+    if (url.pathname.replace(/\/+$/, '') !== '/app/reset-password') return null;
+    // No token still opens the screen: it says the link is broken and offers a new one.
+    const token = url.searchParams.get('token');
+    return token ? `/reset-password?token=${encodeURIComponent(token)}` : '/reset-password';
+  } catch {
+    return null;
+  }
+}
+
 function isAppStartupPath(path: string): boolean {
   if (path === '' || path === '/') return true;
 
@@ -64,6 +80,9 @@ function isAppStartupPath(path: string): boolean {
 export function redirectSystemPath({ path }: { path: string; initial?: boolean }): string {
   const fixture = devFixturePath(path);
   if (fixture) return fixture;
+
+  const reset = resetPasswordPath(path);
+  if (reset) return reset;
 
   const friend = parseFriendLink(path);
   if (friend) return `/play/${friend}`;
