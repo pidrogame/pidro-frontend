@@ -148,7 +148,7 @@ attempts and focused repetition counts; retry success does not erase a failure.
   - Game e2e (an invited game, a rematch and a dropped-socket rejoin) and the
     Account journeys (21 files, 2 shards), both against the backend's `main`.
 
-  Cost: about 10 minutes from start to green and 40 machine-minutes, 29 of them for
+  Cost: about 10 minutes from start to green and 41 machine-minutes, 30 of them for
   the UI jobs (three matrix shards and one behavior job side by side). Before PID-514
   it was 17 minutes and 144 machine-minutes.
 
