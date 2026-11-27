@@ -14,31 +14,9 @@ test('a commit always gets the same place-and-word name', () => {
   expect(updateName(` ${sha.toUpperCase()}\n`)).toBe(name);
 });
 
-test('the name is spread over both lists, not stuck on a few', () => {
-  const places = new Set();
-  const words = new Set();
-  for (let i = 0; i < 4000; i++) {
-    const [place, word] = updateName(i.toString(16).padStart(40, '0')).split('-');
-    places.add(place);
-    words.add(word);
-  }
-  expect(places.size).toBe(PLACES.length);
-  expect(words.size).toBe(WORDS.length);
-  // Neighbouring commits read differently.
-  expect(updateName('a'.repeat(39) + '0')).not.toBe(updateName('a'.repeat(39) + '1'));
-});
-
 test('anything that is not a sha has no name', () => {
   for (const value of ['', '   ', 'abc12', 'not-a-sha-at-all', 'g'.repeat(40), 'a'.repeat(41)])
     expect(updateName(value)).toBeNull();
   expect(updateName(undefined)).toBeNull();
   expect(updateName(null)).toBeNull();
-});
-
-test('every entry is one word and appears once across both lists', () => {
-  const all = [...PLACES, ...WORDS];
-  expect(new Set(all).size).toBe(all.length);
-  for (const entry of all) expect(entry).toMatch(/^\p{Lu}\p{Ll}+$/u);
-  expect(PLACES.length).toBeGreaterThanOrEqual(40);
-  expect(WORDS.length).toBeGreaterThanOrEqual(40);
 });

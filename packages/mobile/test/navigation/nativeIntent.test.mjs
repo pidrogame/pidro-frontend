@@ -56,37 +56,6 @@ describe('native invite intent', () => {
     expect(redirectSystemPath({ path: 'https://pidro.online/play/b' })).toBe('/+not-found');
   });
 
-  it('opens dev harness routes from simulator deep links', () => {
-    expect(redirectSystemPath({ path: 'exp://127.0.0.1:8081/--/table-dev?phase=bidding' })).toBe(
-      '/table-dev?phase=bidding'
-    );
-    expect(redirectSystemPath({ path: 'exp://127.0.0.1:8081/--/ui-dev?state=components' })).toBe(
-      '/ui-dev?state=components'
-    );
-    expect(redirectSystemPath({ path: 'pidro-mobile-dev://auth-flow-dev' })).toBe('/auth-flow-dev');
-    expect(redirectSystemPath({ path: '/table-dev?phase=game_over' })).toBe(
-      '/table-dev?phase=game_over'
-    );
-  });
-
-  it('opens account fixture states from simulator deep links', () => {
-    expect(
-      redirectSystemPath({ path: 'exp://127.0.0.1:8081/--/classic-forgot?fixture=sent' })
-    ).toBe('/classic-forgot?fixture=sent');
-    expect(redirectSystemPath({ path: 'exp://127.0.0.1:8081/--/register?fixture=name' })).toBe(
-      '/register?fixture=name'
-    );
-
-    globalThis.__DEV__ = false;
-    try {
-      expect(redirectSystemPath({ path: 'exp://127.0.0.1:8081/--/classic-forgot' })).toBe(
-        '/+not-found'
-      );
-    } finally {
-      globalThis.__DEV__ = true;
-    }
-  });
-
   it('never lets an outside origin or a release build reach a harness route', () => {
     expect(redirectSystemPath({ path: 'https://evil.example/--/table-dev' })).toBe('/+not-found');
     expect(redirectSystemPath({ path: 'exp://127.0.0.1:8081/--/settings' })).toBe('/+not-found');

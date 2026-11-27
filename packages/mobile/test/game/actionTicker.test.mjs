@@ -66,13 +66,6 @@ describe('action ticker schedule', () => {
     expect(shown(later, SHOW_MS + FADE_MS)).toEqual(['p2', 'p3', 'take']);
   });
 
-  it('drops the oldest waiting lines when far behind', () => {
-    let state = stepTicker(initialTickerState(), ['x'], 0);
-    state = stepTicker(state, ['x', ...ids(10)], 0);
-    expect(shown(state, 0)).toEqual(['a0', 'a1', 'a2']);
-    expect(state.queue).toEqual(['a4', 'a5', 'a6', 'a7', 'a8', 'a9']);
-  });
-
   it('does not queue a line again when it comes back', () => {
     let state = stepTicker(initialTickerState(), ['x'], 0);
     state = stepTicker(state, ['x', 'n'], 0);

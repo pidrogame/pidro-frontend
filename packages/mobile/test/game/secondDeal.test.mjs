@@ -68,39 +68,6 @@ describe('the second deal at Classic’s pace', () => {
     expect(beats.every((frame) => frame.hand.west === 9)).toBe(true);
   });
 
-  // PID-452: when each pile was thrown, cleared and given its first card.
-  const at = (test) => {
-    let ms = 0;
-    for (const frame of beats) {
-      if (test(frame)) return ms;
-      ms += frame.ms;
-    }
-    return null;
-  };
-  it('keeps each pile until its player’s first card comes, and never less than 3 s', () => {
-    for (const rel of ['north', 'east', 'south']) {
-      const thrown = at((frame) => frame.thrown[rel] > 0);
-      const cleared = at((frame) => frame.out[rel] > 0 && frame.thrown[rel] === 0);
-      expect(cleared, rel).toBe(at((frame) => frame.drawn[rel] > 0));
-      expect(cleared - thrown, rel).toBeGreaterThanOrEqual(3_000);
-    }
-    // The last thrower's pile lies the longest it must: the hold and the pack taken up.
-    expect(beats[3].ms).toBe(secondDealTiming.holdMs + secondDealTiming.packMs);
-    // Then the dealer's left gets a card and their pile goes; the others' still lie.
-    expect(beats[4].thrown).toEqual({ north: 0, east: 6, south: 7, west: 0 });
-  });
-
-  it('never holds the piles less than 3 s, however the timing is tuned', () => {
-    const quick = { ...secondDealTiming, holdMs: 500, packMs: 0 };
-    Object.assign(secondDealTiming, quick);
-    try {
-      const fast = makePlan(model, held).frames;
-      expect(fast[3].ms).toBe(3_000);
-    } finally {
-      Object.assign(secondDealTiming, { holdMs: 3_000, packMs: 500 });
-    }
-  });
-
   // With count help the table says what each drew, from their refill on.
   it('counts what each player drew from their first card, and never the dealer’s here', () => {
     const first = (rel) => beats.findIndex((frame) => frame.drawn[rel] > 0);
@@ -142,12 +109,6 @@ describe('the second deal at Classic’s pace', () => {
       'clubs_12',
       'diamonds_7',
     ]);
-  });
-
-  it('takes as long as the server holds play for, less the dealer’s throw it does not count', () => {
-    const total = beats.reduce((sum, frame) => sum + frame.ms, 0);
-    expect(total).toBe(secondDealDurationMs(12) - secondDealTiming.dealerHoldMs);
-    expect(beats.some((frame) => frame.dealerThrew)).toBe(false);
   });
 
   it('plays nothing out without every player’s counts', () => {

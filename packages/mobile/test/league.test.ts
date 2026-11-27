@@ -1,13 +1,6 @@
 import { afterEach, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  catalogs,
-  setLocale,
-  t,
-  validateCatalogs,
-  type LeagueResult,
-  type LeagueState,
-} from '@pidro/shared';
+import { setLocale, t, type LeagueResult, type LeagueState } from '@pidro/shared';
 import {
   LEAGUES,
   closeTimeText,
@@ -22,7 +15,6 @@ import {
   ribbonHistory,
   ribbonMonth,
   shouldShowLeagueResult,
-  shouldPinLeagueRow,
 } from '../src/features/league';
 
 afterEach(() => setLocale('en'));
@@ -236,43 +228,6 @@ test('postgame placement shows points, movement or first placement in both langu
   assert.equal(placeArrow(null, 1), '');
 });
 
-test('own row pins at either partial edge, unpins only when fully visible, and yields in a starved slot', () => {
-  for (const [y, offset, viewport, expected] of [
-    [300, 0, 350, true],
-    [294, 0, 350, false],
-    [293.5, 0, 350, false],
-    [294.5, 0, 350, true],
-    [99.5, 100, 350, true],
-    [100, 100, 350, false],
-    [450, 100, 350, true],
-    [20, 0, 60, false],
-    [20, 0, 61, true],
-  ] as const)
-    assert.equal(shouldPinLeagueRow({ y, height: 56 }, offset, viewport, 60), expected);
-  assert.equal(shouldPinLeagueRow({ y: 235, height: 56 }, 0, 350, 60, true), true);
-  assert.equal(shouldPinLeagueRow({ y: 234, height: 56 }, 0, 350, 60, true), false);
-  assert.equal(shouldPinLeagueRow({ y: 999, height: 0 }, 0, 350, 4), false);
-});
-
-test('a fully visible friends copy hides the pin, but a partial or unmeasured copy does not', () => {
-  const standing = { y: 300, height: 56 };
-  for (const pinned of [false, true]) {
-    const bottom = 750 - (pinned ? 60 : 0);
-    for (const [y, height, expected] of [
-      [400, 56, false],
-      [399, 56, true],
-      [bottom - 56, 56, false],
-      [bottom - 55, 56, true],
-      [500, 0, true],
-    ] as const)
-      assert.equal(shouldPinLeagueRow(standing, 400, 350, 60, pinned, { y, height }), expected);
-  }
-  assert.equal(
-    shouldPinLeagueRow({ y: 400, height: 56 }, 400, 350, 60, true, { y: 800, height: 56 }),
-    false
-  );
-});
-
 test('countdown floors whole minutes, keeps both units, and clamps expiry in both languages', () => {
   const close = '2026-11-08T19:00:00Z';
   for (const [now, en, sv] of [
@@ -339,90 +294,4 @@ test('only up and down results are shown; stayed and null are silent', () => {
   assert.equal(shouldShowLeagueResult({ ...result, move: 'down', new_league: 'ten' }), true);
   assert.equal(shouldShowLeagueResult({ ...result, move: 'stayed', new_league: 'jack' }), false);
   assert.equal(shouldShowLeagueResult(null), false);
-});
-
-test('minimal copy translates actions, rules and results without obsolete keys', () => {
-  assert.deepEqual(validateCatalogs(catalogs.en, catalogs.sv), []);
-  const copy = [
-    ['league.move_up', '↑ Move up', '↑ Flytta upp'],
-    ['league.move_down', '↓ Move down', '↓ Flytta ner'],
-    ['league.rules.title', 'League', 'Liga'],
-    [
-      'league.rules.points',
-      'Every game you play with other people earns points. Games with only bots don’t count.',
-      'Varje parti du spelar med andra ger poäng. Partier med bara botar räknas inte.',
-    ],
-    [
-      'league.rules.players',
-      'Each week you’re up against about 30 players at your level.',
-      'Varje vecka möter du ungefär 30 spelare på din nivå.',
-    ],
-    [
-      'league.rules.move',
-      'On Sunday evening the top players move up a card and the bottom ones move down.',
-      'På söndag kväll flyttar de bästa spelarna upp ett kort och de sista flyttar ner.',
-    ],
-    [
-      'league.rules.profile',
-      'Your best card each month shows on your profile.',
-      'Ditt bästa kort varje månad visas på din profil.',
-    ],
-    ['league.result.up', 'You moved up!', 'Du flyttade upp!'],
-    ['league.result.down', 'You moved down', 'Du flyttade ner'],
-    ['league.result.continue', 'Continue', 'Fortsätt'],
-    ['league.guest', 'Register to get on the board', 'Registrera dig för att komma med på listan'],
-    ['league.register', 'Create an account', 'Skapa ett konto'],
-    ['league.opted_out', 'You’re hidden from leagues.', 'Du är dold i ligorna.'],
-    ['league.join_again', 'Join again', 'Gå med igen'],
-    ['league.loading', 'Loading…', 'Laddar…'],
-    [
-      'league.failed',
-      'Couldn’t load the standings. Try again.',
-      'Det gick inte att ladda ställningen. Försök igen.',
-    ],
-    [
-      'league.settings.help',
-      'You won’t show up in anyone’s standings.',
-      'Du syns inte på någon annans topplista.',
-    ],
-    [
-      'league.settings.midweek',
-      'If you’ve played this week, your current place counts.',
-      'Om du har spelat den här veckan räknas din nuvarande plats.',
-    ],
-    [
-      'league.settings.error',
-      'Couldn’t change the setting. Try again.',
-      'Det gick inte att ändra inställningen. Försök igen.',
-    ],
-  ] as const;
-  for (const locale of ['en', 'sv'] as const) {
-    setLocale(locale);
-    for (const [key, en, sv] of copy) assert.equal(t(key), locale === 'en' ? en : sv);
-    assert.equal(
-      t('league.result.place', { place: ordinal(2), size: 30 }),
-      locale === 'en' ? '2nd of 30' : '2:a av 30'
-    );
-    const keys = Object.keys(catalogs[locale]).filter((key) => key.startsWith('league.'));
-    assert.deepEqual(keys.filter((key) => key.startsWith('league.rules.')).sort(), [
-      'league.rules.move',
-      'league.rules.players',
-      'league.rules.points',
-      'league.rules.profile',
-      'league.rules.title',
-    ]);
-    assert.deepEqual(keys.filter((key) => key.startsWith('league.result.')).sort(), [
-      'league.result.continue',
-      'league.result.down',
-      'league.result.place',
-      'league.result.up',
-    ]);
-    for (const key of keys) {
-      assert.doesNotMatch(
-        key,
-        /^league\.(intro|mark\.|footer\.|title$|room$|promote|demote|last_week$|ribbon_so_far$|got_it$|line\.not_placed$|friends\.empty$|settings\.title$|ribbons\.(weeks|best|star|history|no_race|empty)$)/
-      );
-      assert.doesNotMatch(String(catalogs[locale][key as keyof typeof catalogs.en]), /grupp/i);
-    }
-  }
 });

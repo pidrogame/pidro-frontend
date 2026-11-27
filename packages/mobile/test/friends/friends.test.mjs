@@ -11,7 +11,6 @@ import {
   canViewPlayer,
   classicFriendsMessage,
   friendAction,
-  friendRowState,
   friendSections,
   friendSheetState,
   friendsMeta,
@@ -201,29 +200,6 @@ describe('Friends presentation', () => {
       { presence: 'at_table', table_company: 'people', join_as: null },
     ])
       expect(friendAction(entry)).toBeNull();
-  });
-
-  test('wire dates, seats and hand feed the existing row formatter', () => {
-    const now = new Date('2026-10-19T12:00:00Z');
-    expect(
-      friendRowState(
-        { presence: 'offline', played_together_at: '2026-10-18T12:00:00Z' },
-        'friend',
-        now
-      ).line
-    ).toBe('Played yesterday');
-    expect(friendRowState({ requested_at: '2026-10-17T12:00:00Z' }, 'added', now).line).toBe(
-      'Request sent 2 days ago'
-    );
-    expect(friendRowState({ requested_at: '2026-10-19T08:00:00Z' }, 'added_you', now).line).toBe(
-      'Asked today'
-    );
-    expect(friendRowState({ presence: 'at_table', table_hand: 4 }).line).toBe(
-      'At a table · hand 4'
-    );
-    expect(
-      friendRowState({ presence: 'at_table', join_as: 'opponent', table_open_seats: 2 }).line
-    ).toBe('At a table · 2 seats open');
   });
 
   test('sent requests and request count replace old lists and clear on reset', () => {

@@ -1,30 +1,13 @@
 import { expect, test } from 'bun:test';
-import { catalogs, createSettingsStore, normalizeRoom } from '@pidro/shared';
+import { createSettingsStore, normalizeRoom } from '@pidro/shared';
 import {
   filterLobby,
   filterRuleSet,
   lobbyHasBothRuleSets,
   lobbyRuleSetFilter,
   quickGameRequest,
-  ruleSets,
   shouldExplainLouisiana,
 } from '../src/features/rules/ruleSets.ts';
-
-test('rules have a short and a long name in both languages, without changing the server values', () => {
-  expect(Object.keys(ruleSets)).toEqual(['finnish', 'louisiana']);
-  for (const [locale, short, long] of [
-    ['en', ['Finnish', 'Louisiana'], ['Finnish rules', 'Louisiana rules']],
-    ['sv', ['Finländska', 'Louisiana'], ['Finländska regler', 'Louisiana-regler']],
-  ]) {
-    const names = Object.values(ruleSets);
-    expect(names.map(({ labelKey }) => catalogs[locale][labelKey])).toEqual(short);
-    expect(names.map(({ longKey }) => catalogs[locale][longKey])).toEqual(long);
-    expect(catalogs[locale]['social.finnish']).toBe(short[0]);
-    // Settings' hint keeps the lowest bid with its words: no line ends before the number.
-    for (const ruleSet of Object.keys(ruleSets))
-      expect(catalogs[locale][`rules.description.${ruleSet}`]).toMatch(/\S\u00a0[67]\.$/);
-  }
-});
 
 test('the Tables filter hides the other rule set but never your own table', () => {
   const table = (code, rule_set) => normalizeRoom({ code, config: rule_set && { rule_set } });

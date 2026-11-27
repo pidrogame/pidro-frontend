@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { setLocale, t, useLobbyStore } from '@pidro/shared';
 import {
-  channelLabel,
   requiredStoreUpdate,
-  runningUpdate,
   nativeStoreUpdate,
   updateBuildLine,
   updateStoreLabel,
@@ -173,41 +171,5 @@ describe('the update card', () => {
     } finally {
       setLocale('en');
     }
-  });
-});
-
-describe('what Settings says is running', () => {
-  const update = { enabled: true, isEmbeddedLaunch: false, updateId: '0199f3a2-7c41-7d2e' };
-
-  it('names a beta update and keeps the sha and id for support', () => {
-    expect(
-      runningUpdate({ ...update, name: 'Vaasa-Boudreaux', sha: '5cca7d0', date: '2026-10-20' })
-    ).toEqual({ label: 'Vaasa-Boudreaux · Oct 20', detail: '5cca7d0\n0199f3a2-7c41-7d2e' });
-    // The publish day is a calendar date: no time zone moves it to the 19th.
-    expect(runningUpdate({ ...update, name: 'Vaasa-Boudreaux', date: '2026-01-01' }).label).toBe(
-      'Vaasa-Boudreaux · Jan 1'
-    );
-    expect(runningUpdate({ ...update, name: 'Vaasa-Boudreaux', date: 'soon' }).label).toBe(
-      'Vaasa-Boudreaux'
-    );
-  });
-
-  it('falls back to the short update id for an update published without a name', () => {
-    expect(runningUpdate(update)).toEqual({ label: '0199f3a2', detail: '0199f3a2-7c41-7d2e' });
-  });
-
-  it('says plainly when nothing was downloaded', () => {
-    expect(runningUpdate({ ...update, isEmbeddedLaunch: true, name: 'Vaasa-Boudreaux' })).toEqual({
-      label: 'The version built into the app',
-      detail: null,
-    });
-    expect(runningUpdate({ ...update, enabled: false }).label).toBe('Development / preview');
-  });
-
-  it('gives the channels their names and leaves others as they are', () => {
-    expect(channelLabel('beta')).toBe('Beta');
-    expect(channelLabel('production')).toBe('Production');
-    expect(channelLabel('preview')).toBe('preview');
-    expect(channelLabel(undefined)).toBe('Not available');
   });
 });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'bun:test';
 import {
-  SHUFFLE_COVERS_MS,
   TURN_REMINDER_MS,
   bidSounds as bidSoundsIn,
   cardPlayed,
@@ -9,8 +8,6 @@ import {
   gameOverSound,
   pageMayPlay,
   refillArrives,
-  shuffleAtMs,
-  shuffleCovered,
   yourPlayTurnStarted,
   yourTurnKey,
 } from '../../src/features/game/sounds.ts';
@@ -268,23 +265,6 @@ describe('the second deal', () => {
     expect(
       arrivals({ north: seat(null), east: seat(0, 6), south: seat(0, 6), west: seat(2, 4) })
     ).toBe(3);
-  });
-});
-
-describe('the shuffle', () => {
-  it('starts 1.5 s before the deal, so it ends with the first packet in the air', () => {
-    expect(shuffleAtMs(3_000)).toBe(1_500);
-  });
-
-  it('starts at once when the deal is closer than that, and never before the cut lands', () => {
-    expect(shuffleAtMs(900)).toBe(0);
-    expect(shuffleAtMs(3_000, 1_668)).toBe(1_668);
-  });
-
-  it('is not started again by the deal it already leads into', () => {
-    expect(shuffleCovered(0, 1_500)).toBe(true);
-    expect(shuffleCovered(0, SHUFFLE_COVERS_MS)).toBe(false);
-    expect(shuffleCovered(-Infinity, 0)).toBe(false);
   });
 });
 

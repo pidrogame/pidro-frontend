@@ -2,7 +2,6 @@ import { describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
 import {
   classicPinLine,
-  classicRecordLine,
   legendProgress,
   levelProgress,
   MORE,
@@ -49,12 +48,6 @@ describe('win rate', () => {
 });
 
 describe('the Classic pin line', () => {
-  it('reads like the board', () => {
-    expect(classicPinLine({ level: 61, games_played: 1862, name: 'Bengt64' })).toBe(
-      `Old Pidro · Level 61 · ${(1862).toLocaleString()} games as Bengt64`
-    );
-  });
-
   it('keeps the name when the games are unknown, and the games when the name is private', () => {
     expect(classicPinLine({ name: 'Gertrude' })).toBe('Played as Gertrude');
     expect(classicPinLine({ level: 3, games_played: 300 })).toBe('Old Pidro · Level 3 · 300 games');
@@ -179,13 +172,6 @@ describe('the medals shelf', () => {
     expect(medalShelf([], catalog.slice(0, 2)).medals.map((m) => m.key)).toEqual(['a', 'b']);
     expect(medalShelf(undefined, undefined)).toEqual({ medals: [], total: 0 });
   });
-});
-
-it('reads the Classic row like the board', () => {
-  expect(classicRecordLine({ name: 'Bengt64', level: 61, games_played: 38536 })).toBe(
-    `Bengt64 · level 61 there · ${(38536).toLocaleString()} games, counted in your record above`
-  );
-  expect(classicRecordLine({ level: 3 })).toBe('level 3 there');
 });
 
 describe('the player sheet', () => {

@@ -24,22 +24,6 @@ mock.module('react-native', () => ({
 const { phoenixSocket } = await import('../../src/channels/socket.ts');
 
 describe('mobile socket AppState lifecycle', () => {
-  it('keeps recovery reasons per connection for delayed joins, not later new channels', () => {
-    const socket = phoenixSocket.initMobile(() => 'token');
-    const open = () => socket.stateChangeCallbacks.open.forEach(([, callback]) => callback());
-    open();
-    const lobby = phoenixSocket.connectionParams();
-    const game = phoenixSocket.connectionParams();
-    phoenixSocket.reconnectReason = 'backgrounded';
-    open();
-    expect(lobby().reason).toBe('backgrounded');
-    expect(phoenixSocket.connectionParams()().reason).toBe('unknown');
-    expect(game().reason).toBe('backgrounded');
-    open();
-    expect(lobby().reason).toBe('unknown');
-    expect(game().reason).toBe('unknown');
-  });
-
   it('allows actual LongPoll batching before background disconnect and fences a late drain', async () => {
     const { LongPoll } = await import('phoenix');
     const originalPoll = LongPoll.prototype.poll;

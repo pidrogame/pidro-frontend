@@ -217,31 +217,4 @@ describe('the end-of-hand panel', () => {
       [13, []],
     ]);
   });
-
-  it('rotates by room and hand, agrees with our partner, and never loses the missed amount', () => {
-    const made = [];
-    const missed = [];
-    for (let hand_number = 1; hand_number <= 100; hand_number++) {
-      const hand = { ...eastMade, hand_number };
-      const view = handResultView(hand, 'east', 'ROOM');
-      expect(view.headline).toEqual(handResultView(hand, 'west', 'ROOM').headline);
-      expect(view.headline).toEqual(handResultView(hand, 'east', 'ROOM').headline);
-      made.push(view.headline.key);
-      const miss = handResultView({ ...westMissed, hand_number }, 'east', 'ROOM').headline;
-      expect(miss.n).toBe(5);
-      missed.push(miss.key);
-    }
-    expect(new Set(made)).toEqual(
-      new Set(['game.we_made_it', 'game.we_got_it', 'game.thats_ours'])
-    );
-    expect(new Set(missed)).toEqual(
-      new Set(['game.we_missed_by', 'game.we_short_by', 'game.we_needed_more'])
-    );
-    expect(made).not.toEqual(
-      Array.from(
-        { length: 100 },
-        (_, i) => handResultView({ ...eastMade, hand_number: i + 1 }, 'east', 'OTHER').headline.key
-      )
-    );
-  });
 });

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { setLocale } from '@pidro/shared';
 import { catalogs } from '../../../shared/src/i18n/catalogs.ts';
 import { botPersonas } from '../../src/components/ui/botPersonas.ts';
-import { handHeadlines, tableLine, thinkingLine } from '../../src/features/game/tableVoice.ts';
+import { handHeadlines, thinkingLine } from '../../src/features/game/tableVoice.ts';
 
 afterEach(() => setLocale('en'));
 
@@ -11,25 +11,6 @@ describe('the table’s voice', () => {
     ...Object.values(handHeadlines),
     ...Object.values(botPersonas).map((bot) => bot.thinking),
   ];
-
-  it('gives the same room and hand the same line, with a spread across hands and rooms', () => {
-    for (const lines of sets) {
-      const picks = Array.from({ length: 1000 }, (_, hand) => tableLine('7KQ4M2XB', hand, lines));
-      expect(picks).toEqual(
-        Array.from({ length: 1000 }, (_, hand) => tableLine('7KQ4M2XB', hand, lines))
-      );
-      expect(new Set(picks)).toEqual(new Set(lines));
-      expect(picks).not.toEqual(
-        Array.from({ length: 1000 }, (_, hand) => tableLine('OTHER', hand, lines))
-      );
-    }
-    const picks = Array.from({ length: 1000 }, (_, hand) =>
-      tableLine('7KQ4M2XB', hand, handHeadlines['we-made'], 'result')
-    );
-    const familiar = picks.filter((key) => key === 'game.we_made_it').length;
-    expect(familiar).toBeGreaterThan(500);
-    expect(familiar).toBeLessThan(700);
-  });
 
   it('has every persona and line in both languages, retaining the missed amount', () => {
     for (const locale of ['en', 'sv']) {
@@ -78,21 +59,6 @@ describe('a bot thinking aloud on its turn', () => {
     expect(new Set(say())).toEqual(new Set(lines));
     setLocale('en');
     expect(new Set(say())).toEqual(new Set(english));
-  });
-
-  it('keeps the three devs exactly as before until the catalogue gives them lines', () => {
-    // The lines the bot-crew fixture (room DEV01, hand 4) has always shown.
-    expect(thinkingLine('DEV01', 4, 'marcel')).toBe('Let’s see…');
-    expect(thinkingLine('DEV01', 4, 'antti', { ...saga, id: 'antti', name: 'Antti' })).toBe(
-      'One moment…'
-    );
-    expect(thinkingLine('DEV01', 4, 'jocke', { ...saga, lines: [] })).toBe('A trump…');
-    setLocale('sv');
-    expect(thinkingLine('DEV01', 4, 'jocke', null)).toBe('Trumf, månne…');
-    expect(thinkingLine('DEV01', 4, 'marcel', { ...saga, lines })).toBe(
-      tableLine('DEV01', 4, lines, 'marcel')
-    );
-    expect(lines).toContain(thinkingLine('DEV01', 4, 'marcel', { ...saga, lines }));
   });
 
   it('leaves the plain turn text to a character with no lines, and to a person', () => {

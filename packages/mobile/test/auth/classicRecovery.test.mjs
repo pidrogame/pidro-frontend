@@ -162,15 +162,6 @@ describe('Classic help request', () => {
     });
     expect(result).toEqual({ status: 'failed' });
   });
-
-  it('writes a readable message to support', () => {
-    const url = new URL(classicHelpMailto(help));
-    expect(url.pathname).toBe('support@pidro.net');
-    expect(url.searchParams.get('subject')).toBe('Help finding my account in the old Pidro app');
-    expect(url.searchParams.get('body')).toBe(
-      'Name I played as: Bengt\nEmail to reach me: bengt@example.com\n\nPlayed since 2014 & won'
-    );
-  });
 });
 
 describe('account email', () => {

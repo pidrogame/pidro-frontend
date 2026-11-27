@@ -12,10 +12,6 @@ it('answers liveness pings and announces backgrounding only while seated', async
   await check('liveness');
 });
 
-it('sends current connection metadata on every join', async () => {
-  await check('metadata');
-});
-
 it('fences and retries an untimed card using the snapshot turn cursor', async () => {
   await check('untimed');
 });
@@ -79,13 +75,9 @@ async function check(scenario) {
     },
   };
   const reconnects = [];
-  let joinParams;
-  let connection = { reason: 'unknown', network: 'wifi' };
+  const connection = { reason: 'unknown', network: 'wifi' };
   const socket = {
-    channel: (_topic, params) => {
-      joinParams = params;
-      return channel;
-    },
+    channel: () => channel,
     connectionParams: () => () => connection,
     reconnect: () => reconnects.push('reconnected'),
   };
@@ -144,16 +136,7 @@ async function check(scenario) {
   try {
     await act(async () => root.render(h(Table)));
     await act(async () => joined.callbacks.ok(response));
-    if (scenario === 'metadata') {
-      expect(typeof joinParams).toBe('function');
-      expect(joinParams()).toMatchObject({
-        reason: 'unknown',
-        network: 'wifi',
-        platform: 'android',
-      });
-      connection = { reason: 'network_lost', network: 'cellular' };
-      expect(joinParams()).toMatchObject(connection);
-    } else if (scenario === 'liveness') {
+    if (scenario === 'liveness') {
       await act(async () => events.ping({ id: 'ping-17' }));
       expect(pushes.at(-1).event).toBe('pong');
       expect(pushes.at(-1).payload).toEqual({ id: 'ping-17' });

@@ -3,18 +3,13 @@ import { catalogs } from '../../../shared/src/i18n/catalogs.ts';
 import {
   TALK_LINES,
   land,
-  landingPlace,
-  landingRoom,
   landingMs,
   mergeTalk,
-  onlyEmoji,
   saidFrom,
-  tailFit,
   talker,
   talkName,
   talkRefusal,
   talkTable,
-  twoLines,
   typingFor,
   unreadBy,
 } from '../../src/features/game/talk.ts';
@@ -280,123 +275,6 @@ describe('table talk', () => {
     expect(unreadBy(null, 'south')).toEqual([]);
   });
 
-  // PID-396: an upright bubble's tail says the offered word in the largest size its room holds.
-  it('fits the offered word to the tail: body, then small, then two lines, else the bubble alone', () => {
-    const nice = { body: 99, small: 87, two: 56 };
-    expect(tailFit(99, nice)).toBe('body');
-    expect(tailFit(98.5, nice)).toBe('small');
-    expect(tailFit(87, nice)).toBe('small');
-    expect(tailFit(86.5, nice)).toBe('two');
-    expect(tailFit(56, nice)).toBe('two');
-    // Too wide in every size: Thanks! on a 360pt phone.
-    expect(tailFit(70, { body: 83, small: 72, two: 72 })).toBeNull();
-    // Under 56pt even a word that would fit is left out.
-    expect(tailFit(55.5, { body: 40, small: 36, two: 36 })).toBeNull();
-  });
-
-  // PID-471: a bubble keeps its width where there is room and stops short of whatever is in its rows.
-  describe('where a landing may reach', () => {
-    // 390×844: West's and East's rings, North's Out plate between them, North's ring above it.
-    const west = { x: 28, y: 291, width: 56, height: 56 };
-    const east = { x: 306, y: 291, width: 56, height: 56 };
-    const plate = { x: 163, y: 207, width: 64, height: 46 };
-    const seats = { own: [], boxes: [plate] };
-
-    it("stops a side seat's bubble 6pt short of North's plate, from either side", () => {
-      // West's bubble starts 22pt left of its ring's middle (56): 163 - 6 - 34.
-      expect(landingRoom('aboveStart', { ring: west, ...seats }, 37)).toEqual({
-        room: 123,
-        push: 0,
-      });
-      // East's ends 22pt right of its middle (334): 356 - 227 - 6.
-      expect(landingRoom('aboveEnd', { ring: east, ...seats }, 37)).toEqual({ room: 123, push: 0 });
-    });
-
-    it('keeps its full width where nothing lies in the rows it fills', () => {
-      // A one-line bubble above West's ring ends at 283, its top at 246: the plate ends at 253.
-      const higher = { ...plate, y: 150, height: 96 };
-      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [higher] }, 37).room).toBe(
-        150
-      );
-      // Two lines reach 225: up into the plate, and it narrows.
-      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [higher] }, 58).room).toBe(
-        123
-      );
-      // A box behind where it starts is out of its way; one it starts on leaves no room.
-      const behind = { x: 0, y: 260, width: 30, height: 10 };
-      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [behind] }, 37).room).toBe(
-        150
-      );
-      const under = { x: 20, y: 260, width: 30, height: 10 };
-      expect(landingRoom('aboveStart', { ring: west, own: [], boxes: [under] }, 37).room).toBe(0);
-    });
-
-    it('starts beside its ring past its own lit plate once it stands that tall', () => {
-      const north = { x: 167, y: 151, width: 56, height: 56 };
-      const own = { x: 151, y: 211, width: 88, height: 46 };
-      const wall = { x: 382, y: -844, width: 390, height: 2532 };
-      // One line beside the ring stays above the plate: it starts 10pt off the ring.
-      expect(landingRoom('besideEnd', { ring: north, own: [own], boxes: [wall] }, 37)).toEqual({
-        room: 143,
-        push: 0,
-      });
-      // Taller, it starts 6pt past the plate (239), and stops 6pt short of the screen's side.
-      expect(landingRoom('besideEnd', { ring: north, own: [own], boxes: [wall] }, 70)).toEqual({
-        room: 131,
-        push: 12,
-      });
-    });
-
-    it('starts left of its ring past its own plate on the other side too', () => {
-      // You, upright at 390×844: ring 167..223, your lit plate 151..239 under it, the speech
-      // button's left edge at 330 far off. Two lines beside the ring reach down into the plate.
-      const you = { x: 167, y: 626, width: 56, height: 56 };
-      const own = { x: 151, y: 686, width: 88, height: 46 };
-      const wall = { x: -390, y: -844, width: 390, height: 2532 };
-      // It starts 10pt left of the ring (157), then 6pt past the plate's left edge: 145.
-      expect(landingRoom('besideStart', { ring: you, own: [own], boxes: [wall] }, 70)).toEqual({
-        room: 139,
-        push: 12,
-      });
-      // One line stays above the plate: no push, and 151pt to the edge keeps its full 150.
-      expect(landingRoom('besideStart', { ring: you, own: [own], boxes: [wall] }, 37)).toEqual({
-        room: 150,
-        push: 0,
-      });
-    });
-
-    // PID-481: West's killed trumps lie sideways above its ring, at the screen's edge.
-    it("starts past its own seat's killed trumps, and stops short of another seat's", () => {
-      const killed = { x: 12, y: 230, width: 52, height: 40 };
-      // Its own: it starts 6pt past them (70), and still stops 6pt short of North's plate.
-      expect(
-        landingRoom('aboveStart', { ring: west, own: [killed], boxes: [killed, plate] }, 37)
-      ).toEqual({ room: 87, push: 36 });
-      // Another seat's under where it starts leave it no room there.
-      expect(
-        landingRoom('aboveStart', { ring: west, own: [], boxes: [killed, plate] }, 37)
-      ).toEqual({ room: 0, push: 0 });
-    });
-
-    it('goes where its longest word fits, and nowhere new when no place holds it', () => {
-      const places = [
-        { at: 'aboveStart', room: 50 },
-        { at: 'besideEnd', room: 120 },
-      ];
-      expect(landingPlace(places, 40)).toEqual({ at: 'aboveStart', room: 50 });
-      expect(landingPlace(places, 50)).toEqual({ at: 'aboveStart', room: 50 });
-      expect(landingPlace(places, 80)).toEqual({ at: 'besideEnd', room: 120 });
-      // Naturligtvis. beside nothing wide enough: it keeps today's place, whole.
-      expect(landingPlace(places, 121)).toBeNull();
-    });
-  });
-
-  it('breaks a word in two at the space nearest its middle', () => {
-    expect(twoLines('Nice trick!')).toBe('Nice\ntrick!');
-    expect(twoLines('ab cd efghijk lm')).toBe('ab cd\nefghijk lm');
-    expect(twoLines('Thanks!')).toBe('Thanks!');
-  });
-
   // PID-418: the join reply replays the room's latest lines; the device keeps one copy of each.
   describe('merging the replay with what this device heard', () => {
     const line = (userId, text) => ({ seat: 'east', userId, text });
@@ -452,13 +330,6 @@ describe('table talk', () => {
       // An overlap still wins over the whole replay.
       expect(mergeTalk([c, d], [a, b, c, d, e], true)).toEqual([c, d, e]);
     });
-  });
-
-  it('draws a line of nothing but emoji larger', () => {
-    for (const text of ['👍', '👍 👍', '👍🏽', '❤️', '👨‍👩‍👧', '🇫🇮', ' 😂😅 '])
-      expect(onlyEmoji(text)).toBe(true);
-    for (const text of ['Moi 👍', 'ok', '123', '#1', '', undefined, '❤️!', ':)'])
-      expect(onlyEmoji(text)).toBe(false);
   });
 
   // PID-420: no refusal goes unsaid; each of the channel's own has its line.

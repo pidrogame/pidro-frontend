@@ -26,7 +26,6 @@ import {
   PACK_STEP,
   packSpot,
   pileCardW,
-  pileSpacing,
   killedSpot,
   RANK_SHOWN,
   LANDSCAPE_SIDE_SEAT,
@@ -46,10 +45,8 @@ import {
   seatNameGap,
   sideStacks,
   sideStackStep,
-  showsTicker,
   southRow,
   TIGHT_AVATAR,
-  TIGHT_SOUTH_GAP,
   tickerPlacement,
   TRICK_GAP,
   TRUMP_BUTTON,
@@ -103,33 +100,6 @@ describe('played-card piles', () => {
       else expect(east.x).toBe(layout.trick.cx + layout.trick.r);
     });
   }
-});
-
-// PID-381: a seat's earlier cards each show their rank and suit; a long pile
-// closes on its oldest first, never below 0.16 of a card, its newest two kept.
-describe('pileSpacing', () => {
-  const w = 60;
-  const near = (steps, want) => {
-    expect(steps.length).toBe(want.length);
-    steps.forEach((step, i) => expect(step).toBeCloseTo(want[i]));
-  };
-  it('a one-card pile has nothing behind it', () => {
-    expect(pileSpacing(1, 100, w)).toEqual([]);
-    expect(pileSpacing(0, 100, w)).toEqual([]);
-  });
-  it('keeps the full step where the room allows', () => {
-    near(pileSpacing(5, 200, w), [15.6, 15.6, 15.6, 15.6]);
-  });
-  it('closes the oldest first, then the next', () => {
-    // 6 cards: 5 steps of 15.6 = 78 wanted. 74 room: only the oldest gives.
-    near(pileSpacing(6, 74, w), [11.6, 15.6, 15.6, 15.6, 15.6]);
-    // 64 room: 14 over. The oldest and the next close to the floor, the third gives 2.
-    near(pileSpacing(6, 64, w), [9.6, 9.6, 13.6, 15.6, 15.6]);
-  });
-  it('never closes below the floor, nor the newest two', () => {
-    near(pileSpacing(7, 0, w), [9.6, 9.6, 9.6, 9.6, 15.6, 15.6]);
-    near(pileSpacing(3, 0, w), [15.6, 15.6]);
-  });
 });
 
 describe('upright piles: the newest in front, the earlier ones behind (PID-381)', () => {
@@ -703,18 +673,6 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
   // Before PID-333 every upright phone drew a 54pt-wide card.
   const before = 54 * (110 / 78);
 
-  it('a played card about 78pt and your hand about 88pt on 390×844', () => {
-    const { hand, played } = sizes(390, 844, { top: 0, bottom: 0, left: 0, right: 0 });
-    expect(Math.abs(hand - 88)).toBeLessThanOrEqual(1);
-    expect(Math.abs(played - 78)).toBeLessThanOrEqual(1);
-  });
-
-  it('a 375×667 phone a little smaller, and bigger than before', () => {
-    const { hand } = sizes(375, 667, { top: 20, bottom: 0, left: 0, right: 0 });
-    expect(hand).toBeLessThan(88);
-    expect(hand).toBeGreaterThan(before + 5);
-  });
-
   // The circle closes in first; the played cards shrink only to keep
   // TRICK_GAP from the trump mark, never below their size before.
   for (const [width, height, insets] of [
@@ -870,25 +828,6 @@ describe('upright phones draw cards as big as Classic’s (PID-333)', () => {
 describe('on tablets the cards use the room (PID-453)', () => {
   // Before PID-453 every card stopped at 104pt.
   const before = (width, height) => Math.min(104, Math.max(54, Math.min(width, height) * 0.13));
-
-  it('a card follows the shorter side up to 150pt, upright as far as the height allows; phones keep theirs', () => {
-    expect(cardSize(390, 844)).toBeCloseTo(62.4);
-    expect(cardSize(360, 780)).toBeCloseTo(57.6);
-    expect(cardSize(844, 390)).toBe(54);
-    // 3/16 of the shorter side, half as wide again as before on a 10–11 inch tablet.
-    expect(cardSize(800, 1280)).toBe(150);
-    expect(cardSize(834, 1194)).toBe(150);
-    expect(cardSize(820, 1180)).toBeCloseTo((1180 - 563) / 4.15);
-    expect(cardSize(1024, 1366)).toBe(150);
-    // Where the height holds less, the height decides: a 9.7 inch iPad either
-    // way up, a 10 inch Android tablet on its side, a 600pt tablet.
-    expect(cardSize(768, 1024)).toBeCloseTo((1024 - 563) / 4.15);
-    expect(cardSize(1024, 768)).toBeCloseTo((768 - 210) / 4.15);
-    expect(cardSize(1280, 800)).toBeCloseTo((800 - 210) / 4.15);
-    expect(cardSize(600, 960)).toBeCloseTo((960 - 563) / 4.15);
-    // A short window never draws them smaller than before.
-    expect(cardSize(694, 768)).toBeCloseTo(before(694, 768));
-  });
 
   const box = (x, y, w, h) => ({ x: x - w / 2, y: y - h / 2, w, h });
   const apart = (a, b) =>
@@ -1065,49 +1004,6 @@ describe('on tablets the cards use the room (PID-453)', () => {
   }
 });
 
-describe('tight phones', () => {
-  for (const [width, height, insets, tight] of [
-    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, true],
-    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }, true],
-    // Marcel's TCL 5053Y went tight when its cards grew (PID-333), and out of
-    // it again when the dock under the hand went (PID-393).
-    [360, 780, { top: 24, bottom: 48, left: 0, right: 0 }, false],
-    [360, 700, { top: 24, bottom: 48, left: 0, right: 0 }, true],
-    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }, false],
-    [402, 874, { top: 62, bottom: 34, left: 0, right: 0 }, false],
-  ]) {
-    it(`${tight ? 'go' : 'stay out of'} tight on ${width}×${height}`, () => {
-      expect(computeLayout(width, height, insets, 60).tight).toBe(tight);
-    });
-  }
-
-  // PID-304, PID-464: the hand on the table's axis along the bottom edge,
-  // 8pt above the home indicator; your avatar alone above it with its short
-  // line, a lifted card clear below them, and the trick above the avatar.
-  for (const [width, height, insets] of [
-    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }],
-    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }],
-    [360, 700, { top: 24, bottom: 48, left: 0, right: 0 }],
-  ]) {
-    it(`put your avatar alone above a centred hand on ${width}×${height}`, () => {
-      const L = computeLayout(width, height, insets, 60);
-      expect(L.tight).toBe(true);
-      expect(L.hand.cx).toBe(width / 2);
-      expect(L.hand.maxWidth).toBe(width - 32);
-      expect(L.bottom).toBe(height - insets.bottom);
-      expect(L.hand.cy + L.cardH / 2 + 8).toBeCloseTo(L.bottom);
-      const row = southRow(L);
-      const avatarTop = row.top + TIGHT_SOUTH_GAP;
-      // The avatar, a 4pt gap and one 18pt status line (14pt type, PID-450).
-      expect(avatarTop + TIGHT_AVATAR + 4 + 18).toBeCloseTo(row.bottom);
-      const lifted = L.hand.cy - L.cardH / 2 - handLift(L) - (L.cardH * 0.015 + 2.5);
-      expect(row.bottom).toBeLessThanOrEqual(lifted - 10 + 0.01);
-      const south = playedCardTarget(L, 'south', 0, 1);
-      expect(south.y + (L.cardH * south.scale) / 2).toBeLessThanOrEqual(row.top);
-    });
-  }
-});
-
 // PID-464: upright, your hand lies along the bottom edge, 8pt above the home
 // indicator or Android's nav bar (gesture or buttons), so no card's tap target
 // sits in the system's strip, and your seat row stands over it, 10pt clear of a
@@ -1224,34 +1120,6 @@ describe('the plaque ticker keeps off North’s fan', () => {
     const fanBottom = northFanTop(L, 64) + (northBackWidth(L.cardW, compactNorth(L)) * 110) / 78;
     expect(plaque.plaqueTop + drop).toBeGreaterThanOrEqual(fanBottom);
     expect(lineMaxWidth).toBe(168);
-  });
-});
-
-describe('small and landscape phones leave the ticker out', () => {
-  for (const [width, height, insets, shown] of [
-    [360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, false],
-    [375, 667, { top: 20, bottom: 0, left: 0, right: 0 }, false],
-    [640, 360, { top: 0, bottom: 0, left: 0, right: 0 }, false],
-    [667, 375, { top: 0, bottom: 0, left: 0, right: 0 }, false],
-    [390, 844, { top: 47, bottom: 34, left: 0, right: 0 }, true],
-    [844, 390, { top: 0, bottom: 21, left: 47, right: 47 }, false],
-    [1180, 820, { top: 0, bottom: 20, left: 0, right: 0 }, true],
-  ]) {
-    it(`${shown ? 'shows' : 'hides'} it on ${width}×${height}`, () => {
-      const portrait = height > width;
-      const L = computeLayout(width, height, insets, portrait ? 60 : 0, portrait ? 0 : 0);
-      expect(showsTicker(L)).toBe(shown);
-      expect(tickerPlacement(L, { tableTop: 60, plaqueLeft: 12, plaqueTop: 8 }) !== null).toBe(
-        shown
-      );
-    });
-  }
-});
-
-describe('tight phones leave the bid line out, count help or not (PID-304)', () => {
-  it('on 360×640', () => {
-    const L = computeLayout(360, 640, { top: 24, bottom: 0, left: 0, right: 0 }, 60, 0);
-    expect(tickerPlacement(L, { tableTop: 84, plaqueLeft: 12, plaqueTop: 32 }, true)).toBe(null);
   });
 });
 

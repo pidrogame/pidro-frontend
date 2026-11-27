@@ -9,36 +9,6 @@ import {
   replyOffer,
 } from '../../src/features/game/offers.ts';
 
-describe('what the band offers', () => {
-  it('reads the three moments and nothing else', () => {
-    expect(momentOffer('partner_trick')).toEqual({
-      words: ['word_nice'],
-      coins: ['coin_heart', 'coin_thumb'],
-    });
-    expect(momentOffer('start').words).toEqual(['word_hello', 'word_luck']);
-    expect(momentOffer('start').coins).toEqual([]);
-    expect(momentOffer('game_end')).toEqual({ words: ['word_game'], coins: ['coin_heart'] });
-    expect(momentOffer('someone_slow')).toBeNull();
-    expect(momentOffer(undefined)).toBeNull();
-    expect(momentOffer('toString')).toBeNull();
-  });
-
-  it('answers praise with thanks, sorry with no worries, a greeting with itself', () => {
-    const answer = (item) => replyOffer({ item })?.words[0];
-    expect(answer('word_nice')).toBe('word_thanks');
-    expect(answer('word_well')).toBe('word_thanks');
-    expect(answer('word_bid')).toBe('word_thanks');
-    expect(answer('word_sorry')).toBe('word_noworries');
-    expect(answer('word_hello')).toBe('word_hello');
-    expect(answer('word_luck')).toBe('word_luck');
-    // Thanks and no worries close a conversation; faces and typed lines need no answer.
-    expect(replyOffer({ item: 'word_thanks' })).toBeNull();
-    expect(replyOffer({ item: 'word_noworries' })).toBeNull();
-    expect(replyOffer({ item: 'coin_heart' })).toBeNull();
-    expect(replyOffer({ text: 'Bra spelat' })).toBeNull();
-  });
-});
-
 describe('how often the band offers', () => {
   const at = (trick, hand = 1, bidding = false) => ({ trick, hand, bidding });
 

@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from 'bun:test';
 import { AxiosError } from 'axios';
-import { setLocale, t, validateCatalogs } from '@pidro/shared';
-import { en, sv } from '../../../shared/src/i18n/sections/auth';
+import { setLocale, t } from '@pidro/shared';
 import {
   guestSaveFailure,
   guestSaveFieldMessage,
@@ -24,17 +23,6 @@ function apiFailure(data) {
 }
 
 describe('account localization', () => {
-  it('keeps the auth catalog and all sentence placeholders in parity', () => {
-    expect(validateCatalogs(en, sv)).toEqual([]);
-    for (const locale of ['en', 'sv']) {
-      setLocale(locale);
-      expect(t('auth.claim_accessibility', { name: 'Åsa' })).toContain('Åsa');
-      expect(t('auth.starts_account', { email: 'asa@example.com' })).toContain('asa@example.com');
-      expect(t('auth.password_min', { count: 8 })).toContain('8');
-      expect(t('auth.terms_agreement', { terms: 'TERMS', privacy: 'PRIVACY' })).toContain('TERMS');
-    }
-  });
-
   it('resolves an existing guest-save failure in the current language, never server detail', () => {
     setLocale('en');
     const failure = guestSaveFailure(

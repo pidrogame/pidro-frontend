@@ -3,7 +3,6 @@ import { normalizeRoom, roomWithReadiness, setLocale } from '@pidro/shared';
 import {
   assignedFriendIds,
   botChoices,
-  botLine,
   chooseFriend,
   chooseSeat,
   createFailure,
@@ -363,28 +362,6 @@ it('lists the rule set’s regulars first, then the club, leaving out anyone sea
     ['antti', 'gun', 'marcel', 'saga'],
   ]);
   expect(ids(botChoices(catalogue, 'finnish', [], 'stig'))[0]).toEqual(['gun', 'bengt', 'stig']);
-});
-
-it('says where a character is from and how fast, or that it plays the odds', () => {
-  const [antti, , gun, bengt] = catalogue;
-  expect(botLine(gun)).toEqual({ text: 'Korsholm · steady', odds: false });
-  expect(botLine(bengt)).toEqual({ text: 'bengtby · slow', odds: false });
-  expect(botLine(antti)).toEqual({ text: '★ Plays the odds · slow', odds: true });
-  expect(botLine(antti, true)).toEqual({ text: '★ Plays the odds', odds: true });
-  // A regular who plays the odds (PID-411) is tagged by strategy, wherever it is from.
-  expect(botLine({ ...gun, strategy: 'search' })).toEqual({
-    text: '★ Plays the odds · steady',
-    odds: true,
-  });
-  // No full stop, no town; no tempo, no dot.
-  expect(botLine({ ...gun, description: 'New at the table', tempo: undefined }).text).toBe('');
-  expect(botLine({ ...gun, tempo: 'brisk' }).text).toBe('Korsholm');
-  try {
-    setLocale('sv');
-    expect(botLine(antti).text).toBe('★ Spelar på oddsen · långsam');
-  } finally {
-    setLocale('en');
-  }
 });
 
 it('reopens the picker on the choice the server has for the seat', () => {

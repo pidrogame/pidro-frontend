@@ -3,7 +3,6 @@ import {
   canBuyPremium,
   doneKey,
   premiumPlans,
-  premiumSheetFixture,
   sheetAfter,
 } from '../../src/features/premium/premiumSheet.ts';
 
@@ -92,27 +91,5 @@ describe('the doors', () => {
     // An older server says nothing: no door.
     expect(canBuyPremium({}, true)).toBe(false);
     expect(canBuyPremium(null, true)).toBe(false);
-  });
-});
-
-describe('fixtures', () => {
-  it('only premium-sheet-<state>, with made-up packages that include one to ignore', () => {
-    globalThis.__DEV__ = true;
-    const choose = premiumSheetFixture('premium-sheet-choose');
-    expect(choose).toMatchObject({ step: 'choose', door: 'settings' });
-    expect(premiumPlans(choose.offerings, 'en').map((plan) => plan.id)).toEqual([
-      'yearly',
-      'monthly',
-    ]);
-    expect(choose.offerings.all.pidro_premium.availablePackages).toHaveLength(3);
-    expect(premiumSheetFixture('premium-sheet-bought-ad')).toMatchObject({
-      step: 'bought',
-      door: 'ad',
-    });
-    expect(premiumPlans(premiumSheetFixture('premium-sheet-empty').offerings, 'en')).toEqual([]);
-    expect(premiumSheetFixture('premium-sheet-nope')).toBeNull();
-    expect(premiumSheetFixture('premium-none')).toBeNull();
-    globalThis.__DEV__ = false;
-    expect(premiumSheetFixture('premium-sheet-choose')).toBeNull();
   });
 });

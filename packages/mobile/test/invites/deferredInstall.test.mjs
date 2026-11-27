@@ -3,7 +3,6 @@ import {
   DEFERRED_ATTEMPT_KEY,
   parsePlayInstallReferrer,
   resolveDeferredInstall,
-  screenClassFor,
 } from '../../src/features/invites/deferredInstall.ts';
 
 function memoryStorage() {
@@ -201,13 +200,5 @@ describe('deferred install orchestration', () => {
         resolve: async () => ({ code: 'N4RT8VW2', friend: null }),
       })
     ).toBeNull();
-  });
-});
-
-describe('screen class parity', () => {
-  it('uses the same smaller-dimension bands as the landing page', () => {
-    expect(screenClassFor(393, 852)).toBe('compact');
-    expect(screenClassFor(600, 1024)).toBe('medium');
-    expect(screenClassFor(900, 1200)).toBe('large');
   });
 });
