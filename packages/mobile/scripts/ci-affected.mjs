@@ -5,7 +5,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SMOKE = ['table-playing', 'lobby-list', 'home', 'login'];
-const SUITES = ['table-behavior', 'lobby-and-creation', 'seats-and-game-over'];
+const SUITES = ['behavior'];
 const AREAS = [
   {
     name: 'table',
@@ -212,8 +212,9 @@ export function selectChecks({ base, files, cases, ids, tests = [], full = false
   };
 }
 
+// About 120 screens, six minutes, a shard: a release run takes three (PID-514).
 function shardsFor(screens, suites) {
-  const total = Math.min(15, Math.ceil(screens / 40));
+  const total = Math.ceil(screens / 120);
   return [
     ...Array.from({ length: total }, (_, index) => ({
       shard: `matrix-${index + 1}`,

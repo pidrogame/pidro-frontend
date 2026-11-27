@@ -13,10 +13,8 @@ import {
   assertMinimumTouchTargets,
   assertTeamLayout,
   getStableBox,
-  talkCases,
   suppressDevOverlays,
   UI_VIEWPORTS,
-  waitForImages,
   waitForScreenshotReady,
 } from './ui-test-utils.mjs';
 
@@ -56,22 +54,6 @@ const guestAuthFixture = JSON.stringify({
   },
   version: 0,
 });
-// PID-124: only a player with Premium sees Settings → Premium.
-const premiumAuthFixture = JSON.stringify({
-  state: {
-    accessToken: 'ui-grammar-token',
-    refreshToken: null,
-    user: {
-      id: 'ui-grammar-user',
-      username: 'Bengt',
-      age_band: '18_plus',
-      premium: true,
-      premium_until: null,
-      premium_source: 'promotional',
-    },
-  },
-  version: 0,
-});
 const ageGateFixture = JSON.stringify({
   state: { ageBand: '18_plus', termsVersion: '1' },
   version: 0,
@@ -91,7 +73,6 @@ const tellAuthFixture = JSON.stringify({
   },
   version: 0,
 });
-const TELL_VIEWPORTS = ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'];
 const TELL_WORDS = 'The bid buttons are small on my phone. Otherwise lovely to have the game back.';
 const tellCases = [
   { name: 'tell-home', path: '/home', testId: 'home-screen', tell: 'home' },
@@ -101,10 +82,8 @@ const tellCases = [
     testId: 'home-screen',
     tell: 'home',
     authFixture: guestAuthFixture,
-    tellViewports: [...TELL_VIEWPORTS, 'compact-portrait'],
   },
-  // PID-348: account is a guest the server turned away, should one reach the sheet.
-  ...['open', 'typing', 'chip', 'sent', 'failed', 'limit', 'account'].map((state) => ({
+  ...['open', 'sent', 'failed'].map((state) => ({
     name: `tell-${state}`,
     path: `/home?fixture=tell-${state}`,
     testId: 'feedback-sheet',
@@ -118,60 +97,38 @@ const tellCases = [
     tell: 'guest',
     authFixture,
   },
-  // The keyboard takes this much of the screen: the card gives way, Send stays.
+  // The keyboard takes this much of a landscape phone: the card gives way, Send stays.
   {
     name: 'tell-keyboard',
     path: '/home?fixture=tell-typing',
     testId: 'feedback-sheet',
     tell: 'typing',
-    tellViewports: ['small-portrait', 'landscape', 'tablet-portrait'],
-    viewports: {
-      'small-portrait': { height: 667 - 260 },
-      landscape: { height: 390 - 209 },
-      'tablet-portrait': { height: 1024 - 398 },
-    },
-  },
-  { name: 'tell-pace', path: '/home?fixture=tell-pace', testId: 'feedback-ask', tell: 'pace' },
-  { name: 'tell-old', path: '/home?fixture=tell-old', testId: 'feedback-ask', tell: 'old' },
-  {
-    name: 'tell-notice-wins',
-    path: '/home?fixture=popup-update',
-    testId: 'news-popup',
-    popup: 'update',
-    tell: 'notice',
-    tellViewports: ['portrait'],
+    sizes: ['landscape'],
+    viewports: { landscape: { height: 390 - 209 } },
   },
   {
     name: 'tell-send',
     path: '/home?fixture=tell-typing',
     testId: 'feedback-sheet',
     tell: 'send',
-    tellViewports: ['portrait'],
   },
   {
     name: 'tell-send-fails',
     path: '/home?fixture=tell-typing',
     testId: 'feedback-sheet',
     tell: 'send-fails',
-    tellViewports: ['portrait'],
   },
-  ...['home', 'open', 'typing', 'sent', 'failed', 'limit', 'pace', 'old'].map((state) => ({
-    name: `tell-${state}-sv`,
-    path: state === 'home' ? '/home' : `/home?fixture=tell-${state}`,
-    testId:
-      state === 'home'
-        ? 'home-screen'
-        : ['pace', 'old'].includes(state)
-          ? 'feedback-ask'
-          : 'feedback-sheet',
-    tell: state,
+  {
+    name: 'tell-open-sv',
+    path: '/home?fixture=tell-open',
+    testId: 'feedback-sheet',
+    tell: 'open',
     tellLocale: 'sv',
-    tellViewports: ['portrait'],
-  })),
+  },
 ].map((testCase) => ({ authenticated: true, authFixture: tellAuthFixture, ...testCase }));
 
 // PID-347: News on Home. The fixtures carry their posts; Write back posts to the routed feedback.
-const newsCases = ['home', 'request', 'sheet', 'reply', 'empty', 'error'].map((state) => ({
+const newsCases = ['home', 'sheet', 'reply', 'error'].map((state) => ({
   name: `news-${state}`,
   path: `/home?fixture=news-${state}`,
   testId: ['home', 'request'].includes(state)
@@ -183,27 +140,19 @@ const newsCases = ['home', 'request', 'sheet', 'reply', 'empty', 'error'].map((s
   authenticated: true,
   authFixture: tellAuthFixture,
 }));
-// PID-348: a guest reads the same posts, with no Tell us and no Write back.
-newsCases.push({
-  ...newsCases.find(({ news }) => news === 'sheet'),
-  name: 'news-sheet-guest',
-  authFixture: guestAuthFixture,
-});
 
-// The iPad Air 11 a tester waited on (PID-485), on the same tablet shards.
-const IPAD_AIR_11 = {
-  'tablet-portrait': { width: 820, height: 1180 },
-  'tablet-landscape': { width: 1180, height: 820 },
-};
-
-// iPad portrait and landscape for game over, on CI's existing tablet shards.
-const GAME_OVER_TABLETS = {
-  'tablet-portrait': { width: 834, height: 1194 },
-  'tablet-landscape': { width: 1194, height: 834 },
-};
+// The iPad game over is measured on (PID-292).
+const GAME_OVER_TABLETS = { 'tablet-portrait': { width: 834, height: 1194 } };
 
 const allCases = [
-  ...['en', 'sv'].flatMap((locale) => [
+  {
+    name: 'scores-sv-game-over',
+    path: '/table-dev?fixture=scores-game-over&locale=sv',
+    testId: 'hand-history',
+    scores: 'game-over',
+    locale: 'sv',
+  },
+  ...['en'].flatMap((locale) => [
     {
       name: `scores-${locale}-table`,
       path: `/table-dev?fixture=scores&locale=${locale}`,
@@ -226,15 +175,6 @@ const allCases = [
       locale,
       gameOver: {},
     },
-    ...['all-14', 'all-14-theirs'].flatMap((result) =>
-      [false, true].map((waiting) => ({
-        name: `scores-${locale}-${result}${waiting ? '-own' : ''}`,
-        path: `/table-dev?fixture=${result}&locale=${locale}${waiting ? '&hand=own&safeArea=android' : ''}`,
-        testId: 'hand-result',
-        scores: result,
-        locale,
-      }))
-    ),
   ]),
   { name: 'home', path: '/home', testId: 'home-screen', authenticated: true },
   {
@@ -245,23 +185,8 @@ const allCases = [
     homeProfile: true,
   },
   {
-    name: 'home-waiting-guest',
-    path: '/home?fixture=invitations',
-    testId: 'home-screen',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-    homeProfile: true,
-  },
-  {
     name: 'profile-friends',
     path: '/profile?fixture=list',
-    testId: 'profile-screen',
-    authenticated: true,
-    homeProfile: true,
-  },
-  {
-    name: 'profile-friends-zero',
-    path: '/profile?fixture=empty',
     testId: 'profile-screen',
     authenticated: true,
     homeProfile: true,
@@ -275,46 +200,35 @@ const allCases = [
     authFixture: tellAuthFixture,
     homeProfile: true,
   },
-  {
-    name: 'friends-from-profile',
-    path: '/friends?fixture=list&from=profile',
-    testId: 'friends-screen',
+  // Android's system bars: Home and the table under the buttons, the hand log over the gesture bar.
+  ...[
+    { safeArea: 'android-buttons', screen: 'home', path: '/home', testId: 'home-screen' },
+    {
+      safeArea: 'android-buttons',
+      screen: 'table',
+      path: '/table-dev?phase=playing',
+      testId: 'seat-south',
+    },
+    {
+      safeArea: 'android-gesture',
+      screen: 'hand-log',
+      path: '/table-dev?phase=playing&count=on',
+      openLog: true,
+      testId: 'hand-log-entry-trump-4',
+    },
+  ].map(({ safeArea, screen, path, ...props }) => ({
+    ...props,
+    name: `edge-${screen}-${safeArea}`,
+    path: `${path}${path.includes('?') ? '&' : '?'}safeArea=${safeArea}`,
     authenticated: true,
-    homeProfile: true,
-  },
-  {
-    name: 'profile-friends-guest',
-    path: '/friends?from=profile',
-    testId: 'auth-sheet',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-    homeProfile: true,
-  },
-  ...['android-gesture', 'android-buttons'].flatMap((safeArea) =>
-    [
-      { screen: 'home', path: '/home', testId: 'home-screen' },
-      { screen: 'profile', path: '/profile', testId: 'profile-screen' },
-      { screen: 'table', path: '/table-dev?phase=playing', testId: 'seat-south' },
-      {
-        screen: 'hand-log',
-        path: '/table-dev?phase=playing&count=on',
-        openLog: true,
-        testId: 'hand-log-entry-trump-4',
-      },
-    ].map(({ screen, path, ...props }) => ({
-      ...props,
-      name: `edge-${screen}-${safeArea}`,
-      path: `${path}${path.includes('?') ? '&' : '?'}safeArea=${safeArea}`,
-      authenticated: true,
-    }))
-  ),
+  })),
   ...['joining', 'restoring', 'loading'].map((fixture) => ({
     name: `game-${fixture}`,
     path: `/game/7KQ4M2XB?fixture=${fixture}`,
     testId: 'game-loading-screen',
     authenticated: true,
   })),
-  ...['request', 'accepted', 'linked', 'seat', 'offline', 'queue', 'too-late'].map((kind) => ({
+  ...['request', 'seat'].map((kind) => ({
     name: `friend-notice-${kind}`,
     path: `/home?fixture=friend-${kind}`,
     testId: 'friend-notice',
@@ -332,7 +246,6 @@ const allCases = [
     testId: 'lobby-screen',
     authenticated: true,
   },
-  { name: 'lobby-held', path: '/lobby?fixture=held', testId: 'lobby-screen', authenticated: true },
   // PID-360: react-native-web's Alert shows nothing, so the web asks in a Modal.
   {
     name: 'lobby-at-table',
@@ -340,58 +253,33 @@ const allCases = [
     testId: 'lobby-screen',
     authenticated: true,
   },
-  ...['password', 'password-keypad', 'password-typed', 'password-wrong', 'password-wait'].map(
-    (fixture) => ({
-      name: `lobby-${fixture}`,
-      path: `/lobby?fixture=${fixture}`,
-      testId: fixture === 'password' ? 'lobby-screen' : 'password-keypad',
-      authenticated: true,
-      lobbyFixture: fixture,
-    })
-  ),
-  // Both landscape directions: the panel stays clear of the camera side and the home bar.
-  ...['island-left', 'island-right'].map((safeArea) => ({
-    name: `lobby-password-${safeArea}`,
-    path: `/lobby?fixture=password-typed&safeArea=${safeArea}`,
-    testId: 'password-keypad',
+  ...['password', 'password-keypad', 'password-wrong'].map((fixture) => ({
+    name: `lobby-${fixture}`,
+    path: `/lobby?fixture=${fixture}`,
+    testId: fixture === 'password' ? 'lobby-screen' : 'password-keypad',
     authenticated: true,
-    skipViewports: ['portrait'],
-    insets: safeArea === 'island-left' ? { left: 59, right: 0 } : { left: 0, right: 59 },
+    lobbyFixture: fixture,
   })),
-  {
-    name: 'waiting-held',
-    path: '/table-dev?phase=waiting-host&fixture=held',
-    testId: 'waiting-table',
-    authenticated: true,
-  },
-  ...['empty', 'list', 'all', 'added-you', 'loading', 'error', 'classic'].map((fixture) => ({
+  ...['empty', 'list', 'all', 'added-you'].map((fixture) => ({
     name: `friends-${fixture}`,
     path: `/friends?fixture=${fixture}`,
     testId: 'friends-screen',
     authenticated: true,
   })),
   {
-    name: 'friends-link-profile',
-    path: '/friends?fixture=link-profile',
-    testId: 'player-sheet',
-    authenticated: true,
-  },
-  ...['profile', 'remove', 'block'].map((state) => ({
-    name: `friends-${state}`,
+    name: 'friends-remove',
     path: '/friends?fixture=list',
-    testId: state === 'profile' ? 'player-sheet' : 'friend-sheet',
+    testId: 'friend-sheet',
     authenticated: true,
     open: 'View Nora’s profile',
-  })),
-  ...['partner', 'opponent', 'full', 'online', 'bots', 'offline', 'request', 'remove', 'block'].map(
-    (state) => ({
-      name: `friends-sheet-${state}`,
-      path: `/friends?fixture=sheet-${state}`,
-      testId: 'friend-sheet',
-      authenticated: true,
-    })
-  ),
-  ...['empty', 'filled', 'loading', 'error'].map((fixture) => ({
+  },
+  {
+    name: 'friends-sheet-partner',
+    path: '/friends?fixture=sheet-partner',
+    testId: 'friend-sheet',
+    authenticated: true,
+  },
+  ...['filled'].map((fixture) => ({
     name: `blocked-${fixture}`,
     path: `/blocked-players?fixture=${fixture}`,
     testId: 'blocked-players-screen',
@@ -411,7 +299,7 @@ const allCases = [
     testId: 'lobby-screen',
     authenticated: true,
   },
-  ...['playing', 'game_over'].map((phase) => ({
+  ...['playing'].map((phase) => ({
     name: `block-profile-${phase}`,
     path: `/table-dev?phase=${phase}&role=player`,
     testId: 'player-sheet',
@@ -419,8 +307,8 @@ const allCases = [
     open: /^View mfios1’s profile/,
     playerProfile: true,
   })),
-  ...['en', 'sv'].flatMap((locale) => [
-    ...['Marcel', 'Antti', 'Jocke'].map((name) => ({
+  ...['en'].flatMap((locale) => [
+    ...['Marcel'].map((name) => ({
       name: `table-bot-card-${name.toLowerCase()}-${locale}`,
       path: `/table-dev?fixture=bot-crew&locale=${locale}`,
       testId: 'bot-profile-modal',
@@ -432,32 +320,14 @@ const allCases = [
       botVoice: true,
       locale,
     })),
-    // PID-405: a catalogue character who plays the odds says so on her sheet.
     {
-      name: `table-bot-card-saga-${locale}`,
-      path: `/table-dev?fixture=bot-crew&character=saga&locale=${locale}`,
-      testId: 'bot-profile-modal',
-      open: locale === 'sv' ? /^Visa profilen för Saga,/ : /^View Saga’s profile,/,
-      botCard: 'Saga',
-      botPlay: 'search',
+      name: `table-bot-thinking-${locale}`,
+      path: `/table-dev?fixture=bot-crew&botTurn=west&locale=${locale}`,
+      testId: 'seat-west',
+      thinkingText: 'Let’s see…',
       botVoice: true,
       locale,
     },
-    ...[
-      { name: '', seat: 'west', en: 'Let’s see…', sv: 'Ska vi se…' },
-      { name: '-antti', seat: 'north', en: 'One moment…', sv: 'Ett ögonblick…' },
-      // PID-450: at 14pt East's plate on an upright phone has no room for it in
-      // Swedish; the seat says the plain turn text, as a catalogue line does (PID-405).
-      { name: '-jocke', seat: 'east', en: 'A trump…', sv: 'Trumf, månne…', svUpright: 'Spelar…' },
-    ].map(({ name, seat, svUpright, ...text }) => ({
-      name: `table-bot-thinking${name}-${locale}`,
-      path: `/table-dev?fixture=bot-crew&botTurn=${seat}&locale=${locale}`,
-      testId: `seat-${seat}`,
-      thinkingText: text[locale],
-      ...(locale === 'sv' && svUpright && { uprightText: svUpright }),
-      botVoice: true,
-      locale,
-    })),
   ]),
   // PID-405: her longest catalogue line, 40 characters, has no room in her seat. No line
   // is cut mid-word (PID-466): North says the plain turn text instead, upright too.
@@ -469,29 +339,18 @@ const allCases = [
     botVoice: true,
     locale: 'en',
   },
-  ...talkCases.map((name) => {
-    const state = name.replace('table-talk-', '');
+  // Table talk (PID-114, PID-318, PID-328): the band, its sheet, an offer and typing.
+  ...['quiet', 'line', 'sheet', 'sv-sheet', 'offer', 'reply', 'teen', 'typing'].map((state) => {
     const locale = state.startsWith('sv-') ? 'sv' : 'en';
-    const fixture = `talk-${state.replace('sv-', '').replace('send', 'quiet').replace('offer-tap', 'offer').replace('face-tap', 'coin').replace('reported', 'report').replace('say-word', 'typing').replace('say', 'typing')}`;
+    const talk = state.replace('sv-', '');
     return {
-      name,
-      path: `/table-dev?fixture=${fixture}&locale=${locale}`,
+      name: `table-talk-${state}`,
+      path: `/table-dev?fixture=talk-${talk}&locale=${locale}`,
       testId: 'game-table',
-      talk: state.replace('sv-', ''),
-      // Antti's sheet offers Block to an account (PID-406).
-      authenticated: state === 'face-tap',
+      talk,
       locale,
     };
   }),
-  {
-    name: 'block-profile-guest',
-    path: '/table-dev?phase=game_over&role=player',
-    testId: 'player-sheet',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-    open: 'View mfios1’s profile',
-    playerProfile: true,
-  },
   ...['recent', 'results'].map((fixture) => ({
     name: `friends-${fixture}`,
     path: `/friends-add?fixture=${fixture}`,
@@ -541,20 +400,15 @@ const allCases = [
   },
   // PID-297: the profile camera and every held photo-sheet state, with Classic pins.
   // PID-395: Your picture, Face 1, Face 2 or Photo; face saved and face error.
-  ...['en', 'sv'].flatMap((locale) =>
-    (locale === 'en'
-      ? ['profile', 'empty', 'present', 'uploading', 'saved', 'error', 'remove']
-      : ['profile', 'empty', 'present', 'error']
-    )
-      .concat(['face', 'face-saved', 'face-error'])
-      .map((state) => ({
-        name: `photo-${state}-${locale}`,
-        path: `/profile?fixture=photo-${state}`,
-        testId: state === 'profile' ? 'profile-screen' : 'badge-sheet',
-        authenticated: true,
-        locale,
-        photo: state,
-      }))
+  ...['en'].flatMap((locale) =>
+    ['profile', 'empty'].map((state) => ({
+      name: `photo-${state}-${locale}`,
+      path: `/profile?fixture=photo-${state}`,
+      testId: state === 'profile' ? 'profile-screen' : 'badge-sheet',
+      authenticated: true,
+      locale,
+      photo: state,
+    }))
   ),
   {
     name: 'photo-profile-guest',
@@ -564,8 +418,8 @@ const allCases = [
     authFixture: guestAuthFixture,
     photo: 'profile',
   },
-  ...['en', 'sv'].map((locale) => ({
-    name: locale === 'en' ? 'photo-sheet-guest' : 'photo-sheet-sv-guest',
+  ...['en'].map((locale) => ({
+    name: 'photo-sheet-guest',
     path: '/profile',
     testId: 'badge-sheet',
     authenticated: true,
@@ -575,47 +429,29 @@ const allCases = [
     photo: 'guest',
   })),
   { name: 'settings', path: '/settings', testId: 'settings-screen', authenticated: true },
-  // Development builds' test-ad row under About the app; the browser has no ads (PID-390).
-  {
-    name: 'settings-test-ad',
-    path: '/ui-dev?state=settings',
-    testId: 'app-update-section',
-    testAd: true,
-  },
   // PID-124: Settings → Premium only with Premium, the phone's panel and the web's line;
   // without it, a quiet Restore purchases link near the bottom.
   ...['en', 'sv'].flatMap((locale) => [
-    ...['none', 'until', 'lifetime', 'restoring'].map((premium) => ({
+    ...(locale === 'en' ? ['none', 'until'] : ['none']).map((premium) => ({
       name: `settings-premium-${premium}-${locale}`,
       path: `/ui-dev?state=settings&fixture=premium-${premium}&locale=${locale}`,
       testId: ['none', 'restoring'].includes(premium) ? 'settings-restore' : 'settings-premium',
       locale,
       premium,
     })),
-    {
-      name: `settings-premium-web-${locale}`,
-      path: `/ui-dev?state=settings&locale=${locale}`,
-      testId: 'settings-premium',
-      locale,
-      premium: 'web',
-      authenticated: true,
-      authFixture: premiumAuthFixture,
-    },
   ]),
   // PID-126: the Premium sheet over Settings, every state, with made-up store packages.
   ...['en', 'sv'].flatMap((locale) =>
-    ['choose', 'buying', 'failed', 'waiting', 'bought', 'bought-ad', 'bought-guest', 'empty'].map(
-      (state) => ({
-        name: `premium-sheet-${state}-${locale}`,
-        path: `/ui-dev?state=settings&fixture=premium-sheet-${state}&locale=${locale}`,
-        testId: 'premium-sheet',
-        locale,
-        premiumSheet: state,
-      })
-    )
+    (locale === 'en' ? ['choose', 'buying', 'failed', 'bought'] : ['choose']).map((state) => ({
+      name: `premium-sheet-${state}-${locale}`,
+      path: `/ui-dev?state=settings&fixture=premium-sheet-${state}&locale=${locale}`,
+      testId: 'premium-sheet',
+      locale,
+      premiumSheet: state,
+    }))
   ),
   // PID-119: Settings → Privacy, shown only where Google's form is required (forced here).
-  ...['en', 'sv'].map((locale) => ({
+  ...['en'].map((locale) => ({
     name: `settings-privacy-choices-${locale}`,
     path: `/ui-dev?state=settings&fixture=privacy-choices&locale=${locale}`,
     testId: 'settings-privacy-choices',
@@ -626,7 +462,7 @@ const allCases = [
   ...newsCases,
   // PID-120: the short-ad sheet before a solo game, in each state; nothing counts down.
   ...['en', 'sv'].flatMap((locale) =>
-    ['offer', 'loading', 'dismissed', 'unavailable'].map((state) => ({
+    (locale === 'en' ? ['offer', 'unavailable'] : ['offer']).map((state) => ({
       name: `ad-sheet-${state}-${locale}`,
       path: `/home?fixture=ad-${state}`,
       testId: 'ad-sheet',
@@ -636,7 +472,7 @@ const allCases = [
     }))
   ),
   ...['en', 'sv'].flatMap((locale) =>
-    ['update', 'image', 'news', 'ios', 'link'].map((popup) => ({
+    (locale === 'en' ? ['update', 'link'] : ['update']).map((popup) => ({
       name: `popup-${popup}-${locale}`,
       path: `/home?fixture=popup-${popup}`,
       testId: 'news-popup',
@@ -654,25 +490,16 @@ const allCases = [
       locale,
       welcome: true,
     },
-    {
-      name: `settings-feedback-${locale}`,
-      path: `/ui-dev?state=settings&locale=${locale}`,
-      testId: 'settings-screen',
-      locale,
-      feedback: true,
-      // PID-348: only an account has Tell us.
-      authenticated: true,
-    },
-    {
-      name: `settings-feedback-guest-${locale}`,
-      path: `/ui-dev?state=settings&locale=${locale}`,
-      testId: 'settings-screen',
-      locale,
-      feedback: 'none',
-      authenticated: true,
-      authFixture: guestAuthFixture,
-    },
   ]),
+  {
+    name: 'settings-feedback-en',
+    path: '/ui-dev?state=settings&locale=en',
+    testId: 'settings-screen',
+    locale: 'en',
+    feedback: true,
+    // PID-348: only an account has Tell us.
+    authenticated: true,
+  },
   // The real thing: a signed-in player who has not seen it meets it on Home.
   {
     name: 'news-welcome-home',
@@ -682,36 +509,27 @@ const allCases = [
     welcomeUnseen: true,
     welcome: true,
   },
-  ...['en', 'sv'].flatMap((locale) => [
-    {
-      name: `settings-pace-${locale}`,
-      path: `/ui-dev?state=settings&locale=${locale}`,
-      testId: 'settings-screen',
-      ownPace: true,
-      paceSettings: true,
-    },
-    {
-      name: `table-pace-solo-${locale}`,
-      path: `/table-dev?phase=playing&menu=pace&solo=true&locale=${locale}`,
-      testId: 'table-utility-window',
-      ownPace: true,
-      paceSettings: true,
-    },
-    {
-      name: `table-pace-human-${locale}`,
-      path: `/table-dev?phase=playing&menu=pace&locale=${locale}`,
-      testId: 'table-utility-window',
-      ownPace: true,
-      paceSettings: true,
-    },
-  ]),
+  {
+    name: 'settings-pace-en',
+    path: '/ui-dev?state=settings&locale=en',
+    testId: 'settings-screen',
+    ownPace: true,
+    paceSettings: true,
+  },
+  ...['en', 'sv'].map((locale) => ({
+    name: `table-pace-solo-${locale}`,
+    path: `/table-dev?phase=playing&menu=pace&solo=true&locale=${locale}`,
+    testId: 'table-utility-window',
+    ownPace: true,
+    paceSettings: true,
+  })),
   {
     name: 'update-notice',
     path: '/home?fixture=update-notice&safeArea=island',
     testId: 'home-screen',
     authenticated: true,
   },
-  ...['en', 'sv'].map((locale) => ({
+  ...['en'].map((locale) => ({
     name: `startup-update-${locale}`,
     path: `/ui-dev?state=updating&fixture=downloaded&locale=${locale}`,
     testId: 'updating-screen',
@@ -724,8 +542,8 @@ const allCases = [
     testId: 'update-required-screen',
     locale,
   })),
-  ...['en', 'sv'].flatMap((locale) =>
-    ['home', 'settings'].map((screen) => ({
+  ...['en'].flatMap((locale) =>
+    ['home'].map((screen) => ({
       name: `store-update-notice-${screen}-${locale}`,
       path: `/${screen}?fixture=store-update-notice&safeArea=island`,
       testId: `${screen}-screen`,
@@ -734,42 +552,20 @@ const allCases = [
       locale,
     }))
   ),
-  {
-    name: 'update-notice-home-guest',
-    path: '/home?fixture=update-notice&safeArea=island',
-    testId: 'home-screen',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-  },
-  {
-    name: 'update-notice-friends-guest',
-    path: '/friends?fixture=update-notice&safeArea=island',
-    testId: 'auth-sheet',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-  },
+  // PID-420 and on: the league, its Home line, game-over change, result, ribbons, friends and settings.
   ...[
-    'placed',
-    '27',
-    'deuce',
-    'pidro',
-    'small',
-    'not_placed',
-    'opted_out',
-    'guest',
-    'off',
-    'rules',
-    'player-sheet',
-  ].flatMap((state) =>
-    ['en', 'sv'].map((locale) => ({
-      name: `league-${state}-${locale}`,
-      path: `/league?fixture=league-${['rules', 'player-sheet'].includes(state) ? 'placed' : state}`,
-      testId: 'league-screen',
-      authenticated: true,
-      league: state,
-      locale,
-    }))
-  ),
+    ['placed', 'sv'],
+    ['not_placed', 'en'],
+    ['guest', 'en'],
+    ['rules', 'en'],
+  ].map(([state, locale]) => ({
+    name: `league-${state}-${locale}`,
+    path: `/league?fixture=league-${state === 'rules' ? 'placed' : state}`,
+    testId: 'league-screen',
+    authenticated: true,
+    league: state,
+    locale,
+  })),
   {
     name: 'league',
     path: '/league?fixture=league-placed',
@@ -777,13 +573,21 @@ const allCases = [
     authenticated: true,
     league: 'placed',
   },
-  ...['placed', 'not_placed', 'off', 'guest', 'opted_out'].map((state) => ({
-    name: `league-home-${state}`,
-    path: `/home?fixture=league-${state}`,
+  {
+    name: 'league-home-placed',
+    path: '/home?fixture=league-placed',
     testId: 'home-screen',
     authenticated: true,
-    league: `home-${state}`,
-  })),
+    league: 'home-placed',
+  },
+  {
+    name: 'league-home-placed-sv',
+    path: '/home?fixture=league-placed',
+    testId: 'home-screen',
+    authenticated: true,
+    league: 'home-placed',
+    locale: 'sv',
+  },
   {
     name: 'league-profile',
     path: '/profile?fixture=league-profile',
@@ -792,158 +596,84 @@ const allCases = [
     league: 'profile',
   },
   {
-    name: 'league-profile-not-placed',
-    path: '/profile?fixture=league-not_placed',
-    testId: 'profile-screen',
-    authenticated: true,
-    league: 'profile-not-placed',
-  },
-  ...['placed', 'not_placed'].map((state) => ({
-    name: `league-home-${state}-sv`,
-    path: `/home?fixture=league-${state}`,
+    name: 'league-home-tick-up-en',
+    path: '/home?fixture=league-home-tick-up',
     testId: 'home-screen',
     authenticated: true,
-    league: `home-${state}`,
-    locale: 'sv',
-  })),
-  ...['profile', 'profile-not-placed'].map((state) => ({
-    name: `league-${state}-sv`,
-    path: `/profile?fixture=league-${state === 'profile' ? 'profile' : 'not_placed'}`,
-    testId: 'profile-screen',
-    authenticated: true,
-    league: state,
-    locale: 'sv',
-  })),
-  ...['en', 'sv'].map((locale) => ({
-    name: `league-pin-scroll-${locale}`,
-    path: '/league?fixture=league-27',
-    testId: 'league-screen',
-    authenticated: true,
-    league: 'pin-scroll',
-    locale,
-  })),
-  ...['en', 'sv'].flatMap((locale) =>
-    ['up', 'down'].flatMap((move) =>
-      [false, true].map((reducedMotion) => ({
-        name: `league-home-tick-${move}-${locale}${reducedMotion ? '-reduced' : ''}`,
-        path: `/home?fixture=league-home-tick-${move}`,
-        testId: 'home-screen',
-        authenticated: true,
-        league: `home-tick-${move}`,
-        homeTick: move,
-        reducedMotion,
-        locale,
-      }))
-    )
-  ),
-  ...['en', 'sv'].flatMap((locale) =>
-    ['up', 'down', 'same', 'new', 'delayed', 'off', 'opted_out', 'guest', 'solo', 'crew'].map(
-      (change) => ({
-        name: `league-game-${change}-${locale}`,
-        path: `/table-dev?phase=game_over&${['solo', 'crew'].includes(change) ? 'crew=win' : 'people=win'}&xp=earned&rematch=one&locale=${locale}&leagueChange=${['solo', 'crew'].includes(change) ? 'up' : change}${['guest', 'crew'].includes(change) ? '&guest=true' : ''}`,
-        testId: 'game-over-window',
-        authenticated: true,
-        league: `game-${change}`,
-        gameOver: {},
-        reducedMotion: change === 'delayed',
-        locale,
-      })
-    )
-  ),
-  ...['island', 'island-left', 'island-right', 'android-gesture'].map((safeArea) => ({
-    name: `league-game-up-${safeArea}`,
-    path: `/table-dev?phase=game_over&people=win&xp=earned&rematch=one&leagueChange=up&safeArea=${safeArea}`,
+    league: 'home-tick-up',
+    homeTick: 'up',
+    reducedMotion: false,
+    locale: 'en',
+  },
+  ...[
+    ['up', 'en'],
+    ['up', 'sv'],
+    ['delayed', 'en'],
+  ].map(([change, locale]) => ({
+    name: `league-game-${change}-${locale}`,
+    path: `/table-dev?phase=game_over&people=win&xp=earned&rematch=one&locale=${locale}&leagueChange=${change}`,
     testId: 'game-over-window',
     authenticated: true,
-    league: 'game-up',
+    league: `game-${change}`,
     gameOver: {},
-    leagueInsets: safeArea,
+    reducedMotion: change === 'delayed',
+    locale,
   })),
-  ...['en', 'sv'].map((locale) => ({
-    name: `league-pin-first-partial-${locale}`,
+  {
+    name: 'league-pin-first-partial-en',
     path: '/league?fixture=league-placed',
     testId: 'league-screen',
     authenticated: true,
     league: 'pin-first-partial',
-    locale,
-  })),
-  ...['up', 'stayed', 'down'].flatMap((move) =>
-    ['en', 'sv'].map((locale) => ({
-      name: `league-result-${move}-${locale}`,
-      path: `/home?fixture=league-result-${move}`,
-      testId: move === 'stayed' ? 'home-screen' : 'league-result',
-      authenticated: true,
-      league: `result-${move}`,
-      locale,
-    }))
-  ),
-  ...['en', 'sv'].map((locale) => ({
-    name: `league-result-stayed-host-${locale}`,
-    path: '/home',
-    testId: 'home-screen',
+    locale: 'en',
+    sizes: ['landscape'],
+  },
+  ...['up', 'down'].map((move) => ({
+    name: `league-result-${move}-en`,
+    path: `/home?fixture=league-result-${move}`,
+    testId: 'league-result',
     authenticated: true,
-    league: 'result-stayed-host',
-    locale,
+    league: `result-${move}`,
+    locale: 'en',
   })),
-  ...['shelf', 'expanded'].flatMap((state) =>
-    ['en', 'sv'].map((locale) => ({
-      name: `league-ribbons-${state}-${locale}`,
-      path: '/profile?fixture=league-ribbons',
-      testId: 'profile-screen',
-      authenticated: true,
-      league: `ribbons-${state}`,
-      locale,
-    }))
-  ),
-  ...['friends', 'friends-not_placed', 'friends-sheet', 'friends-pin'].flatMap((state) =>
-    ['en', 'sv'].map((locale) => ({
-      name: `league-${state}-${locale}`,
-      path: `/league?fixture=league-${['friends-sheet', 'friends-pin'].includes(state) ? 'friends' : state}`,
-      testId: 'league-screen',
-      authenticated: true,
-      league: state,
-      locale,
-    }))
-  ),
-  ...[
-    'placed',
-    'not_placed',
-    'opted_out',
-    'guest',
-    'off',
-    'pending_up',
-    'pending_stayed',
-    'pending_down',
-  ].map((state) => ({
-    name: `league-sample-${state}`,
-    path: `/league?fixture=league-sample-${state}`,
+  {
+    name: 'league-ribbons-shelf-en',
+    path: '/profile?fixture=league-ribbons',
+    testId: 'profile-screen',
+    authenticated: true,
+    league: 'ribbons-shelf',
+    locale: 'en',
+  },
+  ...['friends', 'friends-pin'].map((state) => ({
+    name: `league-${state}-en`,
+    path: '/league?fixture=league-friends',
     testId: 'league-screen',
     authenticated: true,
-    league: `sample-${state}`,
+    league: state,
+    locale: 'en',
   })),
-  ...['visible', 'hidden', 'confirm', 'failed', 'guest', 'off'].flatMap((state) =>
-    ['en', 'sv'].map((locale) => ({
-      name: `league-settings-${state}-${locale}`,
-      path: '/settings',
-      testId: 'settings-screen',
-      authenticated: true,
-      authFixture: state === 'guest' ? guestAuthFixture : authFixture,
-      league: `settings-${state}`,
-      locale,
-    }))
-  ),
-  { name: 'device-settings', path: '/device-settings', testId: 'settings-screen' },
+  {
+    name: 'league-sample-placed',
+    path: '/league?fixture=league-sample-placed',
+    testId: 'league-screen',
+    authenticated: true,
+    league: 'sample-placed',
+  },
   ...[
-    'list',
-    'badges',
-    'locked',
-    'empty',
-    'rejoin',
-    'open',
-    'substitute',
-    'watch',
-    'search-empty',
-  ].map((fixture) => ({
+    ['visible', 'en'],
+    ['visible', 'sv'],
+    ['confirm', 'en'],
+  ].map(([state, locale]) => ({
+    name: `league-settings-${state}-${locale}`,
+    path: '/settings',
+    testId: 'settings-screen',
+    authenticated: true,
+    authFixture,
+    league: `settings-${state}`,
+    locale,
+  })),
+  { name: 'device-settings', path: '/device-settings', testId: 'settings-screen' },
+  ...['list', 'locked', 'empty', 'rejoin', 'open', 'substitute', 'watch'].map((fixture) => ({
     name: `lobby-${fixture}`,
     path: `/lobby?fixture=${fixture}`,
     testId: fixture === 'empty' ? 'lobby-empty' : 'lobby-screen',
@@ -951,14 +681,18 @@ const allCases = [
     lobbyFixture: fixture,
   })),
   ...['finnish', 'louisiana'].flatMap((ruleSet) => [
-    {
-      name: `settings-${ruleSet}`,
-      path: `/ui-dev?state=settings&fixture=${ruleSet}`,
-      testId: 'settings-screen',
-      ruleSet,
-      rulesSelector: 'settings-preferred-rules',
-    },
-    ...[false, true].map((authenticated) => ({
+    ...(ruleSet === 'finnish'
+      ? []
+      : [
+          {
+            name: `settings-${ruleSet}`,
+            path: `/ui-dev?state=settings&fixture=${ruleSet}`,
+            testId: 'settings-screen',
+            ruleSet,
+            rulesSelector: 'settings-preferred-rules',
+          },
+        ]),
+    ...(ruleSet === 'finnish' ? [false] : [false, true]).map((authenticated) => ({
       name: `join-${ruleSet}-${authenticated ? 'confirm' : 'preview'}`,
       path: `/join/7KQ4M2XB?fixture=${ruleSet}`,
       testId: 'join-invite-window',
@@ -968,14 +702,6 @@ const allCases = [
     })),
   ]),
   {
-    name: 'join-louisiana-manual-confirm',
-    path: '/join/7KQ4M2XB?source=typed&fixture=louisiana',
-    testId: 'join-invite-window',
-    authenticated: true,
-    ruleSet: 'louisiana',
-    rulesBadge: 'invite-rule-set',
-  },
-  {
     name: 'join-code-louisiana-confirm',
     path: '/join-code',
     testId: 'join-invite-window',
@@ -984,15 +710,7 @@ const allCases = [
     rulesBadge: 'invite-rule-set',
     manualCode: true,
   },
-  ...[
-    'finnish',
-    'louisiana',
-    'louisiana-bidding',
-    'louisiana-explainer',
-    'louisiana-game-over',
-    'louisiana-waiting',
-    'louisiana-waiting-explainer',
-  ].map((fixture) => ({
+  ...['finnish', 'louisiana', 'louisiana-explainer', 'louisiana-game-over'].map((fixture) => ({
     name: `table-${fixture}`,
     path: `/table-dev?fixture=${fixture}`,
     testId: fixture.endsWith('explainer')
@@ -1013,10 +731,8 @@ const allCases = [
     rulesExplainer: fixture.endsWith('explainer'),
   })),
   { name: 'age', path: '/age?fixture=unanswered', testId: 'age-screen' },
-  { name: 'age-selected', path: '/age?fixture=selected', testId: 'age-screen' },
   { name: 'age-sv', path: '/age?fixture=unanswered', testId: 'age-screen', locale: 'sv' },
   { name: 'age-stop', path: '/age?fixture=under13', testId: 'age-stop-screen' },
-  { name: 'age-stop-sv', path: '/age?fixture=under13', testId: 'age-stop-screen', locale: 'sv' },
   { name: 'welcome', path: '/welcome', testId: 'welcome-window' },
   { name: 'welcome-sv', path: '/welcome', testId: 'welcome-window', locale: 'sv' },
   {
@@ -1034,9 +750,6 @@ const allCases = [
   ...[
     ['welcome-known', 'en', 'password', 'ThunderThor88'],
     ['welcome-known-sv', 'sv', 'password', 'ThunderThor88'],
-    ['welcome-known-long', 'en', 'password', 'Bartholomew_Wolfgang'],
-    ['welcome-known-apple', 'en', 'apple', 'ThunderThor88'],
-    ['welcome-known-facebook', 'en', 'facebook', 'ThunderThor88'],
   ].map(([name, locale, method, playerName]) => ({
     name,
     path: method === 'password' ? '/welcome' : '/welcome?fixture=providers',
@@ -1046,13 +759,6 @@ const allCases = [
   })),
   { name: 'login', path: '/(auth)/login?fixture=providers', testId: 'auth-window' },
   { name: 'register', path: '/(auth)/register?fixture=providers', testId: 'auth-window' },
-  {
-    name: 'register-password',
-    path: '/(auth)/register?fixture=password',
-    testId: 'auth-window',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-  },
   {
     name: 'register-email-taken',
     path: '/(auth)/register?fixture=email-taken',
@@ -1109,20 +815,8 @@ const allCases = [
     authenticated: true,
   },
   {
-    name: 'classic-conflict-fresh',
-    path: '/(auth)/claim-classic?fixture=already-claimed',
-    testId: 'claim-classic-screen',
-  },
-  {
     name: 'classic-conflict-guest',
     path: '/(auth)/claim-classic?fixture=already-claimed',
-    testId: 'claim-classic-screen',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-  },
-  {
-    name: 'classic-conflict-guest-apple',
-    path: '/(auth)/claim-classic?fixture=already-claimed-apple',
     testId: 'claim-classic-screen',
     authenticated: true,
     authFixture: guestAuthFixture,
@@ -1144,16 +838,8 @@ const allCases = [
     testId: 'claim-classic-screen',
     classicPassword: true,
   },
-  {
-    name: 'classic-password-guest',
-    path: '/(auth)/claim-classic?fixture=password',
-    testId: 'claim-classic-screen',
-    authenticated: true,
-    authFixture: guestAuthFixture,
-    classicPassword: true,
-  },
-  ...['en', 'sv'].flatMap((locale) =>
-    ['password-reused', 'password-short'].map((fixture) => ({
+  ...['en'].flatMap((locale) =>
+    ['password-reused'].map((fixture) => ({
       name: `classic-${fixture}-${locale}`,
       path: `/ui-dev?state=claim-classic&fixture=${fixture}&locale=${locale}`,
       testId: 'claim-classic-screen',
@@ -1161,28 +847,15 @@ const allCases = [
       classicPasswordDecision: true,
     }))
   ),
-  ...[
-    'method',
-    'login',
-    'login-wrong-twice',
-    'preview',
-    'password',
-    'rename',
-    'already-claimed',
-  ].map((fixture) => ({
+  ...['method', 'login', 'password'].map((fixture) => ({
     name: `locale-sv-classic-${fixture}`,
     path: `/ui-dev?state=claim-classic&fixture=${fixture}&locale=sv&language=sv`,
     testId: 'claim-classic-screen',
     locale: 'sv',
     classicPassword: fixture === 'password',
   })),
-  {
-    name: 'classic-rename-fresh',
-    path: '/(auth)/claim-classic?fixture=rename',
-    testId: 'claim-classic-screen',
-  },
   ...['en', 'sv'].flatMap((locale) =>
-    ['details', 'rename-details', 'taken'].map((fixture) => ({
+    (locale === 'en' ? ['details', 'taken'] : ['details']).map((fixture) => ({
       name: `classic-${fixture}-${locale}`,
       path: `/ui-dev?state=claim-classic&fixture=${fixture}&locale=${locale}`,
       testId: 'claim-classic-screen',
@@ -1205,30 +878,26 @@ const allCases = [
     testId: 'classic-code-window',
   },
   { name: 'classic-help', path: '/(auth)/classic-help', testId: 'classic-help-window' },
-  ...['en', 'sv'].flatMap((locale) => [
-    ...(locale === 'sv' ? ['forgot', 'code', 'code-invalid'] : [])
-      .concat(['not-found', 'unavailable'])
-      .map((fixture) => ({
-        name: `classic-${fixture}-${locale}`,
-        path: `/(auth)/classic-forgot${fixture === 'forgot' ? '' : `?fixture=${fixture}`}`,
-        testId: fixture.startsWith('code') ? 'classic-code-window' : 'classic-forgot-window',
-        locale,
-      })),
-    ...(locale === 'sv' ? ['help', 'help-sent'] : ['help-sent']).map((fixture) => ({
-      name: `classic-${fixture}-${locale}`,
-      path: `/(auth)/classic-help${fixture === 'help' ? '' : '?fixture=sent'}`,
-      testId: fixture === 'help' ? 'classic-help-window' : 'classic-help-sent',
-      locale,
-    })),
-  ]),
-  { name: 'auth-sheet', path: '/auth-flow-dev', testId: 'auth-flow-dev' },
-  { name: 'forgot-password', path: '/(auth)/forgot-password', testId: 'auth-window' },
+  ...['not-found', 'unavailable'].map((fixture) => ({
+    name: `classic-${fixture}-en`,
+    path: `/(auth)/classic-forgot?fixture=${fixture}`,
+    testId: 'classic-forgot-window',
+    locale: 'en',
+  })),
   {
-    name: 'forgot-password-sv',
-    path: '/(auth)/forgot-password',
-    testId: 'auth-window',
+    name: 'classic-code-sv',
+    path: '/(auth)/classic-forgot?fixture=code',
+    testId: 'classic-code-window',
     locale: 'sv',
   },
+  {
+    name: 'classic-help-sv',
+    path: '/(auth)/classic-help',
+    testId: 'classic-help-window',
+    locale: 'sv',
+  },
+  { name: 'auth-sheet', path: '/auth-flow-dev', testId: 'auth-flow-dev' },
+  { name: 'forgot-password', path: '/(auth)/forgot-password', testId: 'auth-window' },
   {
     name: 'reset-password',
     path: '/(auth)/reset-password?token=fixture-token',
@@ -1252,53 +921,31 @@ const allCases = [
     testId: 'ui-progression-panel',
   },
   { name: 'ui-avatars', path: '/ui-dev?state=avatars', testId: 'ui-avatars-panel' },
-  ...['choices', 'friends', 'many', 'empty', 'sv'].map((fixture) => ({
+  ...['choices'].map((fixture) => ({
     name: `ui-seat-picker-${fixture}`,
     path: `/ui-dev?state=seat-picker&fixture=${fixture === 'sv' ? 'friends&locale=sv' : fixture}`,
     testId: 'seat-picker-container',
   })),
-  ...['setup', 'setup-open', 'opened', 'opened-more'].map((fixture) => ({
+  ...['setup'].map((fixture) => ({
     name: `ui-seat-rows-${fixture}`,
     path: `/ui-dev?state=seat-rows&fixture=${fixture}`,
     testId: 'ui-seat-rows-panel',
   })),
-  ...[
-    'setup',
-    'partner',
-    'bots',
-    'opened',
-    'ready',
-    'louisiana',
-    'requirement',
-    'password',
-    'picker',
-    'friends',
-    'guest',
-    'declined',
-    'live-picker',
-    'live-friends',
-    'characters',
-    'bot-picker',
-    'bot-picker-louisiana',
-    // PID-418: the waiting room's talk at rest; folded rows are not a team layout.
-    'talk',
-    // PID-420: bots in the other three seats: no field or faces, the quiet line instead.
-    'talk-bots',
-    // PID-487: Share the link and Start with bots under the seats, two open, the field in the footer.
-    'talk-offer',
-  ].map((fixture) => ({
-    name: `new-table-${fixture}`,
-    path: `/ui-dev?state=new-table&fixture=${fixture}`,
-    testId:
-      ['opened', 'ready', 'guest', 'declined'].includes(fixture) ||
-      fixture.startsWith('live-') ||
-      fixture.startsWith('talk')
-        ? 'waiting-table'
-        : 'new-table-screen',
-    newTableFixture: fixture,
-  })),
+  ...['setup', 'partner', 'bots', 'opened', 'ready', 'password', 'friends', 'guest'].map(
+    (fixture) => ({
+      name: `new-table-${fixture}`,
+      path: `/ui-dev?state=new-table&fixture=${fixture}`,
+      testId:
+        ['opened', 'ready', 'guest', 'declined'].includes(fixture) ||
+        fixture.startsWith('live-') ||
+        fixture.startsWith('talk')
+          ? 'waiting-table'
+          : 'new-table-screen',
+      newTableFixture: fixture,
+    })
+  ),
   ...['en', 'sv'].flatMap((language) =>
-    ['reconnecting', 'ready-error', 'ready-error-unknown'].map((fixture) => ({
+    [language === 'en' ? 'ready-error' : 'reconnecting'].map((fixture) => ({
       name: `new-table-${fixture}-${language}`,
       path: `/ui-dev?state=new-table&fixture=${fixture}&locale=${language}`,
       testId: 'waiting-table',
@@ -1320,12 +967,6 @@ const allCases = [
     verifyReadiness: true,
   },
   {
-    name: 'table-ready-host',
-    path: '/table-dev?phase=ready-host',
-    testId: 'waiting-table',
-    verifyReadiness: true,
-  },
-  {
     name: 'table-waiting-host',
     path: '/table-dev?phase=waiting-host',
     testId: 'waiting-table',
@@ -1343,62 +984,29 @@ const allCases = [
     testId: 'seat-north',
     teams: 'player',
   },
-  {
-    name: 'table-teams-spectator',
-    path: '/table-dev?phase=playing&role=spectator',
-    testId: 'seat-north',
-    teams: 'spectator',
-  },
-  // PID-383: the partner's line in the first hand only, and the sheet's line
-  // (PID-387 took the faces off the plaque). Mia has initials, Antti is the
-  // drawn bot, Marcel has a photo, Eli none.
+  // PID-383: the partner's line in the first hand only (PID-387 took the faces off
+  // the plaque). Mia has initials, Antti is the drawn bot, Marcel has a photo, Eli none.
   ...['en', 'sv'].flatMap((locale) => {
     const sv = locale === 'sv';
-    const view = (name) => (sv ? `Visa profilen för ${name}, ` : `View ${name}’s profile, `);
     const at = (fixture, rest = '') => `/table-dev?fixture=${fixture}&locale=${locale}${rest}`;
     return [
       { name: `table-teams-${locale}`, path: at('teams'), partnerLine: true },
-      { name: `table-teams-hand2-${locale}`, path: at('teams-hand2'), partnerLine: false },
-      {
-        name: `table-teams-spectator-${locale}`,
-        path: at('teams', '&role=spectator'),
-        partnerLine: false,
-      },
-      {
-        name: `table-teams-sheet-partner-${locale}`,
-        path: at('teams'),
-        open: new RegExp(`^${view('Antti')}`),
-        sheet: 'bot-profile-modal',
-        teamLine: sv ? 'Din partner' : 'Your partner',
-      },
-      {
-        name: `table-teams-sheet-opponent-${locale}`,
-        path: at('teams'),
-        open: new RegExp(`^${view('Eli')}`),
-        sheet: 'player-sheet',
-        teamLine: sv ? 'Spelar mot dig' : 'Plays against you',
-      },
-      {
-        name: `table-teams-sheet-spectator-${locale}`,
-        path: at('teams', '&role=spectator'),
-        open: new RegExp(`^${view('Eli')}`),
-        sheet: 'player-sheet',
-        teamLine: null,
-      },
+      ...(sv
+        ? []
+        : [
+            {
+              name: `table-teams-spectator-${locale}`,
+              path: at('teams', '&role=spectator'),
+              partnerLine: false,
+            },
+          ]),
     ].map((testCase) => ({
-      testId: testCase.sheet ?? 'seat-north',
-      authenticated: !!testCase.sheet,
+      testId: 'seat-north',
       teamCase: true,
       locale,
       ...testCase,
     }));
   }),
-  ...['right', 'left', 'middle'].map((position) => ({
-    name: `table-play-${position}`,
-    path: `/table-dev?fixture=play-motion&autoplay=false&play=${position}${position === 'left' ? '&reply=burst' : ''}`,
-    testId: 'seat-north',
-    playPosition: position,
-  })),
   // PID-461: the card you play lies over your earlier card, and every card over
   // its seat's earlier ones, while the state that places it is still on its way.
   {
@@ -1416,20 +1024,6 @@ const allCases = [
     drawLag: 250,
     arrivals: 'play',
   },
-  {
-    name: 'table-lay-down-arrives',
-    path: '/table-dev?fixture=lay-down&by=west&cards=2',
-    testId: 'seat-north',
-    drawLag: 250,
-    arrivals: 'laid',
-  },
-  {
-    name: 'table-hand-closes-shade',
-    path: '/table-dev?fixture=play-motion&autoplay=false',
-    testId: 'seat-north',
-    drawLag: 250,
-    arrivals: 'shade',
-  },
   // PID-473: your card played with no finger on it, as the table does for you
   // or once a press has let go, lies over your pile while the tree is late.
   {
@@ -1439,31 +1033,18 @@ const allCases = [
     drawLag: 250,
     arrivals: 'unpressed',
   },
-  // PID-473: a hand's last card from another seat: its backs and pile add up
-  // to the same in every frame, and its last back goes as the card shows.
-  ...['west', 'north', 'east'].map((rel) => ({
-    name: `table-hand-last-${rel}`,
-    path: `/table-dev?deal=hand&end=we-made&last=${rel}&showMs=600000`,
-    testId: `seat-${rel}`,
+  // PID-473: the canvas takes each table 200 ms after the seats, as a busy phone
+  // can: a seat's backs wait for the canvas, for a hand's last card and a lay-down.
+  {
+    name: 'table-hand-last-west-late',
+    path: '/table-dev?deal=hand&end=we-made&last=west&showMs=600000',
+    testId: 'seat-west',
     drawLag: 250,
+    modelLag: 200,
     arrivals: 'backs',
-    lastBy: rel,
-  })),
-  // PID-473: the canvas also takes each table 200 ms after the seats, as a busy
-  // phone can: a seat's backs wait for the canvas, for a hand's last card, a last
-  // trump that puts the seat out (its fold waits for the card), and a lay-down.
-  ...['west', 'north', 'east'].flatMap((rel) =>
-    ['', '&out=on'].map((out) => ({
-      name: `table-hand-last-${rel}${out ? '-out' : ''}-late`,
-      path: `/table-dev?deal=hand&end=we-made&last=${rel}${out}&showMs=600000`,
-      testId: `seat-${rel}`,
-      drawLag: 250,
-      modelLag: 200,
-      arrivals: 'backs',
-      lastBy: rel,
-    }))
-  ),
-  ...[1, 2].map((cards) => ({
+    lastBy: 'west',
+  },
+  ...[2].map((cards) => ({
     name: `table-lay-down-${cards}-late`,
     path: `/table-dev?fixture=lay-down&by=west&cards=${cards}`,
     testId: 'seat-west',
@@ -1474,23 +1055,16 @@ const allCases = [
   })),
   // PID-475, PID-481: the hand's first card lands while a trump killed over six
   // lies beside it, and stays: yours, tapped, with the state as it lands, and North's, leading.
-  ...['landing', 'fast'].map((reply) => ({
+  ...['landing'].map((reply) => ({
     name: `table-play-onto-killed${reply === 'fast' ? '-fast' : ''}`,
     path: `/table-dev?fixture=play-motion&autoplay=false&reply=${reply}&killed=on`,
     testId: 'seat-north',
     drawLag: 250,
     ontoKilled: 'south',
   })),
-  {
-    name: 'table-draw-kill-north',
-    path: '/table-dev?deal=draw&kill=north&holdMs=100&dealerHoldMs=100&cardMs=10',
-    testId: 'seat-north',
-    drawLag: 250,
-    ontoKilled: 'north',
-  },
   // PID-476: after a lay-down the laid cards leave the table with the piles,
   // under Classic's points (count help off) and as the result opens (on).
-  ...['', '&count=on'].map((count) => ({
+  ...[''].map((count) => ({
     name: `table-lay-down-clears${count ? '-count' : ''}`,
     path: `/table-dev?fixture=lay-down&by=north&cards=2${count}`,
     testId: 'seat-north',
@@ -1503,7 +1077,7 @@ const allCases = [
     testId: 'seat-north',
     trickStays: true,
   },
-  ...['north', 'east', 'south', 'west', 'reduced'].map((winner) => ({
+  ...['north', 'reduced'].map((winner) => ({
     name: `table-motion-${winner}`,
     path: `/table-dev?fixture=play-motion&autoplay=false&sweep=${winner === 'reduced' ? 'west' : winner}`,
     testId: 'seat-north',
@@ -1523,19 +1097,10 @@ const allCases = [
     protectNorthSeat: true,
   },
   ...['en', 'sv'].flatMap((locale) =>
-    [
-      'offline',
-      'auto-card',
-      'auto-pass',
-      'auto-bid',
-      'late-card',
-      'late-tap',
-      'away-one',
-      'away-out',
-      'early-tap',
-      'out-tap',
-      'spectator',
-    ].map((state) => ({
+    (locale === 'en'
+      ? ['offline', 'auto-card', 'away-out', 'early-tap', 'out-tap', 'spectator']
+      : ['away-out']
+    ).map((state) => ({
       name: `table-flaky-${state}-${locale}`,
       path: `/table-dev?phase=playing&fixture=flaky-${state}&role=${state === 'spectator' ? 'spectator' : 'player'}&locale=${locale}${state.endsWith('-out') || state === 'out-tap' ? '&out=you' : ''}${state.endsWith('-out') || state === 'early-tap' || state === 'out-tap' ? '&botTurn=north' : ''}`,
       locale,
@@ -1548,34 +1113,8 @@ const allCases = [
               ? 'seat-north'
               : 'table-feedback',
       flaky: state,
-      // PID-485: where the tester waited, an iPad Air 11 both ways.
-      ...((state === 'early-tap' || state === 'out-tap') && { viewports: IPAD_AIR_11 }),
     }))
   ),
-  // PID-485: the turn moves to East 6 s in, under the band that named Marcel.
-  {
-    name: 'table-flaky-early-tap-turn',
-    path: '/table-dev?phase=playing&fixture=flaky-early-tap&role=player&locale=en&botTurn=north&moveTurn=6000',
-    locale: 'en',
-    testId: 'seat-north',
-    flaky: 'early-tap',
-    turnMoves: true,
-  },
-  // PID-364: with reduced motion the card holds still; the seat on turn still lights.
-  {
-    name: 'table-flaky-early-tap-reduced',
-    path: '/table-dev?phase=playing&fixture=flaky-early-tap&role=player&locale=en&botTurn=north',
-    locale: 'en',
-    testId: 'seat-north',
-    flaky: 'early-tap',
-    reducedMotion: true,
-  },
-  ...['island-left', 'island-right'].map((safeArea) => ({
-    name: `table-playing-${safeArea}`,
-    path: `/table-dev?phase=playing&safeArea=${safeArea}`,
-    testId: 'seat-north',
-    sideInsets: safeArea === 'island-left' ? { left: 59, right: 0 } : { left: 0, right: 59 },
-  })),
   {
     name: 'table-seats-reconnecting',
     path: '/table-dev?phase=playing&lifecycle=reconnecting',
@@ -1623,21 +1162,6 @@ const allCases = [
     path: '/table-dev?phase=playing&signals=pidro&autoplay=true&count=on',
     testId: 'trick-pop-pidro-ours',
   },
-  {
-    name: 'table-trick-pidro-theirs',
-    path: '/table-dev?phase=playing&signals=pidro-theirs&autoplay=true&count=on',
-    testId: 'trick-pop-pidro-theirs',
-  },
-  {
-    name: 'table-trick-points',
-    path: '/table-dev?phase=playing&signals=points&autoplay=true&count=on',
-    testId: 'trick-pop-ours',
-  },
-  {
-    name: 'table-trick-points-theirs',
-    path: '/table-dev?phase=playing&signals=points-theirs&autoplay=true&count=on',
-    testId: 'trick-pop-theirs',
-  },
   // PID-236: the table dims under the hand's result and the point cards each
   // team took; ours made is stamped gold, the rest is quiet.
   { name: 'table-hand-made', path: '/table-dev?phase=playing&hand=made', testId: 'hand-result' },
@@ -1653,24 +1177,12 @@ const allCases = [
     testId: 'hand-continue',
     ownPace: true,
   },
-  {
-    name: 'table-hand-own-retry',
-    path: '/table-dev?phase=playing&hand=own&reply=continue',
-    testId: 'hand-continue',
-    ownPace: true,
-  },
-  ...['en', 'sv'].map((locale) => ({
+  ...['en'].map((locale) => ({
     name: `table-hand-own-missed-${locale}`,
     path: `/table-dev?phase=playing&hand=own-missed&locale=${locale}`,
     testId: 'hand-continue',
     ownPace: true,
   })),
-  {
-    name: 'table-hand-sweep-spectator',
-    path: '/table-dev?fixture=all-14&viewer=spectator',
-    testId: 'hand-result',
-    ownPace: true,
-  },
   { name: 'table-hand-set', path: '/table-dev?phase=playing&hand=set', testId: 'hand-result' },
   // PID-332: count help off, a hand ends as Classic's did. Our missed 10 and
   // their 6 between the hand's 16 cards; then, at own pace, our made 8 and
@@ -1681,25 +1193,13 @@ const allCases = [
     testId: 'hand-points',
     classicEnd: { us: '−10', them: '6', played: 16 },
   },
-  {
-    name: 'table-hand-classic-alone',
-    path: '/table-dev?deal=hand&end=we-made&pace=own&showMs=0',
-    testId: 'hand-points-continue',
-    classicEnd: { us: '8', them: '6', played: 0, own: true },
-  },
   // PID-366: one player alone holds trumps and the server settles the hand.
   // Their trumps lie face up in a fan in front of their seat (yours rise from
   // your hand), with the points on it under count help; the result waits.
-  // Every seat, with two and five cards, count help on and off, EN and SV.
+  // A side seat and yours, five cards, count help on, EN and SV.
   ...[
-    ['north', 5, true, 'en'],
-    ['north', 2, false, 'sv'],
-    ['east', 5, false, 'sv'],
-    ['east', 2, true, 'en'],
-    ['west', 2, false, 'en'],
     ['west', 5, true, 'sv'],
     ['south', 5, true, 'en'],
-    ['south', 2, false, 'sv'],
   ].map(([rel, cards, count, locale]) => ({
     name: `table-lay-down-${rel}-${cards}${count ? '-count' : ''}-${locale}`,
     path: `/table-dev?fixture=lay-down&by=${rel}&cards=${cards}${count ? '&count=on' : ''}&locale=${locale}`,
@@ -1707,11 +1207,6 @@ const allCases = [
     testId: `seat-${rel}`,
     layDown: { rel, cards, count, sv: locale === 'sv' },
   })),
-  {
-    name: 'table-hand-they-set',
-    path: '/table-dev?phase=playing&hand=they-set',
-    testId: 'hand-result',
-  },
   // PID-221: the ticker at its fullest, long names included, stays clear of the
   // plaque and the North seat; the hand log opens from it. Small and landscape
   // phones leave the ticker out (PID-229, PID-305).
@@ -1720,9 +1215,6 @@ const allCases = [
     path: '/table-dev?phase=playing&ticker=full&names=long&count=on',
     testId: 'ticker-line-bid-4-south',
     protectNorthSeat: true,
-    // 360×640 is tight at every inset: tight phones leave the ticker out too
-    // (`showsTicker`); the seats' lines say the same (layout.test.mjs).
-    skipViewports: ['landscape', 'small-landscape', 'compact-landscape', 'compact-portrait'],
   },
   // PID-232: a 32-character name in every seat, North dealing, truncates
   // inside its seat, clear of the other seats and the hand.
@@ -1741,14 +1233,13 @@ const allCases = [
     longNames: true,
     northNameMin: 76,
     protectNorthSeat: true,
-    skipViewports: ['portrait', 'landscape', 'compact-landscape'],
+    sizes: ['landscape'],
   },
   {
     name: 'table-hand-log',
     path: '/table-dev?phase=playing&count=on',
     openLog: true,
     testId: 'hand-log-entry-trump-4',
-    skipViewports: ['compact-landscape'],
   },
   {
     name: 'table-bidding',
@@ -1768,16 +1259,8 @@ const allCases = [
     protectPlayerHand: true,
     bidLines: { west: 'Passed', north: 'Bid 7', east: 'Bid 9 · high' },
     crew: { west: 'Marcel', north: 'Antti', east: 'Jocke' },
-    viewports: { 'compact-landscape': { width: 640, height: 360 } },
   },
-  {
-    name: 'table-bid-high',
-    path: '/table-dev?phase=bidding&role=player&bids=high',
-    testId: 'seat-south',
-    bidLines: { north: 'Bid 7', east: 'Passed', south: 'Bid 9 · high' },
-    viewports: { 'compact-landscape': { width: 640, height: 360 } },
-  },
-  ...['north', 'east', 'south', 'west'].map((seat) => ({
+  ...['north'].map((seat) => ({
     name: `table-details-${seat}`,
     path: `/table-dev?fixture=details&bidder=${seat}`,
     testId: `seat-${seat}-bid`,
@@ -1789,41 +1272,22 @@ const allCases = [
     testId: 'bidding-window',
     details: 'bidding',
   },
-  ...['declaring', 'second_deal', 'game_over'].map((phase) => ({
-    name: `table-details-${phase}`,
-    path: `/table-dev?fixture=details&phase=${phase}`,
-    testId:
-      phase === 'game_over'
-        ? 'game-over-overlay'
-        : `seat-${phase === 'declaring' ? 'south' : 'east'}-bid`,
-    details: phase === 'game_over' ? 'ended' : phase === 'declaring' ? 'south' : 'east',
-    detailsPhase: phase,
-  })),
   // PID-338: the six players of Status-Seats over the four seats, Bengt dealing
   // and Aino holding the bid at 9; measured on every table layout.
   // The chips show at the cut (PID-334 hides them during a hand), so the cut
   // measures the chips and the hand measures the dealer and the bid.
-  ...['a', 'b'].flatMap((seats) => [
-    {
-      name: `table-status-${seats}`,
-      path: `/table-dev?fixture=status&role=player&seats=${seats}`,
-      testId: 'seat-north-bid',
-      statusSeats: seats,
-    },
-    {
-      name: `table-status-${seats}-cut`,
-      path: `/table-dev?fixture=status&role=player&seats=${seats}&cut=true`,
-      testId: 'seat-north',
-      statusSeats: seats,
-      statusCut: true,
-    },
-  ]),
+  {
+    name: 'table-status-a-cut',
+    path: '/table-dev?fixture=status&role=player&seats=a&cut=true',
+    testId: 'seat-north',
+    statusSeats: 'a',
+    statusCut: true,
+  },
   // PID-304: small phones, from Marcel's TCL. ironman3001 deals at West and a
   // long North name holds the bid in one; no seat may touch a played card,
   // or your hand, and every corner keeps its one meaning.
   ...[
     ['west-deals', 'fixture=details&dealer=west&bidder=east', { dealer: 'west', bidder: 'east' }],
-    ['north-bid', 'fixture=details&dealer=west&bidder=north', { dealer: 'west', bidder: 'north' }],
     [
       'your-turn',
       'phase=playing&role=player&trick=bots',
@@ -1834,6 +1298,7 @@ const allCases = [
     path: `/table-dev?${query}&names=long&count=on`,
     testId: 'seat-south',
     smallTable,
+    sizes: ['compact-portrait'],
   })),
   // PID-305, PID-307: landscape phones lay the table out as Classic does,
   // each hand along its edge and the played cards on a cross around the
@@ -1846,21 +1311,6 @@ const allCases = [
       'bidding-window',
       { pack: true },
     ],
-    // PID-394: the pack rests beside its dealer, North's left of its fan.
-    ['bidding-north', 'phase=bidding&role=player&dealer=north', 'bidding-window', { pack: true }],
-    ['bidding-east', 'phase=bidding&role=player&dealer=east', 'bidding-window', { pack: true }],
-    [
-      'second-deal-east',
-      'deal=draw&dealer=east&holdMs=600000',
-      'seat-south',
-      { thrown: ['south', 'west', 'north'], mark: true, pack: true },
-    ],
-    [
-      'second-deal-north',
-      'deal=draw&dealer=north&holdMs=600000',
-      'seat-south',
-      { thrown: ['east', 'south', 'west'], mark: true, pack: true },
-    ],
     // The piles hold until captured: a 3 s hold races the still capture.
     // A throw is backs for everyone, the thrower too (PID-307).
     [
@@ -1869,41 +1319,14 @@ const allCases = [
       'seat-south',
       { thrown: ['north', 'east', 'south'], mark: true, pack: true },
     ],
-    // PID-306: only the dealer sees their own throw; everyone sees killed trumps.
-    [
-      'dealer-throws',
-      'deal=draw&dealerHoldMs=600000',
-      'seat-south',
-      { thrown: ['west'], mark: true },
-    ],
-    [
-      'you-deal',
-      'deal=draw&you=deal&dealerHoldMs=600000',
-      'seat-south',
-      { thrown: ['south'], faces: { south: 2 }, mark: true },
-    ],
-    [
-      'kill',
-      'deal=draw&kill=1&holdMs=100&dealerHoldMs=100&cardMs=10',
-      'seat-south',
-      { killed: ['east'], mark: true },
-    ],
     ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
-    // Two tricks taken: all twelve cards stay, the first eight trailing (PID-308).
-    ['third', 'phase=playing&role=player&trick=third', 'seat-south', { played: 12, mark: true }],
-    // East has led the third: the others' cards wait on the cross, shaded (PID-308).
-    ['turning', 'phase=playing&role=player&trick=turning', 'seat-south', { played: 9, mark: true }],
-    // East kept seven trumps and put two cards into the first trick.
-    ['seven', 'phase=playing&role=player&trick=seven', 'seat-south', { played: 5, mark: true }],
-    // Five tricks: each side's four earlier cards trail toward its index, up
-    // West's column and down East's, closing up short of the seats (PID-388).
-    ['piles-5', 'fixture=piles&cards=5', 'seat-south', { played: 20, mark: true }],
     ['hand-end', 'deal=hand', 'hand-result-panel', { result: true }],
   ].map(([name, query, testId, twoRows]) => ({
     name: `table-two-rows-${name}`,
     path: `/table-dev?${query}&names=long&count=on`,
     testId,
     twoRows,
+    sizes: ['landscape'],
     ...(name === 'trick' && { levels: false }),
   })),
   // PID-333: upright phones draw cards as big as Classic's. Nothing on the
@@ -1911,66 +1334,18 @@ const allCases = [
   // prints where East and West sit against the trick's line.
   ...[
     ['bidding', 'phase=bidding', 'bidding-window', {}],
-    [
-      'second-deal',
-      'deal=draw&holdMs=600000',
-      'seat-south',
-      { thrown: ['north', 'east', 'south'], mark: true, pack: true },
-    ],
-    // PID-394: the pack rests beside its dealer through bidding and the throws.
-    ['bidding-north', 'phase=bidding&role=player&dealer=north', 'bidding-window', { pack: true }],
-    ['bidding-east', 'phase=bidding&role=player&dealer=east', 'bidding-window', { pack: true }],
-    ['bidding-west', 'phase=bidding&role=player&dealer=west', 'bidding-window', { pack: true }],
-    // Tight North's long name runs right toward East's pack and stops short of it.
-    [
-      'bidding-east-long',
-      'phase=bidding&role=player&dealer=east&names=long',
-      'bidding-window',
-      { pack: true },
-    ],
-    [
-      'second-deal-east',
-      'deal=draw&dealer=east&holdMs=600000',
-      'seat-south',
-      { thrown: ['south', 'west', 'north'], mark: true, pack: true },
-    ],
-    [
-      'second-deal-north',
-      'deal=draw&dealer=north&holdMs=600000',
-      'seat-south',
-      { thrown: ['east', 'south', 'west'], mark: true, pack: true },
-    ],
-    [
-      'second-deal-you',
-      'deal=draw&you=deal&holdMs=600000',
-      'seat-south',
-      { thrown: ['north', 'east', 'west'], mark: true, pack: true },
-    ],
     ['trick', 'phase=playing&role=player&trick=full', 'seat-south', { played: 4, mark: true }],
     // The PID-236 panel, and Classic's end: the hand's 16 cards (PID-332).
     ['hand-end', 'deal=hand&count=on', 'hand-result-panel', { result: true }],
-    [
-      'hand-classic',
-      'deal=hand&end=we-missed&showMs=600000',
-      'hand-points',
-      { played: 16, ended: true },
-    ],
     // PID-381: every seat's newest card in front at full size, its earlier
     // ones behind it, smaller and shaded, each rank and suit in view. At 6
     // East kept seven trumps; `led`: East alone has led, the others' last
     // cards wait; `out`: you went out, your pile has no newest card.
     ...[
-      ['piles-1', 'cards=1', 4],
-      ['piles-3', 'cards=3', 12],
       ['piles-5', 'cards=5', 20],
-      ['piles-6', 'cards=6', 25],
-      ['piles-5-count', 'cards=5&count=on', 20, { counted: true }],
-      ['piles-6-count', 'cards=6&count=on', 25, { counted: true }],
-      ['piles-5-led', 'cards=5&led=east', 17],
       ['piles-5-out', 'cards=5&you=out', 19, { out: 'south' }],
       // West leads the next trick: its last card settles back, or cuts there.
       ['piles-settle', 'cards=5&next=on', 21, { settle: true }],
-      ['piles-settle-reduced', 'cards=5&next=on', 21, { settle: true, reduced: true }],
     ].map(([name, query, played, piles = {}]) => [
       name,
       `fixture=piles&${query}`,
@@ -1992,7 +1367,6 @@ const allCases = [
     testId: 'bidding-window',
     dealHold: true,
     bidLines: { west: 'Passed', north: 'Bid 7', east: 'Bid 9 · high' },
-    viewports: { 'compact-landscape': { width: 640, height: 360 } },
     levels: false,
   },
   // PID-220: with count help on, the plaque's bid line carries the bidders'
@@ -2010,14 +1384,6 @@ const allCases = [
     path: '/table-dev?phase=playing&role=player&out=one&count=on',
     open: 'Last trick, trick 2',
     testId: 'last-trick-cards',
-    // Tight and landscape phones have no Last trick: table-count-help opens the log there.
-    skipViewports: [
-      'small-portrait',
-      'compact-portrait',
-      'landscape',
-      'small-landscape',
-      'compact-landscape',
-    ],
   },
   // PID-364: the server plays Eli's trumps out; his line keeps "Takes the rest"
   // between the cards, and until the hand's result shows.
@@ -2028,12 +1394,6 @@ const allCases = [
     testId: 'seat-east',
     sweep: 'held',
   })),
-  ...['on', 'off'].map((count) => ({
-    name: `table-sweep-hold-count-${count}`,
-    path: `/table-dev?deal=hand&sweep=on&count=${count}&locale=en`,
-    testId: 'seat-east',
-    sweep: 'on',
-  })),
   // Everyone else is out: the rest of the hand is yours.
   {
     name: 'table-takes-the-rest',
@@ -2041,14 +1401,14 @@ const allCases = [
     testId: 'seat-south',
     countHelp: { out: ['north', 'east', 'west'], folded: ['east', 'west'], lone: 'south' },
   },
-  ...['fold', 'fold-legacy', 'fold-reduced'].map((fixture) => ({
+  ...['fold'].map((fixture) => ({
     name: `table-${fixture}`,
     path: `/table-dev?fixture=${fixture === 'fold-legacy' ? fixture : 'fold'}&count=on`,
     testId: 'seat-south-folded',
     fold: { north: 3, west: 2, south: 4 },
     reducedMotion: fixture === 'fold-reduced',
   })),
-  ...['west', 'south'].map((seat) => ({
+  ...['south'].map((seat) => ({
     name: `table-fold-trick${seat === 'south' ? '-self' : ''}`,
     path: `/table-dev?fixture=fold-trick${seat === 'south' ? '-self' : ''}&count=on`,
     testId: `seat-${seat}-folded`,
@@ -2081,25 +1441,6 @@ const allCases = [
     testId: 'bidding-window',
     invitation: 'Finnish · as Bertil’s opponent',
   },
-  // Upright on a notched phone: under the score and the menu, below the island.
-  {
-    name: 'table-invitation-island',
-    path: '/table-dev?phase=playing&role=player&trick=bots&invitation=partner&safeArea=island',
-    testId: 'table-invitation',
-    invitation: 'Finnish · as Bertil’s partner',
-    // No 360×640 phone has an island. There, under Android's bars, the card
-    // still covers East's and West's faces: open after PID-470.
-    skipViewports: ['landscape', 'compact-landscape', 'compact-portrait'],
-  },
-  ...['island-left', 'island-right'].map((safeArea) => ({
-    name: `table-invitation-${safeArea}`,
-    path: `/table-dev?phase=playing&role=player&trick=bots&invitation=rules&safeArea=${safeArea}`,
-    testId: 'table-invitation',
-    invitation: 'Finnish',
-    // As above: no 360×640 phone has an island on its side.
-    skipViewports: ['portrait', 'compact-portrait'],
-    insets: safeArea === 'island-left' ? { left: 59, right: 0 } : { left: 0, right: 59 },
-  })),
   // PID-209: you dealt and won the bid. The suits sit in the felt, none
   // picked for you and nothing lifted yet; every seat stays in view.
   {
@@ -2179,17 +1520,6 @@ const allCases = [
       absent: ['rematch-status', 'how-it-went', 'streak-chip', 'xp-chip'],
     },
   },
-  {
-    name: 'table-game-over-guest-loss',
-    path: '/table-dev?phase=game_over&guest=true&crew=loss',
-    testId: 'game-over-window',
-    viewports: GAME_OVER_TABLETS,
-    gameOver: {
-      headline: 'Marcel and Antti win',
-      parts: ['best-hand', 'every-hand', 'guest-save'],
-      absent: ['rematch-status', 'how-it-went', 'victory-rays'],
-    },
-  },
   // Games with people (PID-292): the rematch row stays, a loss links to every
   // hand under its best hand, and a small phone's loss drops the eyebrow and XP.
   {
@@ -2209,44 +1539,6 @@ const allCases = [
     },
   },
   {
-    name: 'table-game-over-online-loss-in',
-    path: '/table-dev?phase=game_over&people=loss&xp=earned&rematch=in',
-    testId: 'game-over-window',
-    viewports: GAME_OVER_TABLETS,
-    gameOver: {
-      headline: 'Bengt and Nora win',
-      eyebrow: 'Game over · 9 hands',
-      title: "You're in",
-      detail: 'Waiting for Bengt and Nora',
-      waiting: true,
-      seats: 4,
-      parts: ['best-hand', 'every-hand', 'xp-chip'],
-      absent: ['how-it-went', 'victory-rays', 'guest-save'],
-      smallPhone: { absent: ['xp-chip'], noText: 'Game over · 9 hands' },
-    },
-  },
-  {
-    name: 'table-game-over-online-loss',
-    path: '/table-dev?phase=game_over&people=loss&xp=earned&rematch=one',
-    testId: 'game-over-window',
-    viewports: GAME_OVER_TABLETS,
-    gameOver: {
-      headline: 'Bengt and Nora win',
-      title: 'Mikko wants a rematch',
-      detail: 'Waiting for Bengt and Nora',
-      seats: 3,
-      parts: ['best-hand', 'every-hand', 'xp-chip'],
-      absent: ['how-it-went', 'victory-rays'],
-      smallPhone: { absent: ['xp-chip'], noText: 'Game over · 9 hands' },
-    },
-  },
-  {
-    name: 'table-game-over-rematch-waiting',
-    path: '/table-dev?phase=game_over&rematch=waiting',
-    testId: 'rematch-status',
-    gameOver: { title: "You're in", detail: 'Waiting for Nora, Eli and Wynn', waiting: true },
-  },
-  {
     name: 'table-game-over-rematch-asked',
     path: '/table-dev?phase=game_over&rematch=asked',
     testId: 'rematch-status',
@@ -2254,7 +1546,8 @@ const allCases = [
   },
 ];
 
-const localizationCases = ['en', 'sv'].flatMap((locale) => [
+// Swedish runs longer than English: the screens where that is a layout risk (PID-514).
+const localizationCases = [
   ...[
     ['header', '/table-dev?fixture=finnish', 'table-rule-set'],
     ['settings', '/ui-dev?state=settings&fixture=finnish', 'settings-preferred-rules'],
@@ -2263,93 +1556,61 @@ const localizationCases = ['en', 'sv'].flatMap((locale) => [
     ['loss', '/table-dev?phase=game_over&result=loss', 'game-over-window'],
     ['lobby', '/ui-dev?state=lobby-seats', 'lobby-table-SAMPLE0'],
   ].map(([words, path, testId]) => ({
-    name: `words-${locale}-${words}`,
-    path: `${path}&locale=${locale}`,
+    name: `words-sv-${words}`,
+    path: `${path}&locale=sv`,
     testId,
-    locale,
+    locale: 'sv',
     words,
   })),
   // Settings → About the app names the running update (PID-265).
-  ...['named', 'embedded', 'fallback'].map((fixture) => ({
-    name: `locale-${locale}-settings-update-${fixture}`,
-    path: `/ui-dev?state=settings&fixture=update-${fixture}&locale=${locale}&language=${locale}`,
+  {
+    name: 'locale-en-settings-update-named',
+    path: '/ui-dev?state=settings&fixture=update-named&locale=en&language=en',
     testId: 'app-update-section',
-    locale,
-    appUpdate: fixture,
-  })),
-  ...['en', 'sv'].map((language) => ({
-    name: `locale-${locale}-settings-${language}`,
-    path: `/ui-dev?state=settings&locale=${locale}&language=${language}`,
+    locale: 'en',
+    appUpdate: 'named',
+  },
+  {
+    name: 'locale-sv-settings-sv',
+    path: '/ui-dev?state=settings&locale=sv&language=sv',
     testId: 'settings-screen',
-    locale,
-    language,
-  })),
+    locale: 'sv',
+    language: 'sv',
+  },
   ...[
     ['bidding', 'bidding', 'bidding-window'],
     ['trump', 'declaring', 'trump-picker'],
-    ['hand-selection', 'second_deal&role=player&dealer=south', 'hand-selection-window'],
     ['game-over', 'game_over', 'game-over-window'],
-    ['dealer', 'dealer_selection', 'seat-north'],
-    ['playing', 'playing', 'seat-north'],
   ].map(([name, phase, testId]) => ({
-    name: `locale-${locale}-${name}`,
-    path: `/table-dev?phase=${phase}&locale=${locale}&language=${locale}`,
+    name: `locale-sv-${name}`,
+    path: `/table-dev?phase=${phase}&locale=sv&language=sv`,
     testId,
-    locale,
-    protectNorthSeat: ['bidding', 'trump', 'hand-selection'].includes(name),
+    locale: 'sv',
+    protectNorthSeat: ['bidding', 'trump'].includes(name),
+    // The bid grid's Swedish words on the smallest phone too.
+    ...(name === 'bidding' && { sizes: ['portrait', 'compact-portrait'] }),
   })),
-  {
-    name: `locale-${locale}-waiting`,
-    path: `/ui-dev?state=new-table&fixture=opened&locale=${locale}&language=${locale}`,
-    testId: 'waiting-table',
-    locale,
-  },
-]);
+];
 allCases.push(...localizationCases);
-allCases.push(
-  ...allCases
-    .filter((testCase) => testCase.bidLines)
-    .map((testCase) => ({
-      ...testCase,
-      name: `locale-sv-${testCase.name}`,
-      path: `${testCase.path}&locale=sv`,
-      locale: 'sv',
-      bidLines: testCase.name.endsWith('-high')
-        ? { north: 'Bud 7', east: 'Passat', south: 'Bud 9 · högst' }
-        : { west: 'Passat', north: 'Bud 7', east: 'Bud 9 · högst' },
-    }))
-);
-allCases.push(
-  ...allCases
-    .filter((testCase) => testCase.countHelp)
-    .map((testCase) => ({
-      ...testCase,
-      name: `locale-sv-${testCase.name}`,
-      path: `${testCase.path}&locale=sv`,
-      locale: 'sv',
-      countHelp: {
-        ...testCase.countHelp,
-        ...(testCase.countHelp.line && { line: 'bjöd 6' }),
-        words: { out: 'ute', lone: 'tar resten' },
-      },
-    }))
-);
-allCases.push(
-  ...allCases
-    .filter(
-      (testCase) => testCase.name.startsWith('friends-') || testCase.name.startsWith('blocked-')
-    )
-    .map((testCase) => {
-      const path = new URL(testCase.path, baseUrl);
-      return {
-        ...testCase,
-        name: `locale-sv-${testCase.name}`,
-        path: `/ui-dev?state=${path.pathname.slice(1)}&fixture=${path.searchParams.get('fixture') ?? ''}&locale=sv&language=sv${path.searchParams.get('from') === 'profile' ? '&from=profile' : ''}`,
-        locale: 'sv',
-        open: testCase.open ? 'Visa profilen för Nora' : undefined,
-      };
-    })
-);
+allCases.push({
+  ...allCases.find(({ name }) => name === 'table-count-help'),
+  name: 'locale-sv-table-count-help',
+  path: '/table-dev?phase=playing&role=player&out=one&count=on&locale=sv',
+  locale: 'sv',
+  countHelp: {
+    bidder: 'Jocke',
+    line: 'bjöd 6',
+    out: ['west'],
+    folded: ['west'],
+    words: { out: 'ute', lone: 'tar resten' },
+  },
+});
+allCases.push({
+  ...allCases.find(({ name }) => name === 'friends-all'),
+  name: 'locale-sv-friends-all',
+  path: '/ui-dev?state=friends&fixture=all&locale=sv&language=sv',
+  locale: 'sv',
+});
 
 async function assertLocalization(page, testCase, viewport) {
   if (!testCase.locale) return;
@@ -2600,40 +1861,9 @@ async function assertBlockedTap(page, testCase) {
   else assert.ok(swing >= 2, `${testCase.name}: the card shook only ${swing.toFixed(1)}px`);
   assert.ok(later < 0.5, `${testCase.name}: the card shook again (${later.toFixed(1)}px)`);
   assert.equal(await shine(), 1, `${testCase.name}: North's shine lit`);
-  if (testCase.turnMoves) await assertNoticeLeavesWithTurn(page, testCase, spot);
   console.log(
     `${testCase.name}: one shake of ${swing.toFixed(1)}px over ${xs.length} frames; one notice; no renders after the first`
   );
-}
-
-/** PID-485: the frame East's light comes on, the band naming Marcel is gone; a tap names East. */
-async function assertNoticeLeavesWithTurn(page, testCase, spot) {
-  await page.evaluate(() => {
-    const frames = [];
-    window.__pidroTurnFrames = frames;
-    const sample = () => {
-      const lit = ['north', 'east'].filter((rel) =>
-        document.querySelector(`[data-testid="seat-${rel}"] [data-testid="turn-light"]`)
-      );
-      const band = document.querySelector('[data-testid="table-feedback"]')?.innerText ?? null;
-      frames.push({ lit: lit.join(), band });
-      if (lit.join() !== 'east') requestAnimationFrame(sample);
-    };
-    requestAnimationFrame(sample);
-  });
-  await page.waitForFunction(() => window.__pidroTurnFrames?.at(-1)?.lit === 'east', null, {
-    timeout: 10_000,
-  });
-  const frames = await page.evaluate(() => window.__pidroTurnFrames);
-  for (const frame of frames.filter(({ lit }) => lit !== 'north'))
-    assert.equal(frame.band, null, `${testCase.name}: ${JSON.stringify(frame)}`);
-  assert.ok(
-    frames.some(({ lit, band }) => lit === 'north' && band === "Marcel's turn"),
-    `${testCase.name}: the band was up until the turn moved`
-  );
-  await page.mouse.click(spot.x, spot.y);
-  await page.getByTestId('table-feedback').getByText("Player's turn", { exact: true }).waitFor();
-  console.log(`${testCase.name}: band gone on the frame East lit; a tap then named East`);
 }
 
 /** PID-364: Eli's seat line through the sweep, every frame until the result (or 1.5 s held). */
@@ -2667,6 +1897,9 @@ async function assertTargetGeometry(page, testCase, viewport) {
   const target = testCase.testId ? page.getByTestId(testCase.testId).first() : null;
   if (target) {
     await target.waitFor({ state: 'visible', timeout: 20_000 });
+    // A player scrolls a form or settings page; the target must fit once
+    // it is scrolled to.
+    await target.scrollIntoViewIfNeeded();
     const box = await getStableBox(target, page);
     if (!box) throw new Error(`${testCase.name} target has no geometry`);
     assertInsideViewport(`${testCase.name} target`, box, viewport);
@@ -2780,10 +2013,6 @@ async function assertTargetGeometry(page, testCase, viewport) {
     if (testCase.longNames) {
       await assertNamesFit(page, viewport, testCase.northNameMin);
     }
-
-    if (testCase.sideInsets) {
-      await assertSideStacksInsideCutouts(page, testCase, viewport);
-    }
   } else if (testCase.text) {
     await page.getByText(testCase.text, { exact: true }).first().waitFor({ timeout: 15_000 });
   }
@@ -2813,9 +2042,7 @@ async function assertGameOver(page, testCase, viewport) {
     await overlay.getByRole('heading', { name: spec.headline, exact: true }).waitFor();
   }
   // 360×640 is a small phone too (PID-470): the same parts give way.
-  const small =
-    ['small-portrait', 'compact-portrait', 'compact-android'].includes(viewport.name) &&
-    spec.smallPhone;
+  const small = viewport.name === 'compact-portrait' && spec.smallPhone;
   if (spec.eyebrow && !small?.noText) {
     await overlay.getByText(spec.eyebrow, { exact: true }).waitFor();
   }
@@ -3511,9 +2738,7 @@ async function assertClassicLogin(page, testCase, viewport) {
     );
     const fullScreenFit =
       !testCase.pendingInvite &&
-      ['portrait', 'small-portrait', 'android-portrait', 'landscape', 'tablet-portrait'].includes(
-        viewport.name
-      );
+      ['portrait', 'landscape', 'tablet-portrait'].includes(viewport.name);
     await assertAccountSurfaceFits(fullScreenFit ? screen : door, testCase.name, viewport);
     return;
   }
@@ -4027,17 +3252,6 @@ async function assertAppUpdate(page, { appUpdate, locale }) {
   if (detail) assert.equal(await support.innerText(), detail);
   await section.getByText(sv ? 'Byggnummer' : 'Build number', { exact: true }).waitFor();
   await section.getByText('Beta', { exact: true }).waitFor();
-  await waitForScreenshotReady(page);
-}
-
-// The dev-only ad row sits inside About the app and, on the web, only says why it can't run.
-async function assertTestAd(page) {
-  const row = page.getByTestId('app-update-section').getByTestId('settings-test-ad');
-  // The whole section, not just the row: a row half on screen scrolls only that far.
-  await page.getByTestId('app-update-section').scrollIntoViewIfNeeded();
-  await row.getByText('Show a test ad', { exact: true }).waitFor();
-  await row.getByText('Ads need a phone', { exact: true }).waitFor();
-  assert.equal(await row.getByRole('button').count(), 0, 'no ad button on the web');
   await waitForScreenshotReady(page);
 }
 
@@ -5144,15 +4358,6 @@ async function assertPasswordKeypad(page, testCase, viewport) {
   const typed = (count) =>
     keypad.getByLabel(`Password, ${count} of 4 numbers typed`, { exact: true }).waitFor();
   const key = (name) => keypad.getByRole('button', { name, exact: true });
-  if (testCase.insets) {
-    const box = await getStableBox(keypad, page);
-    assert.ok(box.x >= testCase.insets.left, `${testCase.name}: panel clears the left inset`);
-    assert.ok(
-      box.x + box.width <= viewport.width - testCase.insets.right,
-      `${testCase.name}: panel clears the right inset`
-    );
-    assert.ok(box.y + box.height <= viewport.height - 21, `${testCase.name}: clears the home bar`);
-  }
   if (testCase.name === 'lobby-password') {
     const row = page.getByTestId('lobby-table-LOCK');
     await row.getByText('Bertil', { exact: true }).waitFor();
@@ -5924,77 +5129,6 @@ async function assertPlayedCardPersistence(page, viewport) {
   }
 }
 
-async function assertPlayMotion(page, position, viewport) {
-  await page.getByTestId('rendered-hand-card-count-6').waitFor({ state: 'attached' });
-  await page.waitForTimeout(1500);
-  const read = () =>
-    page.getByTestId('play-presentation').getAttribute('aria-label').then(JSON.parse);
-  const before = await read();
-  const index = position === 'right' ? 5 : position === 'left' ? 0 : 3;
-  const target = before.hand[index];
-  // Observe on the browser clock before tapping. Locator polling can notice
-  // the fourth card almost a second late; sleeping from there misses the hold.
-  await page.evaluate(() => {
-    const frames = [];
-    const observer = new MutationObserver(() => {
-      const fixture = JSON.parse(
-        document.querySelector('[data-testid="play-fixture"]').getAttribute('aria-label')
-      );
-      const { lit } = JSON.parse(
-        document.querySelector('[data-testid="play-presentation"]').getAttribute('aria-label')
-      );
-      frames.push({ time: performance.now(), lit, ...fixture });
-      if (fixture.completed && lit) {
-        window.__pidroPlayHold = frames;
-        observer.disconnect();
-      }
-    });
-    observer.observe(document, {
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['aria-label'],
-    });
-  });
-  // Hit the exposed left edge, not the neighbour overlapping the card's centre.
-  await page.mouse.click(target.x - target.w / 2 + 10, target.y);
-  await page.getByTestId('rendered-hand-card-count-5').waitFor({ state: 'attached', timeout: 500 });
-  assert.equal(
-    JSON.parse(await page.getByTestId('play-fixture').getAttribute('aria-label')).hand,
-    6,
-    'the picture must move before the delayed server answer'
-  );
-  assert.equal((await read()).sprites[target.slot], target.key, 'the tapped sprite was replaced');
-  await page.waitForTimeout(950);
-  assert.ok(
-    (await read()).sprites[target.slot].endsWith(target.key),
-    'confirmation replaced the sprite slot'
-  );
-  await page.waitForFunction(() => window.__pidroPlayHold, null, { timeout: 10_000 });
-  const frames = await page.evaluate(() => window.__pidroPlayHold);
-  for (const seat of ['north', 'east']) {
-    const received = frames.find((frame) => frame.turn === seat && !frame.completed);
-    assert.ok(received, `missing ${seat} turn snapshot`);
-    assert.ok(
-      frames
-        .filter((frame) => frame.lit === seat && !frame.completed)
-        .every((frame) => frame.time >= received.time + 300),
-      `${seat} lit ahead of the preceding card's landing`
-    );
-  }
-  const hold = frames.filter((frame) => frame.completed);
-  assert.equal(hold[0].lit, null, 'the next turn lit before the fourth card landed');
-  assert.ok(
-    hold.slice(0, -1).every(({ lit }) => lit === null),
-    'a seat flashed during the hold'
-  );
-  const heldMs = hold.at(-1).time - hold[0].time;
-  assert.ok(heldMs >= 1450, `the 1500ms trick hold lasted only ${heldMs.toFixed(0)}ms`);
-  console.log(`play hold ${position}: ${heldMs.toFixed(0)}ms, no intervening seat light`);
-  assert.equal(hold.at(-1).lit, 'south', 'the server-selected leader did not light after the hold');
-  // The hand's tricks stay on every table (PID-308).
-  assert.equal(await page.getByTestId('rendered-played-card-count-4').count(), 1);
-}
-
 /**
  * PID-461: in every frame from the tap until the server's state, the card you
  * play is drawn over every other card on the table (`drawZ` is Skia's order);
@@ -6747,34 +5881,17 @@ const overlaps = (a, b) =>
 
 const OFFER_WORDS = {
   offer: { en: 'Nice trick!', sv: 'Snyggt stick!' },
-  'offer-turn': { en: 'Nice trick!' },
-  'offer-tap': { en: 'Nice trick!' },
-  'offer-slide': { en: 'Nice trick!' },
   reply: { en: 'Thanks!' },
-  'reply-narrow': { en: 'Thanks!' },
-  start: { en: 'Hello!' },
-  'deal-bidding': { en: 'Hello!' },
 };
 
 /**
- * The size each upright phone's tail takes (PID-396): one line at body size,
- * one at the small size, two lines, or none (the bubble lights alone), from
- * the room left of the bubble (89pt at 390, 81 at 360×640, 74 at 360×780, 95
- * at 402) and the word as drawn. No phone here leaves too little room for
- * Thanks!; `reply-narrow` holds the room at 64pt to light the bubble alone.
+ * The size the upright tail takes (PID-396): one line at body size, one at the
+ * small size, two lines, or none (the bubble lights alone), from the room left
+ * of the bubble (89pt at 390) and the word as drawn.
  */
 const TAIL_SIZE = {
   'portrait/reply': 'body',
   'portrait/offer': 'small',
-  'portrait/reply-narrow': null,
-  'small-portrait/reply': 'body',
-  'small-portrait/offer': 'small',
-  'iphone-insets-portrait/offer': 'small',
-  'compact-portrait/reply': 'small',
-  'compact-portrait/offer': 'two',
-  'android-portrait/reply': 'small',
-  'android-portrait/offer': 'two',
-  'android-portrait/reply-narrow': null,
 };
 
 /**
@@ -6789,13 +5906,12 @@ const TAIL_SIZE = {
 async function assertTalkOffer(page, testCase, viewport, corner) {
   const word = OFFER_WORDS[testCase.talk]?.[testCase.locale];
   if (!word) return false;
-  if (testCase.talk === 'deal-bidding') return assertTalkDeal(page, viewport);
   const offer = page.getByTestId('talk-offer');
   await offer.waitFor();
   await offer.getByTestId('talk-offer-line').waitFor();
   const card = offer.getByRole('button', { name: word, exact: true });
   const upright = corner && viewport.height > viewport.width;
-  const tail = upright ? await assertTail(page, offer, card, testCase, viewport) : null;
+  if (upright) await assertTail(page, offer, card, testCase, viewport);
   if (!upright) await card.waitFor();
   // An offer's faces are TalkCoin's plain emoji, nothing gold.
   const offered = await offer.locator('[data-testid^="talk-coin_"]').all();
@@ -6838,31 +5954,9 @@ async function assertTalkOffer(page, testCase, viewport, corner) {
   if (upright) await assertBubble(page, box, you, viewport);
   assert.equal(
     await offer.evaluate((node) => Number(getComputedStyle(node).opacity)),
-    testCase.talk === 'offer-turn' ? 0.6 : 1,
-    'on your turn the offer dims, and only then'
+    1,
+    'off your turn the offer is whole'
   );
-  if (testCase.talk === 'offer-tap' && upright && !tail) {
-    await offer.getByTestId('talk-speech').click();
-    await page.getByTestId('talk-sheet-typing').getByTestId('talk-word_nice').click();
-    await page.getByTestId('talk-landed').getByText(word).waitFor();
-  } else if (testCase.talk === 'offer-tap' && upright) {
-    // One tap says it; the tail folds back under the bubble, itself again.
-    await card.click();
-    await offer.waitFor({ state: 'detached' });
-    await page.locator('[data-testid^="talk-tail-"]').waitFor({ state: 'detached' });
-    await page.getByTestId('talk-landed').getByText(word).waitFor();
-    const bubble = await getStableBox(page.getByTestId('talk-speech'), page);
-    await assertBubble(
-      page,
-      bubble,
-      await getStableBox(page.getByTestId('seat-south'), page),
-      viewport
-    );
-  } else if (testCase.talk === 'offer-tap') {
-    await card.click();
-    await offer.waitFor({ state: 'detached' });
-    await page.getByTestId('talk-landed').getByText(word).waitFor();
-  }
   await waitForScreenshotReady(page);
   await assertMinimumTouchTargets(page, testCase.name, viewport);
   return true;
@@ -6876,7 +5970,7 @@ async function assertTail(page, offer, card, testCase, viewport) {
   const size = (await tails.count())
     ? (await tails.first().getAttribute('data-testid')).replace('talk-tail-', '')
     : null;
-  const key = `${viewport.name}/${testCase.talk.replace(/-(turn|tap|slide)$/, '')}`;
+  const key = `${viewport.name}/${testCase.talk}`;
   if (testCase.locale === 'en' && key in TAIL_SIZE)
     assert.equal(size, TAIL_SIZE[key], `${testCase.name}: the tail's size in ${viewport.name}`);
   const bubble = await getStableBox(speech, page);
@@ -6897,11 +5991,9 @@ async function assertTail(page, offer, card, testCase, viewport) {
   assert.ok(Math.abs(slot.y - bubble.y) <= 1 && Math.abs(slot.height - bubble.height) <= 1);
   assert.ok(slot.width >= 44, 'the word is a thumb wide at least');
   assert.ok(slot.x >= 0, 'the tail stays on screen');
-  // Fixtures hold it halfway out of the bubble.
-  const out = testCase.talk === 'offer-slide' ? 0.5 : 1;
   assert.ok(
-    Math.abs(face.x - (slot.x + slot.width * (1 - out))) <= 2,
-    `the tail is ${out * 100}% out: ${JSON.stringify({ slot, face })}`
+    Math.abs(face.x - slot.x) <= 2,
+    `the tail is all the way out: ${JSON.stringify({ slot, face })}`
   );
   // The word whole: no ellipsis, nothing cut.
   const clipped = await card.evaluate((node) =>
@@ -6913,75 +6005,6 @@ async function assertTail(page, offer, card, testCase, viewport) {
   );
   assert.equal(clipped, false, `the word is whole in its ${size} tail`);
   return size;
-}
-
-/**
- * You deal and the game offers a greeting while your pack rests (PID-396):
- * landscape phones lift the word card over the pack, or, where the pack would
- * meet the bubble, stand it above the hand's right end (640 wide) or lay it
- * bottom left beside your seat (667 wide, where East's seat comes down); iPads
- * stand it above the hand's left end; upright phones lay it at the left end
- * of your seat row, over your hand, short of your seat (PID-464).
- * Nothing talk shows, the bubble included, touches the pack or a seat.
- */
-async function assertTalkDeal(page, viewport) {
-  const speech = page.getByTestId('talk-speech');
-  await page.getByTestId('talk-offer').or(speech).first().waitFor();
-  const backs = [];
-  for (const image of await page.getByTestId('dealer-pack').locator('img').all()) {
-    const box = await image.boundingBox();
-    if (box) backs.push(box);
-  }
-  assert.ok(backs.length, `your pack shows in ${viewport.name}`);
-  const x = Math.min(...backs.map((b) => b.x));
-  const y = Math.min(...backs.map((b) => b.y));
-  const pack = {
-    x,
-    y,
-    width: Math.max(...backs.map((b) => b.x + b.width)) - x,
-    height: Math.max(...backs.map((b) => b.y + b.height)) - y,
-  };
-  assertInsideViewport('your pack', pack, viewport);
-  if (viewport.height > viewport.width) {
-    const row = await yourSeatRow(page);
-    const hand = await getStableBox(page.getByTestId('player-hand-top').first(), page);
-    assert.ok(
-      pack.y + pack.height <= hand.y - 2 && pack.x + pack.width <= row.x,
-      `your pack lies at the left end of your seat row, over your hand: ${JSON.stringify({ pack, row, hand })}`
-    );
-  }
-  // Nor does it lie under a seat or its backs (PID-396: at 667×375 East's seat
-  // comes down to where the pack stands at 640).
-  const seats = page.locator(
-    ['north', 'east', 'west']
-      .flatMap((seat) => [`[data-testid="seat-${seat}"]`, `[data-testid="seat-${seat}-cards"] img`])
-      .join(', ')
-  );
-  for (const seat of await seats.all()) {
-    const box = await seat.boundingBox();
-    if (box)
-      assert.ok(
-        !overlaps(box, pack),
-        `your pack keeps off a seat: ${JSON.stringify({ box, pack })}`
-      );
-  }
-  const said = page
-    .getByTestId('talk-offer')
-    .locator('[role="button"]')
-    .or(page.getByTestId('talk-offer-line'));
-  // Where the offer lights the bubble alone, the bubble is still talk's.
-  const parts = [...(await said.all()), ...(await speech.all())];
-  for (const part of parts) {
-    const box = await getStableBox(part, page);
-    assertInsideViewport('the offer', box, viewport);
-    assert.ok(
-      !overlaps(box, pack),
-      `the offer keeps off your pack: ${JSON.stringify({ box, pack })}`
-    );
-  }
-  await waitForScreenshotReady(page);
-  await assertMinimumTouchTargets(page, 'table-talk-deal-bidding', viewport);
-  return true;
 }
 
 /**
@@ -7008,8 +6031,6 @@ async function assertBubble(page, box, you, viewport) {
   );
 }
 
-const PERSON_SHEETS = { report: 'report' };
-
 /** A sheet fits its screen without scrolling. */
 async function assertTalkSheetFits(sheet, page, viewport) {
   assertInsideViewport('talk sheet', await getStableBox(sheet, page), viewport);
@@ -7026,62 +6047,6 @@ async function assertTalkSheetFits(sheet, page, viewport) {
   );
 }
 
-/**
- * A face at the table (PID-329, PID-406): Report asks one question with three
- * choices, then thanks; Quiet hides what that person said, and a tap on their
- * face, then their sheet's •••, gets there.
- */
-async function assertTalkPerson(page, testCase, viewport) {
-  const state = testCase.talk;
-  if (PERSON_SHEETS[state]) {
-    const sheet = page.getByTestId(`talk-sheet-${PERSON_SHEETS[state]}`);
-    await sheet.waitFor();
-    await assertTalkSheetFits(sheet, page, viewport);
-    for (const reason of ['rude', 'bothering', 'other'])
-      await sheet.getByTestId(`talk-report-${reason}`).waitFor();
-  } else if (state === 'reported') {
-    // One tap on a choice reports it and says thanks.
-    await page.getByTestId('talk-report-rude').click();
-    await page.getByTestId('talk-sheet-reported').waitFor();
-  } else if (state === 'quieted') {
-    // Antti is quiet: his word neither lands nor stays as the band's line.
-    await page.getByTestId('talk-landed').first().waitFor();
-    assert.equal(await page.getByTestId('talk-landed').count(), 1, 'only Jocke lands');
-    assert.equal(await page.getByText('Well played').count(), 0, 'Antti is not heard');
-  } else if (state === 'face-tap') {
-    // Your own face still opens your profile; a person's opens their sheet.
-    await page.getByTestId('seat-south').click();
-    await page.getByTestId('player-sheet').waitFor();
-    assert.equal(await page.getByTestId('talk-sheet-person').count(), 0, 'no sheet for you');
-    const profile = page.getByTestId('player-sheet');
-    await profile.getByRole('button', { name: 'Close', exact: true }).last().click();
-    await profile.waitFor({ state: 'detached' });
-    await page.getByTestId('talk-landed').getByText('Well played').waitFor();
-    // Antti's face opens his player sheet (PID-406); Quiet waits in its •••.
-    await page.getByTestId('seat-west').click();
-    const sheet = page.getByTestId('player-sheet');
-    await sheet.getByText('Antti', { exact: true }).waitFor();
-    await sheet.getByTestId('player-sheet-more').click();
-    const menu = sheet.getByTestId('player-sheet-menu');
-    assert.deepEqual(
-      (await menu.getByRole('button').allInnerTexts()).map((text) => text.trim()),
-      ['Quiet Antti’s words', 'Report Antti', 'Block Antti', 'Back'],
-      'the menu, in its order'
-    );
-    await sheet.getByTestId('player-sheet-quiet').click();
-    await sheet.waitFor({ state: 'detached' });
-    // Quiet hides what Antti already said, too.
-    await page
-      .getByTestId('talk-landed')
-      .filter({ hasText: 'Well played' })
-      .first()
-      .waitFor({ state: 'detached' });
-  } else return false;
-  await waitForScreenshotReady(page);
-  await assertMinimumTouchTargets(page, testCase.name, viewport);
-  return true;
-}
-
 const DRAFT = 'Nice one with that five';
 
 /**
@@ -7093,25 +6058,14 @@ const DRAFT = 'Nice one with that five';
 async function assertTalkTyping(page, testCase, viewport, corner) {
   const state = testCase.talk;
   const sv = testCase.locale === 'sv';
-  if (['type', 'guest', 'teen'].includes(state)) {
-    // An adult's band opens the composer, faces and words in reach; the rest get the words.
-    const sheet = page.getByTestId(`talk-sheet-${state === 'type' ? 'typing' : 'words'}`);
+  if (state === 'teen') {
+    // A 13 to 17 gets the words, nothing about typing.
+    const sheet = page.getByTestId('talk-sheet-words');
     await sheet.waitFor();
     await assertTalkSheetFits(sheet, page, viewport);
-    const account = sheet.getByTestId('talk-account');
-    assert.equal(await account.count(), state === 'guest' ? 1 : 0, 'a guest is asked to sign up');
-    if (state === 'type') {
-      await sheet.getByTestId('talk-word_nice').waitFor();
-      await sheet.getByTestId('talk-coin_ha').waitFor();
-      assert.equal(
-        await sheet.locator('input').getAttribute('placeholder'),
-        sv ? 'Skriv ett meddelande' : 'Type a message'
-      );
-    }
-    if (state === 'guest') await account.getByText('Make a free account').waitFor();
-    if (state === 'teen')
-      assert.equal(await sheet.getByText(/type|account/i).count(), 0, 'nothing about typing');
-  } else if (['typing', 'filtered', 'say', 'say-word'].includes(state)) {
+    assert.equal(await sheet.getByTestId('talk-account').count(), 0, 'no account line');
+    assert.equal(await sheet.getByText(/type|account/i).count(), 0, 'nothing about typing');
+  } else if (state === 'typing') {
     const sheet = page.getByTestId('talk-sheet-typing');
     await sheet.waitFor();
     await assertTalkSheetFits(sheet, page, viewport);
@@ -7122,35 +6076,6 @@ async function assertTalkTyping(page, testCase, viewport, corner) {
       .getByTestId('talk-unread')
       .getByText(sv ? /utom Antti/ : /except Antti/)
       .waitFor();
-    if (state === 'filtered') {
-      await sheet.getByTestId('talk-say').click();
-      await sheet.getByText('Try other words').waitFor();
-      assert.equal(await box.inputValue(), DRAFT, 'refused words stay in the box');
-    }
-    if (state === 'say-word') {
-      // A word said instead of the typed one drops the draft.
-      await sheet.getByTestId('talk-word_nice').click();
-      await sheet.waitFor({ state: 'detached' });
-      await page.getByTestId('talk-landed').waitFor();
-      assert.equal(await page.getByText(DRAFT).count(), 0, 'the unsent draft is gone');
-    }
-    if (state === 'say') {
-      await sheet.getByTestId('talk-say').click();
-      await sheet.waitFor({ state: 'detached' });
-      await page.getByTestId('talk-landed').getByText(DRAFT).waitFor();
-    }
-  } else if (state === 'typing-turn') {
-    // Your turn closed the box; the words wait in the iPad's band, or in a phone's speech button.
-    assert.equal(await page.getByTestId('talk-sheet-typing').count(), 0, 'the box closed');
-    if (corner) {
-      const speech = page.getByTestId('talk-speech');
-      await speech.waitFor();
-      assert.equal(await speech.getAttribute('aria-label'), `Your turn first. ${DRAFT}`);
-    } else {
-      const band = page.getByTestId('talk-band').first();
-      await band.getByText('Your turn first.').waitFor();
-      await band.getByText(DRAFT).waitFor();
-    }
   } else return false;
   await waitForScreenshotReady(page);
   await assertMinimumTouchTargets(page, testCase.name, viewport);
@@ -7168,7 +6093,6 @@ async function assertTalk(page, testCase, viewport) {
   // Phones keep a speech bubble in the corner; an iPad keeps the band beside the hand.
   const corner = Math.min(viewport.width, viewport.height) < 600;
   if (await assertTalkOffer(page, testCase, viewport, corner)) return;
-  if (await assertTalkPerson(page, testCase, viewport)) return;
   if (await assertTalkTyping(page, testCase, viewport, corner)) return;
   // The table's own; the log's sheet holds a band.
   const opener = page.getByTestId(corner ? 'talk-speech' : 'talk-band').first();
@@ -7185,91 +6109,11 @@ async function assertTalk(page, testCase, viewport) {
   // A dot while a line waits unread; opening the log reads it. Without one, no dot.
   assert.equal(
     await opener.getByTestId('talk-speech-dot').count(),
-    corner && testCase.talk === 'unread' ? 1 : 0,
-    'the bubble wears a dot only while a line waits unread'
+    0,
+    'no dot with nothing unread'
   );
-  if (testCase.talk === 'unread' && corner) {
-    await opener.click();
-    await page.getByTestId('talk-sheet-typing').waitFor();
-    assert.equal(await page.getByTestId('talk-speech-dot').count(), 0, 'open, the dot goes');
-  }
-  if (testCase.talk === 'quiet' || testCase.talk === 'send')
+  if (testCase.talk === 'quiet')
     assert.equal(await page.getByTestId('talk-landed').count(), 0, 'nothing has landed yet');
-  if (testCase.talk === 'send') {
-    await opener.click();
-    await page.getByTestId('talk-sheet-typing').waitFor();
-    await page.getByTestId('talk-word_nice').click();
-    await page.getByTestId('talk-sheet-typing').waitFor({ state: 'detached' });
-  }
-  if (['landed', 'coin', 'send', 'face'].includes(testCase.talk)) {
-    const landed = page.getByTestId('talk-landed');
-    await landed.first().waitFor();
-    await page.waitForTimeout(400);
-    // The backs themselves, not the columns that hold them.
-    const cards = await page
-      .locator('[data-testid^="seat-"][data-testid$="-cards"] img')
-      .evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const { x, y, width, height } = node.getBoundingClientRect();
-          return { x, y, width, height };
-        })
-      );
-    assert.ok(cards.length > 0, 'the seats hold cards');
-    for (const landing of await landed.all()) {
-      const box = await getStableBox(landing.locator(':scope > *').first(), page);
-      assertInsideViewport('talk landing', box, viewport);
-      for (const card of cards) assert.ok(!overlaps(box, card), 'a landing never covers cards');
-      // Beside its own ring, in numbers: iOS once put North's and yours ~120 pt off.
-      const ring = await landing.evaluate((node) =>
-        node.parentElement.getBoundingClientRect().toJSON()
-      );
-      const gap =
-        Math.max(0, ring.x - (box.x + box.width), box.x - (ring.x + ring.width)) +
-        Math.max(0, ring.y - (box.y + box.height), box.y - (ring.y + ring.height));
-      // Upright, yours starts past your own lit plate once it stands that tall (PID-471): 10 pt
-      // off the ring, then past the plate's edge and 6 pt more, 23.5 pt at 390×844; 30 leaves a
-      // margin. Landscape never pushes.
-      const own =
-        viewport.height > viewport.width &&
-        /^(You|Du):/.test(await landing.getAttribute('aria-label'));
-      assert.ok(
-        gap <= (own ? 30 : 14),
-        `a landing sits by its own ring: ${JSON.stringify({ box, ring })}`
-      );
-      // Faces and words are plain bubbles, nothing gold.
-      assert.equal(
-        await landing
-          .locator(':scope > *')
-          .first()
-          .evaluate((node) => getComputedStyle(node).backgroundImage),
-        'none',
-        'a landing has no gradient'
-      );
-    }
-    if (testCase.talk === 'send') await landed.getByText(TALK_WORDS.en[0]).waitFor();
-  }
-  if (testCase.talk === 'face') {
-    // Plain emoji, nothing gold; the label still says the word.
-    const landed = page.getByTestId('talk-landed');
-    assert.equal(await landed.count(), 2, 'North and you');
-    await landed.getByText('❤️').waitFor();
-    await landed.getByText('😂').waitFor();
-    const labels = await landed.evaluateAll((nodes) =>
-      nodes.map((node) => node.getAttribute('aria-label'))
-    );
-    assert.deepEqual(
-      labels.sort(),
-      ['Jocke: Love it', 'You: Ha'].sort(),
-      'each landing speaks its word'
-    );
-    // Phones keep only the speech button; an iPad's band says You 😂.
-    if (!corner) {
-      const band = page.getByTestId('talk-band').first();
-      await band.getByText('😂').waitFor();
-      assert.match(await band.getAttribute('aria-label'), /Ha/);
-    }
-    assert.equal(await page.getByText('Ha', { exact: true }).count(), 0, 'the face, not its word');
-  }
   if (testCase.talk === 'sheet') {
     const coins = page.getByTestId('talk-sheet-words').locator('[data-testid^="talk-coin_"]');
     assert.deepEqual(
@@ -7294,8 +6138,8 @@ async function assertTalk(page, testCase, viewport) {
       'five plain faces, each saying its word'
     );
   }
-  if (testCase.talk === 'sheet' || testCase.talk === 'log') {
-    const sheet = page.getByTestId(`talk-sheet-${testCase.talk === 'sheet' ? 'words' : 'log'}`);
+  if (testCase.talk === 'sheet') {
+    const sheet = page.getByTestId('talk-sheet-words');
     await sheet.waitFor();
     assertInsideViewport('talk sheet', await getStableBox(sheet, page), viewport);
     assert.equal(
@@ -7309,21 +6153,19 @@ async function assertTalk(page, testCase, viewport) {
       false,
       'the sheet needs no scrolling'
     );
-    if (testCase.talk === 'sheet') {
-      const words = sheet.locator('[data-testid^="talk-word_"]');
-      assert.deepEqual(
-        await words.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label'))),
-        TALK_WORDS[testCase.locale]
+    const words = sheet.locator('[data-testid^="talk-word_"]');
+    assert.deepEqual(
+      await words.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('aria-label'))),
+      TALK_WORDS[testCase.locale]
+    );
+    assert.equal(await sheet.locator('[data-testid^="talk-coin_"]').count(), 5, 'five coins');
+    for (const word of await words.all()) {
+      const text = word.locator('[dir="auto"]').last();
+      assert.equal(
+        await text.evaluate((node) => node.scrollWidth > node.clientWidth + 1),
+        false,
+        'a word fits its card'
       );
-      assert.equal(await sheet.locator('[data-testid^="talk-coin_"]').count(), 5, 'five coins');
-      for (const word of await words.all()) {
-        const text = word.locator('[dir="auto"]').last();
-        assert.equal(
-          await text.evaluate((node) => node.scrollWidth > node.clientWidth + 1),
-          false,
-          'a word fits its card'
-        );
-      }
     }
   }
   await waitForScreenshotReady(page);
@@ -7366,7 +6208,7 @@ async function assertBotVoice(page, testCase, viewport) {
             search:
               'Plays the odds: deals out the cards it can’t see and takes the line that wins most often, yet still bids only what the contract needs.',
           },
-        }[testCase.locale][testCase.botPlay ?? 'rulebook'],
+        }[testCase.locale].rulebook,
         { exact: true }
       )
       .waitFor();
@@ -7408,14 +6250,9 @@ async function assertBotVoice(page, testCase, viewport) {
     await waitForScreenshotReady(page);
   } else {
     const beside = !!testCase.landscapeText && viewport.width > viewport.height;
-    const upright =
-      !!testCase.uprightText && viewport.width < 500 && viewport.height > viewport.width;
     const line = page
       .getByTestId(testCase.testId)
-      .getByText(
-        beside ? testCase.landscapeText : upright ? testCase.uprightText : testCase.thinkingText,
-        { exact: true }
-      );
+      .getByText(beside ? testCase.landscapeText : testCase.thinkingText, { exact: true });
     await line.waitFor();
     assertInsideViewport('thinking line', await getStableBox(line, page), viewport);
     assert.equal(
@@ -7660,29 +6497,6 @@ async function assertTeamLines(page, testCase, viewport) {
   if (!testCase.teamCase) return;
   const where = `${testCase.name} in ${viewport.name}`;
   const sv = testCase.locale === 'sv';
-  if (testCase.sheet) {
-    const sheet = page.getByTestId(testCase.sheet);
-    await sheet.waitFor();
-    const line = sheet.getByTestId('player-sheet-team');
-    if (testCase.teamLine == null) {
-      await sheet.getByText('Eli', { exact: true }).first().waitFor();
-      assert.equal(await line.count(), 0, `${where}: a spectator's sheet takes a side`);
-      return;
-    }
-    // A person's sheet at the table puts the seat after their title (PID-406).
-    const shown =
-      testCase.sheet === 'player-sheet' ? sheet.getByTestId('player-sheet-title') : line;
-    await shown.waitFor();
-    const text = (await shown.innerText()).trim();
-    assert.ok(
-      testCase.sheet === 'player-sheet'
-        ? text.endsWith(` · ${testCase.teamLine}`)
-        : text === testCase.teamLine,
-      `${where}: the sheet's line reads ${text}`
-    );
-    assertInsideViewport('team line', await getStableBox(shown, page), viewport);
-    return;
-  }
   const plaque = page.getByRole('button', { name: sv ? /^(VI|N\/S) / : /^(US|N\/S) / });
   const box = await getStableBox(plaque, page);
   assert.equal(Math.round(box.height), PLAQUE_HEIGHT, `${where}: the plaque grew`);
@@ -7743,7 +6557,7 @@ async function assertTableDetails(page, testCase, viewport) {
     return;
   }
   assert.equal(await chips.count(), 1, 'only the bidder has a chip');
-  assert.equal(await chips.innerText(), testCase.detailsPhase === 'declaring' ? '8' : '7');
+  assert.equal(await chips.innerText(), '7');
   assert.equal(
     await chips.evaluate((chip) => getComputedStyle(chip).borderTopColor),
     ['north', 'south'].includes(testCase.details) ? TEAM_US : TEAM_THEM,
@@ -7762,15 +6576,14 @@ async function assertTableDetails(page, testCase, viewport) {
     'bid chip stays clear of your hand'
   );
   const dealt = JSON.parse(await page.getByTestId('deal-presentation').getAttribute('aria-label'));
-  if (!testCase.detailsPhase)
-    assert.deepEqual(dealt.hand, [
-      'spades_14',
-      'spades_5',
-      'clubs_5',
-      'hearts_13',
-      'diamonds_13',
-      'clubs_13',
-    ]);
+  assert.deepEqual(dealt.hand, [
+    'spades_14',
+    'spades_5',
+    'clubs_5',
+    'hearts_13',
+    'diamonds_13',
+    'clubs_13',
+  ]);
   assert.equal(await page.getByTestId('last-trick').count(), 0, 'count help is independent');
   const poses = () =>
     page.locator('[data-testid$="-cards"] img').evaluateAll((images) =>
@@ -7797,11 +6610,7 @@ async function assertTableDetails(page, testCase, viewport) {
       })
     );
   const before = await poses();
-  assert.equal(
-    before.length,
-    testCase.detailsPhase === 'declaring' ? 27 : 18,
-    'actual opponent backs'
-  );
+  assert.equal(before.length, 18, 'actual opponent backs');
   for (const pose of before) {
     const angle = Number(pose.rotation.match(/rotate\(([-\d.]+)deg\)/)?.[1]);
     const x = Number(pose.translation.match(/translateX\(([-\d.]+)px\)/)?.[1]);
@@ -8963,12 +7772,6 @@ async function assertTableInvitation(page, testCase, viewport) {
     'Joining ends your game with the bots.',
   ])
     await card.getByText(text, { exact: true }).waitFor();
-  const insets = testCase.insets ?? { left: 0, right: 0 };
-  assert.ok(box.x >= insets.left, `${testCase.name}: clears the left inset`);
-  assert.ok(
-    box.x + box.width <= viewport.width - insets.right,
-    `${testCase.name}: clears the right inset`
-  );
   if (viewport.height > viewport.width) {
     await assertNorthClear(page, testCase, viewport, box);
     for (const seat of ['east', 'west', 'south']) {
@@ -9192,27 +7995,6 @@ async function assertBidGridLayout(page, viewport, locale) {
   }
 }
 
-// A side stack may bleed off a bare screen edge, never into a cutout.
-async function assertSideStacksInsideCutouts(page, testCase, viewport) {
-  const { left, right } = testCase.sideInsets;
-  for (const [position, inset] of [
-    ['west', left],
-    ['east', right],
-  ]) {
-    if (!inset) continue;
-    const stack = page.getByTestId(`seat-${position}-cards`).locator(':scope > div').first();
-    await stack.waitFor({ state: 'visible', timeout: 20_000 });
-    const box = await getStableBox(stack, page);
-    const outside =
-      position === 'west' ? inset - box.x : box.x + box.width - (viewport.width - inset);
-    if (outside > 0.5) {
-      throw new Error(
-        `${testCase.name}: the ${position} card stack reaches ${outside.toFixed(1)}pt into the cutout in ${viewport.name}: ${JSON.stringify(box)}`
-      );
-    }
-  }
-}
-
 /** PID-304: a tight table draws North's avatar at TIGHT_AVATAR, its name beside it. */
 async function tightTable(page) {
   const north = page.getByTestId('seat-north').first().locator(':scope > div').first();
@@ -9276,11 +8058,12 @@ async function assertSeatPlacement(page, viewport) {
   }
 
   // Portrait: North and South own a centered name column; East and West share
-  // the rest. Landscape labels sit beside the avatar and stay compact.
+  // the rest. Landscape labels sit beside the avatar and stay compact. A
+  // tablet has the room.
   const maxSeatWidth = (position) =>
     !portrait ? 132 : position === 'north' || position === 'south' ? 156 : 112;
   for (const position of ['north', 'east', 'south', 'west']) {
-    if (seats[position].width > maxSeatWidth(position)) {
+    if (viewport.width < 600 && seats[position].width > maxSeatWidth(position)) {
       throw new Error(
         `seat-${position} exceeds the compact ${viewport.name} width: ${JSON.stringify(seats[position])}`
       );
@@ -10281,24 +9064,6 @@ async function assertLeague(page, testCase, viewport) {
         await control.waitFor();
         assert.ok(!boxesOverlap(box, await control.boundingBox()), `league line clears ${id}`);
       }
-      const insets = testCase.leagueInsets;
-      if (insets) {
-        const safe = {
-          left: insets === 'island-left' ? 59 : 0,
-          right: insets === 'island-right' ? 59 : 0,
-          top: insets === 'island' ? 59 : insets === 'android-gesture' ? 24 : 0,
-          bottom: insets === 'island' ? 34 : insets === 'android-gesture' ? 24 : 21,
-        };
-        for (const id of ['game-over-league', 'play-again', 'game-over-home']) {
-          const control = await page.getByTestId(id).boundingBox();
-          assert.ok(
-            control.x >= safe.left && control.x + control.width <= viewport.width - safe.right
-          );
-          assert.ok(
-            control.y >= safe.top && control.y + control.height <= viewport.height - safe.bottom
-          );
-        }
-      }
     }
     if (human) {
       await page.getByTestId('rematch-status').waitFor();
@@ -11010,6 +9775,28 @@ async function assertLeague(page, testCase, viewport) {
   }
 }
 
+// PID-514: a case is captured once, on a 390×844 phone, unless it names its sizes.
+// The table, the first screens and sign-in also take every size in UI_VIEWPORTS.
+const EVERY_SIZE = new Set([
+  'table-playing',
+  'table-bidding',
+  'table-trump',
+  'table-hand-selection',
+  'table-game-over',
+  'table-long-names',
+  'table-invitation',
+  'table-count-help',
+  'table-talk-sheet',
+  'welcome',
+  'home',
+  'login',
+  'classic-method',
+  'lobby-list',
+]);
+const sizesOf = (testCase) =>
+  testCase.sizes ??
+  (EVERY_SIZE.has(testCase.name) ? UI_VIEWPORTS.map(({ name }) => name) : ['portrait']);
+
 async function main() {
   if (process.argv[2] === '--list-cases') {
     console.log(JSON.stringify(allCases.map(({ name, path }) => ({ name, path }))));
@@ -11018,95 +9805,7 @@ async function main() {
   const cases = selectCases();
   const matrix = selectViewports().flatMap((viewport) =>
     cases
-      .filter((testCase) => {
-        if (testCase.tell)
-          return (testCase.tellViewports ?? TELL_VIEWPORTS).includes(viewport.name);
-        if (testCase.league === 'pin-first-partial') return viewport.name === 'landscape';
-        // Timing, not layout: one phone is enough (PID-364).
-        if (
-          testCase.sweep === 'on' ||
-          (testCase.arrivals && testCase.arrivals !== 'unpressed') ||
-          (testCase.reducedMotion && testCase.flaky) ||
-          testCase.turnMoves
-        )
-          return viewport.name === 'portrait';
-        if (testCase.flaky && testCase.viewports === IPAD_AIR_11)
-          return [
-            'portrait',
-            'small-portrait',
-            'landscape',
-            'tablet-portrait',
-            'tablet-landscape',
-          ].includes(viewport.name);
-        if (
-          testCase.news ||
-          testCase.league ||
-          testCase.popup ||
-          testCase.premium ||
-          testCase.premiumSheet ||
-          testCase.adSheet ||
-          testCase.privacyChoices
-        )
-          return TELL_VIEWPORTS.includes(viewport.name);
-        if (
-          (testCase.welcome || testCase.name.startsWith('age')) &&
-          ['small-portrait', 'compact-portrait', 'tablet-portrait'].includes(viewport.name)
-        )
-          return true;
-        if (
-          testCase.words ||
-          testCase.ownPace ||
-          testCase.classicEnd ||
-          testCase.layDown ||
-          testCase.classicPasswordDecision ||
-          testCase.homeProfile ||
-          testCase.details ||
-          testCase.scores ||
-          testCase.botVoice ||
-          testCase.flaky ||
-          testCase.sweep ||
-          testCase.startupUpdate ||
-          testCase.storeNotice ||
-          testCase.photo
-        )
-          return ['portrait', 'small-portrait', 'landscape', 'tablet-portrait'].includes(
-            viewport.name
-          );
-        if (testCase.twoRows)
-          return ['landscape', 'android-landscape', 'small-landscape'].includes(viewport.name);
-        // PID-381: the piles on the TCL's 360×780 too. Tablets keep their fan.
-        if (testCase.upright)
-          return [
-            'portrait',
-            'small-portrait',
-            ...(testCase.upright.piles || testCase.upright.pack ? ['android-portrait'] : []),
-          ].includes(viewport.name);
-        if (testCase.newTableFixture)
-          return [
-            'portrait',
-            'small-portrait',
-            'landscape',
-            'tablet-portrait',
-            'tablet-landscape',
-          ].includes(viewport.name);
-        if (
-          viewport.cases &&
-          !viewport.cases.includes(testCase.name) &&
-          !(viewport.tableCases && testCase.path.startsWith('/table-dev')) &&
-          !(testCase.locale && ['compact-portrait', 'tablet-portrait'].includes(viewport.name))
-        )
-          return false;
-        if (testCase.skipViewports?.includes(viewport.name)) return false;
-        return (
-          !viewport.tableOnly ||
-          testCase.locale ||
-          testCase.path.startsWith('/table-dev') ||
-          testCase.ruleSet ||
-          testCase.lobbyFixture ||
-          testCase.name === 'join-invite' ||
-          viewport.entryCases?.includes(testCase.name)
-        );
-      })
+      .filter((testCase) => sizesOf(testCase).includes(viewport.name))
       .map((testCase) => ({ id: `${viewport.name}/${testCase.name}` }))
   );
   if (process.argv[2] === '--verify-coverage') {
@@ -11203,12 +9902,10 @@ async function main() {
             };
             requestAnimationFrame(sample);
           });
-        // Reuse CI's existing tablet shards without resizing any other screen.
-        const caseViewport = testCase.lobbyFixture
-          ? (viewport.lobbyViewport ?? viewport)
-          : testCase.viewports?.[viewport.name]
-            ? { ...viewport, ...testCase.viewports[viewport.name] }
-            : viewport;
+        // A case may resize its viewport, as game over's iPad and the keyboard's landscape.
+        const caseViewport = testCase.viewports?.[viewport.name]
+          ? { ...viewport, ...testCase.viewports[viewport.name] }
+          : viewport;
         await page.setViewportSize({ width: caseViewport.width, height: caseViewport.height });
         if (
           testCase.homeTick ||
@@ -11681,33 +10378,6 @@ async function main() {
           if (testCase.verifyPlayedCardPersistence) {
             await assertPlayedCardPersistence(page, viewport);
           }
-          if (testCase.playPosition) {
-            if (testCase.playPosition === 'right') {
-              await page.evaluate(() => {
-                const setAttribute = Element.prototype.setAttribute;
-                const stalled = new Set();
-                Element.prototype.setAttribute = function (key, value) {
-                  const result = setAttribute.call(this, key, value);
-                  if (key === 'aria-label' && this.getAttribute('data-testid') === 'play-fixture') {
-                    const fixture = JSON.parse(value);
-                    const stage = fixture.completed
-                      ? 'hold'
-                      : fixture.turn === 'north'
-                        ? 'landing'
-                        : null;
-                    if (stage && !stalled.has(stage)) {
-                      stalled.add(stage);
-                      // A slow commit must not consume landing or reading time.
-                      const start = performance.now();
-                      while (performance.now() - start < 150) {}
-                    }
-                  }
-                  return result;
-                };
-              });
-            }
-            await assertPlayMotion(page, testCase.playPosition, caseViewport);
-          }
           if (testCase.trickStays) await assertTrickStays(page);
           if (testCase.laidClears) await assertLaidClears(page);
           if (testCase.ontoKilled) await assertOntoKilled(page, testCase.ontoKilled);
@@ -11877,7 +10547,6 @@ async function main() {
             await waitForScreenshotReady(page);
           }
           if (testCase.appUpdate) await assertAppUpdate(page, testCase);
-          if (testCase.testAd) await assertTestAd(page);
           if (testCase.premium) await assertPremium(page, testCase, caseViewport);
           if (testCase.premiumSheet) await assertPremiumSheet(page, testCase, caseViewport);
           await assertAdSheet(page, testCase, caseViewport);

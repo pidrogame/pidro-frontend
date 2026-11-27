@@ -28,7 +28,7 @@ describe('bounded feature checks', () => {
     expect(run.shards).toEqual([{ shard: 'matrix-1', partition: '1/1' }]);
     expect(run.game || run.accounts).toBe(false);
     expect(run.unitTests).toContain('packages/mobile/test/game/layout.test.mjs');
-    expect(run.unitTests).not.toContain('packages/mobile/test/auth/loginSocial.test.mjs');
+    expect(run.unitTests).not.toContain('packages/mobile/test/auth/signInOutcome.test.mjs');
     expect(run.adopt).toContain('table-playing');
     expect(run.adopt).not.toContain('login');
   });
@@ -89,7 +89,7 @@ describe('bounded feature checks', () => {
   test('transitive source imports select tests outside an area, without selecting all tests', () => {
     const run = select('packages/mobile/src/features/league.ts');
     expect(run.unitTests).toContain('packages/mobile/test/league.test.ts');
-    expect(run.unitTests).not.toContain('packages/mobile/test/auth/loginSocial.test.mjs');
+    expect(run.unitTests).not.toContain('packages/mobile/test/auth/signInOutcome.test.mjs');
   });
 });
 
@@ -102,9 +102,7 @@ test('the explicit release retains all cases, sizes and behavioral suites with n
   expect(run.screens).toBe(ids.length);
   expect(run.game && run.accounts).toBe(true);
   expect(run.shards.filter(({ partition }) => !partition).map(({ shard }) => shard)).toEqual([
-    'table-behavior',
-    'lobby-and-creation',
-    'seats-and-game-over',
+    'behavior',
   ]);
   expect(run.adopt).toEqual([]);
 });

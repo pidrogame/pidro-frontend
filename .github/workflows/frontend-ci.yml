@@ -172,9 +172,9 @@ jobs:
             exit 1
           fi
 
-  # Balance the selected viewport/case matrix across up to fifteen jobs by recorded duration
-  # (scripts/ui-case-costs.json), about forty screens each, plus the UI suites the change
-  # touches. The aggregate verifies exact coverage before comparing the merged captures.
+  # Balance the selected viewport/case matrix across jobs by recorded duration
+  # (scripts/ui-case-costs.json), about 120 screens each, plus the behavior suites on a
+  # release run. The aggregate verifies exact coverage before comparing the merged captures.
   ui-grammar-shard:
     name: UI grammar (${{ matrix.shard }})
     needs: select
@@ -273,29 +273,22 @@ jobs:
             exit 0
           fi
 
-          # The remaining suites are independent of the screenshot matrix and of each other.
-          if [ "$UI_SHARD" = "seats-and-game-over" ]; then
-            # Additional sizes/scales are assertion-gated; their captures are diagnostic artifacts.
-            # The waiting-room pixel baselines come from the test:ui shards (three standard viewports).
-            UI_SHOT_DIR=/tmp/ui-grammar-screens/waiting-seats node scripts/verify-waiting-seats.mjs
-            # Bound Metro/SSR retention: the waiting-seat matrix approaches the heap limit.
-            cleanup
-            start_expo
-            UI_SHOT_DIR=/tmp/ui-grammar-screens/game-over node scripts/verify-game-over.mjs
-            exit 0
-          fi
-
-          if [ "$UI_SHARD" = "table-behavior" ]; then
-            # Focused readiness/order regressions use real Chromium, not a full game.
-            node --test scripts/readiness-e2e.test.mjs
-            UI_SHOT_DIR=/tmp/ui-grammar-screens/table-chrome node scripts/verify-table-chrome.mjs
-            node scripts/verify-seat-decisions.mjs
-            node scripts/verify-dealing.mjs
-            exit 0
-          fi
-
+          # The behavior suites, independent of the screenshot matrix, one after another.
+          # Their captures are diagnostic artifacts; their assertions gate.
+          # Focused readiness/order regressions use real Chromium, not a full game.
+          node --test scripts/readiness-e2e.test.mjs
+          UI_SHOT_DIR=/tmp/ui-grammar-screens/table-chrome node scripts/verify-table-chrome.mjs
+          node scripts/verify-seat-decisions.mjs
+          node scripts/verify-dealing.mjs
           UI_SHOT_DIR=/tmp/lobby-screens node scripts/verify-lobby.mjs
           UI_SHOT_DIR=/tmp/ui-grammar-screens/creation node scripts/verify-create-room.mjs
+          # Bound Metro/SSR retention: the waiting-seat matrix approaches the heap limit.
+          cleanup
+          start_expo
+          UI_SHOT_DIR=/tmp/ui-grammar-screens/waiting-seats node scripts/verify-waiting-seats.mjs
+          cleanup
+          start_expo
+          UI_SHOT_DIR=/tmp/ui-grammar-screens/game-over node scripts/verify-game-over.mjs
 
       - name: Upload shard screenshots
         if: always()
@@ -316,7 +309,7 @@ jobs:
           retention-days: 14
 
       - name: Upload lobby diagnostics
-        if: always() && matrix.shard == 'lobby-and-creation'
+        if: always() && matrix.shard == 'behavior'
         uses: actions/upload-artifact@v4
         with:
           name: lobby-screenshots
@@ -458,7 +451,7 @@ jobs:
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
-      - name: Require every account shard and expiry check to pass
+      - name: Require every account shard to pass
         env:
           RESULT: ${{ needs.account-e2e-shards.result }}
           SELECTED: ${{ needs.select.outputs.accounts }}

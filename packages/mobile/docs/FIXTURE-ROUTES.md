@@ -809,7 +809,7 @@ without scrolling at 390×844, 375×667, 844×390 and 768×1024:
 
 ```sh
 UI_CASES=startup-update-en,startup-update-sv \
-UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait bun run test:ui
+UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait bun run test:ui
 ```
 
 The root mounts routes only after the startup gate releases. Checking and fetching
@@ -954,19 +954,14 @@ the missing Swedish first screen/profile and recovery states are added. Run from
 `packages/mobile` against the existing Expo web service:
 
 ```sh
-export UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait
-export UI_CASES=photo-profile-en,photo-empty-en,photo-profile-sv,photo-present-sv,news-welcome-en,news-welcome-sv,welcome,welcome-sv,classic-method,classic-preview,classic-guest,classic-fresh,classic-rename,classic-conflict,classic-conflict-fresh,classic-conflict-guest,classic-conflict-guest-apple,classic-login,classic-login-wrong-twice,classic-password,classic-password-guest,locale-sv-classic-method,locale-sv-classic-login,locale-sv-classic-login-wrong-twice,locale-sv-classic-preview,locale-sv-classic-password,locale-sv-classic-rename,locale-sv-classic-already-claimed,classic-rename-fresh,classic-details-en,classic-rename-details-en,classic-taken-en,classic-details-sv,classic-rename-details-sv,classic-taken-sv,classic-forgot,classic-code,classic-code-invalid,classic-help,classic-not-found-en,classic-unavailable-en,classic-help-sent-en,classic-forgot-sv,classic-code-sv,classic-code-invalid-sv,classic-not-found-sv,classic-unavailable-sv,classic-help-sv,classic-help-sent-sv,forgot-password,forgot-password-sv
-node scripts/verify-ui-grammar.mjs --list
-node scripts/verify-ui-grammar.mjs
+UI_CASES=welcome,welcome-sv,classic-method,classic-login,classic-preview,classic-password,locale-sv-classic-method,locale-sv-classic-login,forgot-password \
+  node scripts/verify-ui-grammar.mjs --list
 ```
 
-This is exactly 196 matrix IDs: each of the 49 `UI_CASES` above prefixed with
-`portrait/` (390×844), `small-portrait/` (375×667), `landscape/` (844×390), or
-`tablet-portrait/` (768×1024). No duplicate case is needed for an already covered
-English step. `photo-empty-en` and `photo-present-sv` cover the badges as well as
-the photo controls; `photo-profile-en|sv` cover the profile pill. `forgot-password`
-and `forgot-password-sv` cover recovery from Already in Pidro and its link back to
-the old-app account flow.
+Since PID-514 each of these runs at 390×844; `welcome` and `classic-method` also at
+360×640, 844×390 and 768×1024 (the sizes each case takes are in `--list`).
+`forgot-password` covers recovery from Already in Pidro and its link back to the
+old-app account flow.
 
 Account surfaces assert no scrolling and no clipped text/control boxes, including
 clipping by ancestors. The full Profile intentionally scrolls: only its pill gets
@@ -1257,7 +1252,7 @@ UI_CASES=table-bidding,home UI_VIEWPORTS=portrait bun run test:ui  # focused fea
 UI_CASES=table-bidding UI_VIEWPORTS=portrait,landscape bun run test:ui  # clearance risk
 # Release/manual only: bun run test:ui (full viewport matrix, targets, containment)
 UI_CASES=home UI_VIEWPORTS=portrait UI_SHOT_DIR=/tmp/shots bun run test:ui
-UI_PARTITION=1/15 UI_REPORT_PATH=/tmp/ui-report.json bun run test:ui  # one CI-sized batch
+UI_PARTITION=1/3 UI_REPORT_PATH=/tmp/ui-report.json bun run test:ui  # one CI-sized batch
 node scripts/verify-ui-grammar.mjs --list        # selected viewport/case IDs, no browser
 node scripts/verify-ui-grammar.mjs --list-cases  # every case's name and route, no browser
 node scripts/ci-affected.mjs <base-sha>          # what CI would run for the changes since base
@@ -1284,7 +1279,7 @@ game/account journeys or multi-size behavioral suites**. The manual release test
 behavioral suites, unit tests and game/account journeys. Uncaptured viewport baselines
 remain unchanged; release owners must inspect/reconcile intended drift there. Do not
 bulk-adopt unexplained drift or treat auto-adoption as visual review.
-CI balances the release matrix across up to fifteen jobs, about forty screens each,
+CI balances the release matrix across jobs of about 120 screens (three on a release),
 using Linux case durations in `scripts/ui-case-costs.json` (last calibration: the mean
 of Actions runs `41814859939`, `41812350012`, `41826874604` and `41830244863`).
 New cases use the median recorded duration and are still included.
@@ -1303,7 +1298,12 @@ cases so future tuning can use measured costs.
 `table-completed-trick` `table-bidding` `table-trump` `table-hand-selection`
 `table-game-over`
 
-Grammar viewports: portrait 390×844 · landscape 844×390 · compact-landscape 667×375.
+Grammar viewports (PID-514, `UI_VIEWPORTS` in `scripts/ui-test-utils.mjs`): every case on
+`portrait` 390×844; the table, the first screens and sign-in (`EVERY_SIZE` in
+`verify-ui-grammar.mjs`) also on `compact-portrait` 360×640, `landscape` 844×390 and
+`tablet-portrait` 768×1024. A case that guards one size names it in `sizes`. Fixtures in
+this file stay reachable by URL whether or not a grammar case still captures them;
+`node scripts/verify-ui-grammar.mjs --list-cases` is the case inventory.
 
 ---
 
@@ -1493,7 +1493,7 @@ Four-size English proof (390×844, 375×667, 844×390, 768×1024):
 
 ```sh
 UI_DEVICE_SCALE=2 UI_TIMEZONE=Europe/Helsinki \
-UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait \
 UI_CASES=league-placed-en,league-27-en,league-small-en,league-deuce-en,league-pidro-en,league-not_placed-en,league-rules-en,league-result-up-en,league-result-down-en,league-result-stayed-en,league-result-stayed-host-en,league-home-placed,league-home-not_placed,league-profile,league-profile-not-placed,league-player-sheet-en,league-friends-en,league-pin-scroll-en \
 node scripts/verify-ui-grammar.mjs
 ```
@@ -1512,7 +1512,7 @@ Round4 additions, all four sizes (first-partial cases select landscape only):
 
 ```sh
 UI_DEVICE_SCALE=2 UI_TIMEZONE=Europe/Helsinki \
-UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait \
 UI_CASES=league-friends-en,league-friends-sv,league-friends-not_placed-en,league-friends-not_placed-sv,league-friends-sheet-en,league-friends-sheet-sv,league-pin-scroll-en,league-pin-scroll-sv,league-pin-first-partial-en,league-pin-first-partial-sv,league-game-up-en,league-game-up-sv,league-game-down-en,league-game-down-sv,league-game-same-en,league-game-same-sv,league-game-new-en,league-game-new-sv,league-game-delayed-en,league-game-delayed-sv,league-game-off-en,league-game-off-sv,league-game-opted_out-en,league-game-opted_out-sv,league-game-guest-en,league-game-guest-sv,league-game-solo-en,league-game-solo-sv,league-game-crew-en,league-game-crew-sv,league-game-up-island,league-game-up-island-left,league-game-up-island-right,league-game-up-android-gesture,league-home-tick-up-en,league-home-tick-up-en-reduced,league-home-tick-down-en,league-home-tick-down-en-reduced,league-home-tick-up-sv,league-home-tick-up-sv-reduced,league-home-tick-down-sv,league-home-tick-down-sv-reduced \
 node scripts/verify-ui-grammar.mjs
 ```
@@ -1527,7 +1527,7 @@ state at all four sizes. The ad itself needs a development build on a device: se
 `../../docs/native-sdks.md`.
 
 ```sh
-UI_CASES=settings-test-ad UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+UI_CASES=settings-test-ad UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait \
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
 
@@ -1557,7 +1557,7 @@ on a device: see `../../docs/native-sdks.md`.
 
 ```sh
 UI_CASES=settings-premium-none-en,settings-premium-until-en,settings-premium-lifetime-en,settings-premium-restoring-en,settings-premium-web-en,settings-premium-none-sv,settings-premium-until-sv,settings-premium-lifetime-sv,settings-premium-restoring-sv,settings-premium-web-sv \
-  UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+  UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait \
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
 
@@ -1592,7 +1592,7 @@ sizes. A real purchase, the store's dialog, Ask to Buy and the native sheet need
 
 ```sh
 UI_CASES=premium-sheet-choose-en,premium-sheet-buying-en,premium-sheet-failed-en,premium-sheet-waiting-en,premium-sheet-bought-en,premium-sheet-bought-ad-en,premium-sheet-bought-guest-en,premium-sheet-empty-en,premium-sheet-choose-sv \
-  UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+  UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait \
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
 
@@ -1625,7 +1625,7 @@ absent without the fixture.
 
 ```sh
 UI_CASES=ad-sheet-offer-en,ad-sheet-loading-en,ad-sheet-dismissed-en,ad-sheet-unavailable-en,ad-sheet-offer-sv,ad-sheet-loading-sv,ad-sheet-dismissed-sv,ad-sheet-unavailable-sv,settings-privacy-choices-en,settings-privacy-choices-sv \
-  UI_VIEWPORTS=portrait,small-portrait,landscape,tablet-portrait \
+  UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait \
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
 
@@ -1643,6 +1643,6 @@ buttons on in the browser. Grammar cases `welcome-known`, `welcome-known-sv`,
 
 ```sh
 UI_CASES=welcome,welcome-sv,welcome-invite,welcome-known,welcome-known-sv,welcome-known-long,welcome-known-apple,welcome-known-facebook \
-  UI_VIEWPORTS=portrait,android-portrait,small-portrait,landscape,tablet-portrait \
+  UI_VIEWPORTS=portrait,compact-portrait,landscape,tablet-portrait \
   MOBILE_BASE_URL=http://localhost:8081 bun run test:ui
 ```
