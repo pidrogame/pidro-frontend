@@ -81,7 +81,9 @@ the link, answers the age gate, reads Marcel's welcome and sits down as a namele
 The host's protocol client and the server's turn timers play the game to its end while the
 guest watches, recorded as `game.webm` with milestone screenshots. Whenever the server sends
 the idle guest away, the guest presses I'm back. At game over the guest presses Play again,
-the host agrees, and the rematch starts in the same room.
+the host agrees, and the rematch starts in the same room. Before that game ends, the guest
+loses its socket and misses the end and the host's leave; on rejoin it must see the waiting
+table with the seat open, fill it with a bot, ready up and start a third game in the same room.
 
 CI runs this in the `Game e2e` job (`.github/workflows/game-e2e.yml`, called by
 the full Frontend CI run): it
@@ -118,7 +120,7 @@ node scripts/ci-game-e2e.mjs
 ```
 
 Artifacts land in `screenshots/agent-game-e2e/` (override with
-`E2E_ARTIFACT_DIR`). Expect about two minutes at CI pacing.
+`E2E_ARTIFACT_DIR`). Expect about three minutes at CI pacing.
 
 ## Account journeys (the "Account e2e" CI job)
 

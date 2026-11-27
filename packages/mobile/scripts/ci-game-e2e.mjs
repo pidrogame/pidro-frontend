@@ -1,5 +1,6 @@
 /**
- * End-to-end gameplay gate for CI: real backend, real client code, a full game.
+ * End-to-end gameplay gate for CI: real backend, real client code, an invited
+ * friend's game from the link to a third game.
  *
  * A registered host opens a table with two bots and mints an invite. A clean
  * Chromium profile in Swedish opens the invite link the way a friend would:
@@ -8,7 +9,11 @@
  * the guest watches, recorded on video; whenever the server sends the idle
  * guest away, the guest comes back with I'm back. At game over the guest
  * presses Play again, the window shows the vote, the host agrees, and the
- * second game starts in the same room without anybody navigating.
+ * second game starts in the same room without anybody navigating. Before that
+ * game ends, the guest loses its socket and misses completion and the host's
+ * leave (PID-108). On rejoin it must return to the waiting table with the
+ * seat open. The guest (now the host) fills it with a bot, readies up, and a
+ * third game starts in the same room.
  *
  * Requires a running backend (API_BASE_URL/WS_BASE_URL) and Expo web
  * (MOBILE_BASE_URL). Artifacts land in E2E_ARTIFACT_DIR.
@@ -173,7 +178,54 @@ async function rematchThroughUi(page, roomCode, seen) {
   await shot('rematch-started');
 }
 
-async function invitedGuestPlaysToGameOver() {
+// The host played the rematch to its end and left. The room must come back as
+// a waiting table on the same URL, with the guest in charge of it: they seat a
+// bot in the open seat, ready up, and a third game starts.
+async function fillTheOpenSeatThroughUi(page, roomCode, seen) {
+  const shot = async (name) => {
+    await page.screenshot({ path: resolve(artifactDir, `${name}.png`) });
+    seen.add(name);
+    log(`milestone: ${name}`);
+  };
+  const sameRoom = () => new RegExp(`/game/${roomCode}$`).test(new URL(page.url()).pathname);
+
+  await page.getByTestId('waiting-table').waitFor({ timeout: 60_000 });
+  if (!sameRoom()) throw new Error(`the open seat navigated away from the room: ${page.url()}`);
+  // The original host occupied north; its departure leaves that row vacant.
+  const openSeat = page.getByTestId('new-table-seat-north');
+  await openSeat.waitFor({ timeout: 15_000 });
+  await shot('seat-open');
+
+  await openSeat.click();
+  await page.getByTestId('seat-picker-container').getByRole('radio', { name: /^Bot,/ }).click();
+  const ready = page.getByRole('button', { name: 'Jag är redo' });
+  await ready.waitFor({ timeout: 15_000 });
+  await shot('seat-filled');
+  await ready.click();
+
+  await page.getByTestId('waiting-table').waitFor({ state: 'hidden', timeout: 30_000 });
+  await page.getByTestId('game-table').first().waitFor({ timeout: 15_000 });
+  if (!sameRoom()) throw new Error(`the third game navigated away from the room: ${page.url()}`);
+  // Still a seated player in the new game: the scoreboard reads Us/Them for a
+  // player and N/S – E/W for anybody else. Headless Chromium drops the socket
+  // now and then, so allow a rejoin before judging.
+  await page.getByText('DE', { exact: true }).first().waitFor({ timeout: 30_000 });
+  await page
+    .getByRole('button', { name: 'VI 0, DE 0. Alla givar.', exact: true })
+    .waitFor({ timeout: 15_000 });
+  await page.waitForTimeout(3_000);
+  if (
+    await page
+      .getByTestId('game-over-window')
+      .isVisible()
+      .catch(() => false)
+  ) {
+    throw new Error("the third game started under the finished game's game-over window");
+  }
+  await shot('third-game-started');
+}
+
+async function invitedGuestPlaysThreeGames() {
   log(`an invited guest joins a room hosted by ${hostUser}`);
   const hostToken = await registerOrLogin(hostUser);
   await api('/api/v1/rooms/current/leave', 'DELETE', hostToken).catch(() => {});
@@ -213,6 +265,76 @@ async function invitedGuestPlaysToGameOver() {
   let keepSeat;
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error?.message ?? error)));
+
+  // PID-108: miss completion AND the host's leave, then hydrate a waiting
+  // room over a cached nonterminal game. Intercept transport, not app state.
+  let interruptCompletion = false;
+  let interrupted = false;
+  let hostHasLeft = false;
+  let lastPhase;
+  let interruptedPhase;
+  // The guest's seat never acts, so every third turn timeout the server kicks
+  // it (force_disconnect) and the app shows the away screen until the guest
+  // presses I'm back. A kick on the last tricks can miss completion and the
+  // leave without a terminal frame.
+  let kicked = false;
+  let rejoinedWaiting = false;
+  let freshGameReceived = false;
+  const terminalPhases = ['complete', 'game_over', 'finished'];
+  await page.routeWebSocket(/\/socket\/websocket/, (socket) => {
+    if (interrupted && !hostHasLeft) {
+      void socket.close({ code: 1012, reason: 'Hold reconnect until host leaves' });
+      return;
+    }
+    const server = socket.connectToServer();
+    let dropped = false;
+    server.onMessage((message) => {
+      if (dropped) return;
+      const [, , topic, event, payload] = JSON.parse(String(message));
+      if (topic === `game:${roomCode}`) {
+        const data = event === 'phx_reply' && payload.status === 'ok' ? payload.response : payload;
+        const state = data.state ?? data.game_state;
+        if (event === 'force_disconnect') kicked = true;
+        const kickMissedCompletion =
+          kicked && event === 'phx_reply' && data.readiness?.status === 'waiting' && !state;
+        if (state) kicked = false;
+        if (
+          interruptCompletion &&
+          !interrupted &&
+          (kickMissedCompletion ||
+            event === 'game_over' ||
+            terminalPhases.includes(state?.phase) ||
+            data.readiness?.status === 'finished' ||
+            (event === 'readiness_updated' && payload.status === 'finished'))
+        ) {
+          interrupted = true;
+          interruptedPhase = lastPhase;
+          dropped = true;
+          log(`PID-108: dropping guest socket before ${event}; cached phase=${lastPhase}`);
+          void server.close();
+          void socket.close({ code: 1012, reason: 'Miss completion and host leave' });
+          return;
+        }
+        if (interrupted && !hostHasLeft) return;
+        if (state) lastPhase = state.phase;
+        if (interrupted && event === 'phx_reply' && payload.status === 'ok') {
+          if (data.readiness?.status === 'waiting' && !state) {
+            rejoinedWaiting = true;
+            log('PID-108: rejoined waiting room without game state');
+          }
+        }
+        if (
+          rejoinedWaiting &&
+          state?.scores?.north_south === 0 &&
+          state?.scores?.east_west === 0 &&
+          !terminalPhases.includes(state.phase)
+        ) {
+          freshGameReceived = true;
+        }
+      }
+      socket.send(message);
+    });
+  });
 
   try {
     await page.goto(mobileBaseUrl, { waitUntil: 'domcontentloaded' });
@@ -269,12 +391,12 @@ async function invitedGuestPlaysToGameOver() {
     // Guest confirms first; the registered host confirms on its joined autoplay channel.
     // After game over the host agrees to a rematch only once the guest has
     // asked in the UI, a few seconds later so the recording shows the vote. It
-    // stays while the guest sees the new deal.
+    // then plays the rematch to its end and leaves the room.
     const autoplayDone = runAutoplayer(
       [
         ...['--room', roomCode, '--user', hostUser, '--password', password],
         ...['--max-minutes', '16', '--rematch', 'after-others'],
-        ...['--rematch-delay-ms', '4000', '--rematch-linger-ms', '10000'],
+        ...['--rematch-delay-ms', '4000', '--leave-after-rematch'],
       ],
       'multi'
     );
@@ -295,10 +417,29 @@ async function invitedGuestPlaysToGameOver() {
       throw new Error('the UI never showed game-over-window');
     }
     await rematchThroughUi(page, roomCode, seen);
+    interruptCompletion = true;
     await autoplayDone;
+    // The host process can exit before Playwright handles the guest's queued frames.
+    for (let attempt = 0; attempt < 150 && !interrupted; attempt += 1) {
+      await page.waitForTimeout(100);
+    }
+    if (!interrupted || !interruptedPhase || terminalPhases.includes(interruptedPhase)) {
+      throw new Error(`PID-108: did not interrupt a nonterminal game (phase=${interruptedPhase})`);
+    }
+    const reopened = await api(`/api/v1/rooms/${roomCode}`, 'GET', hostToken);
+    if (!reopened.ok || reopened.payload?.data?.room?.status !== 'waiting') {
+      throw new Error('PID-108: host leave did not reopen the room');
+    }
+    hostHasLeft = true;
+    await page.getByTestId('waiting-table').waitFor({ timeout: 60_000 });
+    if (!rejoinedWaiting || (await page.getByTestId('game-table').first().isVisible())) {
+      throw new Error('PID-108: waiting rejoin did not replace the stale game canvas');
+    }
+    await fillTheOpenSeatThroughUi(page, roomCode, seen);
+    if (!freshGameReceived) throw new Error('PID-108: no fresh game state after readying');
     if (awayReturns === 0) throw new Error('the idle guest was never sent to the away screen');
     log(
-      `passed: game over and a rematch in the same room; the guest came back ${awayReturns} time(s) (milestones: ${[...seen].join(', ')})`
+      `passed: game over, a rematch, then a bot in the seat the host left; the guest came back ${awayReturns} time(s) (milestones: ${[...seen].join(', ')})`
     );
     if (pageErrors.length) {
       log(`note: ${pageErrors.length} page error(s) during the game (non-fatal):`);
@@ -331,7 +472,7 @@ function writeStepSummary(result, elapsedSeconds) {
   const lines = [
     '## Game e2e',
     '',
-    `An invited guest joins by link and plays to game over (real UI, room \`${result.roomCode}\`), then a rematch starts in the same room, in ${elapsedSeconds}s.`,
+    `An invited guest joins by link and plays to game over (real UI, room \`${result.roomCode}\`): a rematch in the same room, then a dropped socket, the host left and a bot filled the seat for a third game, in ${elapsedSeconds}s.`,
     '',
     `- UI milestones captured: ${result.milestones.join(', ')}`,
     `- Page errors during the UI game: ${result.pageErrors}`,
@@ -350,7 +491,7 @@ async function main() {
     process.exit(1);
   }, globalTimeoutMs);
 
-  const result = await invitedGuestPlaysToGameOver();
+  const result = await invitedGuestPlaysThreeGames();
 
   clearTimeout(watchdog);
   const elapsedSeconds = Math.round((Date.now() - startedAt) / 1000);
